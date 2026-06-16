@@ -575,16 +575,25 @@ input,textarea{font-family:inherit}
  display:flex;align-items:center;justify-content:center;align-self:flex-end;transition:.15s}
 .composer .attach:hover{color:var(--ink);border-color:var(--accent);background:var(--card2)}
 .composer .attach:disabled{opacity:.4;cursor:not-allowed}
+.composer .attach.hd-toggle{width:auto;min-width:42px;padding:0 11px;font-size:11.5px;font-weight:800;letter-spacing:.6px}
+.composer .attach.hd-toggle.on{color:#0b1220;background:var(--accent);border-color:var(--accent);box-shadow:0 0 0 2px rgba(99,102,241,.25)}
 
 .pend{display:none;padding:9px 13px 0;background:var(--panel);border-top:1px solid var(--line)}
-.pend.on{display:flex;gap:11px;align-items:center}
-.pend img{width:54px;height:54px;border-radius:10px;object-fit:cover;border:1px solid var(--line);flex:0 0 auto}
-.pend audio{flex:0 1 240px;height:34px;max-width:240px}
-.pend .pinfo{flex:1;font-size:11.5px;color:var(--mut);min-width:0;
+.pend.on{display:flex;gap:9px;align-items:flex-start;flex-wrap:wrap}
+.pend-item{position:relative;display:flex;align-items:center;gap:8px;background:var(--card);
+ border:1px solid var(--line);border-radius:11px;padding:6px 9px 6px 6px;max-width:250px}
+.pend-item img{width:48px;height:48px;border-radius:8px;object-fit:cover;border:1px solid var(--line);flex:0 0 auto}
+.pend-item audio{flex:0 1 200px;height:32px;max-width:200px}
+.pend-item .pf{width:40px;height:48px;border-radius:8px;display:flex;align-items:center;justify-content:center;
+ background:#101725;border:1px solid var(--line);font-size:20px;flex:0 0 auto}
+.pend-item .pinfo{font-size:11px;color:var(--mut);max-width:130px;
  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.pend .px{background:var(--card);border:1px solid var(--line);color:var(--mut);
- width:32px;height:32px;border-radius:9px;font-size:15px;cursor:pointer;flex:0 0 auto}
-.pend .px:hover{color:#ff6b6b;border-color:#ff6b6b}
+.pend-item .px{position:absolute;top:-7px;right:-7px;background:var(--card);border:1px solid var(--line);
+ color:var(--mut);width:22px;height:22px;border-radius:50%;font-size:13px;line-height:1;cursor:pointer;
+ display:flex;align-items:center;justify-content:center;padding:0}
+.pend-item .px:hover{color:#fff;background:#ff6b6b;border-color:#ff6b6b}
+.pend-hd{position:absolute;top:-7px;left:-6px;background:var(--accent);color:#0b1220;font-size:9px;
+ font-weight:800;letter-spacing:.5px;padding:1px 5px;border-radius:6px}
 
 .rec{display:none;padding:11px 13px;background:var(--panel);border-top:1px solid var(--line);
  align-items:center;gap:11px}
@@ -1330,8 +1339,12 @@ input,textarea{font-family:inherit}
      <button class="attach" id="atTpl" title="Plantillas" aria-label="Plantillas">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5a2 2 0 012-2h2a2 2 0 012 2"/><rect x="5" y="5" width="14" height="16" rx="2"/><path d="M9 11h6M9 15h6"/></svg>
      </button>
-     <button class="attach" id="atImg" title="Adjuntar imagen" aria-label="Adjuntar imagen">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11l-9 9a5 5 0 01-7-7l9-9a3.5 3.5 0 015 5l-9 9a2 2 0 01-3-3l8-8"/></svg>
+     <button class="attach" id="atImg" title="Enviar imágenes (puedes elegir varias)" aria-label="Enviar imágenes">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.6"/><path d="M21 15l-5-5L5 21"/></svg>
+     </button>
+     <button class="attach hd-toggle" id="atHd" title="HD: envía las imágenes en máxima calidad, sin compresión (como documento)" aria-label="Calidad HD" aria-pressed="false">HD</button>
+     <button class="attach" id="atDoc" title="Enviar documento (PDF, Word, etc. · puedes elegir varios)" aria-label="Enviar documento">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h6"/></svg>
      </button>
      <button class="attach" id="atMic" title="Grabar audio" aria-label="Grabar audio">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v2a7 7 0 0014 0v-2M12 19v3M8 22h8"/></svg>
@@ -1341,7 +1354,8 @@ input,textarea{font-family:inherit}
       <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>
      </button>
     </div>
-    <input type="file" id="atImgFile" accept="image/jpeg,image/png,image/webp,image/gif" style="display:none">
+    <input type="file" id="atImgFile" accept="image/*" multiple style="display:none">
+    <input type="file" id="atDocFile" multiple style="display:none">
     <div class="hint" id="hint"></div>
     <div class="msgmenu" id="msgMenu">
      <button data-act="reply">↩️ Responder</button>
@@ -2845,12 +2859,13 @@ ta.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.
 async function send() {
   if (!sel) return;
   const text = ta.value.trim();
-  if (!text && !pending) return;
+  if (!text && !pending.length) return;
   $('sendBtn').disabled = true;
   serrShow('');
+
   // 2do número (puente local): encolar en wa_outbox; el puente lo envía (no Cloud API)
   if (isBridgeConv(sel)) {
-    if (pending) {
+    if (pending.length) {
       $('sendBtn').disabled = false;
       serrShow('El 2do número solo envía texto desde el panel por ahora. El archivo mándalo desde el teléfono de ese número.');
       return;
@@ -2866,32 +2881,59 @@ async function send() {
     }
     return;
   }
-  const body = { conversation_id: sel.id, text };
-  if (replyTo) {
-    body.reply_to_wamid = replyTo.wamid;
-    body.reply_snippet = replyTo.snippet;
-    body.reply_sender = replyTo.sender;
-  }
-  if (pending) {
-    try {
-      body.media_b64 = await blobToB64(pending.blob);
-      body.media_mime = pending.mime;
-      body.media_kind = pending.kind;
-    } catch (e) {
-      $('sendBtn').disabled = false;
-      serrShow('No se pudo preparar el archivo: ' + (e.message || e));
-      return;
+
+  // 1er número (Cloud API). Sin adjuntos: solo texto.
+  if (!pending.length) {
+    const body = { conversation_id: sel.id, text };
+    if (replyTo) { body.reply_to_wamid = replyTo.wamid; body.reply_snippet = replyTo.snippet; body.reply_sender = replyTo.sender; }
+    const r = await callFn(body);
+    $('sendBtn').disabled = false;
+    if (r && r.ok) {
+      ta.value = ''; ta.style.height = 'auto'; clearReply();
+      sel.mode = 'human'; updateModeBtn(); await loadMsgs();
+    } else {
+      serrShow('No se pudo enviar: ' + (r && r.error ? r.error : 'error') + ' · toca enviar de nuevo para reintentar.');
     }
+    return;
   }
-  const r = await callFn(body);
+
+  // Con adjuntos: cada uno se envía como su propio mensaje (como WhatsApp).
+  // El texto va como pie del primer adjunto que admita pie (imagen/documento).
+  const items = pending.slice();
+  const captionIdx = text ? items.findIndex(it => it.kind !== 'audio') : -1;
+  let sent = 0, err = null, textSent = false;
+  for (let i = 0; i < items.length; i++) {
+    const it = items[i];
+    const body = { conversation_id: sel.id, text: i === captionIdx ? text : '' };
+    if (i === 0 && replyTo) { body.reply_to_wamid = replyTo.wamid; body.reply_snippet = replyTo.snippet; body.reply_sender = replyTo.sender; }
+    try {
+      body.media_b64 = await blobToB64(it.blob);
+      body.media_mime = it.mime;
+      body.media_kind = it.kind;
+      if (it.name) body.media_filename = it.name;
+    } catch (e) { err = 'no se pudo preparar ' + (it.name || 'el archivo'); break; }
+    const r = await callFn(body);
+    if (r && r.ok) { sent++; if (i === captionIdx) textSent = true; }
+    else { err = (r && r.error) ? r.error : 'error'; break; }
+  }
+  // texto que no se pudo adjuntar a una imagen (p. ej. solo audios) → mensaje aparte
+  if (!err && text && captionIdx === -1) {
+    const r = await callFn({ conversation_id: sel.id, text });
+    if (r && r.ok) textSent = true; else err = (r && r.error) ? r.error : 'error';
+  }
+
+  // libera y quita de la cola los adjuntos que sí salieron
+  for (let k = 0; k < sent; k++) { const u = items[k] && items[k]._url; if (u) { try { URL.revokeObjectURL(u); } catch (e) {} } }
+  pending = items.slice(sent);
+  renderPending();
+
   $('sendBtn').disabled = false;
-  if (r && r.ok) {
-    ta.value = ''; ta.style.height = 'auto';
-    clearPending(); clearReply();
-    sel.mode = 'human'; updateModeBtn(); await loadMsgs();
-  } else {
-    serrShow('No se pudo enviar: ' + (r && r.error ? r.error : 'error') + ' · toca enviar de nuevo para reintentar.');
-  }
+  const anySent = sent > 0 || textSent;
+  if (anySent) { sel.mode = 'human'; updateModeBtn(); }
+  if (textSent || !err) { ta.value = ''; ta.style.height = 'auto'; }
+  if (!err) clearReply();
+  if (anySent) await loadMsgs();
+  if (err) serrShow('Se enviaron ' + sent + ' de ' + items.length + ' adjunto(s). Error: ' + err + ' · toca enviar para reintentar el resto.');
 }
 
 async function callFn(body) {
@@ -3183,7 +3225,9 @@ function msgBody(m) {
   }
   if (t === 'file') {
     let h = '<div class="mtag">📎 Archivo</div>';
-    if (u) h += `<a class="mfile" href="${esc(u)}" target="_blank" rel="noopener">Abrir archivo</a>`;
+    let fn = '';
+    try { const a = Array.isArray(m.attachments) ? m.attachments[0] : null; if (a && a.fileName) fn = a.fileName; } catch (e) {}
+    if (u) h += `<a class="mfile" href="${esc(u)}" target="_blank" rel="noopener" download>${fn ? esc(fn) : 'Abrir archivo'}</a>`;
     if (m.body) h += `<div class="mtr">${esc(m.body)}</div>`;
     return h;
   }
@@ -3237,8 +3281,9 @@ document.addEventListener('click', () => {
   } catch (e) {}
 });
 
-// ===== adjuntar imagen / grabar audio / lightbox =====
-let pending = null;       // { kind:'image'|'audio', blob, mime, name? }
+// ===== adjuntar imágenes (multi) / documentos (multi) / grabar audio / lightbox =====
+let pending = [];         // [{ kind:'image'|'audio'|'document', blob, mime, name, hd?, _url? }]
+let hdMode = false;       // imágenes en máxima calidad → se envían como documento (sin compresión)
 let mediaRec = null, recChunks = [], recTimer = null, recStart = 0;
 
 function serrShow(msg) {
@@ -3246,24 +3291,35 @@ function serrShow(msg) {
   if (!msg) { el.classList.remove('on'); el.textContent = ''; }
   else { el.textContent = msg; el.classList.add('on'); }
 }
-function setPending(p) {
-  pending = p;
-  const box = $('pend');
-  box.innerHTML = '';
-  const url = URL.createObjectURL(p.blob);
-  if (p.kind === 'image') {
-    box.innerHTML = `<img src="${url}" alt=""><div class="pinfo">${esc(p.name || 'imagen')} · ${fmtBytes(p.blob.size)}</div><button class="px" id="pendX" title="Quitar">×</button>`;
-  } else {
-    box.innerHTML = `<audio controls preload="metadata" src="${url}"></audio><div class="pinfo">audio · ${fmtBytes(p.blob.size)}</div><button class="px" id="pendX" title="Quitar">×</button>`;
-  }
-  box.classList.add('on');
-  $('pendX').onclick = clearPending;
+function addPending(p) { pending.push(p); renderPending(); }
+function removePendingAt(i) {
+  const it = pending[i];
+  if (it && it._url) { try { URL.revokeObjectURL(it._url); } catch (e) {} }
+  pending.splice(i, 1);
+  renderPending();
 }
 function clearPending() {
-  pending = null;
-  $('pend').innerHTML = '';
-  $('pend').classList.remove('on');
+  for (const it of pending) { if (it._url) { try { URL.revokeObjectURL(it._url); } catch (e) {} } }
+  pending = [];
+  renderPending();
   serrShow('');
+}
+function renderPending() {
+  const box = $('pend');
+  if (!pending.length) { box.innerHTML = ''; box.classList.remove('on'); return; }
+  box.classList.add('on');
+  box.innerHTML = pending.map((p, i) => {
+    if (!p._url) p._url = URL.createObjectURL(p.blob);
+    const isImg = p.kind === 'image' || (p.kind === 'document' && /^image\//.test(p.mime || ''));
+    let media;
+    if (isImg) media = `<img src="${p._url}" alt="">`;
+    else if (p.kind === 'audio') media = `<audio controls preload="metadata" src="${p._url}"></audio>`;
+    else media = `<div class="pf">📄</div>`;
+    const hd = p.hd ? `<span class="pend-hd">HD</span>` : '';
+    const nm = p.kind === 'audio' ? 'audio' : esc(p.name || (isImg ? 'imagen' : 'archivo'));
+    return `<div class="pend-item">${hd}${media}<div class="pinfo">${nm} · ${fmtBytes(p.blob.size)}</div><button class="px" data-i="${i}" title="Quitar">×</button></div>`;
+  }).join('');
+  box.querySelectorAll('.px').forEach(b => b.onclick = () => removePendingAt(+b.dataset.i));
 }
 function fmtBytes(n) {
   if (n < 1024) return n + ' B';
@@ -3293,20 +3349,51 @@ async function maybeResize(file) {
   } catch (e) { return file; }
 }
 
+// HD: imágenes en máxima calidad (sin compresión). Se envían como documento.
+$('atHd').onclick = () => {
+  hdMode = !hdMode;
+  const b = $('atHd');
+  b.classList.toggle('on', hdMode);
+  b.setAttribute('aria-pressed', hdMode ? 'true' : 'false');
+  toast(hdMode ? 'HD activado' : 'HD desactivado',
+        hdMode ? 'Las imágenes se enviarán en máxima calidad, sin compresión.'
+               : 'Las imágenes se enviarán en calidad normal.');
+};
+
+// Imágenes (varias). En HD van sin recomprimir, como documento.
 $('atImg').onclick = () => { if (!sel) return; $('atImgFile').click(); };
 $('atImgFile').addEventListener('change', async e => {
-  const f = e.target.files[0]; e.target.value = '';
-  if (!f) return;
-  if (/heic|heif/i.test(f.type) || /\.heic$|\.heif$/i.test(f.name)) {
-    serrShow('Este formato (HEIC) necesita conversión. Envíalo como JPG o PNG.');
-    return;
+  const files = Array.from(e.target.files || []); e.target.value = '';
+  if (!sel || !files.length) return;
+  let skipped = 0;
+  for (const f of files) {
+    if (/heic|heif/i.test(f.type) || /\.heic$|\.heif$/i.test(f.name)) { skipped++; continue; }
+    const maxMB = hdMode ? 30 : 12;
+    if (f.size > maxMB * 1024 * 1024) { skipped++; continue; }
+    if (hdMode) {
+      addPending({ kind: 'document', blob: f, mime: f.type || 'image/jpeg', name: f.name || 'imagen.jpg', hd: true });
+    } else {
+      const blob = await maybeResize(f);
+      addPending({ kind: 'image', blob, mime: blob.type || 'image/jpeg', name: f.name });
+    }
   }
-  if (f.size > 12 * 1024 * 1024) {
-    serrShow('Imagen muy grande (>12 MB). Reduce el tamaño antes.');
-    return;
+  if (skipped) serrShow(skipped + (skipped === 1 ? ' imagen se omitió' : ' imágenes se omitieron') +
+    ' (HEIC o muy grande, máx ' + (hdMode ? '30' : '12') + ' MB).');
+  else serrShow('');
+});
+
+// Documentos (varios): PDF, Word, etc.
+$('atDoc').onclick = () => { if (!sel) return; $('atDocFile').click(); };
+$('atDocFile').addEventListener('change', e => {
+  const files = Array.from(e.target.files || []); e.target.value = '';
+  if (!sel || !files.length) return;
+  let skipped = 0;
+  for (const f of files) {
+    if (f.size > 30 * 1024 * 1024) { skipped++; continue; }
+    addPending({ kind: 'document', blob: f, mime: f.type || 'application/octet-stream', name: f.name || 'archivo' });
   }
-  const blob = await maybeResize(f);
-  setPending({ kind: 'image', blob, mime: blob.type || 'image/jpeg', name: f.name });
+  if (skipped) serrShow(skipped + (skipped === 1 ? ' archivo se omitió' : ' archivos se omitieron') + ' (máx 30 MB).');
+  else serrShow('');
 });
 
 // Graba OGG/Opus REAL via opus-recorder (WASM). MediaRecorder en Chrome produce
@@ -3336,7 +3423,7 @@ $('atMic').onclick = async () => {
       if (recCancelled) return;
       const blob = new Blob([typedArray], { type: 'audio/ogg' });
       if (blob.size < 800) { serrShow('Grabación muy corta. Vuelve a intentar.'); return; }
-      setPending({ kind: 'audio', blob, mime: 'audio/ogg' });
+      addPending({ kind: 'audio', blob, mime: 'audio/ogg' });
       if (recAutoSend) { recAutoSend = false; send(); }
     };
     await opusRec.start();
