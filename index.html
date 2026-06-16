@@ -730,6 +730,9 @@ input,textarea{font-family:inherit}
 .tpl-x{position:absolute;right:6px;top:50%;transform:translateY(-50%);background:transparent;border:none;
  color:var(--mut);width:24px;height:24px;border-radius:50%;cursor:pointer;font-size:14px;line-height:1;opacity:.55}
 .tpl-x:hover{opacity:1;color:#ff6b6b;background:rgba(255,107,107,.1)}
+.tpl-sec{font-size:10px;font-weight:800;color:var(--mut);padding:8px 11px 4px;text-transform:uppercase;letter-spacing:.05em;background:var(--panel);position:sticky;top:0;z-index:1}
+.tpl-ap{padding-left:13px;border-left:3px solid var(--accent)}
+.tpl-ap .tpl-t::after{content:"✓ Meta";font-size:9px;font-weight:800;color:#22c55e;margin-left:6px;letter-spacing:.03em}
 .tpl-new{border-top:1px solid var(--line);padding:8px 10px;background:var(--panel);display:flex;flex-direction:column;gap:6px}
 .tpl-new input,.tpl-new textarea{background:var(--card);border:1px solid var(--line);color:var(--ink);
  border-radius:8px;padding:7px 9px;font-size:11.5px;font-family:inherit;outline:none;resize:none}
@@ -2920,6 +2923,7 @@ async function send() {
   if (!text && !pending.length) return;
   $('sendBtn').disabled = true;
   serrShow('');
+  if (pending.length) await nextPaint(); // deja repintar el botón antes de codificar/subir adjuntos
 
   // 2do número (puente local): encolar en wa_outbox; el puente lo envía (no Cloud API)
   if (isBridgeConv(sel)) {
@@ -3393,13 +3397,22 @@ function fmtBytes(n) {
   if (n < 1024 * 1024) return (n / 1024).toFixed(0) + ' KB';
   return (n / 1024 / 1024).toFixed(1) + ' MB';
 }
-async function blobToB64(blob) {
-  const buf = await blob.arrayBuffer();
-  const u8 = new Uint8Array(buf);
-  let s = ''; const chunk = 0x8000;
-  for (let i = 0; i < u8.length; i += chunk) s += String.fromCharCode.apply(null, u8.subarray(i, i + chunk));
-  return btoa(s);
+// base64 vía FileReader: el navegador codifica en segundo plano → NO congela la UI
+// (el loop manual de fromCharCode+btoa bloqueaba el hilo varios segundos en fotos grandes).
+function blobToB64(blob) {
+  return new Promise((resolve, reject) => {
+    const fr = new FileReader();
+    fr.onload = () => {
+      const s = String(fr.result || '');
+      const i = s.indexOf(',');
+      resolve(i >= 0 ? s.slice(i + 1) : s);
+    };
+    fr.onerror = () => reject(fr.error || new Error('read'));
+    fr.readAsDataURL(blob);
+  });
 }
+// cede el hilo para que el navegador repinte (botón deshabilitado/indicador) antes de trabajo pesado
+function nextPaint() { return new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))); }
 async function maybeResize(file) {
   if (!file.type.startsWith('image/')) return file;
   if (file.size <= 1.8 * 1024 * 1024) return file;
@@ -3415,31 +3428,34 @@ async function maybeResize(file) {
     return await new Promise(res => cv.toBlob(b => res(b || file), 'image/jpeg', 0.85));
   } catch (e) { return file; }
 }
-// HD: máxima calidad que WhatsApp entrega de forma CONFIABLE.
-// WhatsApp sube imágenes hasta 5 MB; arriba de eso el envío por id falla y cae
-// al método por link (poco confiable, error #131053). Si el archivo ya cabe en
-// 4.6 MB se manda tal cual (sin recomprimir); si no, se baja resolución lo mínimo
-// a calidad alta (q0.92) hasta que entre. Va como documento → sin recompresión de WA.
-async function encodeHd(file) {
+// HD como FOTO (no documento): la mejor calidad que WhatsApp entrega de forma
+// CONFIABLE como imagen. WhatsApp sube imágenes hasta 5 MB por id (método fiable);
+// arriba de eso cae al envío por link (#131053). WhatsApp HD recomprime a ~2560 px
+// de lado largo, así que esa es la mejor resolución que tiene sentido enviar.
+// Si la foto ya es JPEG y cabe en 4.8 MB → va intacta (sin re-encode, máxima calidad).
+// Si no → se baja a ≤2560 px q0.92 hasta caber. SIEMPRE como imagen.
+async function encodeHdImage(file) {
   if (!file.type || !file.type.startsWith('image/')) return file;
-  const LIMIT = 4.6 * 1024 * 1024;
-  if (file.size <= LIMIT) return file; // ya cabe: original sin tocar
+  const LIMIT = 4.8 * 1024 * 1024;
+  if (/jpe?g/i.test(file.type) && file.size <= LIMIT) return file; // ya cabe: original intacto
   try {
     const img = await new Promise((res, rej) => {
       const i = new Image(); i.onload = () => res(i); i.onerror = rej;
       i.src = URL.createObjectURL(file);
     });
     const maxDim = Math.max(img.width, img.height);
-    for (const d of [maxDim, 4096, 3600, 3200, 2800, 2400, 2000]) {
-      const r = Math.min(1, d / maxDim);
+    const cap = Math.min(maxDim, 2560);
+    for (const d of [cap, 2400, 2200, 2000, 1800, 1600]) {
+      if (d > maxDim) continue;
+      const r = d / maxDim;
       const cw = Math.max(1, Math.round(img.width * r)), ch = Math.max(1, Math.round(img.height * r));
       const cv = document.createElement('canvas'); cv.width = cw; cv.height = ch;
       cv.getContext('2d').drawImage(img, 0, 0, cw, ch);
       const blob = await new Promise(res => cv.toBlob(res, 'image/jpeg', 0.92));
       if (blob && blob.size <= LIMIT) return blob;
     }
-    // último recurso: 2000px q0.85
-    const r = Math.min(1, 2000 / maxDim);
+    // último recurso: 1600px q0.85
+    const r = Math.min(1, 1600 / maxDim);
     const cw = Math.max(1, Math.round(img.width * r)), ch = Math.max(1, Math.round(img.height * r));
     const cv = document.createElement('canvas'); cv.width = cw; cv.height = ch;
     cv.getContext('2d').drawImage(img, 0, 0, cw, ch);
@@ -3448,18 +3464,18 @@ async function encodeHd(file) {
   } catch (e) { return file; }
 }
 
-// HD: imágenes en máxima calidad (sin compresión). Se envían como documento.
+// HD: imágenes en alta resolución, enviadas COMO FOTO (no documento).
 $('atHd').onclick = () => {
   hdMode = !hdMode;
   const b = $('atHd');
   b.classList.toggle('on', hdMode);
   b.setAttribute('aria-pressed', hdMode ? 'true' : 'false');
   toast(hdMode ? 'HD activado' : 'HD desactivado',
-        hdMode ? 'Las imágenes se enviarán en máxima calidad, sin compresión.'
+        hdMode ? 'Las imágenes se enviarán en alta resolución (HD), como foto.'
                : 'Las imágenes se enviarán en calidad normal.');
 };
 
-// Imágenes (varias). En HD van sin recomprimir, como documento.
+// Imágenes (varias). En HD van como FOTO en alta resolución (≤2560 px, calidad alta).
 $('atImg').onclick = () => { if (!sel) return; $('atImgFile').click(); };
 $('atImgFile').addEventListener('change', async e => {
   const files = Array.from(e.target.files || []); e.target.value = '';
@@ -3470,12 +3486,13 @@ $('atImgFile').addEventListener('change', async e => {
     const maxMB = hdMode ? 30 : 12;
     if (f.size > maxMB * 1024 * 1024) { skipped++; continue; }
     if (hdMode) {
-      // Recomprime SOLO si pasa de 4.6 MB (límite que WhatsApp sube por id de forma
-      // confiable). Si ya cabe, va el original intacto. Va como documento → WA no recomprime.
-      const blob = await encodeHd(f);
+      // HD = foto en alta resolución. Si ya es JPEG ≤4.8 MB va intacta; si no, se baja
+      // a ≤2560 px q0.92 hasta caber en el límite que WhatsApp sube por id (fiable).
+      // Va como IMAGEN (no documento) → se ve como foto en el chat.
+      const blob = await encodeHdImage(f);
       let nm = f.name || 'imagen.jpg';
-      if (blob !== f) nm = nm.replace(/\.[^.]+$/, '') + '.jpg';   // se recomprimió → quedó jpeg
-      addPending({ kind: 'document', blob, mime: blob.type || 'image/jpeg', name: nm, hd: true });
+      if (blob !== f) nm = nm.replace(/\.[^.]+$/, '') + '.jpg';   // se re-encodeó → quedó jpeg
+      addPending({ kind: 'image', blob, mime: blob.type || 'image/jpeg', name: nm, hd: true });
     } else {
       const blob = await maybeResize(f);
       addPending({ kind: 'image', blob, mime: blob.type || 'image/jpeg', name: f.name });
@@ -4093,21 +4110,70 @@ function applySelectedApprovedTemplate() {
 }
 function renderTplPopup() {
   const w = $('tplWrap');
-  const items = quickReplies.length
+  // 1) Plantillas APROBADAS por Meta — se ENTREGAN aunque la ventana de 24 h esté cerrada.
+  // Dedup por nombre (la tabla repite el mismo nombre bajo distintos "purpose").
+  let apItems;
+  const apSeen = new Set();
+  const apUniq = approvedTemplates.filter(t => {
+    const k = (t.template_name || '').toLowerCase();
+    if (apSeen.has(k)) return false; apSeen.add(k); return true;
+  });
+  if (apUniq.length) {
+    apItems = apUniq.map(t => {
+      const label = esc(t.display_name || t.template_name);
+      const nVars = Array.isArray(t.parameter_keys) ? t.parameter_keys.length : 0;
+      const sub = esc([t.purpose, nVars ? `${nVars} variable${nVars > 1 ? 's' : ''}` : 'sin variables'].filter(Boolean).join(' · '));
+      return `<div class="tpl tpl-ap" data-tid="${t.id}">
+        <div class="tpl-t">${label}</div><div class="tpl-b">${sub}</div>
+       </div>`;
+    }).join('');
+  } else {
+    const why = approvedTemplatesError
+      ? esc(approvedTemplatesError)
+      : 'No hay plantillas aprobadas cargadas. Sincronízalas en Difusión → Plantillas (requieren aprobación de Meta).';
+    apItems = `<div class="tpl"><div class="tpl-b" style="color:var(--mut);white-space:normal">${why}</div></div>`;
+  }
+  // 2) Respuestas rápidas internas — texto libre (SOLO se entrega dentro de las 24 h)
+  const qrItems = quickReplies.length
     ? quickReplies.map(t => `<div class="tpl" data-id="${t.id}">
        <div class="tpl-t">${esc(t.title)}</div><div class="tpl-b">${esc(t.body)}</div>
-       <button class="tpl-x" data-del="${t.id}" title="Borrar plantilla">×</button>
+       <button class="tpl-x" data-del="${t.id}" title="Borrar respuesta rápida">×</button>
       </div>`).join('')
-    : '<div class="tpl"><div class="tpl-t" style="color:var(--mut)">Sin plantillas todavía.</div></div>';
+    : '<div class="tpl"><div class="tpl-b" style="color:var(--mut)">Sin respuestas rápidas todavía.</div></div>';
   w.innerHTML = `
-   <div class="tpl-list">${items}</div>
+   <div class="tpl-list">
+    <div class="tpl-sec">📋 Plantillas aprobadas (Meta) · llegan aunque pasen las 24 h</div>
+    ${apItems}
+    <div class="tpl-sec">⚡ Respuestas rápidas · solo dentro de las 24 h</div>
+    ${qrItems}
+   </div>
    <div class="tpl-new">
     <input id="tplNewTitle" type="text" placeholder="Título corto (ej. Saludo)" maxlength="60">
-    <textarea id="tplNewBody" rows="2" placeholder="Texto de la plantilla"></textarea>
-    <button id="tplAdd">+ Guardar plantilla</button>
+    <textarea id="tplNewBody" rows="2" placeholder="Texto de respuesta rápida"></textarea>
+    <button id="tplAdd">+ Guardar respuesta rápida</button>
    </div>`;
-  // insertar al chat
-  w.querySelectorAll('.tpl').forEach(el => {
+  // enviar PLANTILLA aprobada (mensaje real type:template → se entrega fuera de 24 h)
+  w.querySelectorAll('.tpl-ap').forEach(el => {
+    el.onclick = async () => {
+      if (!sel) return;
+      const t = approvedTemplates.find(x => String(x.id) === String(el.dataset.tid)); if (!t) return;
+      const who = sel.customer_name || sel.contact_name || sel.wa_phone;
+      const lbl = t.display_name || t.template_name;
+      if (!confirm(`¿Enviar la plantilla aprobada «${lbl}» a ${who}?\n\nWhatsApp la entrega aunque la ventana de 24 h esté cerrada. Las variables (nombre, fecha, etc.) se completan con los datos del lead.`)) return;
+      $('tplWrap').classList.remove('on');
+      $('sendBtn').disabled = true;
+      const r = await callFn({ action: 'sendTemplate', conversation_id: sel.id, template_id: t.id });
+      $('sendBtn').disabled = false;
+      if (r && r.ok) {
+        sel.mode = 'human'; updateModeBtn(); await loadMsgs();
+        toast('Plantilla enviada', 'WhatsApp la entregará aunque la ventana esté cerrada.');
+      } else {
+        serrShow('No se pudo enviar la plantilla: ' + sendErrText(r && r.error) + ' · debe estar APROBADA en Meta.');
+      }
+    };
+  });
+  // insertar RESPUESTA RÁPIDA al chat (texto libre)
+  w.querySelectorAll('.tpl[data-id]').forEach(el => {
     el.onclick = (ev) => {
       if (ev.target.classList.contains('tpl-x')) return;
       const id = el.dataset.id;
@@ -4143,11 +4209,17 @@ function renderTplPopup() {
     await loadQuickReplies(); renderTplPopup();
   };
 }
-$('atTpl').onclick = (e) => {
+$('atTpl').onclick = async (e) => {
   if (!sel) return;
   e.stopPropagation();
+  const willOpen = !$('tplWrap').classList.contains('on');
   renderTplPopup();
   $('tplWrap').classList.toggle('on');
+  // si no hay plantillas aprobadas cargadas, intenta cargarlas al abrir y re-renderiza
+  if (willOpen && !approvedTemplates.length && !approvedTemplatesError) {
+    await loadApprovedTemplates(false);
+    if ($('tplWrap').classList.contains('on')) renderTplPopup();
+  }
 };
 document.addEventListener('click', e => {
   if ($('tplWrap').classList.contains('on') &&
