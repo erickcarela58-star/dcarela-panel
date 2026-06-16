@@ -733,6 +733,9 @@ input,textarea{font-family:inherit}
 .tpl-sec{font-size:10px;font-weight:800;color:var(--mut);padding:8px 11px 4px;text-transform:uppercase;letter-spacing:.05em;background:var(--panel);position:sticky;top:0;z-index:1}
 .tpl-ap{padding-left:13px;border-left:3px solid var(--accent)}
 .tpl-ap .tpl-t::after{content:"✓ Meta";font-size:9px;font-weight:800;color:#22c55e;margin-left:6px;letter-spacing:.03em}
+.tpl-pend{opacity:.5;cursor:not-allowed;border-left-color:var(--mut)}
+.tpl-pend .tpl-t::after{content:none}
+.tpl-pend-b{font-size:9px;font-weight:800;color:#f59e0b;background:rgba(245,158,11,.12);padding:1px 5px;border-radius:5px;margin-left:4px;letter-spacing:.02em}
 .tpl-new{border-top:1px solid var(--line);padding:8px 10px;background:var(--panel);display:flex;flex-direction:column;gap:6px}
 .tpl-new input,.tpl-new textarea{background:var(--card);border:1px solid var(--line);color:var(--ink);
  border-radius:8px;padding:7px 9px;font-size:11.5px;font-family:inherit;outline:none;resize:none}
@@ -3985,6 +3988,20 @@ const PURPOSE_LABELS = {
 function purposeLabel(v) {
   return PURPOSE_LABELS[v] || (v || 'General');
 }
+// Títulos legibles para las variables de plantilla (en vez de var1/var2).
+const VAR_LABELS = {
+  nombre: 'Nombre', nombre_completo: 'Nombre completo',
+  interes: 'Interés / categoría', categoria: 'Categoría',
+  fecha: 'Fecha', hora: 'Hora',
+  combo: 'Combo / paquete', precio: 'Monto',
+  impresiones: 'Impresiones / fotos', pedido: 'Pedido',
+  dato: 'Dato faltante', etapa: 'Etapa'
+};
+function varLabel(k) {
+  const s = String(k || '').toLowerCase().trim();
+  if (!s || /^(?:var|\{*)\d+\}*$/.test(s)) return 'Variable';
+  return VAR_LABELS[s] || (s.charAt(0).toUpperCase() + s.slice(1));
+}
 function templateParamKeys(t) {
   const raw = t && t.parameter_keys;
   if (Array.isArray(raw)) return raw.map(String).filter(Boolean);
@@ -4113,16 +4130,32 @@ function renderTplPopup() {
   // 1) Plantillas APROBADAS por Meta — se ENTREGAN aunque la ventana de 24 h esté cerrada.
   // Dedup por nombre (la tabla repite el mismo nombre bajo distintos "purpose").
   let apItems;
-  const apSeen = new Set();
-  const apUniq = approvedTemplates.filter(t => {
+  // Dedup por nombre prefiriendo la versión APROBADA por Meta (la tabla repite el
+  // mismo nombre bajo distintos "purpose"/estado; la no-aprobada NO se entrega).
+  const apMap = new Map();
+  (approvedTemplates || []).forEach(t => {
     const k = (t.template_name || '').toLowerCase();
-    if (apSeen.has(k)) return false; apSeen.add(k); return true;
+    const isAppr = (t.meta_status || '') === 'APPROVED';
+    const cur = apMap.get(k);
+    if (!cur) { apMap.set(k, t); return; }
+    const curAppr = (cur.meta_status || '') === 'APPROVED';
+    if (isAppr && !curAppr) apMap.set(k, t);
   });
+  const apUniq = [...apMap.values()];
   if (apUniq.length) {
     apItems = apUniq.map(t => {
       const label = esc(t.display_name || t.template_name);
-      const nVars = Array.isArray(t.parameter_keys) ? t.parameter_keys.length : 0;
-      const sub = esc([t.purpose, nVars ? `${nVars} variable${nVars > 1 ? 's' : ''}` : 'sin variables'].filter(Boolean).join(' · '));
+      const keys = Array.isArray(t.parameter_keys) ? t.parameter_keys : [];
+      const varsTxt = keys.length ? ('Variables: ' + keys.map(varLabel).join(' · ')) : 'Sin variables';
+      const sub = esc([purposeLabel(t.purpose), varsTxt].filter(Boolean).join(' · '));
+      const approved = (t.meta_status || '') === 'APPROVED';
+      if (!approved) {
+        // Visible pero NO enviable: Meta rechaza plantillas no aprobadas (esto causaba el "no se envió").
+        return `<div class="tpl tpl-ap tpl-pend" title="Pendiente de aprobación de Meta — aún no se puede enviar">
+          <div class="tpl-t">${label} <span class="tpl-pend-b">pendiente Meta</span></div>
+          <div class="tpl-b">${sub}</div>
+         </div>`;
+      }
       return `<div class="tpl tpl-ap" data-tid="${t.id}">
         <div class="tpl-t">${label}</div><div class="tpl-b">${sub}</div>
        </div>`;
@@ -4153,7 +4186,7 @@ function renderTplPopup() {
     <button id="tplAdd">+ Guardar respuesta rápida</button>
    </div>`;
   // enviar PLANTILLA aprobada (mensaje real type:template → se entrega fuera de 24 h)
-  w.querySelectorAll('.tpl-ap').forEach(el => {
+  w.querySelectorAll('.tpl-ap[data-tid]').forEach(el => {
     el.onclick = async () => {
       if (!sel) return;
       const t = approvedTemplates.find(x => String(x.id) === String(el.dataset.tid)); if (!t) return;
@@ -4732,6 +4765,7 @@ function renderTplMgr() {
       <div>
         <div class="nm">${esc(dn)}<small>${esc(t.template_name)}</small></div>
         ${t.preview_text ? `<div class="preview">${esc(t.preview_text)}</div>` : ''}
+        ${(Array.isArray(t.parameter_keys) && t.parameter_keys.length) ? `<div class="preview" style="opacity:.85">Variables: ${t.parameter_keys.map(k => esc(varLabel(k))).join(' · ')}</div>` : ''}
         <div class="badges">${lang}${purp}${optOut}</div>
       </div>
       <div class="tpl-cat">${esc(t.category || '—')}</div>
