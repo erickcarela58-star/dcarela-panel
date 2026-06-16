@@ -610,6 +610,11 @@ input,textarea{font-family:inherit}
 .serr{display:none;padding:8px 13px;background:rgba(255,107,107,.1);border-top:1px solid #ff6b6b;
  color:#ff8e8e;font-size:11.5px;text-align:center}
 .serr.on{display:block}
+.winwarn{display:none;padding:9px 13px;background:rgba(245,158,11,.12);border-top:1px solid rgba(245,158,11,.4);
+ color:#fcd34d;font-size:11.5px;line-height:1.45}
+.winwarn.on{display:block}
+.winwarn b{color:#fde68a}
+.winwarn .ww-t{font-weight:700;display:block;margin-bottom:2px}
 
 /* lightbox para imagenes en el hilo */
 .lb{position:fixed;inset:0;z-index:50;background:rgba(4,4,8,.92);display:none;
@@ -1327,6 +1332,7 @@ input,textarea{font-family:inherit}
      <button id="recCancel">Cancelar</button>
     </div>
     <div class="serr" id="serr"></div>
+    <div class="winwarn" id="winWarn"></div>
     <div class="replybar" id="replyBar">
      <div class="rb-body">
       <div class="rb-h" id="rbWho">Respondiendo</div>
@@ -1412,7 +1418,7 @@ input,textarea{font-family:inherit}
      <div class="sv-collab-note" id="svCollabNote" style="display:none">No tienes colaboradores cargados. Agrégalos en <b>Configuración → Equipo</b> para atribuir las reseñas.</div>
      <label class="sv-l">Mensaje</label>
      <textarea id="svMsg" rows="5"></textarea>
-     <div class="sv-hint">El link de la encuesta se agrega automáticamente al final del mensaje.</div>
+     <div class="sv-hint">Se envía <b>en el mismo chat con botones</b>: el cliente decide si califica con un toque y puntúa servicio, atención y satisfacción sin salir de WhatsApp. (En el 2do número se envía como link.)</div>
     </div>
     <div class="sv-f">
      <button class="sv-btn ghost" id="svCancel">Cancelar</button>
@@ -1912,6 +1918,7 @@ let inboxNumFilter = '';
 try { inboxNumFilter = localStorage.getItem('inboxNumFilter') || ''; } catch (e) {}
 let renderedSig = new Map(), lastDay = '';
 let msgById = new Map();        // id -> mensaje (para acciones por mensaje)
+let lastInboundAt = 0;          // ts del último mensaje entrante del cliente (ventana 24h de WhatsApp)
 let replyTo = null;             // { wamid, snippet, sender } al responder/citar
 let fwdSrc = null;              // mensaje origen al reenviar
 
@@ -2703,6 +2710,7 @@ async function openConv(c) {
   document.body.classList.add('chatopen');
   $('empty').style.display = 'none';
   $('chatBox').style.display = 'flex';
+  lastInboundAt = 0; $('winWarn').classList.remove('on'); // se recalcula al cargar mensajes
   const chatName = c.customer_name || c.contact_name || c.wa_phone;
   $('chName').textContent = chatName;
   $('chPhone').textContent = '+' + c.wa_phone;
@@ -2721,17 +2729,35 @@ $('back').onclick = () => {
   document.body.classList.remove('chatopen'); sel = null;
   clearInterval(msgTimer); renderConvs();
   showDetail(false);
+  $('winWarn').classList.remove('on');
 };
 
 function msgSig(m) {
   const del = m.metadata && m.metadata.deleted ? 'D' : '';
   return [m.body || '', m.transcription || '', m.media_url || '', m.msg_type || '', m.delivery_status || '', del].join('␟');
 }
+// Traduce los códigos de error de WhatsApp a algo entendible.
+function humanWaError(raw) {
+  const s = String(raw || '');
+  if (/131047|re-?engagement/i.test(s)) return 'No entregado: pasaron más de 24 h desde el último mensaje del cliente. Fuera de la ventana de 24 h solo se entregan plantillas aprobadas.';
+  if (/131026/.test(s)) return 'No entregado: el número no puede recibir mensajes (no usa WhatsApp o bloqueó el negocio).';
+  if (/131051/.test(s)) return 'No entregado: tipo de mensaje no soportado para este número.';
+  if (/131053/.test(s)) return 'No entregado: WhatsApp no pudo procesar el archivo. Reintenta el envío (a veces falla la primera vez).';
+  if (/131050/.test(s)) return 'No entregado: el cliente no puede recibir este mensaje ahora mismo.';
+  if (/132000|132001|132005|131009/.test(s)) return 'No entregado: problema con la plantilla (no aprobada o parámetros incorrectos).';
+  return s ? ('No entregado: ' + s) : 'No entregado';
+}
+// Texto de error para el aviso al pie del chat (solo traduce si es error de WhatsApp).
+function sendErrText(raw) {
+  const s = String(raw || 'error');
+  if (/13[12]\d{3}|re-?engagement|whatsapp/i.test(s)) return humanWaError(s.replace(/^WhatsApp:\s*/i, ''));
+  return s;
+}
 // Indicador de entrega real (Meta): ✓ enviado · ✓✓ entregado · ✓✓ azul leído · ⚠ no entregado
 function deliveryMark(m) {
   const s = (m.delivery_status || '').toLowerCase();
   if (s === 'failed' || s === 'error') {
-    const why = String(m.error_message || 'No se entregó').replace(/"/g, '&quot;');
+    const why = humanWaError(m.error_message).replace(/"/g, '&quot;');
     return ` · <span style="color:#ff6b6b;font-weight:600" title="${why}">⚠ no entregado</span>`;
   }
   if (s === 'read')      return ' · <span style="color:#34b7f1">✓✓</span>';
@@ -2809,6 +2835,38 @@ async function loadMsgs(fresh) {
     }
   }
   if (appended && atBottom) box.scrollTop = box.scrollHeight;
+  // ventana 24h: último entrante del cliente
+  lastInboundAt = 0;
+  for (const m of data) {
+    if (m.direction === 'in') {
+      const t = Date.parse(m.created_at) || 0;
+      if (t > lastInboundAt) lastInboundAt = t;
+    }
+  }
+  renderWindowWarn();
+}
+
+// WhatsApp solo entrega mensajes libres (texto/fotos/archivos) dentro de las 24h
+// desde el último mensaje del cliente. Fuera de eso WhatsApp ACEPTA el envío
+// (devuelve id) pero NO lo entrega (error 131047). Avisamos antes de que pase.
+const WA_WINDOW_MS = 24 * 3600 * 1000;
+function windowClosed() {
+  if (!sel || isBridgeConv(sel)) return false; // el 2do número va por el puente
+  return (Date.now() - lastInboundAt) > WA_WINDOW_MS; // 0 (sin entrantes) también cuenta como cerrada
+}
+function renderWindowWarn() {
+  const el = $('winWarn');
+  if (!el) return;
+  if (!windowClosed()) { el.classList.remove('on'); el.innerHTML = ''; return; }
+  const horas = lastInboundAt ? Math.floor((Date.now() - lastInboundAt) / 3600000) : null;
+  const desde = horas == null ? 'no ha escrito por este chat'
+    : horas >= 48 ? `escribió hace ${Math.floor(horas / 24)} día(s)`
+    : `escribió hace ${horas} h`;
+  el.innerHTML = `<span class="ww-t">⏰ Ventana de 24 h cerrada</span>`
+    + `El cliente ${desde}. WhatsApp <b>no entrega</b> mensajes libres (texto, fotos ni archivos) fuera de las 24 h: `
+    + `los acepta pero los marca <b>no entregado</b>. Para escribirle: usa una <b>plantilla aprobada</b> (botón de plantillas) `
+    + `o espera a que el cliente responda y reabra la ventana.`;
+  el.classList.add('on');
 }
 
 function updateModeBtn() {
@@ -2882,6 +2940,15 @@ async function send() {
     return;
   }
 
+  // Ventana 24h cerrada + adjuntos: confirmar antes de subir algo que WhatsApp no entregará.
+  if (pending.length && windowClosed()) {
+    const ok = confirm('⏰ La ventana de 24 h está cerrada.\n\n'
+      + 'WhatsApp casi seguro NO va a entregar fotos ni archivos a este cliente hasta que él te escriba de nuevo '
+      + '(error 131047). El mensaje aparecerá como "no entregado".\n\n'
+      + '¿Intentar enviar de todas formas?');
+    if (!ok) { $('sendBtn').disabled = false; return; }
+  }
+
   // 1er número (Cloud API). Sin adjuntos: solo texto.
   if (!pending.length) {
     const body = { conversation_id: sel.id, text };
@@ -2892,7 +2959,7 @@ async function send() {
       ta.value = ''; ta.style.height = 'auto'; clearReply();
       sel.mode = 'human'; updateModeBtn(); await loadMsgs();
     } else {
-      serrShow('No se pudo enviar: ' + (r && r.error ? r.error : 'error') + ' · toca enviar de nuevo para reintentar.');
+      serrShow('No se pudo enviar: ' + sendErrText(r && r.error) + ' · toca enviar de nuevo para reintentar.');
     }
     return;
   }
@@ -2933,7 +3000,7 @@ async function send() {
   if (textSent || !err) { ta.value = ''; ta.style.height = 'auto'; }
   if (!err) clearReply();
   if (anySent) await loadMsgs();
-  if (err) serrShow('Se enviaron ' + sent + ' de ' + items.length + ' adjunto(s). Error: ' + err + ' · toca enviar para reintentar el resto.');
+  if (err) serrShow('Se enviaron ' + sent + ' de ' + items.length + ' adjunto(s). ' + sendErrText(err) + ' · toca enviar para reintentar el resto.');
 }
 
 async function callFn(body) {
@@ -3348,6 +3415,38 @@ async function maybeResize(file) {
     return await new Promise(res => cv.toBlob(b => res(b || file), 'image/jpeg', 0.85));
   } catch (e) { return file; }
 }
+// HD: máxima calidad que WhatsApp entrega de forma CONFIABLE.
+// WhatsApp sube imágenes hasta 5 MB; arriba de eso el envío por id falla y cae
+// al método por link (poco confiable, error #131053). Si el archivo ya cabe en
+// 4.6 MB se manda tal cual (sin recomprimir); si no, se baja resolución lo mínimo
+// a calidad alta (q0.92) hasta que entre. Va como documento → sin recompresión de WA.
+async function encodeHd(file) {
+  if (!file.type || !file.type.startsWith('image/')) return file;
+  const LIMIT = 4.6 * 1024 * 1024;
+  if (file.size <= LIMIT) return file; // ya cabe: original sin tocar
+  try {
+    const img = await new Promise((res, rej) => {
+      const i = new Image(); i.onload = () => res(i); i.onerror = rej;
+      i.src = URL.createObjectURL(file);
+    });
+    const maxDim = Math.max(img.width, img.height);
+    for (const d of [maxDim, 4096, 3600, 3200, 2800, 2400, 2000]) {
+      const r = Math.min(1, d / maxDim);
+      const cw = Math.max(1, Math.round(img.width * r)), ch = Math.max(1, Math.round(img.height * r));
+      const cv = document.createElement('canvas'); cv.width = cw; cv.height = ch;
+      cv.getContext('2d').drawImage(img, 0, 0, cw, ch);
+      const blob = await new Promise(res => cv.toBlob(res, 'image/jpeg', 0.92));
+      if (blob && blob.size <= LIMIT) return blob;
+    }
+    // último recurso: 2000px q0.85
+    const r = Math.min(1, 2000 / maxDim);
+    const cw = Math.max(1, Math.round(img.width * r)), ch = Math.max(1, Math.round(img.height * r));
+    const cv = document.createElement('canvas'); cv.width = cw; cv.height = ch;
+    cv.getContext('2d').drawImage(img, 0, 0, cw, ch);
+    const blob = await new Promise(res => cv.toBlob(res, 'image/jpeg', 0.85));
+    return blob || file;
+  } catch (e) { return file; }
+}
 
 // HD: imágenes en máxima calidad (sin compresión). Se envían como documento.
 $('atHd').onclick = () => {
@@ -3371,7 +3470,12 @@ $('atImgFile').addEventListener('change', async e => {
     const maxMB = hdMode ? 30 : 12;
     if (f.size > maxMB * 1024 * 1024) { skipped++; continue; }
     if (hdMode) {
-      addPending({ kind: 'document', blob: f, mime: f.type || 'image/jpeg', name: f.name || 'imagen.jpg', hd: true });
+      // Recomprime SOLO si pasa de 4.6 MB (límite que WhatsApp sube por id de forma
+      // confiable). Si ya cabe, va el original intacto. Va como documento → WA no recomprime.
+      const blob = await encodeHd(f);
+      let nm = f.name || 'imagen.jpg';
+      if (blob !== f) nm = nm.replace(/\.[^.]+$/, '') + '.jpg';   // se recomprimió → quedó jpeg
+      addPending({ kind: 'document', blob, mime: blob.type || 'image/jpeg', name: nm, hd: true });
     } else {
       const blob = await maybeResize(f);
       addPending({ kind: 'image', blob, mime: blob.type || 'image/jpeg', name: f.name });
@@ -6282,23 +6386,28 @@ if ($('autoSurvey')) $('autoSurvey').onchange = async () => {
 
 // --- enviar encuesta (compartido por botón manual y auto) ---
 async function sendSurvey(conv, collabId, intro){
-  const token = (self.crypto && crypto.randomUUID ? crypto.randomUUID() : (Date.now().toString(36)+Math.random().toString(36).slice(2)));
   const name = conv.customer_name || conv.contact_name || null;
-  const { data: ins, error: e1 } = await sb.from('reviews').insert({
-    token, business_number: conv.business_number || PANEL_BUSINESS_NUMBER || null,
-    conversation_id: conv.id, wa_phone: conv.wa_phone, customer_name: name,
-    collaborator_id: collabId || null, status: 'pending'
-  }).select('id').single();
-  if (e1) return { ok:false, error: e1.message };
-  const text = (intro || defaultSurveyMsg(name)) + '\n\n' + surveyLink(token);
-  const r = isBridgeConv(conv)
-    ? await enqueueBridge(conv, { text })
-    : await callFn({ conversation_id: conv.id, text });
-  if (r && r.ok){
-    await sb.from('reviews').update({ status:'sent', sent_at: new Date().toISOString() }).eq('id', ins.id);
-    return { ok:true, queued: !!r.queued };
+  // 2do número (puente WhatsApp Web): no soporta botones interactivos -> manda el LINK por texto.
+  if (isBridgeConv(conv)){
+    const token = (self.crypto && crypto.randomUUID ? crypto.randomUUID() : (Date.now().toString(36)+Math.random().toString(36).slice(2)));
+    const { data: ins, error: e1 } = await sb.from('reviews').insert({
+      token, business_number: conv.business_number || PANEL_BUSINESS_NUMBER || null,
+      conversation_id: conv.id, wa_phone: conv.wa_phone, customer_name: name,
+      collaborator_id: collabId || null, status: 'pending'
+    }).select('id').single();
+    if (e1) return { ok:false, error: e1.message };
+    const text = (intro || defaultSurveyMsg(name)) + '\n\n' + surveyLink(token);
+    const r = await enqueueBridge(conv, { text });
+    if (r && r.ok){
+      await sb.from('reviews').update({ status:'sent', sent_at: new Date().toISOString() }).eq('id', ins.id);
+      return { ok:true, queued:true };
+    }
+    return { ok:false, error: (r && r.error) || 'No se pudo encolar' };
   }
-  return { ok:false, error: (r && r.error) || 'WhatsApp no aceptó el mensaje (¿el cliente no te escribe hace más de 24h?)' };
+  // 1er número (Cloud API): encuesta IN-CHAT con botones. El backend crea la reseña y envía.
+  const r = await callFn({ action:'surveyInvite', conversation_id: conv.id, collaborator_id: collabId || null, intro: (intro || defaultSurveyMsg(name)) });
+  if (r && r.ok) return { ok:true, queued:false };
+  return { ok:false, error: (r && r.error) || 'WhatsApp no aceptó la encuesta (¿el cliente no te escribe hace más de 24h?)' };
 }
 function openSurvey(conv){
   if(!conv) return;
