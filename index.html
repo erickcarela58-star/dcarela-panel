@@ -1685,6 +1685,7 @@ input,textarea{font-family:inherit}
      <div class="df"><label>Etapa</label><select id="bcStage"><option value="">Todas</option></select></div>
     <div class="df"><label>Categoría</label><select id="bcCat"><option value="">Todas</option></select></div>
     <div class="df"><label>Prioridad</label><select id="bcPri"><option value="">Todas</option></select></div>
+    <div class="df"><label>Antigüedad</label><select id="bcCold"><option value="">Cualquiera</option><option value="2">Sin escribir +2 días</option><option value="7">Sin escribir +7 días</option><option value="14">Sin escribir +14 días</option><option value="30">Fríos +30 días</option><option value="45">Fríos +45 días</option><option value="60">Fríos +60 días</option></select></div>
    </div>
    <div class="bc-tarea">
     <label id="bcTextLabel">Mensaje libre</label>
@@ -3754,6 +3755,8 @@ function renderDetail(c) {
    </div>
    <div class="df"><label>Fondo / color</label>
     <input data-f="background_color" type="text" value="${esc(c.background_color || '')}" placeholder="fondo claro, rojo, editorial..."></div>
+   <div class="df"><label>Fondo / temática (infantil)</label>
+    <input data-f="fondo_tematica" type="text" value="${esc(c.fondo_tematica || '')}" placeholder="arco de globos pastel, Cake smash, Moana, referencia..."></div>
    <div class="df-grid2">
     <div class="df"><label>Maquillaje</label><select data-f="makeup_selection">${optsMakeup}</select></div>
     <div class="df"><label>Precio maquillaje</label><input data-f="makeup_price" type="number" min="0" step="100" value="${c.makeup_price ?? ''}" placeholder="2500"></div>
@@ -6135,6 +6138,7 @@ $('bcCalc').onclick = async () => {
     lifecycle_stage: $('bcStage').value || undefined,
     interested_category: $('bcCat').value || undefined,
     priority: $('bcPri').value || undefined,
+    cold_min_days: ($('bcCold') && $('bcCold').value) ? Number($('bcCold').value) : undefined,
     business_number: PANEL_BUSINESS_NUMBER || undefined,
   };
   const payload = buildBroadcastPayload(filter, true);
@@ -6170,7 +6174,7 @@ $('bcCalc').onclick = async () => {
   }
 };
 $('bcText').addEventListener('input', () => { $('bcSend').disabled = true; });
-['bcStage','bcCat','bcPri'].forEach(id => $(id).addEventListener('change', () => { $('bcSend').disabled = true; }));
+['bcStage','bcCat','bcPri','bcCold'].forEach(id => $(id).addEventListener('change', () => { $('bcSend').disabled = true; }));
 $('bcSend').onclick = async () => {
   const sendMode = $('bcMode').value === 'template' ? 'template' : 'freeform';
   const txt = $('bcText').value.trim();
@@ -6184,6 +6188,7 @@ $('bcSend').onclick = async () => {
     lifecycle_stage: $('bcStage').value || undefined,
     interested_category: $('bcCat').value || undefined,
     priority: $('bcPri').value || undefined,
+    cold_min_days: ($('bcCold') && $('bcCold').value) ? Number($('bcCold').value) : undefined,
     business_number: PANEL_BUSINESS_NUMBER || undefined,
   };
   const base = buildBroadcastPayload(filter, false);
