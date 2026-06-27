@@ -3292,6 +3292,10 @@ function msgBody(m) {
     if (m.detected_intent || m.detected_category) h += `<div class="mtr">Intencion: ${esc(m.detected_intent || 'pendiente')}${m.detected_category ? ' · ' + esc(m.detected_category) : ''}</div>`;
     return h;
   }
+  if (t === 'sticker') {
+    if (u) return `<img src="${esc(u)}" alt="sticker" style="max-width:140px;max-height:140px;display:block">`;
+    return '<div class="mtag">Sticker</div>';
+  }
   if (t === 'video') {
     let h = '<div class="mtag">🎬 Video</div>';
     if (u) h += `<video class="mimg" controls preload="none" src="${esc(u)}"></video>`;
@@ -5337,7 +5341,12 @@ async function gcalCreateEvent(p) {
       location: p.sucursal || 'D\'Carela Compufoto, La Romana',
       start: { dateTime: start.toISOString(), timeZone: 'America/Santo_Domingo' },
       end:   { dateTime: end.toISOString(),   timeZone: 'America/Santo_Domingo' },
-      reminders: { useDefault: false, overrides: [{ method: 'popup', minutes: 60*24 }, { method: 'popup', minutes: 60 }] },
+      reminders: { useDefault: false, overrides: [
+        { method: 'email', minutes: 60*24 },
+        { method: 'popup', minutes: 60*24 },
+        { method: 'popup', minutes: 60*3 },
+        { method: 'popup', minutes: 30 },
+      ] },
     }),
   });
   if (!r || !r.ok) { console.warn('gcalCreateEvent failed:', r && r.status, r ? await r.text().catch(()=>'') : 'sin token'); return null; }
