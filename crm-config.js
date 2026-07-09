@@ -12,11 +12,11 @@
   supabaseAnonKey: "sb_publishable_XgucPR_5tPklv6sdUFAhDQ_6NbSf8fQ",
 
   notificationTag: "dcarela-crm",
-  publicPortfolioUrl: "https://carela-compufoto.netlify.app/combos",
+  publicPortfolioUrl: "https://erickcarela58-star.github.io/carela-compufoto/portafolio.html",
   // URL de la home/catÃ¡logo/wizard para combos, precios y reservas.
-  publicCatalogUrl: "https://carela-compufoto.netlify.app",
+  publicCatalogUrl: "https://erickcarela58-star.github.io/carela-compufoto/combos.html",
   // URL para ver trabajos, fotos, galerÃ­a o portafolio.
-  publicGalleryUrl: "https://carela-compufoto.netlify.app/portafolio",
+  publicGalleryUrl: "https://erickcarela58-star.github.io/carela-compufoto/portafolio.html",
 
   // Meta Pixel para tracking de eventos del panel (mismo pixel que el catÃ¡logo)
   metaPixelId: "1377359270081777",
