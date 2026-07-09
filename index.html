@@ -1643,8 +1643,8 @@ input,textarea{font-family:inherit}
 
      <div class="cfg-card">
       <h3>🌐 Catálogo público</h3>
-      <p>URL en vivo: <a href="https://carela-compufoto.netlify.app" target="_blank" style="color:var(--accent2)">carela-compufoto.netlify.app</a></p>
-      <p>Portafolio: <a href="https://carela-compufoto.netlify.app/portafolio" target="_blank" style="color:var(--accent2)">/portafolio</a></p>
+      <p>URL en vivo: <a href="https://erickcarela58-star.github.io/carela-compufoto/" target="_blank" style="color:var(--accent2)">erickcarela58-star.github.io/carela-compufoto</a></p>
+      <p>Portafolio: <a href="https://erickcarela58-star.github.io/carela-compufoto/portafolio.html" target="_blank" style="color:var(--accent2)">/portafolio.html</a></p>
       <p class="cfg-hint">Meta Pixel ID: <code>1377359270081777</code> (atribución cross-página).</p>
      </div>
 
@@ -2643,8 +2643,11 @@ async function loadConvs() {
       .sort((a, b) => new Date(b.last_message_at) - new Date(a.last_message_at))[0];
     if (hot) {
       const nm = hot.contact_name || hot.wa_phone;
-      beep(); toast(nm, hot.last_message_preview || 'Nuevo mensaje');
-      notify('Nuevo mensaje · ' + nm, hot.last_message_preview || '');
+      // La notificacion y el preview de la lista muestran lo que dijo el CLIENTE
+      // (last_inbound_preview), no la respuesta del bot (esa pisaria last_message_preview).
+      const body = hot.last_inbound_preview || hot.last_message_preview || 'Nuevo mensaje';
+      beep(); toast(nm, body);
+      notify('Nuevo mensaje · ' + nm, body);
     }
   }
   prevUnread = totalUnread;
@@ -2694,7 +2697,7 @@ function renderConvs() {
       ${avatarHtml(c, name)}
       <div class="cv-b">
         <div class="cv-top"><div class="cv-name">${esc(name)}${pending ? ' <span class="cv-flag">●</span>' : ''}</div><div class="cv-time">${fmtTime(c.last_message_at)}</div></div>
-        <div class="cv-prev">${esc(c.last_message_preview || '')}</div>
+        <div class="cv-prev">${esc(c.last_inbound_preview || c.last_message_preview || '')}</div>
         <div class="cv-tags">
           <span class="pill ${c.mode === 'human' ? 'human' : 'bot'}">${c.mode === 'human' ? 'Humano' : 'Bot'}</span>
           <span class="cv-stage" data-s="${stage}">${esc(stageLabel)}</span>
