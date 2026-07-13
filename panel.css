@@ -58,7 +58,7 @@ a { color: inherit; }
 .auth-logo { width: 64px; height: 64px; object-fit: contain; margin-bottom: 14px; }
 .auth-panel h1 { margin: 0 0 7px; font-size: 25px; }
 .auth-panel label, .filter-bar label { display: block; margin: 15px 0 5px; color: var(--muted); font-size: 12px; font-weight: 700; }
-input, select {
+input, select, textarea {
   width: 100%;
   min-height: 42px;
   padding: 9px 11px;
@@ -68,7 +68,8 @@ input, select {
   border-radius: 6px;
   outline: none;
 }
-input:focus, select:focus { border-color: var(--cyan); box-shadow: 0 0 0 3px rgba(23,151,232,.13); }
+textarea { resize: vertical; font: inherit; }
+input:focus, select:focus, textarea:focus { border-color: var(--cyan); box-shadow: 0 0 0 3px rgba(23,151,232,.13); }
 
 .primary, .secondary, .alert-button, .button-link, .text-button {
   min-height: 38px;
@@ -179,6 +180,27 @@ tbody tr:hover { background: rgba(23,151,232,.045); }
 .loading { color: var(--muted); text-align: center; }
 .toast { position: fixed; right: 20px; bottom: 20px; z-index: 20; max-width: 360px; padding: 12px 14px; color: white; background: rgba(8,40,85,.94); border: 1px solid rgba(255,255,255,.2); border-radius: 7px; box-shadow: 0 14px 35px rgba(0,20,55,.28); backdrop-filter: blur(16px); font-size: 12px; }
 
+.filter-grow { flex: 1; min-width: min(360px, 100%) !important; }
+.form-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 12px; }
+.form-grid label { min-width: 0; color: var(--muted); font-size: 11px; font-weight: 750; }
+.form-grid label > span { display: block; margin-bottom: 5px; }
+.form-grid .field-wide { grid-column: 1 / -1; }
+.check-row { display: flex; align-items: center; gap: 9px; min-height: 42px; padding: 8px 0; }
+.check-row input { width: 18px; min-height: 18px; margin: 0; }
+.check-row > span { margin: 0 !important; color: var(--ink); }
+.row-actions { display: flex; gap: 5px; white-space: nowrap; }
+.table-action { min-height: 30px; padding: 5px 9px; color: var(--navy); background: rgba(255,255,255,.7); border: 1px solid var(--line); border-radius: 5px; font-size: 10px; font-weight: 800; }
+.table-action:hover { background: white; }
+.sync-note { display: block; margin-top: 3px; color: var(--muted); font-size: 9px; }
+
+.editor-overlay { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: 22px; background: rgba(5,20,43,.48); backdrop-filter: blur(18px) saturate(115%); }
+.editor-dialog { width: min(790px, 100%); max-height: calc(100vh - 44px); overflow: auto; padding: 20px; background: rgba(242,248,254,.92); border: 1px solid rgba(255,255,255,.84); border-radius: 8px; box-shadow: 0 28px 80px rgba(0,15,43,.38); }
+.editor-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 18px; padding-bottom: 13px; border-bottom: 1px solid var(--line); }
+.editor-header h2 { margin: 0; font-size: 20px; }.editor-header p:last-child { margin: 4px 0 0; color: var(--muted); font-size: 11px; }
+.icon-button { width: 36px; height: 36px; flex: 0 0 auto; padding: 0; color: var(--navy); background: rgba(255,255,255,.66); border: 1px solid var(--line); border-radius: 50%; font-size: 22px; line-height: 1; }
+.editor-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 17px; padding-top: 14px; border-top: 1px solid var(--line); }
+.editor-dialog .error { margin: 10px 0 0; }
+
 @media (min-width: 1180px) {
   .dashboard-grid, .report-grid { grid-template-columns: minmax(0, 2fr) minmax(300px, 1fr); }
   .dashboard-grid > .span-2, .report-grid > .span-2 { grid-column: span 1; }
@@ -208,6 +230,11 @@ tbody tr:hover { background: rgba(23,151,232,.045); }
   .notification { grid-template-columns: 4px minmax(0,1fr); }.notification-actions { grid-column: 2; }
   .release-layout, .device-row { grid-template-columns: 1fr; }
   .section-heading { align-items: flex-start; flex-direction: column; }
+  .form-grid { grid-template-columns: 1fr; }
+  .form-grid .field-wide { grid-column: auto; }
+  .editor-overlay { padding: 8px; }
+  .editor-dialog { max-height: calc(100vh - 16px); padding: 15px; }
+  .editor-actions { flex-direction: column-reverse; }.editor-actions button { width: 100%; }
   footer { padding-inline: 14px; }
 }
 
