@@ -20,6 +20,13 @@
   let alertasCache = null;
   let toastTimer = null;
   let liveRefreshTimer = null;
+  let canEdit = false;
+  let memberRole = "viewer";
+  let editorSubmit = null;
+  let productCatalog = null;
+  let categoryCatalog = null;
+  let clientCatalog = null;
+  let businessConfig = null;
 
   const esc = value => String(value ?? "").replace(/[&<>"']/g, char => ({
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
@@ -100,6 +107,7 @@
     caja: cargarCaja,
     reportes: cargarReporte,
     inventario: cargarInventario,
+    clientes: cargarClientes,
     proveedores: cargarProveedores,
     notificaciones: cargarNotificaciones,
     dispositivos: cargarDispositivos,
@@ -149,6 +157,202 @@
     return output;
   }
 
+  async function cargarRolEdicion() {
+    const { data, error } = await sb.from("pos_business_members")
+      .select("role,active")
+      .eq("business_id", BUSINESS)
+      .eq("user_id", session.user.id)
+      .eq("active", true)
+      .maybeSingle();
+    if (error) throw error;
+    memberRole = data?.role || "viewer";
+    canEdit = ["owner", "admin"].includes(memberRole);
+    document.querySelectorAll(".admin-only").forEach(element => element.classList.toggle("oculto", !canEdit));
+  }
+
+  async function authenticatedHeaders(includeJson = false) {
+    const { data, error } = await sb.auth.getSession();
+    if (error || !data?.session?.access_token) throw new Error("La sesion vencio. Inicia sesion nuevamente.");
+    session = data.session;
+    return {
+      Authorization: `Bearer ${session.access_token}`,
+      apikey: cfg.anon,
+      ...(includeJson ? { "Content-Type": "application/json" } : {})
+    };
+  }
+
+  async function adminWrite(action, entityId, data) {
+    if (!canEdit) throw new Error("Tu cuenta no tiene permiso de administracion para editar datos.");
+    const response = await fetch(`${cfg.url.replace(/\/$/, "")}/functions/v1/pos-admin-write`, {
+      method: "POST",
+      headers: await authenticatedHeaders(true),
+      body: JSON.stringify({ business_id: BUSINESS, action, entity_id: entityId || null, data })
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok || !result.ok) throw new Error(result.error || `No se pudo guardar el cambio (HTTP ${response.status}).`);
+    productCatalog = null;
+    categoryCatalog = null;
+    clientCatalog = null;
+    businessConfig = null;
+    alertasCache = null;
+    toast(result.message || "Cambio guardado y enviado a sincronizacion.");
+    return result;
+  }
+
+  function cerrarEditor() {
+    $("editorOverlay").classList.add("oculto");
+    $("editorOverlay").setAttribute("aria-hidden", "true");
+    $("editorFields").innerHTML = "";
+    $("editorError").textContent = "";
+    editorSubmit = null;
+  }
+
+  function abrirEditor(title, subtitle, fields, onSubmit) {
+    if (!canEdit) { toast("Tu cuenta no tiene permiso para editar."); return; }
+    $("editorTitle").textContent = title;
+    $("editorSubtitle").textContent = subtitle || "El cambio quedara auditado y se aplicara en las cajas conectadas.";
+    $("editorFields").innerHTML = fields;
+    $("editorError").textContent = "";
+    editorSubmit = onSubmit;
+    $("editorOverlay").classList.remove("oculto");
+    $("editorOverlay").setAttribute("aria-hidden", "false");
+    setTimeout(() => $("editorFields").querySelector("input:not([type=checkbox]), select, textarea")?.focus(), 0);
+  }
+
+  const pesoInput = cents => (numero(cents) / 100).toFixed(2);
+  const centavosInput = value => {
+    const parsed = Number(String(value ?? "").trim().replace(",", "."));
+    if (!Number.isFinite(parsed) || parsed < 0) throw new Error("Escribe un monto valido.");
+    return Math.round(parsed * 100);
+  };
+  const decimalInput = value => {
+    const parsed = Number(String(value ?? "").trim().replace(",", "."));
+    if (!Number.isFinite(parsed) || parsed < 0) throw new Error("Escribe una cantidad valida.");
+    return String(parsed);
+  };
+  const checked = value => value ? " checked" : "";
+  const selected = (value, expected) => String(value ?? "") === String(expected) ? " selected" : "";
+
+  function mergeEvents(items, stateTypes) {
+    const result = new Map();
+    items.forEach(event => {
+      const payload = P(event);
+      const id = String(event.entity_id || payload.productoId || payload.clienteId || payload.categoriaId || "").trim();
+      if (!id) return;
+      if (!result.has(id)) result.set(id, { id, _latestAt: fechaEventoIso(event), _latestEvent: event.event_type });
+      const current = result.get(id);
+      Object.entries(payload).forEach(([key, value]) => {
+        if (current[key] === undefined && value !== undefined) current[key] = value;
+      });
+      if (event.event_type === "InventarioAjustado" && current.stock === undefined) {
+        current.stock = payload.cantidadNueva ?? payload.nuevoStock ?? payload.stock;
+      }
+      if (stateTypes.includes(event.event_type) && current._stateEvent === undefined) current._stateEvent = event.event_type;
+    });
+    return [...result.values()];
+  }
+
+  function normalizedKey(value) {
+    return String(value ?? "")
+      .replace(/\uFFFD/g, "n")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]+/gi, " ")
+      .trim()
+      .toLowerCase();
+  }
+
+  function catalogKey(item) {
+    return [normalizedKey(item.codigoBarras), normalizedKey(item.nombre), normalizedKey(item.tipo || "producto")].join("|");
+  }
+
+  function consolidateProducts(items) {
+    const result = new Map();
+    items
+      .sort((a, b) => String(b._latestAt || "").localeCompare(String(a._latestAt || "")))
+      .forEach(item => {
+        const key = catalogKey(item);
+        if (!key.replaceAll("|", "")) return;
+        if (!result.has(key)) {
+          result.set(key, { ...item });
+          return;
+        }
+        const current = result.get(key);
+        Object.entries(item).forEach(([property, value]) => {
+          if ((current[property] === undefined || current[property] === null || current[property] === "")
+              && value !== undefined && value !== null && value !== "") {
+            current[property] = value;
+          }
+        });
+      });
+    return [...result.values()];
+  }
+
+  function consolidateNamed(items) {
+    const result = new Map();
+    items
+      .sort((a, b) => String(b._latestAt || "").localeCompare(String(a._latestAt || "")))
+      .forEach(item => {
+        const key = normalizedKey(item.nombre);
+        if (!key) return;
+        if (!result.has(key)) {
+          result.set(key, { ...item, _ids: [item.id] });
+          return;
+        }
+        const current = result.get(key);
+        if (item.id && !current._ids.includes(item.id)) current._ids.push(item.id);
+        Object.entries(item).forEach(([property, value]) => {
+          if ((current[property] === undefined || current[property] === null || current[property] === "")
+              && value !== undefined && value !== null && value !== "") {
+            current[property] = value;
+          }
+        });
+      });
+    return [...result.values()];
+  }
+
+  async function cargarCatalogoCloud(force = false) {
+    if (!force && productCatalog && categoryCatalog) return { products: productCatalog, categories: categoryCatalog };
+    const [productEvents, categoryEvents] = await Promise.all([
+      eventos(["ProductoCreado", "ProductoEditado", "ProductoDesactivado", "InventarioAjustado"], null, null, 10000),
+      eventos(["CategoriaCreada"], null, null, 2000)
+    ]);
+    productCatalog = consolidateProducts(
+      mergeEvents(productEvents, ["ProductoCreado", "ProductoEditado", "ProductoDesactivado"])
+    )
+      .filter(item => item.nombre)
+      .map(item => ({ ...item, activo: item._stateEvent !== "ProductoDesactivado" && item.activo !== false }))
+      .sort((a, b) => String(a.nombre).localeCompare(String(b.nombre), "es"));
+    categoryCatalog = consolidateNamed(mergeEvents(categoryEvents, ["CategoriaCreada"]))
+      .filter(item => item.nombre)
+      .sort((a, b) => String(a.nombre).localeCompare(String(b.nombre), "es"));
+    return { products: productCatalog, categories: categoryCatalog };
+  }
+
+  async function cargarClientesCloud(force = false) {
+    if (!force && clientCatalog) return clientCatalog;
+    const items = await eventos(["ClienteCreado", "ClienteEditado", "ClienteDesactivado"], null, null, 10000);
+    clientCatalog = mergeEvents(items, ["ClienteCreado", "ClienteEditado", "ClienteDesactivado"])
+      .filter(item => item.nombre)
+      .map(item => ({ ...item, activo: item._stateEvent !== "ClienteDesactivado" && item.activo !== false }))
+      .sort((a, b) => String(a.nombre).localeCompare(String(b.nombre), "es"));
+    return clientCatalog;
+  }
+
+  async function cargarNegocioCloud(force = false) {
+    if (!force && businessConfig) return businessConfig;
+    const changes = await eventos(["ConfiguracionActualizada"], null, null, 1000);
+    const event = changes.find(item => P(item).seccion === "negocio");
+    businessConfig = event ? { ...P(event) } : {
+      nombre: "D' Carela Compufoto", rnc: "026-0075688-2",
+      slogan: "Captamos tus mejores momentos...", direccion: "",
+      whatsapp: "809-757-5644", telefono: "809-746-8651",
+      instagram: "@dcarela_compufoto", tiktok: "@carelacompufoto",
+      ticketPie: "Gracias por su compra", logoActivo: "1"
+    };
+    return businessConfig;
+  }
+
   function clavesVenta(event) {
     const payload = P(event);
     return [event?.entity_id, payload.id, payload.ventaId, payload.venta_id, payload.saleId, payload.sale_id]
@@ -192,6 +396,15 @@
       BackupSnapshotFallido: ["Respaldo", "Fallo de respaldo", payload.message || payload.error || ""],
       CompraCreditoProveedorRegistrada: ["CxP", `Compra a credito ${money(montoDe(payload))}`, payload.proveedorNombre || ""],
       PagoProveedorRegistrado: ["CxP", `Pago a proveedor ${money(montoDe(payload))}`, payload.proveedorNombre || ""],
+      ProductoCreado: ["Catalogo", "Producto creado", payload.nombre || event.entity_id || ""],
+      ProductoEditado: ["Catalogo", "Producto actualizado", payload.nombre || event.entity_id || ""],
+      ProductoDesactivado: ["Catalogo", "Producto desactivado", payload.nombre || event.entity_id || ""],
+      InventarioAjustado: ["Inventario", "Existencia ajustada", `${payload.nombre || event.entity_id || ""} | ${payload.cantidadNueva ?? ""}`],
+      ClienteCreado: ["Clientes", "Cliente creado", payload.nombre || event.entity_id || ""],
+      ClienteEditado: ["Clientes", "Cliente actualizado", payload.nombre || event.entity_id || ""],
+      ClienteDesactivado: ["Clientes", "Cliente desactivado", payload.nombre || event.entity_id || ""],
+      CategoriaCreada: ["Catalogo", "Categoria guardada", payload.nombre || event.entity_id || ""],
+      CategoriaGastoCreada: ["Gastos", "Categoria de gasto guardada", payload.nombre || event.entity_id || ""],
       ConfiguracionActualizada: ["Ajustes", "Configuracion actualizada", payload.seccion || event.entity_id || ""]
     };
     const value = definitions[type] || ["Evento", type.replace(/([a-z])([A-Z])/g, "$1 $2"), payload.nombre || payload.nota || event.entity_id || ""];
@@ -382,13 +595,143 @@
   }
 
   async function cargarInventario() {
-    const types = ["ProductoCreado", "ProductoEditado", "ProductoDesactivado", "InventarioAjustado", "CompraRegistrada", "KitCreado", "KitEditado", "LoteDeRedondeoAplicado"];
-    const items = await eventos(types, null, null, 500);
-    $("invResumen").innerHTML = metric("Cambios recibidos", String(items.length)) + metric("Ajustes de inventario", String(items.filter(item => item.event_type === "InventarioAjustado").length)) + metric("Kits / combos", String(items.filter(item => item.event_type.startsWith("Kit")).length));
-    $("invTabla").innerHTML = tabla(items, event => {
-      const payload = P(event);
-      return [fecha(fechaEventoIso(event)), event.event_type, payload.nombre || payload.productoNombre || event.entity_id || "--", payload.precioFinalCentavos != null ? money(payload.precioFinalCentavos) : "--", payload.stock ?? payload.nuevoStock ?? "--", payload.usuarioNombre || "--"];
-    }, ["Fecha", "Evento", "Producto", "Precio", "Stock", "Usuario"]);
+    const { products, categories } = await cargarCatalogoCloud();
+    const query = $("invBuscar").value.trim().toLowerCase();
+    const categoryNames = new Map();
+    categories.forEach(category => (category._ids || [category.id]).forEach(id => categoryNames.set(id, category.nombre)));
+    const visible = products.filter(product => {
+      if (!query) return true;
+      return [product.nombre, product.codigoBarras, categoryNames.get(product.categoriaId), product.tipo]
+        .some(value => String(value || "").toLowerCase().includes(query));
+    });
+    const low = products.filter(product => product.activo && product.usaInventario && numero(product.stock) <= numero(product.stockMinimo)).length;
+    $("invResumen").innerHTML = metric("Productos", String(products.length)) + metric("Activos", String(products.filter(item => item.activo).length)) + metric("Stock bajo", String(low)) + metric("Combos", String(products.filter(item => item.tipo === "combo").length));
+    const headers = ["Codigo", "Producto", "Categoria", "Precio", "Costo", "Stock", "Estado"];
+    if (canEdit) headers.push("Acciones");
+    $("invTabla").innerHTML = tabla(visible, product => {
+      const row = [
+        esc(product.codigoBarras || "--"), `<strong>${esc(product.nombre)}</strong><span class="sync-note">${esc(product.tipo || "producto")}</span>`,
+        esc(categoryNames.get(product.categoriaId) || "Sin categoria"), money(product.precioFinalCentavos), money(product.costoCentavos),
+        product.usaInventario ? esc(product.stock ?? "0") : "No aplica", `<span class="tag ${product.activo ? "ok" : "bad"}">${product.activo ? "Activo" : "Inactivo"}</span>`
+      ];
+      if (canEdit) row.push(`<div class="row-actions"><button class="table-action" data-edit-product="${esc(product.id)}">Editar</button>${product.usaInventario ? `<button class="table-action" data-stock-product="${esc(product.id)}">Existencia</button>` : ""}</div>`);
+      return row;
+    }, headers);
+    $("invTabla").querySelectorAll("[data-edit-product]").forEach(button => button.addEventListener("click", () => abrirProducto(products.find(item => item.id === button.dataset.editProduct))));
+    $("invTabla").querySelectorAll("[data-stock-product]").forEach(button => button.addEventListener("click", () => abrirInventario(products.find(item => item.id === button.dataset.stockProduct))));
+  }
+
+  async function abrirProducto(product = null) {
+    const { categories } = await cargarCatalogoCloud();
+    const item = product || { tipo: "producto", precioIncluyeItbis: true, tasaItbis: "0.18", usaInventario: true, activo: true, unidadMedida: "unidad", stock: "0", stockMinimo: "0", stockMaximo: "0" };
+    const categoryOptions = `<option value="">Sin categoria</option>` + categories.map(category => `<option value="${esc(category.id)}"${(category._ids || [category.id]).includes(item.categoriaId) ? " selected" : ""}>${esc(category.nombre)}</option>`).join("");
+    abrirEditor(product ? "Editar producto" : "Nuevo producto", "Precios, impuestos y catalogo se replicaran en todas las cajas.", `
+      <label class="field-wide"><span>Nombre</span><input name="nombre" required maxlength="180" value="${esc(item.nombre || "")}"></label>
+      <label><span>Codigo de barras</span><input name="codigoBarras" maxlength="100" value="${esc(item.codigoBarras || "")}"></label>
+      <label><span>Categoria</span><select name="categoriaId">${categoryOptions}</select></label>
+      <label><span>Tipo</span><select name="tipo"><option value="producto"${selected(item.tipo, "producto")}>Producto</option><option value="servicio"${selected(item.tipo, "servicio")}>Servicio</option><option value="combo"${selected(item.tipo, "combo")}>Combo</option></select></label>
+      <label><span>Unidad</span><select name="unidadMedida">${["unidad","libra","onza","kilogramo","gramo","litro","mililitro","metro","pie"].map(unit => `<option value="${unit}"${selected(item.unidadMedida, unit)}>${unit}</option>`).join("")}</select></label>
+      <label><span>Precio publico (RD$)</span><input name="precio" type="number" min="0" step="0.01" required value="${pesoInput(item.precioFinalCentavos)}"></label>
+      <label><span>Precio mayoreo (RD$)</span><input name="mayoreo" type="number" min="0" step="0.01" value="${pesoInput(item.precioMayoreoCentavos)}"></label>
+      <label><span>Costo (RD$)</span><input name="costo" type="number" min="0" step="0.01" value="${pesoInput(item.costoCentavos)}"></label>
+      <label><span>Tasa ITBIS</span><input name="tasaItbis" type="number" min="0" max="1" step="0.01" value="${esc(item.tasaItbis ?? "0.18")}"></label>
+      ${product ? `<label><span>Existencia actual</span><input value="${esc(item.stock ?? "0")}" disabled></label>` : `<label><span>Existencia inicial</span><input name="stock" type="number" min="0" step="0.001" value="${esc(item.stock ?? "0")}"></label>`}
+      <label><span>Stock minimo</span><input name="stockMinimo" type="number" min="0" step="0.001" value="${esc(item.stockMinimo ?? "0")}"></label>
+      <label><span>Stock maximo</span><input name="stockMaximo" type="number" min="0" step="0.001" value="${esc(item.stockMaximo ?? "0")}"></label>
+      <label class="check-row"><input name="precioIncluyeItbis" type="checkbox"${checked(item.precioIncluyeItbis !== false)}><span>Precio incluye ITBIS</span></label>
+      <label class="check-row"><input name="usaInventario" type="checkbox"${checked(item.usaInventario)}><span>Maneja inventario</span></label>
+      <label class="check-row"><input name="ventaGranel" type="checkbox"${checked(item.ventaGranel)}><span>Permite venta a granel</span></label>
+      <label class="check-row"><input name="activo" type="checkbox"${checked(item.activo !== false)}><span>Producto activo</span></label>`, async form => {
+      const data = {
+        productoId: product?.id || null,
+        nombre: form.get("nombre"), codigoBarras: form.get("codigoBarras"), categoriaId: form.get("categoriaId"),
+        tipo: form.get("tipo"), unidadMedida: form.get("unidadMedida"),
+        precioFinalCentavos: centavosInput(form.get("precio")), precioMayoreoCentavos: centavosInput(form.get("mayoreo") || 0),
+        costoCentavos: centavosInput(form.get("costo") || 0), tasaItbis: decimalInput(form.get("tasaItbis") || 0),
+        stock: product ? String(product.stock ?? "0") : decimalInput(form.get("stock") || 0),
+        stockMinimo: decimalInput(form.get("stockMinimo") || 0), stockMaximo: decimalInput(form.get("stockMaximo") || 0),
+        precioIncluyeItbis: form.has("precioIncluyeItbis"), usaInventario: form.has("usaInventario"),
+        ventaGranel: form.has("ventaGranel"), activo: form.has("activo")
+      };
+      await adminWrite("product.upsert", product?.id, data);
+      cerrarEditor();
+      await cargarCatalogoCloud(true);
+      await cargarInventario();
+    });
+  }
+
+  function abrirInventario(product) {
+    if (!product) return;
+    abrirEditor("Ajustar existencia", "El motivo es obligatorio y el ajuste quedara en kardex, auditoria y sincronizacion.", `
+      <label class="field-wide"><span>Producto</span><input value="${esc(product.nombre)}" disabled></label>
+      <label><span>Existencia actual</span><input value="${esc(product.stock ?? "0")}" disabled></label>
+      <label><span>Nueva existencia</span><input name="cantidadNueva" type="number" min="0" step="0.001" required value="${esc(product.stock ?? "0")}"></label>
+      <label class="field-wide"><span>Motivo del ajuste</span><textarea name="motivo" rows="3" maxlength="300" required placeholder="Ej.: conteo fisico, entrada o correccion"></textarea></label>`, async form => {
+      await adminWrite("inventory.set", product.id, { productoId: product.id, nombre: product.nombre, cantidadNueva: decimalInput(form.get("cantidadNueva")), motivo: form.get("motivo") });
+      cerrarEditor();
+      await cargarCatalogoCloud(true);
+      await cargarInventario();
+    });
+  }
+
+  function abrirCategoria() {
+    abrirEditor("Nueva categoria", "La categoria estara disponible en cada caja despues de sincronizar.", `<label class="field-wide"><span>Nombre</span><input name="nombre" required maxlength="120"></label>`, async form => {
+      await adminWrite("category.upsert", null, { nombre: form.get("nombre") });
+      cerrarEditor();
+      await cargarCatalogoCloud(true);
+      await cargarInventario();
+    });
+  }
+
+  async function cargarClientes() {
+    const clients = await cargarClientesCloud();
+    const query = $("cliBuscar").value.trim().toLowerCase();
+    const visible = clients.filter(client => !query || [client.nombre, client.telefono, client.rnc, client.email].some(value => String(value || "").toLowerCase().includes(query)));
+    const debtors = clients.filter(client => numero(client.saldoCentavos) > 0);
+    $("cliResumen").innerHTML = metric("Clientes", String(clients.length)) + metric("Activos", String(clients.filter(item => item.activo).length)) + metric("Con balance", String(debtors.length)) + metric("CxC informada", money(debtors.reduce((sum, item) => sum + numero(item.saldoCentavos), 0)));
+    const headers = ["Cliente", "Telefono", "RNC", "Correo", "Limite", "Balance", "Estado"];
+    if (canEdit) headers.push("Accion");
+    $("cliTabla").innerHTML = tabla(visible, client => {
+      const row = [`<strong>${esc(client.nombre)}</strong><span class="sync-note">Folio ${esc(client.folio || "--")}</span>`, esc(client.telefono || "--"), esc(client.rnc || "--"), esc(client.email || "--"), money(client.limiteCreditoCentavos), money(client.saldoCentavos), `<span class="tag ${client.activo ? "ok" : "bad"}">${client.activo ? "Activo" : "Inactivo"}</span>`];
+      if (canEdit) row.push(`<button class="table-action" data-edit-client="${esc(client.id)}">Editar</button>`);
+      return row;
+    }, headers);
+    $("cliTabla").querySelectorAll("[data-edit-client]").forEach(button => button.addEventListener("click", () => abrirCliente(clients.find(item => item.id === button.dataset.editClient))));
+  }
+
+  function abrirCliente(client = null) {
+    const item = client || { activo: true, diasCredito: 0 };
+    abrirEditor(client ? "Editar cliente" : "Nuevo cliente", "Los saldos no se editan aqui; se conservan mediante ventas, devoluciones y abonos.", `
+      <label class="field-wide"><span>Nombre</span><input name="nombre" required maxlength="180" value="${esc(item.nombre || "")}"></label>
+      <label><span>Telefono</span><input name="telefono" maxlength="80" value="${esc(item.telefono || "")}"></label>
+      <label><span>Correo</span><input name="email" type="email" maxlength="180" value="${esc(item.email || "")}"></label>
+      <label><span>RNC / documento</span><input name="rnc" maxlength="80" value="${esc(item.rnc || "")}"></label>
+      <label><span>Limite de credito (RD$)</span><input name="limite" type="number" min="0" step="0.01" value="${pesoInput(item.limiteCreditoCentavos)}"></label>
+      <label><span>Dias de credito</span><input name="diasCredito" type="number" min="0" max="3650" step="1" value="${esc(item.diasCredito || 0)}"></label>
+      <label class="field-wide"><span>Direccion</span><input name="direccion" maxlength="500" value="${esc(item.direccion || "")}"></label>
+      <label><span>Red social</span><input name="redSocial" maxlength="180" value="${esc(item.redSocial || "")}"></label>
+      <label><span>Persona cercana</span><input name="personaCercanaNombre" maxlength="180" value="${esc(item.personaCercanaNombre || "")}"></label>
+      <label><span>Telefono persona cercana</span><input name="personaCercanaTelefono" maxlength="80" value="${esc(item.personaCercanaTelefono || "")}"></label>
+      <label class="field-wide"><span>Notas</span><textarea name="notas" rows="3" maxlength="1200">${esc(item.notas || "")}</textarea></label>
+      <label class="check-row field-wide"><input name="activo" type="checkbox"${checked(item.activo !== false)}><span>Cliente activo</span></label>`, async form => {
+      await adminWrite("client.upsert", client?.id, {
+        clienteId: client?.id || null, nombre: form.get("nombre"), telefono: form.get("telefono"), email: form.get("email"),
+        rnc: form.get("rnc"), limiteCreditoCentavos: centavosInput(form.get("limite") || 0), diasCredito: Number(form.get("diasCredito") || 0),
+        direccion: form.get("direccion"), redSocial: form.get("redSocial"), personaCercanaNombre: form.get("personaCercanaNombre"),
+        personaCercanaTelefono: form.get("personaCercanaTelefono"), notas: form.get("notas"), activo: form.has("activo"), folio: client?.folio || null
+      });
+      cerrarEditor();
+      await cargarClientesCloud(true);
+      await cargarClientes();
+    });
+  }
+
+  function abrirCategoriaGasto() {
+    abrirEditor("Nueva categoria de gasto", "La categoria quedara disponible para gastos y salidas registradas en las cajas.", `<label class="field-wide"><span>Nombre</span><input name="nombre" required maxlength="120"></label>`, async form => {
+      await adminWrite("expense_category.upsert", null, { nombre: form.get("nombre") });
+      cerrarEditor();
+      await cargarProveedores();
+    });
   }
 
   async function cargarProveedores() {
@@ -480,6 +823,7 @@
     if (type.includes("backup") || type.includes("respaldo")) return "respaldos";
     if (type.includes("caja") || type.includes("cierre") || type.includes("arqueo")) return "caja";
     if (type.includes("venta") || type.includes("devolucion")) return "ventas";
+    if (type.includes("cliente") || type.includes("credito")) return "clientes";
     if (type.includes("proveedor") || type.includes("gasto")) return "proveedores";
     if (type.includes("dispositivo")) return "dispositivos";
     if (type.includes("version") || type.includes("actualizacion")) return "descargar";
@@ -529,7 +873,7 @@
     if (status === "bloqueada" && !window.confirm("Bloquear este dispositivo impedira nuevas sincronizaciones. Continuar?")) return;
     const response = await fetch(`${cfg.url.replace(/\/$/, "")}/functions/v1/pos-device-block`, {
       method: "POST",
-      headers: { Authorization: `Bearer ${session.access_token}`, "Content-Type": "application/json" },
+      headers: await authenticatedHeaders(true),
       body: JSON.stringify({ business_id: BUSINESS, device_id: deviceId, status })
     });
     if (!response.ok) throw new Error(`No se pudo cambiar el dispositivo (HTTP ${response.status}).`);
@@ -546,14 +890,38 @@
   }
 
   async function cargarConfiguracion() {
-    $("cfgInfo").innerHTML = `<div class="config-line"><span>Proyecto</span><strong>${esc(cfg.url)}</strong></div><div class="config-line"><span>Negocio</span><strong>${esc(BUSINESS)}</strong></div><div class="config-line"><span>Usuario</span><strong>${esc(session?.user?.email || "--")}</strong></div><div class="config-line"><span>Sesion</span><strong>Autenticada con Supabase Auth</strong></div>`;
+    $("cfgInfo").innerHTML = `<div class="config-line"><span>Proyecto</span><strong>${esc(cfg.url)}</strong></div><div class="config-line"><span>Negocio</span><strong>${esc(BUSINESS)}</strong></div><div class="config-line"><span>Usuario</span><strong>${esc(session?.user?.email || "--")}</strong></div><div class="config-line"><span>Rol</span><strong>${esc(memberRole)}${canEdit ? " | edicion habilitada" : " | solo lectura"}</strong></div><div class="config-line"><span>Sesion</span><strong>Autenticada con Supabase Auth</strong></div>`;
+    const negocio = await cargarNegocioCloud();
+    $("negNombre").value = negocio.nombre || "";
+    $("negRnc").value = negocio.rnc || "";
+    $("negSlogan").value = negocio.slogan || "";
+    $("negDireccion").value = negocio.direccion || "";
+    $("negWhatsapp").value = negocio.whatsapp || "";
+    $("negTelefono").value = negocio.telefono || "";
+    $("negInstagram").value = negocio.instagram || "";
+    $("negTiktok").value = negocio.tiktok || "";
+    $("negTicketPie").value = negocio.ticketPie || "";
+    $("negLogoActivo").checked = ![false, "0", 0].includes(negocio.logoActivo);
     const changes = await eventos(["ConfiguracionActualizada", "FuenteVisualActualizada", "CategoriasNormalizadas", "TextosMigracionReparados", "ProveedoresDepurados"], null, null, 100);
     $("cfgEventos").innerHTML = tabla(changes, event => [fecha(fechaEventoIso(event)), event.event_type, P(event).seccion || event.entity_id || "--", P(event).usuarioNombre || "--"], ["Fecha", "Evento", "Seccion", "Usuario"]);
   }
 
+  async function guardarNegocio() {
+    const data = {
+      nombre: $("negNombre").value.trim(), rnc: $("negRnc").value.trim(), slogan: $("negSlogan").value.trim(),
+      direccion: $("negDireccion").value.trim(), whatsapp: $("negWhatsapp").value.trim(), telefono: $("negTelefono").value.trim(),
+      instagram: $("negInstagram").value.trim(), tiktok: $("negTiktok").value.trim(), ticketPie: $("negTicketPie").value.trim(),
+      logoActivo: $("negLogoActivo").checked
+    };
+    if (!data.nombre) { $("negNombre").focus(); throw new Error("El nombre comercial es obligatorio."); }
+    await adminWrite("business.update", "negocio", data);
+    businessConfig = { ...data, logoActivo: data.logoActivo ? "1" : "0" };
+    await cargarConfiguracion();
+  }
+
   async function consultarVersion() {
     const response = await fetch(`${cfg.url.replace(/\/$/, "")}/functions/v1/pos-installer-version?channel=stable`, {
-      headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}
+      headers: await authenticatedHeaders()
     });
     if (!response.ok) throw new Error(`Servicio de versiones no disponible (HTTP ${response.status}).`);
     const body = await response.json();
@@ -599,6 +967,7 @@
       const view = location.hash.slice(1) || "dashboard";
       if (view === "dashboard") cargarDashboard().catch(() => {});
       if (view === "notificaciones") cargarNotificaciones().catch(() => {});
+      if (["inventario", "clientes", "proveedores", "configuracion"].includes(view)) loaders[view]?.().catch(() => {});
     }, 700);
   }
 
@@ -634,6 +1003,7 @@
     $("app").classList.remove("oculto");
     $("sessionEmail").textContent = session?.user?.email || "Administrador";
     verEstado(true, "Sesion autenticada");
+    await cargarRolEdicion().catch(() => { canEdit = false; memberRole = "viewer"; });
     conectarRealtime();
     await obtenerAlertas(true).catch(() => []);
     comprobarVersion();
@@ -663,6 +1033,31 @@
     $("btnNotificaciones").addEventListener("click", () => { location.hash = "notificaciones"; });
     $("btnVentas").addEventListener("click", () => cargarVentas().catch(error => mostrarError("ventas", error)));
     $("btnReporte").addEventListener("click", () => cargarReporte().catch(error => mostrarError("reportes", error)));
+    $("btnNuevoProducto").addEventListener("click", () => abrirProducto().catch(error => toast(error.message)));
+    $("btnNuevaCategoria").addEventListener("click", abrirCategoria);
+    $("btnNuevoCliente").addEventListener("click", () => abrirCliente());
+    $("btnNuevaCategoriaGasto").addEventListener("click", abrirCategoriaGasto);
+    $("btnInvBuscar").addEventListener("click", () => cargarInventario().catch(error => mostrarError("inventario", error)));
+    $("btnCliBuscar").addEventListener("click", () => cargarClientes().catch(error => mostrarError("clientes", error)));
+    $("invBuscar").addEventListener("keydown", event => { if (event.key === "Enter") { event.preventDefault(); $("btnInvBuscar").click(); } });
+    $("cliBuscar").addEventListener("keydown", event => { if (event.key === "Enter") { event.preventDefault(); $("btnCliBuscar").click(); } });
+    $("btnGuardarNegocio").addEventListener("click", () => guardarNegocio().catch(error => toast(error.message)));
+    $("btnCerrarEditor").addEventListener("click", cerrarEditor);
+    $("btnCancelarEditor").addEventListener("click", cerrarEditor);
+    $("editorOverlay").addEventListener("click", event => { if (event.target === $("editorOverlay")) cerrarEditor(); });
+    $("editorForm").addEventListener("submit", async event => {
+      event.preventDefault();
+      if (!editorSubmit) return;
+      const button = $("btnGuardarEditor");
+      const previous = button.textContent;
+      button.disabled = true;
+      button.textContent = "Guardando...";
+      $("editorError").textContent = "";
+      try { await editorSubmit(new FormData(event.currentTarget)); }
+      catch (error) { $("editorError").textContent = error?.message || String(error); }
+      finally { button.disabled = false; button.textContent = previous; }
+    });
+    window.addEventListener("keydown", event => { if (event.key === "Escape" && !$("editorOverlay").classList.contains("oculto")) cerrarEditor(); });
     $("alertFilter").addEventListener("change", () => cargarNotificaciones().catch(() => {}));
     $("btnLeerTodas").addEventListener("click", async () => {
       const alerts = await obtenerAlertas();
