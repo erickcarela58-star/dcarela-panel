@@ -10,7 +10,7 @@
 <body>
   <section id="access" class="access-shell">
     <div id="v-config" class="auth-panel oculto">
-      <div class="auth-logo logo-glyph" aria-label="D' Carela Compufoto">C</div>
+      <div class="logo-glyph auth-logo" aria-label="D' Carela Compufoto">C</div>
       <p class="eyebrow">Panel administrativo</p>
       <h1>Conectar la nube</h1>
       <p class="muted">Usa la URL y la clave publica del proyecto Supabase.</p>
@@ -23,7 +23,7 @@
     </div>
 
     <div id="v-login" class="auth-panel oculto">
-      <div class="auth-logo logo-glyph" aria-label="D' Carela Compufoto">C</div>
+      <div class="logo-glyph auth-logo" aria-label="D' Carela Compufoto">C</div>
       <p class="eyebrow">D' Carela Compufoto</p>
       <h1>Panel del Punto de Venta</h1>
       <p class="muted">Acceso reservado para administracion.</p>
@@ -40,7 +40,7 @@
   <div id="app" class="app-shell oculto">
     <aside class="sidebar">
       <div class="brand">
-        <div class="brand-logo logo-glyph" aria-hidden="true">C</div>
+        <div class="logo-glyph brand-logo" aria-hidden="true">C</div>
         <div><strong>D' Carela Compufoto</strong><span>Punto de Venta</span></div>
       </div>
       <nav id="menu" aria-label="Navegacion principal">
@@ -49,6 +49,7 @@
         <a href="#caja" data-title="Caja y arqueos">Caja</a>
         <a href="#reportes" data-title="Reportes">Reportes</a>
         <a href="#inventario" data-title="Inventario">Inventario</a>
+        <a href="#clientes" data-title="Clientes">Clientes</a>
         <a href="#proveedores" data-title="Gastos y costos">Gastos y costos</a>
         <a href="#notificaciones" data-title="Notificaciones">Notificaciones <span id="navAlertas" class="nav-count oculto">0</span></a>
         <a href="#dispositivos" data-title="Dispositivos">Dispositivos</a>
@@ -147,13 +148,27 @@
         </section>
 
         <section id="v-inventario" class="vista oculto">
-          <div class="section-heading"><div><h2>Inventario</h2><p>Cambios de catalogo, precios, existencias y kits sincronizados.</p></div></div>
+          <div class="section-heading">
+            <div><h2>Inventario</h2><p>Catalogo editable, precios y existencias sincronizados con todas las cajas.</p></div>
+            <div class="button-row admin-only oculto"><button id="btnNuevaCategoria" class="secondary">Nueva categoria</button><button id="btnNuevoProducto" class="primary">Nuevo producto</button></div>
+          </div>
+          <div class="filter-bar compact-filter"><div class="filter-grow"><label for="invBuscar">Buscar producto</label><input id="invBuscar" type="search" placeholder="Nombre, codigo o categoria"></div><button id="btnInvBuscar" class="secondary">Filtrar</button></div>
           <div id="invResumen" class="inline-metrics"></div>
           <section class="surface"><div id="invTabla" class="table-wrap"></div></section>
         </section>
 
+        <section id="v-clientes" class="vista oculto">
+          <div class="section-heading">
+            <div><h2>Clientes</h2><p>Datos de contacto y condiciones de credito. El saldo solo cambia mediante ventas y abonos.</p></div>
+            <button id="btnNuevoCliente" class="primary admin-only oculto">Nuevo cliente</button>
+          </div>
+          <div class="filter-bar compact-filter"><div class="filter-grow"><label for="cliBuscar">Buscar cliente</label><input id="cliBuscar" type="search" placeholder="Nombre, telefono, RNC o correo"></div><button id="btnCliBuscar" class="secondary">Filtrar</button></div>
+          <div id="cliResumen" class="inline-metrics"></div>
+          <section class="surface"><div id="cliTabla" class="table-wrap"></div></section>
+        </section>
+
         <section id="v-proveedores" class="vista oculto">
-          <div class="section-heading"><div><h2>Gastos y costos</h2><p>Compras, cuentas por pagar, pagos y gastos recurrentes.</p></div></div>
+          <div class="section-heading"><div><h2>Gastos y costos</h2><p>Compras, cuentas por pagar, pagos y gastos recurrentes.</p></div><button id="btnNuevaCategoriaGasto" class="secondary admin-only oculto">Nueva categoria de gasto</button></div>
           <div id="provResumen" class="inline-metrics"></div>
           <section class="surface"><div id="provTabla" class="table-wrap"></div></section>
         </section>
@@ -187,7 +202,22 @@
         </section>
 
         <section id="v-configuracion" class="vista oculto">
-          <div class="section-heading"><div><h2>Configuracion del panel</h2><p>Sesion, proyecto y cambios recibidos desde las cajas.</p></div></div>
+          <div class="section-heading"><div><h2>Configuracion</h2><p>Datos del negocio y ticket sincronizados con todas las cajas.</p></div></div>
+          <section class="surface admin-only oculto">
+            <div class="surface-title"><div><h3>Negocio y ticket</h3><p>Los cambios entran a la cola cloud y se aplican en cada caja conectada.</p></div><button id="btnGuardarNegocio" class="primary">Guardar cambios</button></div>
+            <form id="formNegocio" class="form-grid" autocomplete="off">
+              <label><span>Nombre comercial</span><input id="negNombre" required maxlength="180"></label>
+              <label><span>RNC</span><input id="negRnc" maxlength="80"></label>
+              <label class="field-wide"><span>Slogan</span><input id="negSlogan" maxlength="240"></label>
+              <label class="field-wide"><span>Direccion</span><input id="negDireccion" maxlength="500"></label>
+              <label><span>WhatsApp</span><input id="negWhatsapp" maxlength="80"></label>
+              <label><span>Telefono</span><input id="negTelefono" maxlength="80"></label>
+              <label><span>Instagram</span><input id="negInstagram" maxlength="160"></label>
+              <label><span>TikTok</span><input id="negTiktok" maxlength="160"></label>
+              <label class="field-wide"><span>Pie del ticket</span><textarea id="negTicketPie" rows="3" maxlength="500"></textarea></label>
+              <label class="check-row field-wide"><input id="negLogoActivo" type="checkbox"><span>Imprimir logo en el ticket</span></label>
+            </form>
+          </section>
           <div class="config-grid">
             <section class="surface"><div id="cfgInfo"></div><div class="button-row"><button class="secondary" id="btnSalir">Cerrar sesion</button><button class="secondary" id="btnReset">Cambiar conexion</button></div></section>
             <section class="surface"><div class="surface-title"><div><h3>Cambios recientes</h3></div></div><div id="cfgEventos" class="table-wrap"></div></section>
@@ -196,6 +226,17 @@
       </main>
       <footer><span>D' Carela Compufoto</span><span id="footerClock"></span></footer>
     </div>
+  </div>
+
+  <div id="editorOverlay" class="editor-overlay oculto" aria-hidden="true">
+    <section class="editor-dialog" role="dialog" aria-modal="true" aria-labelledby="editorTitle">
+      <header class="editor-header"><div><p class="eyebrow">Edicion administrativa</p><h2 id="editorTitle">Editar</h2><p id="editorSubtitle"></p></div><button id="btnCerrarEditor" class="icon-button" type="button" aria-label="Cerrar">&#215;</button></header>
+      <form id="editorForm">
+        <div id="editorFields" class="form-grid"></div>
+        <p id="editorError" class="error" role="alert"></p>
+        <div class="editor-actions"><button id="btnCancelarEditor" class="secondary" type="button">Cancelar</button><button id="btnGuardarEditor" class="primary" type="submit">Guardar y sincronizar</button></div>
+      </form>
+    </section>
   </div>
 
   <div id="toast" class="toast oculto" role="status"></div>
