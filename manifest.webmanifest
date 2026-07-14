@@ -1,0 +1,25 @@
+{
+  "name": "D' Carela Compufoto POS",
+  "short_name": "D' Carela POS",
+  "description": "Panel administrativo, gastos, costos, inventario y alertas del punto de venta.",
+  "lang": "es-DO",
+  "start_url": "./panel.html#dashboard",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#e8eef5",
+  "theme_color": "#0a3679",
+  "icons": [
+    {
+      "src": "dcarela-logo.png",
+      "sizes": "any",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    { "name": "Gastos y costos", "url": "./panel.html#proveedores" },
+    { "name": "Inventario", "url": "./panel.html#inventario" },
+    { "name": "Notificaciones", "url": "./panel.html#notificaciones" }
+  ]
+}

@@ -10,7 +10,10 @@
     "CierreConDiferencia", "ErrorSincronizacion", "BackupSnapshotFallido", "VentaCancelada",
     "DevolucionRegistrada", "InventarioBajo", "ProductoAgotado", "DispositivoBloqueado",
     "CajaAbierta", "CajaCerrada", "CompraCreditoProveedorRegistrada", "PagoProveedorRegistrado",
-    "GastoRegistrado", "ActualizacionDisponible"
+    "GastoRegistrado", "GastoEditado", "GastoEliminado", "CostoRecurrenteGuardado",
+    "CostoObligacionGenerada", "CostoObligacionGuardada", "CostoPagoRegistrado",
+    "CostoObligacionAnulada", "ReciboPagoEmitido", "ReciboPagoFirmaActualizada",
+    "ReciboPagoAnulado", "ActualizacionDisponible", "ErrorCajonDinero"
   ];
 
   let sb = null;
@@ -20,6 +23,17 @@
   let alertasCache = null;
   let toastTimer = null;
   let liveRefreshTimer = null;
+  let canEdit = false;
+  let memberRole = "viewer";
+  let editorSubmit = null;
+  let productCatalog = null;
+  let categoryCatalog = null;
+  let comboCatalog = null;
+  let clientCatalog = null;
+  let businessConfig = null;
+  let costStateCache = null;
+  let costTab = "gastos";
+  let costAlertsAt = 0;
 
   const esc = value => String(value ?? "").replace(/[&<>"']/g, char => ({
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
@@ -100,6 +114,7 @@
     caja: cargarCaja,
     reportes: cargarReporte,
     inventario: cargarInventario,
+    clientes: cargarClientes,
     proveedores: cargarProveedores,
     notificaciones: cargarNotificaciones,
     dispositivos: cargarDispositivos,
@@ -149,6 +164,217 @@
     return output;
   }
 
+  async function cargarRolEdicion() {
+    const { data, error } = await sb.from("pos_business_members")
+      .select("role,active")
+      .eq("business_id", BUSINESS)
+      .eq("user_id", session.user.id)
+      .eq("active", true)
+      .maybeSingle();
+    if (error) throw error;
+    memberRole = data?.role || "viewer";
+    canEdit = ["owner", "admin"].includes(memberRole);
+    document.querySelectorAll(".admin-only").forEach(element => element.classList.toggle("oculto", !canEdit));
+  }
+
+  async function authenticatedHeaders(includeJson = false) {
+    const { data, error } = await sb.auth.getSession();
+    if (error || !data?.session?.access_token) throw new Error("La sesion vencio. Inicia sesion nuevamente.");
+    session = data.session;
+    return {
+      Authorization: `Bearer ${session.access_token}`,
+      apikey: cfg.anon,
+      ...(includeJson ? { "Content-Type": "application/json" } : {})
+    };
+  }
+
+  async function adminWrite(action, entityId, data) {
+    if (!canEdit) throw new Error("Tu cuenta no tiene permiso de administracion para editar datos.");
+    const response = await fetch(`${cfg.url.replace(/\/$/, "")}/functions/v1/pos-admin-write`, {
+      method: "POST",
+      headers: await authenticatedHeaders(true),
+      body: JSON.stringify({ business_id: BUSINESS, action, entity_id: entityId || null, data })
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok || !result.ok) throw new Error(result.error || `No se pudo guardar el cambio (HTTP ${response.status}).`);
+    productCatalog = null;
+    categoryCatalog = null;
+    comboCatalog = null;
+    clientCatalog = null;
+    businessConfig = null;
+    costStateCache = null;
+    alertasCache = null;
+    toast(result.message || "Cambio guardado y enviado a sincronizacion.");
+    return result;
+  }
+
+  function cerrarEditor() {
+    $("editorOverlay").classList.add("oculto");
+    $("editorOverlay").setAttribute("aria-hidden", "true");
+    $("editorFields").innerHTML = "";
+    $("editorError").textContent = "";
+    editorSubmit = null;
+  }
+
+  function abrirEditor(title, subtitle, fields, onSubmit) {
+    if (!canEdit) { toast("Tu cuenta no tiene permiso para editar."); return; }
+    $("editorTitle").textContent = title;
+    $("editorSubtitle").textContent = subtitle || "El cambio quedara auditado y se aplicara en las cajas conectadas.";
+    $("editorFields").innerHTML = fields;
+    $("editorError").textContent = "";
+    editorSubmit = onSubmit;
+    $("editorOverlay").classList.remove("oculto");
+    $("editorOverlay").setAttribute("aria-hidden", "false");
+    setTimeout(() => $("editorFields").querySelector("input:not([type=checkbox]), select, textarea")?.focus(), 0);
+  }
+
+  const pesoInput = cents => (numero(cents) / 100).toFixed(2);
+  const centavosInput = value => {
+    const parsed = Number(String(value ?? "").trim().replace(",", "."));
+    if (!Number.isFinite(parsed) || parsed < 0) throw new Error("Escribe un monto valido.");
+    return Math.round(parsed * 100);
+  };
+  const decimalInput = value => {
+    const parsed = Number(String(value ?? "").trim().replace(",", "."));
+    if (!Number.isFinite(parsed) || parsed < 0) throw new Error("Escribe una cantidad valida.");
+    return String(parsed);
+  };
+  const checked = value => value ? " checked" : "";
+  const selected = (value, expected) => String(value ?? "") === String(expected) ? " selected" : "";
+
+  function mergeEvents(items, stateTypes) {
+    const result = new Map();
+    items.forEach(event => {
+      const payload = P(event);
+      const id = String(event.entity_id || payload.productoId || payload.clienteId || payload.categoriaId || "").trim();
+      if (!id) return;
+      if (!result.has(id)) result.set(id, { id, _latestAt: fechaEventoIso(event), _latestEvent: event.event_type });
+      const current = result.get(id);
+      Object.entries(payload).forEach(([key, value]) => {
+        if (current[key] === undefined && value !== undefined) current[key] = value;
+      });
+      if (event.event_type === "InventarioAjustado" && current.stock === undefined) {
+        current.stock = payload.cantidadNueva ?? payload.nuevoStock ?? payload.stock;
+      }
+      if (stateTypes.includes(event.event_type) && current._stateEvent === undefined) current._stateEvent = event.event_type;
+    });
+    return [...result.values()];
+  }
+
+  function normalizedKey(value) {
+    return String(value ?? "")
+      .replace(/\uFFFD/g, "n")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]+/gi, " ")
+      .trim()
+      .toLowerCase();
+  }
+
+  function catalogKey(item) {
+    return [normalizedKey(item.codigoBarras), normalizedKey(item.nombre), normalizedKey(item.tipo || "producto")].join("|");
+  }
+
+  function consolidateProducts(items) {
+    const result = new Map();
+    items
+      .sort((a, b) => String(b._latestAt || "").localeCompare(String(a._latestAt || "")))
+      .forEach(item => {
+        const key = catalogKey(item);
+        if (!key.replaceAll("|", "")) return;
+        if (!result.has(key)) {
+          result.set(key, { ...item });
+          return;
+        }
+        const current = result.get(key);
+        Object.entries(item).forEach(([property, value]) => {
+          if ((current[property] === undefined || current[property] === null || current[property] === "")
+              && value !== undefined && value !== null && value !== "") {
+            current[property] = value;
+          }
+        });
+      });
+    return [...result.values()];
+  }
+
+  function consolidateNamed(items) {
+    const result = new Map();
+    items
+      .sort((a, b) => String(b._latestAt || "").localeCompare(String(a._latestAt || "")))
+      .forEach(item => {
+        const key = normalizedKey(item.nombre);
+        if (!key) return;
+        if (!result.has(key)) {
+          result.set(key, { ...item, _ids: [item.id] });
+          return;
+        }
+        const current = result.get(key);
+        if (item.id && !current._ids.includes(item.id)) current._ids.push(item.id);
+        Object.entries(item).forEach(([property, value]) => {
+          if ((current[property] === undefined || current[property] === null || current[property] === "")
+              && value !== undefined && value !== null && value !== "") {
+            current[property] = value;
+          }
+        });
+      });
+    return [...result.values()];
+  }
+
+  async function cargarCatalogoCloud(force = false) {
+    if (!force && productCatalog && categoryCatalog && comboCatalog) {
+      return { products: productCatalog, categories: categoryCatalog, combos: comboCatalog };
+    }
+    const [productEvents, categoryEvents, comboEvents] = await Promise.all([
+      eventos(["ProductoCreado", "ProductoEditado", "ProductoDesactivado", "InventarioAjustado"], null, null, 10000),
+      eventos(["CategoriaCreada"], null, null, 2000),
+      eventos(["KitEditado"], null, null, 10000)
+    ]);
+    productCatalog = consolidateProducts(
+      mergeEvents(productEvents, ["ProductoCreado", "ProductoEditado", "ProductoDesactivado"])
+    )
+      .filter(item => item.nombre)
+      .map(item => ({ ...item, activo: item._stateEvent !== "ProductoDesactivado" && item.activo !== false }))
+      .sort((a, b) => String(a.nombre).localeCompare(String(b.nombre), "es"));
+    categoryCatalog = consolidateNamed(mergeEvents(categoryEvents, ["CategoriaCreada"]))
+      .filter(item => item.nombre)
+      .sort((a, b) => String(a.nombre).localeCompare(String(b.nombre), "es"));
+    comboCatalog = new Map();
+    comboEvents.forEach(event => {
+      const payload = P(event);
+      const id = String(payload.comboId || event.entity_id || "").trim();
+      if (id && !comboCatalog.has(id)) comboCatalog.set(id, {
+        componentes: Array.isArray(payload.componentes) ? payload.componentes : [],
+        costoCentavos: numero(payload.costoCentavos),
+        fecha: fechaEventoIso(event)
+      });
+    });
+    return { products: productCatalog, categories: categoryCatalog, combos: comboCatalog };
+  }
+
+  async function cargarClientesCloud(force = false) {
+    if (!force && clientCatalog) return clientCatalog;
+    const items = await eventos(["ClienteCreado", "ClienteEditado", "ClienteDesactivado"], null, null, 10000);
+    clientCatalog = mergeEvents(items, ["ClienteCreado", "ClienteEditado", "ClienteDesactivado"])
+      .filter(item => item.nombre)
+      .map(item => ({ ...item, activo: item._stateEvent !== "ClienteDesactivado" && item.activo !== false }))
+      .sort((a, b) => String(a.nombre).localeCompare(String(b.nombre), "es"));
+    return clientCatalog;
+  }
+
+  async function cargarNegocioCloud(force = false) {
+    if (!force && businessConfig) return businessConfig;
+    const changes = await eventos(["ConfiguracionActualizada"], null, null, 1000);
+    const event = changes.find(item => P(item).seccion === "negocio");
+    businessConfig = event ? { ...P(event) } : {
+      nombre: "D' Carela Compufoto", rnc: "026-0075688-2",
+      slogan: "Captamos tus mejores momentos...", direccion: "",
+      whatsapp: "809-757-5644", telefono: "809-746-8651",
+      instagram: "@dcarela_compufoto", tiktok: "@carelacompufoto",
+      ticketPie: "Gracias por su compra", logoActivo: "1"
+    };
+    return businessConfig;
+  }
+
   function clavesVenta(event) {
     const payload = P(event);
     return [event?.entity_id, payload.id, payload.ventaId, payload.venta_id, payload.saleId, payload.sale_id]
@@ -186,12 +412,30 @@
       EntradaEfectivo: ["Entrada", `Entrada ${money(payload.montoCentavos)}`, payload.motivo || ""],
       SalidaEfectivo: ["Salida", `Salida ${money(payload.montoCentavos)}`, payload.motivo || ""],
       GastoRegistrado: ["Gasto", `Gasto ${money(payload.montoCentavos)}`, payload.categoria || payload.descripcion || ""],
+      GastoEditado: ["Gasto", `Gasto actualizado ${money(payload.montoCentavos)}`, payload.descripcion || ""],
+      GastoEliminado: ["Gasto", "Gasto anulado", payload.motivo || event.entity_id || ""],
+      CostoRecurrenteGuardado: ["Costos", "Plan recurrente guardado", payload.nombre || ""],
+      CostoObligacionGenerada: ["Vencimiento", `Compromiso ${money(payload.montoCentavos)}`, payload.concepto || ""],
+      CostoObligacionGuardada: ["CxP", `Factura o deuda ${money(payload.montoCentavos)}`, payload.concepto || ""],
+      CostoPagoRegistrado: ["CxP", `Pago ${money(payload.montoCentavos)}`, payload.concepto || ""],
+      CostoObligacionAnulada: ["CxP", "Factura o deuda anulada", payload.concepto || event.entity_id || ""],
       InventarioBajo: ["Inventario", "Inventario bajo", payload.nombre || event.entity_id || ""],
       ErrorSincronizacion: ["Sync", "Error de sincronizacion", payload.message || payload.error || ""],
+      CajonDineroAbierto: ["Caja", "Cajon abierto", payload.motivo || "Apertura auditada"],
+      ErrorCajonDinero: ["Alerta", "No se pudo abrir el cajon", payload.error || payload.motivo || "Revisa la impresora y el cable"],
       BackupSnapshotCreado: ["Respaldo", "Snapshot creado", payload.storagePath || payload.storage_path || ""],
       BackupSnapshotFallido: ["Respaldo", "Fallo de respaldo", payload.message || payload.error || ""],
       CompraCreditoProveedorRegistrada: ["CxP", `Compra a credito ${money(montoDe(payload))}`, payload.proveedorNombre || ""],
       PagoProveedorRegistrado: ["CxP", `Pago a proveedor ${money(montoDe(payload))}`, payload.proveedorNombre || ""],
+      ProductoCreado: ["Catalogo", "Producto creado", payload.nombre || event.entity_id || ""],
+      ProductoEditado: ["Catalogo", "Producto actualizado", payload.nombre || event.entity_id || ""],
+      ProductoDesactivado: ["Catalogo", "Producto desactivado", payload.nombre || event.entity_id || ""],
+      InventarioAjustado: ["Inventario", "Existencia ajustada", `${payload.nombre || event.entity_id || ""} | ${payload.cantidadNueva ?? ""}`],
+      ClienteCreado: ["Clientes", "Cliente creado", payload.nombre || event.entity_id || ""],
+      ClienteEditado: ["Clientes", "Cliente actualizado", payload.nombre || event.entity_id || ""],
+      ClienteDesactivado: ["Clientes", "Cliente desactivado", payload.nombre || event.entity_id || ""],
+      CategoriaCreada: ["Catalogo", "Categoria guardada", payload.nombre || event.entity_id || ""],
+      CategoriaGastoCreada: ["Gastos", "Categoria de gasto guardada", payload.nombre || event.entity_id || ""],
       ConfiguracionActualizada: ["Ajustes", "Configuracion actualizada", payload.seccion || event.entity_id || ""]
     };
     const value = definitions[type] || ["Evento", type.replace(/([a-z])([A-Z])/g, "$1 $2"), payload.nombre || payload.nota || event.entity_id || ""];
@@ -382,33 +626,692 @@
   }
 
   async function cargarInventario() {
-    const types = ["ProductoCreado", "ProductoEditado", "ProductoDesactivado", "InventarioAjustado", "CompraRegistrada", "KitCreado", "KitEditado", "LoteDeRedondeoAplicado"];
-    const items = await eventos(types, null, null, 500);
-    $("invResumen").innerHTML = metric("Cambios recibidos", String(items.length)) + metric("Ajustes de inventario", String(items.filter(item => item.event_type === "InventarioAjustado").length)) + metric("Kits / combos", String(items.filter(item => item.event_type.startsWith("Kit")).length));
-    $("invTabla").innerHTML = tabla(items, event => {
-      const payload = P(event);
-      return [fecha(fechaEventoIso(event)), event.event_type, payload.nombre || payload.productoNombre || event.entity_id || "--", payload.precioFinalCentavos != null ? money(payload.precioFinalCentavos) : "--", payload.stock ?? payload.nuevoStock ?? "--", payload.usuarioNombre || "--"];
-    }, ["Fecha", "Evento", "Producto", "Precio", "Stock", "Usuario"]);
+    const { products, categories, combos } = await cargarCatalogoCloud();
+    const query = $("invBuscar").value.trim().toLowerCase();
+    const categoryNames = new Map();
+    categories.forEach(category => (category._ids || [category.id]).forEach(id => categoryNames.set(id, category.nombre)));
+    const visible = products.filter(product => {
+      if (!query) return true;
+      return [product.nombre, product.codigoBarras, categoryNames.get(product.categoriaId), product.tipo]
+        .some(value => String(value || "").toLowerCase().includes(query));
+    });
+    const low = products.filter(product => product.activo && product.usaInventario && numero(product.stock) <= numero(product.stockMinimo)).length;
+    $("invResumen").innerHTML = metric("Productos", String(products.length)) + metric("Activos", String(products.filter(item => item.activo).length)) + metric("Stock bajo", String(low)) + metric("Combos", String(products.filter(item => item.tipo === "combo").length));
+    const byId = new Map(products.map(product => [product.id, product]));
+    const headers = ["Codigo", "Producto", "Categoria", "Precio", "Costo", "Stock", "Componentes", "Estado"];
+    if (canEdit) headers.push("Acciones");
+    $("invTabla").innerHTML = tabla(visible, product => {
+      const combo = combos.get(product.id);
+      const componentSummary = product.tipo === "combo"
+        ? (combo?.componentes || []).slice(0, 3).map(component => {
+            const detail = byId.get(component.productoId);
+            return `${component.cantidad || 1} x ${detail?.nombre || component.productoId}`;
+          }).join("; ")
+        : "";
+      const row = [
+        esc(product.codigoBarras || "--"), `<strong>${esc(product.nombre)}</strong><span class="sync-note">${esc(product.tipo || "producto")}</span>`,
+        esc(categoryNames.get(product.categoriaId) || "Sin categoria"), money(product.precioFinalCentavos), money(product.costoCentavos),
+        product.usaInventario ? esc(product.stock ?? "0") : "No aplica",
+        product.tipo === "combo" ? `<button class="table-action combo-detail" data-combo-product="${esc(product.id)}">${(combo?.componentes || []).length} componente(s)</button><span class="sync-note">${esc(componentSummary || "Sin detalle sincronizado")}</span>` : "--",
+        `<span class="tag ${product.activo ? "ok" : "bad"}">${product.activo ? "Activo" : "Inactivo"}</span>`
+      ];
+      if (canEdit) row.push(`<div class="row-actions"><button class="table-action" data-edit-product="${esc(product.id)}">Editar</button>${product.tipo === "combo" ? `<button class="table-action" data-combo-product="${esc(product.id)}">Componentes</button>` : ""}${product.usaInventario ? `<button class="table-action" data-stock-product="${esc(product.id)}">Existencia</button>` : ""}${product.activo ? `<button class="table-action danger" data-delete-product="${esc(product.id)}">Eliminar</button>` : ""}</div>`);
+      return row;
+    }, headers);
+    $("invTabla").querySelectorAll("[data-edit-product]").forEach(button => button.addEventListener("click", () => abrirProducto(products.find(item => item.id === button.dataset.editProduct))));
+    $("invTabla").querySelectorAll("[data-stock-product]").forEach(button => button.addEventListener("click", () => abrirInventario(products.find(item => item.id === button.dataset.stockProduct))));
+    $("invTabla").querySelectorAll("[data-combo-product]").forEach(button => button.addEventListener("click", () => abrirComponentesCombo(products.find(item => item.id === button.dataset.comboProduct))));
+    $("invTabla").querySelectorAll("[data-delete-product]").forEach(button => button.addEventListener("click", () => confirmarEliminarProducto(products.find(item => item.id === button.dataset.deleteProduct))));
   }
 
-  async function cargarProveedores() {
-    const types = ["CompraCreditoProveedorRegistrada", "PagoProveedorRegistrado", "GastoRegistrado", "GastoEditado", "GastoEliminado", "CategoriaGastoCreada", "CuentaPagarCreada", "CuotaProveedorRegistrada"];
-    const items = await eventos(types, null, null, 1000);
-    const expenses = items.filter(item => item.event_type.includes("Gasto")).reduce((sum, item) => sum + montoDe(P(item)), 0);
-    const purchases = items.filter(item => item.event_type === "CompraCreditoProveedorRegistrada").reduce((sum, item) => sum + montoDe(P(item)), 0);
-    const payments = items.filter(item => item.event_type === "PagoProveedorRegistrado").reduce((sum, item) => sum + montoDe(P(item)), 0);
-    $("provResumen").innerHTML = metric("Gastos sincronizados", money(expenses)) + metric("Compras a credito", money(purchases)) + metric("Pagos registrados", money(payments)) + metric("Balance por eventos", money(purchases - payments));
-    $("provTabla").innerHTML = tabla(items, event => {
-      const payload = P(event);
-      return [fecha(fechaEventoIso(event)), event.event_type, payload.categoria || payload.proveedorNombre || payload.nombre || "--", payload.descripcion || payload.concepto || "--", money(montoDe(payload)), payload.metodo || payload.metodoPago || "--", payload.usuarioNombre || "--", payload.nota || payload.motivo || ""];
-    }, ["Fecha", "Evento", "Categoria / proveedor", "Descripcion", "Monto", "Metodo", "Usuario", "Nota"]);
+  function confirmarEliminarProducto(product) {
+    if (!product) return;
+    abrirEditor("Eliminar producto", "Se ocultara de venta e inventario, pero sus ventas, auditoria y reportes se conservaran.", `
+      <div class="field-wide confirm-panel"><strong>${esc(product.nombre)}</strong><p>Esta accion se sincronizara con todas las terminales. Podras reactivarlo editando el producto.</p></div>`, async () => {
+      await adminWrite("product.upsert", product.id, { ...product, productoId: product.id, activo: false });
+      cerrarEditor();
+      await cargarCatalogoCloud(true);
+      await cargarInventario();
+    });
+  }
+
+  async function abrirComponentesCombo(combo) {
+    if (!combo) return;
+    const { products, combos } = await cargarCatalogoCloud();
+    const candidates = products.filter(item => item.activo && item.id !== combo.id);
+    const current = combos.get(combo.id)?.componentes || [];
+    const optionHtml = selectedId => candidates.map(item => `<option value="${esc(item.id)}"${selected(item.id, selectedId)}>${esc(item.nombre)} | ${money(item.costoCentavos)}</option>`).join("");
+    const rowHtml = component => `<div class="combo-component-row"><select name="componente" required><option value="">Selecciona el componente</option>${optionHtml(component?.productoId)}</select><input name="cantidad" type="number" min="0.001" step="0.001" value="${esc(component?.cantidad || 1)}" required><button type="button" class="icon-button combo-remove" aria-label="Quitar componente">&#215;</button></div>`;
+    abrirEditor(`Componentes | ${combo.nombre}`, "Cada cantidad se descuenta al vender el combo y el costo se calcula desde sus componentes.", `
+      <div id="comboRows" class="field-wide combo-editor">${current.map(rowHtml).join("") || rowHtml(null)}</div>
+      <div class="field-wide combo-footer"><button id="btnAddComboRow" class="secondary" type="button">Agregar componente</button><strong id="comboCostPreview">Costo calculado: RD$0.00</strong></div>`, async form => {
+      const rows = [...document.querySelectorAll("#comboRows .combo-component-row")];
+      const componentes = rows.map(row => ({ productoId: row.querySelector("select").value, cantidad: decimalInput(row.querySelector("input").value) })).filter(item => item.productoId);
+      if (!componentes.length) throw new Error("Agrega al menos un componente.");
+      const costoCentavos = componentes.reduce((sum, component) => {
+        const product = candidates.find(item => item.id === component.productoId);
+        return sum + Math.round(numero(product?.costoCentavos) * Number(component.cantidad));
+      }, 0);
+      await adminWrite("combo.components.set", combo.id, { comboId: combo.id, nombre: combo.nombre, componentes, costoCentavos });
+      cerrarEditor();
+      await cargarCatalogoCloud(true);
+      await cargarInventario();
+    });
+    const updateCost = () => {
+      const total = [...document.querySelectorAll("#comboRows .combo-component-row")].reduce((sum, row) => {
+        const product = candidates.find(item => item.id === row.querySelector("select").value);
+        return sum + numero(product?.costoCentavos) * numero(row.querySelector("input").value);
+      }, 0);
+      $("comboCostPreview").textContent = `Costo calculado: ${money(Math.round(total))}`;
+    };
+    const wireRows = () => document.querySelectorAll("#comboRows .combo-component-row").forEach(row => {
+      row.querySelectorAll("select,input").forEach(input => input.addEventListener("input", updateCost));
+      row.querySelector(".combo-remove").addEventListener("click", () => { row.remove(); updateCost(); });
+    });
+    $("btnAddComboRow").addEventListener("click", () => { $("comboRows").insertAdjacentHTML("beforeend", rowHtml(null)); wireRows(); updateCost(); });
+    wireRows();
+    updateCost();
+  }
+
+  async function abrirProducto(product = null) {
+    const { categories } = await cargarCatalogoCloud();
+    const item = product || { tipo: "producto", precioIncluyeItbis: true, tasaItbis: "0.18", usaInventario: true, activo: true, unidadMedida: "unidad", stock: "0", stockMinimo: "0", stockMaximo: "0" };
+    const categoryOptions = `<option value="">Sin categoria</option>` + categories.map(category => `<option value="${esc(category.id)}"${(category._ids || [category.id]).includes(item.categoriaId) ? " selected" : ""}>${esc(category.nombre)}</option>`).join("");
+    abrirEditor(product ? "Editar producto" : "Nuevo producto", "Precios, impuestos y catalogo se replicaran en todas las cajas.", `
+      <label class="field-wide"><span>Nombre</span><input name="nombre" required maxlength="180" value="${esc(item.nombre || "")}"></label>
+      <label><span>Codigo de barras</span><input name="codigoBarras" maxlength="100" value="${esc(item.codigoBarras || "")}"></label>
+      <label><span>Categoria</span><select name="categoriaId">${categoryOptions}</select></label>
+      <label><span>Tipo</span><select name="tipo"><option value="producto"${selected(item.tipo, "producto")}>Producto</option><option value="servicio"${selected(item.tipo, "servicio")}>Servicio</option><option value="combo"${selected(item.tipo, "combo")}>Combo</option></select></label>
+      <label><span>Unidad</span><select name="unidadMedida">${["unidad","libra","onza","kilogramo","gramo","litro","mililitro","metro","pie"].map(unit => `<option value="${unit}"${selected(item.unidadMedida, unit)}>${unit}</option>`).join("")}</select></label>
+      <label><span>Precio publico (RD$)</span><input name="precio" type="number" min="0" step="0.01" required value="${pesoInput(item.precioFinalCentavos)}"></label>
+      <label><span>Precio mayoreo (RD$)</span><input name="mayoreo" type="number" min="0" step="0.01" value="${pesoInput(item.precioMayoreoCentavos)}"></label>
+      <label><span>Costo (RD$)</span><input name="costo" type="number" min="0" step="0.01" value="${pesoInput(item.costoCentavos)}"></label>
+      <label><span>Tasa ITBIS</span><input name="tasaItbis" type="number" min="0" max="1" step="0.01" value="${esc(item.tasaItbis ?? "0.18")}"></label>
+      ${product ? `<label><span>Existencia actual</span><input value="${esc(item.stock ?? "0")}" disabled></label>` : `<label><span>Existencia inicial</span><input name="stock" type="number" min="0" step="0.001" value="${esc(item.stock ?? "0")}"></label>`}
+      <label><span>Stock minimo</span><input name="stockMinimo" type="number" min="0" step="0.001" value="${esc(item.stockMinimo ?? "0")}"></label>
+      <label><span>Stock maximo</span><input name="stockMaximo" type="number" min="0" step="0.001" value="${esc(item.stockMaximo ?? "0")}"></label>
+      <label class="check-row"><input name="precioIncluyeItbis" type="checkbox"${checked(item.precioIncluyeItbis !== false)}><span>Precio incluye ITBIS</span></label>
+      <label class="check-row"><input name="usaInventario" type="checkbox"${checked(item.usaInventario)}><span>Maneja inventario</span></label>
+      <label class="check-row"><input name="ventaGranel" type="checkbox"${checked(item.ventaGranel)}><span>Permite venta a granel</span></label>
+      <label class="check-row"><input name="activo" type="checkbox"${checked(item.activo !== false)}><span>Producto activo</span></label>`, async form => {
+      const data = {
+        productoId: product?.id || null,
+        nombre: form.get("nombre"), codigoBarras: form.get("codigoBarras"), categoriaId: form.get("categoriaId"),
+        tipo: form.get("tipo"), unidadMedida: form.get("unidadMedida"),
+        precioFinalCentavos: centavosInput(form.get("precio")), precioMayoreoCentavos: centavosInput(form.get("mayoreo") || 0),
+        costoCentavos: centavosInput(form.get("costo") || 0), tasaItbis: decimalInput(form.get("tasaItbis") || 0),
+        stock: product ? String(product.stock ?? "0") : decimalInput(form.get("stock") || 0),
+        stockMinimo: decimalInput(form.get("stockMinimo") || 0), stockMaximo: decimalInput(form.get("stockMaximo") || 0),
+        precioIncluyeItbis: form.has("precioIncluyeItbis"), usaInventario: form.has("usaInventario"),
+        ventaGranel: form.has("ventaGranel"), activo: form.has("activo")
+      };
+      await adminWrite("product.upsert", product?.id, data);
+      cerrarEditor();
+      await cargarCatalogoCloud(true);
+      await cargarInventario();
+    });
+  }
+
+  function abrirInventario(product) {
+    if (!product) return;
+    abrirEditor("Ajustar existencia", "El motivo es obligatorio y el ajuste quedara en kardex, auditoria y sincronizacion.", `
+      <label class="field-wide"><span>Producto</span><input value="${esc(product.nombre)}" disabled></label>
+      <label><span>Existencia actual</span><input value="${esc(product.stock ?? "0")}" disabled></label>
+      <label><span>Nueva existencia</span><input name="cantidadNueva" type="number" min="0" step="0.001" required value="${esc(product.stock ?? "0")}"></label>
+      <label class="field-wide"><span>Motivo del ajuste</span><textarea name="motivo" rows="3" maxlength="300" required placeholder="Ej.: conteo fisico, entrada o correccion"></textarea></label>`, async form => {
+      await adminWrite("inventory.set", product.id, { productoId: product.id, nombre: product.nombre, cantidadNueva: decimalInput(form.get("cantidadNueva")), motivo: form.get("motivo") });
+      cerrarEditor();
+      await cargarCatalogoCloud(true);
+      await cargarInventario();
+    });
+  }
+
+  function abrirCategoria() {
+    abrirEditor("Nueva categoria", "La categoria estara disponible en cada caja despues de sincronizar.", `<label class="field-wide"><span>Nombre</span><input name="nombre" required maxlength="120"></label>`, async form => {
+      await adminWrite("category.upsert", null, { nombre: form.get("nombre") });
+      cerrarEditor();
+      await cargarCatalogoCloud(true);
+      await cargarInventario();
+    });
+  }
+
+  async function cargarClientes() {
+    const clients = await cargarClientesCloud();
+    const query = $("cliBuscar").value.trim().toLowerCase();
+    const visible = clients.filter(client => !query || [client.nombre, client.telefono, client.rnc, client.email].some(value => String(value || "").toLowerCase().includes(query)));
+    const debtors = clients.filter(client => numero(client.saldoCentavos) > 0);
+    $("cliResumen").innerHTML = metric("Clientes", String(clients.length)) + metric("Activos", String(clients.filter(item => item.activo).length)) + metric("Con balance", String(debtors.length)) + metric("CxC informada", money(debtors.reduce((sum, item) => sum + numero(item.saldoCentavos), 0)));
+    const headers = ["Cliente", "Telefono", "RNC", "Correo", "Limite", "Balance", "Estado"];
+    if (canEdit) headers.push("Accion");
+    $("cliTabla").innerHTML = tabla(visible, client => {
+      const row = [`<strong>${esc(client.nombre)}</strong><span class="sync-note">Folio ${esc(client.folio || "--")}</span>`, esc(client.telefono || "--"), esc(client.rnc || "--"), esc(client.email || "--"), money(client.limiteCreditoCentavos), money(client.saldoCentavos), `<span class="tag ${client.activo ? "ok" : "bad"}">${client.activo ? "Activo" : "Inactivo"}</span>`];
+      if (canEdit) row.push(`<button class="table-action" data-edit-client="${esc(client.id)}">Editar</button>`);
+      return row;
+    }, headers);
+    $("cliTabla").querySelectorAll("[data-edit-client]").forEach(button => button.addEventListener("click", () => abrirCliente(clients.find(item => item.id === button.dataset.editClient))));
+  }
+
+  function abrirCliente(client = null) {
+    const item = client || { activo: true, diasCredito: 0 };
+    abrirEditor(client ? "Editar cliente" : "Nuevo cliente", "Los saldos no se editan aqui; se conservan mediante ventas, devoluciones y abonos.", `
+      <label class="field-wide"><span>Nombre</span><input name="nombre" required maxlength="180" value="${esc(item.nombre || "")}"></label>
+      <label><span>Telefono</span><input name="telefono" maxlength="80" value="${esc(item.telefono || "")}"></label>
+      <label><span>Correo</span><input name="email" type="email" maxlength="180" value="${esc(item.email || "")}"></label>
+      <label><span>RNC / documento</span><input name="rnc" maxlength="80" value="${esc(item.rnc || "")}"></label>
+      <label><span>Limite de credito (RD$)</span><input name="limite" type="number" min="0" step="0.01" value="${pesoInput(item.limiteCreditoCentavos)}"></label>
+      <label><span>Dias de credito</span><input name="diasCredito" type="number" min="0" max="3650" step="1" value="${esc(item.diasCredito || 0)}"></label>
+      <label class="field-wide"><span>Direccion</span><input name="direccion" maxlength="500" value="${esc(item.direccion || "")}"></label>
+      <label><span>Red social</span><input name="redSocial" maxlength="180" value="${esc(item.redSocial || "")}"></label>
+      <label><span>Persona cercana</span><input name="personaCercanaNombre" maxlength="180" value="${esc(item.personaCercanaNombre || "")}"></label>
+      <label><span>Telefono persona cercana</span><input name="personaCercanaTelefono" maxlength="80" value="${esc(item.personaCercanaTelefono || "")}"></label>
+      <label class="field-wide"><span>Notas</span><textarea name="notas" rows="3" maxlength="1200">${esc(item.notas || "")}</textarea></label>
+      <label class="check-row field-wide"><input name="activo" type="checkbox"${checked(item.activo !== false)}><span>Cliente activo</span></label>`, async form => {
+      await adminWrite("client.upsert", client?.id, {
+        clienteId: client?.id || null, nombre: form.get("nombre"), telefono: form.get("telefono"), email: form.get("email"),
+        rnc: form.get("rnc"), limiteCreditoCentavos: centavosInput(form.get("limite") || 0), diasCredito: Number(form.get("diasCredito") || 0),
+        direccion: form.get("direccion"), redSocial: form.get("redSocial"), personaCercanaNombre: form.get("personaCercanaNombre"),
+        personaCercanaTelefono: form.get("personaCercanaTelefono"), notas: form.get("notas"), activo: form.has("activo"), folio: client?.folio || null
+      });
+      cerrarEditor();
+      await cargarClientesCloud(true);
+      await cargarClientes();
+    });
+  }
+
+  function abrirCategoriaGasto() {
+    abrirEditor("Nueva categoria de gasto", "La categoria quedara disponible para gastos y salidas registradas en las cajas.", `<label class="field-wide"><span>Nombre</span><input name="nombre" required maxlength="120"></label>`, async form => {
+      await adminWrite("expense_category.upsert", null, { nombre: form.get("nombre") });
+      cerrarEditor();
+      await cargarProveedores(true);
+    });
+  }
+
+  const COST_EVENTS = [
+    "CategoriaGastoCreada", "GastoRegistrado", "GastoEditado", "GastoEliminado", "GastoAnulado",
+    "GastoCategoriaActualizada", "CostoRecurrenteGuardado", "CostoRecurrenteDesactivado",
+    "CostoObligacionGenerada", "CostoObligacionGuardada", "CostoObligacionAnulada",
+    "CostoPagoRegistrado", "CostoDocumentoAdjuntado", "ReciboPagoEmitido",
+    "ReciboPagoFirmaActualizada", "ReciboPagoAnulado"
+  ];
+
+  const localDateTimeInput = value => {
+    const date = value ? new Date(value) : new Date();
+    if (Number.isNaN(date.getTime())) return "";
+    const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+    return local.toISOString().slice(0, 16);
+  };
+  const dateOnly = value => {
+    if (!value) return "";
+    const text = String(value);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? "" : inputDate(date);
+  };
+  const monthOf = value => dateOnly(value).slice(0, 7);
+  const todayKey = () => inputDate(new Date());
+  const statusCost = item => {
+    if (item.estado === "anulada" || item._stateEvent === "CostoObligacionAnulada") return "anulada";
+    if (numero(item.saldoCentavos) <= 0 || item.estado === "pagada") return "pagada";
+    return dateOnly(item.venceEn) < todayKey() ? "vencida" : numero(item.saldoCentavos) < numero(item.montoCentavos) ? "parcial" : "pendiente";
+  };
+
+  function categoryOptions(categories, current) {
+    return categories.map(item => `<option value="${esc(item.id)}"${selected(item.id, current)}>${esc(item.nombre)}</option>`).join("");
+  }
+
+  function methodOptions(current) {
+    return [["efectivo", "Efectivo"], ["tarjeta", "Tarjeta"], ["transferencia", "Transferencia"], ["cheque", "Cheque"]]
+      .map(([value, label]) => `<option value="${value}"${selected(value, current)}>${label}</option>`).join("");
+  }
+
+  async function cargarCostosCloud(force = false) {
+    if (!force && costStateCache) return costStateCache;
+    const items = await eventos(COST_EVENTS, null, null, 20000);
+    const categoryEvents = items.filter(item => item.event_type === "CategoriaGastoCreada");
+    const categories = consolidateNamed(mergeEvents(categoryEvents, ["CategoriaGastoCreada"]))
+      .filter(item => item.nombre)
+      .sort((a, b) => String(a.nombre).localeCompare(String(b.nombre), "es"));
+    const categoryMap = new Map(categories.map(item => [item.id, item.nombre]));
+
+    const expenseEvents = items.filter(item => item.event_type.startsWith("Gasto"));
+    const expenses = mergeEvents(expenseEvents,
+      ["GastoRegistrado", "GastoEditado", "GastoEliminado", "GastoAnulado"])
+      .filter(item => item.descripcion)
+      .map(item => ({
+        ...item,
+        categoria: item.categoria || categoryMap.get(item.categoriaId) || "Sin categoria",
+        activo: !["GastoEliminado", "GastoAnulado"].includes(item._stateEvent) && item.estado !== "anulado"
+      }))
+      .sort((a, b) => String(b.fecha || b._latestAt).localeCompare(String(a.fecha || a._latestAt)));
+
+    const recurringEvents = items.filter(item => item.event_type.startsWith("CostoRecurrente"));
+    const recurrents = mergeEvents(recurringEvents, ["CostoRecurrenteGuardado", "CostoRecurrenteDesactivado"])
+      .filter(item => item.nombre)
+      .map(item => ({
+        ...item,
+        categoria: item.categoria || categoryMap.get(item.categoriaId) || "Sin categoria",
+        activo: item._stateEvent !== "CostoRecurrenteDesactivado" && item.activo !== false
+      }))
+      .sort((a, b) => String(a.proximaFecha || "").localeCompare(String(b.proximaFecha || "")));
+
+    const obligationEvents = items.filter(item => ["CostoObligacionGenerada", "CostoObligacionGuardada", "CostoObligacionAnulada", "CostoDocumentoAdjuntado"].includes(item.event_type));
+    const obligationStateAt = new Map();
+    obligationEvents.forEach(event => {
+      if (event.event_type === "CostoDocumentoAdjuntado") return;
+      const id = String(event.entity_id || P(event).obligacionId || "");
+      if (id && !obligationStateAt.has(id)) obligationStateAt.set(id, fechaEventoIso(event));
+    });
+    const obligations = mergeEvents(obligationEvents,
+      ["CostoObligacionGenerada", "CostoObligacionGuardada", "CostoObligacionAnulada"])
+      .filter(item => item.concepto)
+      .map(item => ({ ...item, categoria: item.categoria || categoryMap.get(item.categoriaId) || "Sin categoria" }));
+    const payments = items.filter(item => item.event_type === "CostoPagoRegistrado")
+      .map(event => ({ id: event.entity_id, ...P(event), fecha: P(event).pagadoEn || fechaEventoIso(event) }))
+      .sort((a, b) => String(b.fecha).localeCompare(String(a.fecha)));
+    const latestPayment = new Map();
+    payments.forEach(payment => {
+      if (payment.obligacionId && !latestPayment.has(payment.obligacionId)) latestPayment.set(payment.obligacionId, payment);
+    });
+    obligations.forEach(item => {
+      const payment = latestPayment.get(item.id);
+      if (payment && String(payment.fecha) > String(obligationStateAt.get(item.id) || "")) {
+        item.saldoCentavos = payment.saldoCentavos;
+        item.estado = payment.estado;
+      }
+      item.estado = statusCost(item);
+    });
+    obligations.sort((a, b) => {
+      const rank = { vencida: 0, pendiente: 1, parcial: 2, pagada: 3, anulada: 4 };
+      return (rank[a.estado] ?? 9) - (rank[b.estado] ?? 9)
+        || String(a.venceEn || "").localeCompare(String(b.venceEn || ""));
+    });
+
+    const receiptEvents = items.filter(item => item.event_type.startsWith("ReciboPago"));
+    const receipts = mergeEvents(receiptEvents,
+      ["ReciboPagoEmitido", "ReciboPagoFirmaActualizada", "ReciboPagoAnulado"])
+      .filter(item => item.beneficiario && item.concepto)
+      .map(item => ({
+        ...item,
+        estado: item._stateEvent === "ReciboPagoAnulado" || item.estado === "anulado" ? "anulado" : "emitido",
+        firmado: item._stateEvent === "ReciboPagoFirmaActualizada" ? item.firmado === true : item.firmado === true
+      }))
+      .sort((a, b) => String(b.pagadoEn || b.creadoEn || b._latestAt).localeCompare(String(a.pagadoEn || a.creadoEn || a._latestAt)));
+
+    costStateCache = { categories, expenses, recurrents, obligations, payments, receipts };
+    return costStateCache;
+  }
+
+  function setCostTab(tab) {
+    costTab = ["gastos", "recurrentes", "obligaciones", "recibos"].includes(tab) ? tab : "gastos";
+    document.querySelectorAll("[data-cost-tab]").forEach(button => button.classList.toggle("act", button.dataset.costTab === costTab));
+    $("provPanelGastos").classList.toggle("oculto", costTab !== "gastos");
+    $("provPanelRecurrentes").classList.toggle("oculto", costTab !== "recurrentes");
+    $("provPanelObligaciones").classList.toggle("oculto", costTab !== "obligaciones");
+    $("provPanelRecibos").classList.toggle("oculto", costTab !== "recibos");
+  }
+
+  function abrirGasto(state, expense = null) {
+    if (!state.categories.length) { toast("Agrega primero una categoria de gasto."); return; }
+    const item = expense || { metodoPago: "transferencia", fecha: new Date().toISOString(), activo: true };
+    abrirEditor(expense ? "Editar gasto" : "Nuevo gasto", "El cambio quedara auditado y se sincronizara con todas las cajas.", `
+      <label><span>Categoria</span><select name="categoriaId" required>${categoryOptions(state.categories, item.categoriaId)}</select></label>
+      <label><span>Fecha</span><input name="fecha" type="datetime-local" required value="${esc(localDateTimeInput(item.fecha || item._latestAt))}"></label>
+      <label class="field-wide"><span>Descripcion</span><input name="descripcion" required maxlength="500" value="${esc(item.descripcion || "")}"></label>
+      <label><span>Monto (RD$)</span><input name="monto" type="number" min="0.01" step="0.01" required value="${pesoInput(item.montoCentavos)}"></label>
+      <label><span>Metodo</span><select name="metodoPago">${methodOptions(item.metodoPago || item.metodo)}</select></label>
+      <label class="field-wide"><span>Nota</span><textarea name="nota" rows="3" maxlength="1200">${esc(item.nota || "")}</textarea></label>`, async form => {
+      const category = state.categories.find(value => value.id === form.get("categoriaId"));
+      await adminWrite("expense.upsert", expense?.id, {
+        gastoId: expense?.id || null, categoriaId: form.get("categoriaId"), categoria: category?.nombre || null,
+        descripcion: form.get("descripcion"), montoCentavos: centavosInput(form.get("monto")),
+        metodoPago: form.get("metodoPago"), nota: form.get("nota"), fecha: form.get("fecha")
+      });
+      cerrarEditor();
+      await cargarProveedores(true);
+    });
+  }
+
+  function confirmarEliminarGasto(expense) {
+    abrirEditor("Anular gasto", "El registro se conserva en auditoria y desaparece de los totales activos.", `
+      <div class="confirm-panel field-wide"><strong>${esc(expense.descripcion)}</strong><p>${esc(expense.categoria)} | ${money(expense.montoCentavos)} | ${esc(fecha(expense.fecha || expense._latestAt))}</p></div>
+      <label class="field-wide"><span>Motivo</span><textarea name="motivo" rows="3" maxlength="500" required></textarea></label>`, async form => {
+      await adminWrite("expense.delete", expense.id, { gastoId: expense.id, descripcion: expense.descripcion, motivo: form.get("motivo") });
+      cerrarEditor();
+      await cargarProveedores(true);
+    });
+  }
+
+  function abrirRecurrente(state, recurring = null) {
+    if (!state.categories.length) { toast("Agrega primero una categoria de gasto."); return; }
+    const item = recurring || { frecuencia: "mensual", metodoPago: "transferencia", proximaFecha: todayKey(), activo: true, diaMes1: 15, diaMes2: 30 };
+    const frequencies = [["semanal", "Semanal"], ["quincenal", "Dos veces al mes"], ["mensual", "Mensual"], ["bimestral", "Cada 2 meses"], ["trimestral", "Trimestral"], ["semestral", "Semestral"], ["anual", "Anual"], ["personalizada", "Intervalo personalizado"]];
+    abrirEditor(recurring ? "Editar costo recurrente" : "Nuevo costo recurrente", "Define nomina, alquiler, servicios, suscripciones u otros compromisos permanentes.", `
+      <label><span>Categoria</span><select name="categoriaId" required>${categoryOptions(state.categories, item.categoriaId)}</select></label>
+      <label><span>Frecuencia</span><select name="frecuencia">${frequencies.map(([value, label]) => `<option value="${value}"${selected(value, item.frecuencia)}>${label}</option>`).join("")}</select></label>
+      <label class="field-wide"><span>Nombre del costo</span><input name="nombre" required maxlength="180" value="${esc(item.nombre || "")}"></label>
+      <label><span>Acreedor / beneficiario</span><input name="acreedor" maxlength="180" value="${esc(item.acreedor || "")}"></label>
+      <label><span>Monto estimado (RD$)</span><input name="monto" type="number" min="0" step="0.01" value="${pesoInput(item.montoEstimadoCentavos)}"></label>
+      <label><span>Proximo vencimiento</span><input name="proximaFecha" type="date" required value="${esc(dateOnly(item.proximaFecha) || todayKey())}"></label>
+      <label><span>Metodo habitual</span><select name="metodoPago">${methodOptions(item.metodoPago)}</select></label>
+      <label><span>Primer dia del mes</span><input name="diaMes1" type="number" min="1" max="31" value="${esc(item.diaMes1 ?? 15)}"></label>
+      <label><span>Segundo dia del mes</span><input name="diaMes2" type="number" min="1" max="31" value="${esc(item.diaMes2 ?? 30)}"></label>
+      <label><span>Intervalo en dias</span><input name="intervaloDias" type="number" min="1" max="3650" value="${esc(item.intervaloDias || "")}"></label>
+      <label class="field-wide"><span>Descripcion</span><input name="descripcion" maxlength="800" value="${esc(item.descripcion || "")}"></label>
+      <label class="field-wide"><span>Nota</span><textarea name="nota" rows="3" maxlength="1200">${esc(item.nota || "")}</textarea></label>
+      <label class="check-row"><input name="montoVariable" type="checkbox"${checked(item.montoVariable)}><span>El monto puede variar</span></label>
+      <label class="check-row"><input name="activo" type="checkbox"${checked(item.activo !== false)}><span>Plan activo</span></label>`, async form => {
+      const category = state.categories.find(value => value.id === form.get("categoriaId"));
+      await adminWrite("cost.recurring.upsert", recurring?.id, {
+        recurrenteId: recurring?.id || null, categoriaId: form.get("categoriaId"), categoria: category?.nombre || null,
+        nombre: form.get("nombre"), descripcion: form.get("descripcion"), acreedor: form.get("acreedor"),
+        montoEstimadoCentavos: centavosInput(form.get("monto") || 0), montoVariable: form.has("montoVariable"),
+        frecuencia: form.get("frecuencia"), intervaloDias: form.get("intervaloDias") || null,
+        diaMes1: form.get("diaMes1") || null, diaMes2: form.get("diaMes2") || null,
+        proximaFecha: form.get("proximaFecha"), metodoPago: form.get("metodoPago"),
+        activo: form.has("activo"), nota: form.get("nota")
+      });
+      cerrarEditor();
+      await cargarProveedores(true);
+    });
+  }
+
+  function desactivarRecurrente(recurring) {
+    abrirEditor("Desactivar costo recurrente", "Las facturas ya generadas se conservan; solo se detienen cargos futuros.", `
+      <div class="confirm-panel field-wide"><strong>${esc(recurring.nombre)}</strong><p>${esc(recurring.frecuencia)} | ${money(recurring.montoEstimadoCentavos)}</p></div>`, async () => {
+      await adminWrite("cost.recurring.upsert", recurring.id, { ...recurring, recurrenteId: recurring.id, activo: false });
+      cerrarEditor();
+      await cargarProveedores(true);
+    });
+  }
+
+  async function uploadCostDocument(obligationId, file) {
+    if (!file || !file.size) return null;
+    if (file.size > 12 * 1024 * 1024) throw new Error("El comprobante no puede superar 12 MB.");
+    const data = new FormData();
+    data.append("business_id", BUSINESS);
+    data.append("obligation_id", obligationId);
+    data.append("file", file, file.name);
+    const response = await fetch(`${cfg.url.replace(/\/$/, "")}/functions/v1/pos-cost-document`, {
+      method: "POST", headers: await authenticatedHeaders(), body: data
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok || !result.ok) throw new Error(result.error || "No se pudo respaldar el comprobante.");
+    return result;
+  }
+
+  async function openCostDocument(obligation) {
+    const direct = obligation.adjuntoUrl || obligation.adjuntoRuta;
+    if (direct && /^https?:\/\//i.test(direct)) { window.open(direct, "_blank", "noopener"); return; }
+    const storagePath = obligation.storagePath || direct;
+    if (!storagePath) { toast("Esta factura no tiene un comprobante adjunto."); return; }
+    const response = await fetch(`${cfg.url.replace(/\/$/, "")}/functions/v1/pos-cost-document`, {
+      method: "POST", headers: await authenticatedHeaders(true),
+      body: JSON.stringify({ action: "sign", business_id: BUSINESS, storage_path: storagePath })
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok || !result.ok || !result.url) throw new Error(result.error || "No se pudo abrir el comprobante.");
+    window.open(result.url, "_blank", "noopener");
+  }
+
+  function abrirObligacion(state, obligation = null) {
+    if (!state.categories.length) { toast("Agrega primero una categoria de gasto."); return; }
+    const item = obligation || { emitidaEn: todayKey(), venceEn: todayKey(), estado: "pendiente" };
+    abrirEditor(obligation ? "Editar factura o deuda" : "Nueva factura o deuda", "Registra el documento, su fecha limite y el saldo que debe notificarse.", `
+      <label><span>Categoria</span><select name="categoriaId" required>${categoryOptions(state.categories, item.categoriaId)}</select></label>
+      <label><span>Acreedor / proveedor</span><input name="acreedor" maxlength="180" value="${esc(item.acreedor || "")}"></label>
+      <label class="field-wide"><span>Concepto</span><input name="concepto" required maxlength="300" value="${esc(item.concepto || "")}"></label>
+      <label><span>Numero de factura</span><input name="numeroFactura" maxlength="120" value="${esc(item.numeroFactura || "")}"></label>
+      <label><span>Monto total (RD$)</span><input name="monto" type="number" min="0.01" step="0.01" required value="${pesoInput(item.montoCentavos)}"></label>
+      <label><span>Fecha de factura</span><input name="emitidaEn" type="date" required value="${esc(dateOnly(item.emitidaEn) || todayKey())}"></label>
+      <label><span>Fecha limite de pago</span><input name="venceEn" type="date" required value="${esc(dateOnly(item.venceEn) || todayKey())}"></label>
+      <label class="field-wide"><span>Nota</span><textarea name="nota" rows="3" maxlength="1200">${esc(item.nota || "")}</textarea></label>
+      <label class="field-wide file-field"><span>Factura o comprobante</span><input name="archivo" type="file" accept="image/*,application/pdf" capture="environment"><small class="field-hint">Desde iPhone puedes tomar la foto o elegir un PDF. Maximo 12 MB; se guarda en Storage privado.</small></label>`, async form => {
+      const category = state.categories.find(value => value.id === form.get("categoriaId"));
+      const total = centavosInput(form.get("monto"));
+      const paid = obligation ? Math.max(0, numero(obligation.montoCentavos) - numero(obligation.saldoCentavos)) : 0;
+      if (total < paid) throw new Error(`El total no puede ser menor que lo ya pagado (${money(paid)}).`);
+      const result = await adminWrite("cost.obligation.upsert", obligation?.id, {
+        obligacionId: obligation?.id || null, recurrenteId: obligation?.recurrenteId || null,
+        categoriaId: form.get("categoriaId"), categoria: category?.nombre || null,
+        acreedor: form.get("acreedor"), concepto: form.get("concepto"), numeroFactura: form.get("numeroFactura"),
+        montoCentavos: total, saldoCentavos: total - paid, emitidaEn: form.get("emitidaEn"),
+        venceEn: form.get("venceEn"), estado: total === paid ? "pagada" : paid ? "parcial" : "pendiente",
+        nota: form.get("nota"), periodoClave: obligation?.periodoClave || null
+      });
+      const id = result.event?.entity_id || obligation?.id;
+      const file = form.get("archivo");
+      if (id && file instanceof File && file.size) await uploadCostDocument(id, file);
+      cerrarEditor();
+      await cargarProveedores(true);
+    });
+  }
+
+  function pagarObligacion(obligation) {
+    abrirEditor("Registrar pago", "El abono reduce el saldo y queda como movimiento inmutable.", `
+      <div class="confirm-panel field-wide"><strong>${esc(obligation.concepto)}</strong><p>Saldo actual: ${money(obligation.saldoCentavos)}</p></div>
+      <label><span>Monto del pago (RD$)</span><input name="monto" type="number" min="0.01" max="${pesoInput(obligation.saldoCentavos)}" step="0.01" required></label>
+      <label><span>Metodo</span><select name="metodoPago">${methodOptions("transferencia")}</select></label>
+      <label class="field-wide"><span>Nota</span><textarea name="nota" rows="3" maxlength="1200"></textarea></label>`, async form => {
+      const amount = centavosInput(form.get("monto"));
+      if (amount <= 0 || amount > numero(obligation.saldoCentavos)) throw new Error("El pago debe ser mayor que cero y no superar el saldo.");
+      await adminWrite("cost.payment.create", obligation.id, {
+        obligacionId: obligation.id, concepto: obligation.concepto, montoCentavos: amount,
+        saldoCentavos: numero(obligation.saldoCentavos) - amount, metodoPago: form.get("metodoPago"), nota: form.get("nota")
+      });
+      cerrarEditor();
+      await cargarProveedores(true);
+    });
+  }
+
+  function cancelarObligacion(obligation) {
+    abrirEditor("Anular factura o deuda", "Solo se anula el saldo pendiente; los pagos registrados permanecen auditados.", `
+      <div class="confirm-panel field-wide"><strong>${esc(obligation.concepto)}</strong><p>Saldo: ${money(obligation.saldoCentavos)} | vence ${esc(dateOnly(obligation.venceEn))}</p></div>`, async () => {
+      await adminWrite("cost.obligation.cancel", obligation.id, { obligacionId: obligation.id, concepto: obligation.concepto });
+      cerrarEditor();
+      await cargarProveedores(true);
+    });
+  }
+
+  function abrirReciboPago(state) {
+    const hasCategories = state.categories.length > 0;
+    abrirEditor("Nuevo recibo de pago", "Emite un comprobante para nomina, servicios u otros pagos y deja espacio para la firma del beneficiario.", `
+      <label><span>Beneficiario</span><input name="beneficiario" required maxlength="180"></label>
+      <label><span>Cedula / identificacion</span><input name="documentoIdentidad" maxlength="100"></label>
+      <label class="field-wide"><span>Concepto del pago</span><input name="concepto" required maxlength="500"></label>
+      <label><span>Monto (RD$)</span><input name="monto" type="number" min="0.01" step="0.01" required></label>
+      <label><span>Fecha del pago</span><input name="pagadoEn" type="datetime-local" required value="${esc(localDateTimeInput())}"></label>
+      <label><span>Metodo</span><select name="metodoPago">${methodOptions("transferencia")}</select></label>
+      <label><span>Referencia</span><input name="referencia" maxlength="180"></label>
+      <label class="field-wide"><span>Nota</span><textarea name="nota" rows="3" maxlength="1200"></textarea></label>
+      <label class="check-row field-wide"><input name="registrarGasto" type="checkbox"${hasCategories ? " checked" : ""}${hasCategories ? "" : " disabled"}><span>Registrar tambien como gasto</span></label>
+      ${hasCategories ? `<label class="field-wide"><span>Categoria del gasto</span><select name="categoriaId">${categoryOptions(state.categories)}</select></label>` : `<p class="field-hint field-wide">Agrega una categoria para asociar este recibo a Gastos.</p>`}`, async form => {
+      const amount = centavosInput(form.get("monto"));
+      let gastoId = null;
+      if (form.has("registrarGasto")) {
+        const categoryId = form.get("categoriaId");
+        const category = state.categories.find(value => value.id === categoryId);
+        if (!category) throw new Error("Selecciona la categoria del gasto.");
+        const expense = await adminWrite("expense.upsert", null, {
+          categoriaId, categoria: category.nombre, descripcion: form.get("concepto"), montoCentavos: amount,
+          metodoPago: form.get("metodoPago"), nota: `Recibo para ${form.get("beneficiario")}. ${form.get("nota") || ""}`.trim(),
+          fecha: form.get("pagadoEn")
+        });
+        gastoId = expense.event?.entity_id || null;
+      }
+      await adminWrite("receipt.create", null, {
+        beneficiario: form.get("beneficiario"), documentoIdentidad: form.get("documentoIdentidad"),
+        concepto: form.get("concepto"), montoCentavos: amount, metodoPago: form.get("metodoPago"),
+        referencia: form.get("referencia"), pagadoEn: form.get("pagadoEn"), gastoId, nota: form.get("nota")
+      });
+      cerrarEditor();
+      costTab = "recibos";
+      await cargarProveedores(true);
+    });
+  }
+
+  async function imprimirReciboWeb(receipt) {
+    const negocio = await cargarNegocioCloud();
+    const popup = window.open("", "_blank", "width=520,height=760,noopener");
+    if (!popup) throw new Error("El navegador bloqueo la ventana de impresion. Habilita ventanas emergentes para este panel.");
+    const receiptLabel = receipt.numero > 0 ? String(receipt.numero).padStart(6, "0") : `WEB-${String(receipt.id).slice(0, 8).toUpperCase()}`;
+    const logoUrl = new URL("dcarela-logo.png", window.location.href).href;
+    popup.document.write(`<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Recibo ${esc(receiptLabel)}</title><style>
+      @page{size:80mm auto;margin:3mm}*{box-sizing:border-box}body{width:72mm;margin:0 auto;color:#000;font:15px/1.34 Arial,sans-serif}header{text-align:center;border-bottom:1px dashed #000;padding-bottom:7px}.logo{width:66px;height:66px;object-fit:contain;filter:grayscale(1) contrast(1.6)}h1{font-size:21px;margin:2px 0}.slogan{font-style:italic}.contact{font-size:13px;margin:2px 0}.title{text-align:center;font-size:20px;font-weight:800;margin:10px 0;border-block:2px solid #000;padding:5px}.row{display:grid;grid-template-columns:28mm 1fr;gap:4px;margin:5px 0}.amount{font-size:24px;font-weight:800;text-align:center;margin:10px 0}.sign{margin-top:36px;border-top:1px solid #000;text-align:center;padding-top:4px}.state{text-align:center;margin-top:16px;font-size:12px}@media print{button{display:none}}</style></head><body>
+      <header>${negocio.logoActivo === false || negocio.logoActivo === "0" ? "" : `<img class="logo" src="${esc(logoUrl)}" alt="">`}<h1>${esc(negocio.nombre || "D' Carela Compufoto")}</h1><div>RNC ${esc(negocio.rnc || "")}</div><div class="slogan">${esc(negocio.slogan || "")}</div><div class="contact">${esc(negocio.direccion || "")}</div><div class="contact">WhatsApp ${esc(negocio.whatsapp || "")} | Tel. ${esc(negocio.telefono || "")}</div><div class="contact">IG ${esc(negocio.instagram || "")} | TikTok ${esc(negocio.tiktok || "")}</div></header>
+      <div class="title">RECIBO DE PAGO</div><div class="row"><strong>Recibo</strong><span>${esc(receiptLabel)}</span></div><div class="row"><strong>Fecha</strong><span>${esc(fecha(receipt.pagadoEn || receipt.creadoEn || receipt._latestAt))}</span></div><div class="row"><strong>Recibi de</strong><span>${esc(negocio.nombre || "D' Carela Compufoto")}</span></div><div class="row"><strong>Beneficiario</strong><span>${esc(receipt.beneficiario)}</span></div>${receipt.documentoIdentidad ? `<div class="row"><strong>Identificacion</strong><span>${esc(receipt.documentoIdentidad)}</span></div>` : ""}<div class="row"><strong>Concepto</strong><span>${esc(receipt.concepto)}</span></div><div class="amount">${esc(money(receipt.montoCentavos))}</div><div class="row"><strong>Metodo</strong><span>${esc(receipt.metodoPago || "--")}</span></div>${receipt.referencia ? `<div class="row"><strong>Referencia</strong><span>${esc(receipt.referencia)}</span></div>` : ""}${receipt.nota ? `<div class="row"><strong>Nota</strong><span>${esc(receipt.nota)}</span></div>` : ""}<div class="sign">Firma de quien recibe</div><div class="sign">Administrador y Jefe de Operaciones</div><div class="state">${receipt.firmado ? "Firma verificada en el sistema" : "Pendiente de firma fisica"}</div><script>addEventListener('load',()=>setTimeout(()=>print(),250));<\/script></body></html>`);
+    popup.document.close();
+  }
+
+  async function actualizarFirmaRecibo(receipt) {
+    await adminWrite("receipt.signature", receipt.id, { reciboId: receipt.id, firmado: !receipt.firmado });
+    await cargarProveedores(true);
+  }
+
+  function anularRecibo(receipt) {
+    abrirEditor("Anular recibo de pago", "El recibo se conserva en auditoria y se anula en todas las terminales.", `
+      <div class="confirm-panel field-wide"><strong>${esc(receipt.beneficiario)}</strong><p>${esc(receipt.concepto)} | ${money(receipt.montoCentavos)}</p></div>
+      <label class="field-wide"><span>Motivo</span><textarea name="motivo" rows="3" maxlength="500" required></textarea></label>`, async form => {
+      await adminWrite("receipt.cancel", receipt.id, { reciboId: receipt.id, beneficiario: receipt.beneficiario, motivo: form.get("motivo") });
+      cerrarEditor();
+      await cargarProveedores(true);
+    });
+  }
+
+  function nextRecurringDate(plan, value) {
+    const current = new Date(`${value}T12:00:00`);
+    const validDay = (year, month, day) => new Date(year, month, Math.min(Math.max(1, Number(day) || 1), new Date(year, month + 1, 0).getDate()), 12);
+    if (plan.frecuencia === "quincenal" && plan.diaMes1 && plan.diaMes2) {
+      const first = Math.min(Number(plan.diaMes1), Number(plan.diaMes2));
+      const second = Math.max(Number(plan.diaMes1), Number(plan.diaMes2));
+      return inputDate(current.getDate() < second ? validDay(current.getFullYear(), current.getMonth(), second) : validDay(current.getFullYear(), current.getMonth() + 1, first));
+    }
+    if (plan.frecuencia === "semanal") current.setDate(current.getDate() + 7);
+    else if (plan.frecuencia === "personalizada") current.setDate(current.getDate() + Math.max(1, Number(plan.intervaloDias) || 30));
+    else {
+      const months = { mensual: 1, bimestral: 2, trimestral: 3, semestral: 6, anual: 12 }[plan.frecuencia] || 1;
+      const day = current.getDate();
+      current.setDate(1);
+      current.setMonth(current.getMonth() + months);
+      return inputDate(validDay(current.getFullYear(), current.getMonth(), day));
+    }
+    return inputDate(current);
+  }
+
+  async function generarObligacionesWeb() {
+    const state = await cargarCostosCloud();
+    const end = new Date();
+    end.setMonth(end.getMonth() + 2, 0);
+    const endKey = inputDate(end);
+    const existing = new Set(state.obligations.map(item => item.periodoClave).filter(Boolean));
+    let created = 0;
+    for (const plan of state.recurrents.filter(item => item.activo)) {
+      let due = dateOnly(plan.proximaFecha) || todayKey();
+      let guard = 0;
+      while (due <= endKey && guard++ < 48) {
+        const period = `${plan.id}:${due}`;
+        if (!existing.has(period)) {
+          const deterministicId = `${plan.id}-${due}`.slice(0, 120);
+          await adminWrite("cost.obligation.upsert", deterministicId, {
+            obligacionId: deterministicId, recurrenteId: plan.id, categoriaId: plan.categoriaId,
+            categoria: plan.categoria, acreedor: plan.acreedor, concepto: plan.nombre,
+            montoCentavos: numero(plan.montoEstimadoCentavos), saldoCentavos: numero(plan.montoEstimadoCentavos),
+            emitidaEn: due, venceEn: due, estado: "pendiente", nota: plan.nota,
+            periodoClave: period, montoVariable: Boolean(plan.montoVariable)
+          });
+          existing.add(period);
+          created++;
+        }
+        due = nextRecurringDate(plan, due);
+      }
+    }
+    toast(created ? `${created} vencimiento(s) generados y sincronizados.` : "No habia vencimientos nuevos por generar.");
+    await cargarProveedores(true);
+  }
+
+  function wireCostActions(state) {
+    $("provGastosTabla").querySelectorAll("[data-edit-expense]").forEach(button => button.addEventListener("click", () => abrirGasto(state, state.expenses.find(item => item.id === button.dataset.editExpense))));
+    $("provGastosTabla").querySelectorAll("[data-delete-expense]").forEach(button => button.addEventListener("click", () => confirmarEliminarGasto(state.expenses.find(item => item.id === button.dataset.deleteExpense))));
+    $("provRecurrentesTabla").querySelectorAll("[data-edit-recurring]").forEach(button => button.addEventListener("click", () => abrirRecurrente(state, state.recurrents.find(item => item.id === button.dataset.editRecurring))));
+    $("provRecurrentesTabla").querySelectorAll("[data-stop-recurring]").forEach(button => button.addEventListener("click", () => desactivarRecurrente(state.recurrents.find(item => item.id === button.dataset.stopRecurring))));
+    $("provObligacionesTabla").querySelectorAll("[data-edit-obligation]").forEach(button => button.addEventListener("click", () => abrirObligacion(state, state.obligations.find(item => item.id === button.dataset.editObligation))));
+    $("provObligacionesTabla").querySelectorAll("[data-pay-obligation]").forEach(button => button.addEventListener("click", () => pagarObligacion(state.obligations.find(item => item.id === button.dataset.payObligation))));
+    $("provObligacionesTabla").querySelectorAll("[data-cancel-obligation]").forEach(button => button.addEventListener("click", () => cancelarObligacion(state.obligations.find(item => item.id === button.dataset.cancelObligation))));
+    $("provObligacionesTabla").querySelectorAll("[data-open-obligation]").forEach(button => button.addEventListener("click", () => openCostDocument(state.obligations.find(item => item.id === button.dataset.openObligation)).catch(error => toast(error.message))));
+    $("provRecibosTabla").querySelectorAll("[data-print-receipt]").forEach(button => button.addEventListener("click", () => imprimirReciboWeb(state.receipts.find(item => item.id === button.dataset.printReceipt)).catch(error => toast(error.message))));
+    $("provRecibosTabla").querySelectorAll("[data-sign-receipt]").forEach(button => button.addEventListener("click", () => actualizarFirmaRecibo(state.receipts.find(item => item.id === button.dataset.signReceipt)).catch(error => toast(error.message))));
+    $("provRecibosTabla").querySelectorAll("[data-cancel-receipt]").forEach(button => button.addEventListener("click", () => anularRecibo(state.receipts.find(item => item.id === button.dataset.cancelReceipt))));
+  }
+
+  async function cargarProveedores(force = false) {
+    if (!$("provMes").value) $("provMes").value = inputDate(new Date()).slice(0, 7);
+    const month = $("provMes").value;
+    const from = inicioDia(`${month}-01`);
+    const endDate = new Date(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0);
+    const to = finDia(inputDate(endDate));
+    const [state, salesResult] = await Promise.all([cargarCostosCloud(force), ventasActivas(from, to, 20000)]);
+    const monthExpenses = state.expenses.filter(item => item.activo && monthOf(item.fecha || item._latestAt) === month);
+    const monthPayments = state.payments.filter(item => monthOf(item.fecha) === month);
+    const monthObligations = state.obligations.filter(item => monthOf(item.venceEn) === month && !["anulada", "pagada"].includes(item.estado));
+    const overdue = state.obligations.filter(item => item.estado === "vencida");
+    const expensesTotal = monthExpenses.reduce((sum, item) => sum + numero(item.montoCentavos), 0);
+    const paidTotal = monthPayments.reduce((sum, item) => sum + numero(item.montoCentavos), 0);
+    const dueTotal = monthObligations.reduce((sum, item) => sum + numero(item.saldoCentavos), 0);
+    const overdueTotal = overdue.reduce((sum, item) => sum + numero(item.saldoCentavos), 0);
+    const salesTotal = salesResult.active.reduce((sum, item) => sum + totalDe(P(item)), 0);
+    const committed = expensesTotal + paidTotal + dueTotal;
+    const net = salesTotal - expensesTotal - paidTotal;
+    const activeRecurring = state.recurrents.filter(item => item.activo);
+
+    $("provResumen").innerHTML = metric("Ventas del mes", money(salesTotal)) + metric("Gastos", money(expensesTotal))
+      + metric("Pagado en obligaciones", money(paidTotal)) + metric("Por pagar este mes", money(dueTotal))
+      + metric("Vencido", money(overdueTotal)) + metric("Resultado disponible", money(net));
+    $("provAnalisis").innerHTML = `<div class="surface-title"><div><h3>Analisis del mes</h3><p>Ventas contra gastos y compromisos registrados.</p></div></div>
+      <div class="analysis-result"><span>Ventas netas</span><strong>${money(salesTotal)}</strong><span>Gastos registrados</span><strong>${money(expensesTotal)}</strong><span>Pagos de deudas</span><strong>${money(paidTotal)}</strong><span>Comprometido + pendiente</span><strong>${money(committed)}</strong><span>Resultado despues de pagos</span><strong class="net ${net < 0 ? "bad" : ""}">${money(net)}</strong></div>`;
+    const upcoming = state.obligations.filter(item => ["vencida", "pendiente", "parcial"].includes(item.estado)).slice(0, 6);
+    $("provVencimientos").innerHTML = upcoming.length ? upcoming.map(item => `<article class="due-item ${item.estado === "vencida" ? "overdue" : ""}"><strong>${esc(item.concepto)}</strong><span>${esc(item.acreedor || item.categoria)} | ${money(item.saldoCentavos)}</span><span>${item.estado === "vencida" ? "Vencida" : "Pagar"} ${esc(dateOnly(item.venceEn))}</span></article>`).join("") : '<div class="empty-state">No hay vencimientos pendientes.</div>';
+
+    const expenseHeaders = ["Fecha", "Categoria", "Descripcion", "Metodo", "Monto", "Usuario", "Nota"];
+    if (canEdit) expenseHeaders.push("Acciones");
+    $("provGastosTabla").innerHTML = tabla(monthExpenses, item => {
+      const row = [fecha(item.fecha || item._latestAt), esc(item.categoria), `<span class="cost-name">${esc(item.descripcion)}</span>`, esc(item.metodoPago || item.metodo || "--"), money(item.montoCentavos), esc(item.usuarioNombre || "--"), esc(item.nota || "")];
+      if (canEdit) row.push(`<div class="row-actions"><button class="table-action" data-edit-expense="${esc(item.id)}">Editar</button><button class="table-action danger" data-delete-expense="${esc(item.id)}">Anular</button></div>`);
+      return row;
+    }, expenseHeaders);
+
+    const recurringHeaders = ["Plan", "Categoria", "Frecuencia", "Proximo", "Monto", "Tipo", "Metodo", "Estado"];
+    if (canEdit) recurringHeaders.push("Acciones");
+    $("provRecurrentesTabla").innerHTML = tabla(state.recurrents, item => {
+      const row = [`<span class="cost-name">${esc(item.nombre)}</span><span class="cost-sub">${esc(item.acreedor || item.descripcion || "")}</span>`, esc(item.categoria), esc(item.frecuencia), esc(dateOnly(item.proximaFecha)), money(item.montoEstimadoCentavos), item.montoVariable ? "Variable" : "Fijo", esc(item.metodoPago || "--"), `<span class="tag ${item.activo ? "ok" : "bad"}">${item.activo ? "Activo" : "Inactivo"}</span>`];
+      if (canEdit) row.push(`<div class="row-actions"><button class="table-action" data-edit-recurring="${esc(item.id)}">Editar</button>${item.activo ? `<button class="table-action danger" data-stop-recurring="${esc(item.id)}">Desactivar</button>` : ""}</div>`);
+      return row;
+    }, recurringHeaders);
+
+    const obligationHeaders = ["Vence", "Concepto", "Categoria", "Factura", "Total", "Saldo", "Estado", "Documento"];
+    if (canEdit) obligationHeaders.push("Acciones");
+    $("provObligacionesTabla").innerHTML = tabla(state.obligations, item => {
+      const hasDocument = Boolean(item.adjuntoNombre || item.storagePath || item.adjuntoRuta || item.adjuntoUrl);
+      const row = [esc(dateOnly(item.venceEn)), `<span class="cost-name">${esc(item.concepto)}</span><span class="cost-sub">${esc(item.acreedor || "")}</span>`, esc(item.categoria), esc(item.numeroFactura || "--"), money(item.montoCentavos), money(item.saldoCentavos), `<strong class="status-${item.estado === "pagada" ? "paid" : item.estado === "vencida" ? "overdue" : "pending"}">${esc(item.estado)}</strong>`, hasDocument ? `<button class="table-action" data-open-obligation="${esc(item.id)}">Abrir</button>` : "--"];
+      if (canEdit) row.push(`<div class="row-actions"><button class="table-action" data-edit-obligation="${esc(item.id)}">Editar</button>${numero(item.saldoCentavos) > 0 && !["anulada", "pagada"].includes(item.estado) ? `<button class="table-action" data-pay-obligation="${esc(item.id)}">Pagar</button><button class="table-action danger" data-cancel-obligation="${esc(item.id)}">Anular</button>` : ""}</div>`);
+      return row;
+    }, obligationHeaders);
+
+    const monthReceipts = state.receipts.filter(item => monthOf(item.pagadoEn || item.creadoEn || item._latestAt) === month);
+    const receiptHeaders = ["Fecha", "Beneficiario", "Concepto", "Metodo", "Monto", "Firma", "Estado"];
+    receiptHeaders.push("Acciones");
+    $("provRecibosTabla").innerHTML = tabla(monthReceipts, item => {
+      const active = item.estado !== "anulado";
+      return [fecha(item.pagadoEn || item.creadoEn || item._latestAt), `<span class="cost-name">${esc(item.beneficiario)}</span><span class="cost-sub">${esc(item.documentoIdentidad || "")}</span>`, esc(item.concepto), esc(item.metodoPago || "--"), money(item.montoCentavos), `<span class="tag ${item.firmado ? "ok" : "warn"}">${item.firmado ? "Firmado" : "Pendiente"}</span>`, `<span class="tag ${active ? "ok" : "bad"}">${active ? "Emitido" : "Anulado"}</span>`, `<div class="row-actions"><button class="table-action" data-print-receipt="${esc(item.id)}">Imprimir</button>${canEdit && active ? `<button class="table-action" data-sign-receipt="${esc(item.id)}">${item.firmado ? "Quitar firma" : "Marcar firmado"}</button><button class="table-action danger" data-cancel-receipt="${esc(item.id)}">Anular</button>` : ""}</div>`];
+    }, receiptHeaders);
+    wireCostActions(state);
+    setCostTab(costTab);
+    $("provPanelRecurrentes").querySelector(".surface-title p").textContent = `${activeRecurring.length} plan(es) activo(s). Genera obligaciones hasta el mes siguiente sin duplicados.`;
   }
 
   function alertDefinition(event) {
     const payload = P(event);
     const summary = resumenEvento(event);
     const severity = ["CierreConDiferencia", "ErrorSincronizacion", "BackupSnapshotFallido", "DispositivoBloqueado"].includes(event.event_type)
-      ? "critical" : ["VentaCancelada", "DevolucionRegistrada", "InventarioBajo", "ProductoAgotado", "CompraCreditoProveedorRegistrada"].includes(event.event_type)
+      ? "critical" : ["VentaCancelada", "DevolucionRegistrada", "InventarioBajo", "ProductoAgotado", "CompraCreditoProveedorRegistrada", "CostoObligacionGenerada", "CostoObligacionGuardada", "GastoEliminado"].includes(event.event_type)
         ? "warning" : "info";
     const targets = {
       CierreConDiferencia: "caja", CajaAbierta: "caja", CajaCerrada: "caja",
@@ -416,7 +1319,13 @@
       InventarioBajo: "inventario", ProductoAgotado: "inventario",
       ErrorSincronizacion: "notificaciones", BackupSnapshotFallido: "respaldos",
       DispositivoBloqueado: "dispositivos", CompraCreditoProveedorRegistrada: "proveedores",
-      PagoProveedorRegistrado: "proveedores", GastoRegistrado: "proveedores", ActualizacionDisponible: "descargar"
+      PagoProveedorRegistrado: "proveedores", GastoRegistrado: "proveedores", GastoEditado: "proveedores",
+      GastoEliminado: "proveedores", CostoRecurrenteGuardado: "proveedores",
+      CostoObligacionGenerada: "proveedores", CostoObligacionGuardada: "proveedores",
+      CostoPagoRegistrado: "proveedores", CostoObligacionAnulada: "proveedores",
+      ReciboPagoEmitido: "proveedores", ReciboPagoFirmaActualizada: "proveedores",
+      ReciboPagoAnulado: "proveedores",
+      ActualizacionDisponible: "descargar"
     };
     return {
       key: `event:${event.event_id || event.entity_id || fechaEventoIso(event)}`,
@@ -434,6 +1343,12 @@
 
   async function obtenerAlertas(force = false) {
     if (!force && alertasCache) return alertasCache;
+    if (Date.now() - costAlertsAt > 60000) {
+      costAlertsAt = Date.now();
+      await fetch(`${cfg.url.replace(/\/$/, "")}/functions/v1/pos-alerts?business_id=${encodeURIComponent(BUSINESS)}&limit=1`, {
+        headers: await authenticatedHeaders()
+      }).catch(() => null);
+    }
     const [systemResult, eventResult] = await Promise.allSettled([
       sb.from("system_alerts").select("id,severity,alert_type,title,message,payload,acknowledged_at,created_at,device_id")
         .eq("business_id", BUSINESS).order("created_at", { ascending: false }).limit(250),
@@ -480,7 +1395,8 @@
     if (type.includes("backup") || type.includes("respaldo")) return "respaldos";
     if (type.includes("caja") || type.includes("cierre") || type.includes("arqueo")) return "caja";
     if (type.includes("venta") || type.includes("devolucion")) return "ventas";
-    if (type.includes("proveedor") || type.includes("gasto")) return "proveedores";
+    if (type.includes("cliente") || type.includes("credito")) return "clientes";
+    if (type.includes("proveedor") || type.includes("gasto") || type.includes("costo") || type.includes("deuda") || type.includes("obligacion")) return "proveedores";
     if (type.includes("dispositivo")) return "dispositivos";
     if (type.includes("version") || type.includes("actualizacion")) return "descargar";
     return "notificaciones";
@@ -529,7 +1445,7 @@
     if (status === "bloqueada" && !window.confirm("Bloquear este dispositivo impedira nuevas sincronizaciones. Continuar?")) return;
     const response = await fetch(`${cfg.url.replace(/\/$/, "")}/functions/v1/pos-device-block`, {
       method: "POST",
-      headers: { Authorization: `Bearer ${session.access_token}`, "Content-Type": "application/json" },
+      headers: await authenticatedHeaders(true),
       body: JSON.stringify({ business_id: BUSINESS, device_id: deviceId, status })
     });
     if (!response.ok) throw new Error(`No se pudo cambiar el dispositivo (HTTP ${response.status}).`);
@@ -546,14 +1462,38 @@
   }
 
   async function cargarConfiguracion() {
-    $("cfgInfo").innerHTML = `<div class="config-line"><span>Proyecto</span><strong>${esc(cfg.url)}</strong></div><div class="config-line"><span>Negocio</span><strong>${esc(BUSINESS)}</strong></div><div class="config-line"><span>Usuario</span><strong>${esc(session?.user?.email || "--")}</strong></div><div class="config-line"><span>Sesion</span><strong>Autenticada con Supabase Auth</strong></div>`;
+    $("cfgInfo").innerHTML = `<div class="config-line"><span>Proyecto</span><strong>${esc(cfg.url)}</strong></div><div class="config-line"><span>Negocio</span><strong>${esc(BUSINESS)}</strong></div><div class="config-line"><span>Usuario</span><strong>${esc(session?.user?.email || "--")}</strong></div><div class="config-line"><span>Rol</span><strong>${esc(memberRole)}${canEdit ? " | edicion habilitada" : " | solo lectura"}</strong></div><div class="config-line"><span>Sesion</span><strong>Autenticada con Supabase Auth</strong></div>`;
+    const negocio = await cargarNegocioCloud();
+    $("negNombre").value = negocio.nombre || "";
+    $("negRnc").value = negocio.rnc || "";
+    $("negSlogan").value = negocio.slogan || "";
+    $("negDireccion").value = negocio.direccion || "";
+    $("negWhatsapp").value = negocio.whatsapp || "";
+    $("negTelefono").value = negocio.telefono || "";
+    $("negInstagram").value = negocio.instagram || "";
+    $("negTiktok").value = negocio.tiktok || "";
+    $("negTicketPie").value = negocio.ticketPie || "";
+    $("negLogoActivo").checked = ![false, "0", 0].includes(negocio.logoActivo);
     const changes = await eventos(["ConfiguracionActualizada", "FuenteVisualActualizada", "CategoriasNormalizadas", "TextosMigracionReparados", "ProveedoresDepurados"], null, null, 100);
     $("cfgEventos").innerHTML = tabla(changes, event => [fecha(fechaEventoIso(event)), event.event_type, P(event).seccion || event.entity_id || "--", P(event).usuarioNombre || "--"], ["Fecha", "Evento", "Seccion", "Usuario"]);
   }
 
+  async function guardarNegocio() {
+    const data = {
+      nombre: $("negNombre").value.trim(), rnc: $("negRnc").value.trim(), slogan: $("negSlogan").value.trim(),
+      direccion: $("negDireccion").value.trim(), whatsapp: $("negWhatsapp").value.trim(), telefono: $("negTelefono").value.trim(),
+      instagram: $("negInstagram").value.trim(), tiktok: $("negTiktok").value.trim(), ticketPie: $("negTicketPie").value.trim(),
+      logoActivo: $("negLogoActivo").checked
+    };
+    if (!data.nombre) { $("negNombre").focus(); throw new Error("El nombre comercial es obligatorio."); }
+    await adminWrite("business.update", "negocio", data);
+    businessConfig = { ...data, logoActivo: data.logoActivo ? "1" : "0" };
+    await cargarConfiguracion();
+  }
+
   async function consultarVersion() {
     const response = await fetch(`${cfg.url.replace(/\/$/, "")}/functions/v1/pos-installer-version?channel=stable`, {
-      headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}
+      headers: await authenticatedHeaders()
     });
     if (!response.ok) throw new Error(`Servicio de versiones no disponible (HTTP ${response.status}).`);
     const body = await response.json();
@@ -599,6 +1539,7 @@
       const view = location.hash.slice(1) || "dashboard";
       if (view === "dashboard") cargarDashboard().catch(() => {});
       if (view === "notificaciones") cargarNotificaciones().catch(() => {});
+      if (["inventario", "clientes", "proveedores", "configuracion"].includes(view)) loaders[view]?.().catch(() => {});
     }, 700);
   }
 
@@ -606,6 +1547,7 @@
     sb.channel("dcarela-pos-live")
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "sync_events", filter: `business_id=eq.${BUSINESS}` }, change => {
         if (change.new?.event_type === "VentaCancelada") cancelCache.at = 0;
+        if (COST_EVENTS.includes(change.new?.event_type)) costStateCache = null;
         if (RELEVANT_EVENTS.includes(change.new?.event_type)) {
           alertasCache = null;
           const summary = resumenEvento(change.new);
@@ -634,6 +1576,7 @@
     $("app").classList.remove("oculto");
     $("sessionEmail").textContent = session?.user?.email || "Administrador";
     verEstado(true, "Sesion autenticada");
+    await cargarRolEdicion().catch(() => { canEdit = false; memberRole = "viewer"; });
     conectarRealtime();
     await obtenerAlertas(true).catch(() => []);
     comprobarVersion();
@@ -663,6 +1606,38 @@
     $("btnNotificaciones").addEventListener("click", () => { location.hash = "notificaciones"; });
     $("btnVentas").addEventListener("click", () => cargarVentas().catch(error => mostrarError("ventas", error)));
     $("btnReporte").addEventListener("click", () => cargarReporte().catch(error => mostrarError("reportes", error)));
+    $("btnNuevoProducto").addEventListener("click", () => abrirProducto().catch(error => toast(error.message)));
+    $("btnNuevaCategoria").addEventListener("click", abrirCategoria);
+    $("btnNuevoCliente").addEventListener("click", () => abrirCliente());
+    $("btnNuevaCategoriaGasto").addEventListener("click", abrirCategoriaGasto);
+    $("btnNuevoGasto").addEventListener("click", () => cargarCostosCloud().then(state => abrirGasto(state)).catch(error => toast(error.message)));
+    $("btnNuevoRecurrente").addEventListener("click", () => cargarCostosCloud().then(state => abrirRecurrente(state)).catch(error => toast(error.message)));
+    $("btnNuevaObligacion").addEventListener("click", () => cargarCostosCloud().then(state => abrirObligacion(state)).catch(error => toast(error.message)));
+    $("btnNuevoRecibo").addEventListener("click", () => cargarCostosCloud().then(state => abrirReciboPago(state)).catch(error => toast(error.message)));
+    $("btnGenerarObligaciones").addEventListener("click", () => generarObligacionesWeb().catch(error => toast(error.message)));
+    $("provTabs").querySelectorAll("[data-cost-tab]").forEach(button => button.addEventListener("click", () => setCostTab(button.dataset.costTab)));
+    $("provMes").addEventListener("change", () => cargarProveedores().catch(error => mostrarError("proveedores", error)));
+    $("btnInvBuscar").addEventListener("click", () => cargarInventario().catch(error => mostrarError("inventario", error)));
+    $("btnCliBuscar").addEventListener("click", () => cargarClientes().catch(error => mostrarError("clientes", error)));
+    $("invBuscar").addEventListener("keydown", event => { if (event.key === "Enter") { event.preventDefault(); $("btnInvBuscar").click(); } });
+    $("cliBuscar").addEventListener("keydown", event => { if (event.key === "Enter") { event.preventDefault(); $("btnCliBuscar").click(); } });
+    $("btnGuardarNegocio").addEventListener("click", () => guardarNegocio().catch(error => toast(error.message)));
+    $("btnCerrarEditor").addEventListener("click", cerrarEditor);
+    $("btnCancelarEditor").addEventListener("click", cerrarEditor);
+    $("editorOverlay").addEventListener("click", event => { if (event.target === $("editorOverlay")) cerrarEditor(); });
+    $("editorForm").addEventListener("submit", async event => {
+      event.preventDefault();
+      if (!editorSubmit) return;
+      const button = $("btnGuardarEditor");
+      const previous = button.textContent;
+      button.disabled = true;
+      button.textContent = "Guardando...";
+      $("editorError").textContent = "";
+      try { await editorSubmit(new FormData(event.currentTarget)); }
+      catch (error) { $("editorError").textContent = error?.message || String(error); }
+      finally { button.disabled = false; button.textContent = previous; }
+    });
+    window.addEventListener("keydown", event => { if (event.key === "Escape" && !$("editorOverlay").classList.contains("oculto")) cerrarEditor(); });
     $("alertFilter").addEventListener("change", () => cargarNotificaciones().catch(() => {}));
     $("btnLeerTodas").addEventListener("click", async () => {
       const alerts = await obtenerAlertas();
