@@ -13,7 +13,7 @@
     "GastoRegistrado", "GastoEditado", "GastoEliminado", "CostoRecurrenteGuardado",
     "CostoObligacionGenerada", "CostoObligacionGuardada", "CostoPagoRegistrado",
     "CostoObligacionAnulada", "ReciboPagoEmitido", "ReciboPagoFirmaActualizada",
-    "ReciboPagoAnulado", "ActualizacionDisponible", "ErrorCajonDinero"
+    "ReciboPagoAnulado", "ActualizacionDisponible", "ErrorCajonDinero", "ErrorImpresionCorte"
   ];
 
   let sb = null;
@@ -423,6 +423,7 @@
       ErrorSincronizacion: ["Sync", "Error de sincronizacion", payload.message || payload.error || ""],
       CajonDineroAbierto: ["Caja", "Cajon abierto", payload.motivo || "Apertura auditada"],
       ErrorCajonDinero: ["Alerta", "No se pudo abrir el cajon", payload.error || payload.motivo || "Revisa la impresora y el cable"],
+      ErrorImpresionCorte: ["Alerta", "No se imprimio el corte", payload.motivo || "Revisa la impresora configurada"],
       BackupSnapshotCreado: ["Respaldo", "Snapshot creado", payload.storagePath || payload.storage_path || ""],
       BackupSnapshotFallido: ["Respaldo", "Fallo de respaldo", payload.message || payload.error || ""],
       CompraCreditoProveedorRegistrada: ["CxP", `Compra a credito ${money(montoDe(payload))}`, payload.proveedorNombre || ""],
@@ -1318,6 +1319,7 @@
       VentaCancelada: "ventas", DevolucionRegistrada: "ventas",
       InventarioBajo: "inventario", ProductoAgotado: "inventario",
       ErrorSincronizacion: "notificaciones", BackupSnapshotFallido: "respaldos",
+      ErrorImpresionCorte: "caja",
       DispositivoBloqueado: "dispositivos", CompraCreditoProveedorRegistrada: "proveedores",
       PagoProveedorRegistrado: "proveedores", GastoRegistrado: "proveedores", GastoEditado: "proveedores",
       GastoEliminado: "proveedores", CostoRecurrenteGuardado: "proveedores",
