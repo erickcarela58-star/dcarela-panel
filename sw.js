@@ -1,8 +1,8 @@
-const CACHE = "dcarela-pos-shell-20260714-2";
+const CACHE = "dcarela-pos-shell-20260715-repair1";
 const SHELL = [
   "./panel.html",
   "./panel.css?v=20260714-recibos1",
-  "./panel.js?v=20260714-recibos1",
+  "./panel.js?v=20260715-repair1",
   "./supabase.min.js",
   "./dcarela-logo.png",
   "./manifest.webmanifest"
