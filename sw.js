@@ -1,9 +1,11 @@
-const CACHE = "dcarela-pos-shell-20260715-repair1";
+const CACHE = "dcarela-pos-shell-20260715-websync2";
 const SHELL = [
-  "./panel.html",
-  "./panel.css?v=20260714-recibos1",
-  "./panel.js?v=20260715-repair1",
+  "./index.html",
+  "./panel.css?v=20260715-websync2",
+  "./panel.js?v=20260715-websync2",
   "./supabase.min.js",
+  "./jspdf.umd.min.js",
+  "./jspdf.plugin.autotable.min.js",
   "./dcarela-logo.png",
   "./manifest.webmanifest"
 ];
@@ -29,5 +31,5 @@ self.addEventListener("fetch", event => {
     const copy = response.clone();
     if (response.ok) caches.open(CACHE).then(cache => cache.put(request, copy));
     return response;
-  }).catch(() => caches.match(request).then(cached => cached || caches.match("./panel.html"))));
+  }).catch(() => caches.match(request).then(cached => cached || caches.match("./index.html"))));
 });

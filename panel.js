@@ -30,10 +30,13 @@
   let categoryCatalog = null;
   let comboCatalog = null;
   let clientCatalog = null;
+  let userCatalog = null;
   let businessConfig = null;
   let costStateCache = null;
   let costTab = "gastos";
   let costAlertsAt = 0;
+  let lastReportExport = null;
+  let lastTurnExport = null;
 
   const esc = value => String(value ?? "").replace(/[&<>"']/g, char => ({
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
@@ -77,6 +80,13 @@
   const itbisDe = payload => numero(payload?.itbisCentavos, payload?.itbis_centavos, payload?.impuestoCentavos, payload?.impuesto_centavos);
   const montoDe = payload => numero(payload?.montoCentavos, payload?.monto_centavos, payload?.totalCentavos, payload?.total_centavos, payload?.efectivoContadoCentavos);
   const metodoDe = payload => String(payload?.metodo || payload?.metodoPago || payload?.metodo_pago || payload?.formaPago || "otro").toLowerCase();
+  const efectivoDe = payload => {
+    const pagos = Array.isArray(payload?.pagos) ? payload.pagos : [];
+    if (pagos.length) return pagos
+      .filter(pago => String(pago?.metodo || "").toLowerCase() === "efectivo")
+      .reduce((sum, pago) => sum + numero(pago?.montoCentavos, pago?.monto_centavos), 0);
+    return metodoDe(payload) === "efectivo" ? totalDe(payload) : 0;
+  };
   const lineasDe = payload => {
     const value = payload?.lineas ?? payload?.detalle ?? payload?.items ?? [];
     if (Array.isArray(value)) return value;
@@ -112,6 +122,7 @@
     dashboard: cargarDashboard,
     ventas: cargarVentas,
     caja: cargarCaja,
+    turnos: cargarTurnos,
     reportes: cargarReporte,
     inventario: cargarInventario,
     clientes: cargarClientes,
@@ -361,6 +372,26 @@
     return clientCatalog;
   }
 
+  async function cargarUsuariosCloud(force = false) {
+    if (!force && userCatalog) return userCatalog;
+    const items = await eventos(["UsuarioCreado", "UsuarioEditado", "UsuarioActualizado", "UsuarioDesactivado"], null, null, 5000);
+    userCatalog = new Map();
+    items.forEach(event => {
+      const payload = P(event);
+      const id = String(payload.usuarioId || event.entity_id || "").trim();
+      const nombre = String(payload.nombre || payload.usuarioNombre || payload.nombreUsuario || "").trim();
+      if (id && nombre && !userCatalog.has(id)) userCatalog.set(id, nombre);
+    });
+    return userCatalog;
+  }
+
+  function nombreCajero(payload, usuarios) {
+    const directo = String(payload?.cajeroNombre || payload?.usuarioNombre || "").trim();
+    if (directo) return directo;
+    const id = String(payload?.usuarioId || "").trim();
+    return usuarios?.get(id) || (id ? `Usuario ${id.slice(0, 8)}` : "Cajero no identificado");
+  }
+
   async function cargarNegocioCloud(force = false) {
     if (!force && businessConfig) return businessConfig;
     const changes = await eventos(["ConfiguracionActualizada"], null, null, 1000);
@@ -397,6 +428,177 @@
     ]);
     const active = sales.filter(sale => !clavesVenta(sale).some(id => cancelled.has(id)));
     return { active, excluded: sales.length - active.length, raw: sales };
+  }
+
+  function identificadorTurno(event) {
+    const payload = P(event);
+    return String(payload.turnoId || payload.turno_id || event?.entity_id || "").trim();
+  }
+
+  async function turnosDelRango(from, to, ventas = null) {
+    const desdeExtendido = new Date(new Date(from).getTime() - 86400000).toISOString();
+    const [resultadoVentas, eventosCaja, usuarios] = await Promise.all([
+      ventas ? Promise.resolve({ active: ventas }) : ventasActivas(from, to, 50000),
+      eventos(["CajaAbierta", "CajaCerrada", "CierreConDiferencia", "TurnoCambiado"], desdeExtendido, to, 10000),
+      cargarUsuariosCloud()
+    ]);
+    const grupos = new Map();
+    const crear = id => {
+      if (!grupos.has(id)) grupos.set(id, {
+        id, inicio: null, fin: null, ultimaVenta: null, caja: "Caja", estado: "abierto",
+        apertura: null, esperado: null, contado: null, diferencia: null, motivo: "",
+        total: 0, efectivo: 0, itbis: 0, ventas: [], conteo: [], cajeros: new Set(), usuarios: new Set()
+      });
+      return grupos.get(id);
+    };
+    const opcional = (...values) => {
+      for (const value of values) {
+        if (value === null || value === undefined || value === "") continue;
+        const parsed = Number(value);
+        if (Number.isFinite(parsed)) return parsed;
+      }
+      return null;
+    };
+
+    [...eventosCaja].sort((a, b) => String(fechaEventoIso(a)).localeCompare(String(fechaEventoIso(b)))).forEach(event => {
+      const id = identificadorTurno(event);
+      if (!id) return;
+      const payload = P(event);
+      const grupo = crear(id);
+      const nombre = nombreCajero(payload, usuarios);
+      if (nombre && !nombre.startsWith("Usuario ") && nombre !== "Cajero no identificado") grupo.cajeros.add(nombre);
+      if (payload.usuarioId) grupo.usuarios.add(String(payload.usuarioId));
+      grupo.caja = payload.cajaNombre || grupo.caja;
+      if (event.event_type === "CajaAbierta") {
+        grupo.inicio = payload.abiertoEn || fechaEventoIso(event);
+        grupo.apertura = opcional(payload.montoAperturaCentavos, payload.monto_apertura_centavos);
+        grupo.estado = "abierto";
+      }
+      if (event.event_type === "CajaCerrada") {
+        grupo.fin = payload.cerradoEn || fechaEventoIso(event);
+        grupo.esperado = opcional(payload.efectivoEsperadoCentavos, payload.efectivo_esperado_centavos);
+        grupo.contado = opcional(payload.efectivoContadoCentavos, payload.efectivo_contado_centavos);
+        grupo.diferencia = opcional(payload.diferenciaCentavos, payload.diferencia_centavos);
+        grupo.conteo = Array.isArray(payload.conteoDenominaciones) ? payload.conteoDenominaciones : [];
+        grupo.motivo = payload.nota || payload.motivo || grupo.motivo;
+        grupo.estado = "cerrado";
+      }
+      if (event.event_type === "CierreConDiferencia") {
+        grupo.diferencia = opcional(payload.diferenciaCentavos, payload.diferencia_centavos);
+        grupo.motivo = payload.motivo || payload.explicacion || payload.nota || grupo.motivo;
+      }
+    });
+
+    [...resultadoVentas.active].sort((a, b) => String(fechaEventoIso(a)).localeCompare(String(fechaEventoIso(b)))).forEach(event => {
+      const payload = P(event);
+      const id = identificadorTurno(event) || "sin-turno";
+      const grupo = crear(id);
+      const fechaVenta = fechaEventoIso(event);
+      grupo.inicio ||= payload.turnoInicio || fechaVenta;
+      grupo.ultimaVenta = fechaVenta;
+      grupo.caja = payload.cajaNombre || grupo.caja;
+      grupo.total += totalDe(payload);
+      grupo.efectivo += efectivoDe(payload);
+      grupo.itbis += itbisDe(payload);
+      grupo.ventas.push(event);
+      if (payload.usuarioId) grupo.usuarios.add(String(payload.usuarioId));
+      const nombre = nombreCajero(payload, usuarios);
+      if (nombre && !nombre.startsWith("Usuario ") && nombre !== "Cajero no identificado") grupo.cajeros.add(nombre);
+    });
+
+    const inicio = new Date(from).getTime();
+    const fin = new Date(to).getTime();
+    return [...grupos.values()]
+      .filter(grupo => grupo.ventas.length || [grupo.inicio, grupo.fin].some(value => {
+        const time = value ? new Date(value).getTime() : NaN;
+        return Number.isFinite(time) && time >= inicio && time <= fin;
+      }))
+      .map(grupo => {
+        grupo.cajero = grupo.cajeros.size
+          ? [...grupo.cajeros].join(" / ")
+          : [...grupo.usuarios].map(id => usuarios.get(id)).filter(Boolean).join(" / ") || "Cajero no identificado";
+        return grupo;
+      })
+      .sort((a, b) => String(b.inicio || b.ultimaVenta || "").localeCompare(String(a.inicio || a.ultimaVenta || "")));
+  }
+
+  function pistaDiferencia(turno) {
+    const diferencia = numero(turno?.diferencia);
+    if (!diferencia) return "";
+    const conteo = Array.isArray(turno?.conteo) ? turno.conteo : [];
+    if (diferencia > 0 && conteo.length) {
+      const opciones = [];
+      conteo.forEach(item => {
+        const valor = numero(item.valorCentavos, item.denominacionCentavos);
+        const cantidad = Math.max(0, Math.trunc(numero(item.cantidad)));
+        if (valor <= 0 || cantidad <= 0) return;
+        const unidades = Math.max(1, Math.min(cantidad, Math.round(diferencia / valor)));
+        opciones.push({ valor, unidades, restante: diferencia - valor * unidades });
+      });
+      opciones.sort((a, b) => Math.abs(a.restante) - Math.abs(b.restante));
+      const mejor = opciones[0];
+      if (mejor && Math.abs(mejor.restante) < Math.abs(diferencia)) {
+        return `Revisa ${mejor.unidades} ${mejor.unidades === 1 ? "pieza" : "piezas"} de ${money(mejor.valor)}: sin ese conteo, el sobrante seria ${money(mejor.restante)}.`;
+      }
+    }
+    return diferencia > 0
+      ? `Sobrante de ${money(diferencia)}: revisa denominaciones, entradas y dinero ajeno al fondo de caja.`
+      : `Faltante de ${money(Math.abs(diferencia))}: revisa devueltas, salidas y denominaciones omitidas.`;
+  }
+
+  async function cargarTurnos() {
+    if (!$("turDesde").value) {
+      const today = inputDate(new Date());
+      $("turDesde").value = today;
+      $("turHasta").value = today;
+    }
+    const from = inicioDia($("turDesde").value);
+    const to = finDia($("turHasta").value);
+    const { active } = await ventasActivas(from, to, 50000);
+    const turnos = await turnosDelRango(from, to, active);
+    lastTurnExport = { desde: $("turDesde").value, hasta: $("turHasta").value, turnos };
+    const total = turnos.reduce((sum, turno) => sum + turno.total, 0);
+    const efectivo = turnos.reduce((sum, turno) => sum + turno.efectivo, 0);
+    const diferencias = turnos.filter(turno => turno.diferencia !== null && turno.diferencia !== 0);
+    const diferenciaTotal = diferencias.reduce((sum, turno) => sum + turno.diferencia, 0);
+    const sinTurno = turnos.find(turno => turno.id === "sin-turno")?.ventas.length || 0;
+    $("turnosResumen").innerHTML = metric("Turnos", String(turnos.filter(t => t.id !== "sin-turno").length))
+      + metric("Ventas validas", String(active.length))
+      + metric("Total vendido", money(total))
+      + metric("Ventas en efectivo", money(efectivo))
+      + metric("Arqueos con diferencia", String(diferencias.length))
+      + metric("Diferencia fisica", money(diferenciaTotal))
+      + (sinTurno ? metric("Ventas sin turno", String(sinTurno)) : "");
+
+    if (!turnos.length) {
+      $("turnosTabla").innerHTML = '<div class="empty-state">No hay turnos ni ventas en el rango seleccionado.</div>';
+      return;
+    }
+    const rows = turnos.map((turno, index) => {
+      const diferencia = turno.diferencia;
+      const diferenciaTexto = diferencia === null ? "Pendiente" : diferencia === 0 ? "Exacto" : money(diferencia);
+      const diferenciaClase = diferencia === 0 ? "difference-ok" : diferencia === null
+        ? "muted" : diferencia > 0 ? "difference-surplus" : "difference-bad";
+      const pista = pistaDiferencia(turno);
+      const detalle = turno.ventas.length
+        ? turno.ventas.map(venta => {
+            const payload = P(venta);
+            const hora = new Date(fechaEventoIso(venta)).toLocaleTimeString("es-DO", { hour: "2-digit", minute: "2-digit" });
+            return `<div class="turn-sale"><span>#${esc(payload.folio ?? "--")}</span><span>${esc(hora)}</span><span>${esc(nombreCajero(payload, userCatalog))}</span><span>${esc(payload.metodo || payload.metodoPago || "--")}</span><strong>${money(totalDe(payload))}</strong></div>`;
+          }).join("")
+        : '<div class="empty-state">Este turno no tiene ventas sincronizadas.</div>';
+      return `<tr class="turn-row" id="turn-${esc(turno.id)}"><td>${esc(fecha(turno.inicio))}</td><td>${turno.fin ? esc(fecha(turno.fin)) : "En curso"}</td><td>${esc(turno.cajero)}</td><td>${esc(turno.caja)}</td><td>${turno.ventas.length}</td><td class="amount">${money(turno.total)}</td><td class="amount">${money(turno.efectivo)}</td><td class="amount">${turno.apertura === null ? "--" : money(turno.apertura)}</td><td class="amount">${turno.esperado === null ? "--" : money(turno.esperado)}</td><td class="amount">${turno.contado === null ? "--" : money(turno.contado)}</td><td class="amount ${diferenciaClase}" title="${esc(turno.motivo)}">${esc(diferenciaTexto)}</td><td><span class="tag ${turno.estado === "cerrado" ? "ok" : "warn"}">${esc(turno.estado)}</span></td><td><button class="secondary turn-toggle" data-detail="turn-detail-${index}">Ventas</button></td></tr>
+        <tr id="turn-detail-${index}" class="detail-row oculto"><td colspan="13"><div class="detail-box turn-detail"><div class="turn-detail-head"><strong>Folios de este turno</strong><span>${turno.motivo ? `Nota del arqueo: ${esc(turno.motivo)}` : "Sin nota de diferencia"}</span></div>${pista ? `<div class="cash-clue ${diferencia > 0 ? "surplus" : "shortage"}">${esc(pista)}</div>` : ""}${detalle}</div></td></tr>`;
+    }).join("");
+    $("turnosTabla").innerHTML = `<table><thead><tr><th>Entrada</th><th>Salida</th><th>Cajero(s)</th><th>Caja</th><th>Ventas</th><th class="amount">Total</th><th class="amount">Efectivo</th><th class="amount">Apertura</th><th class="amount">Esperado</th><th class="amount">Contado</th><th class="amount">Diferencia</th><th>Estado</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
+    document.querySelectorAll(".turn-toggle").forEach(button => button.addEventListener("click", () => $(button.dataset.detail).classList.toggle("oculto")));
+    const focus = sessionStorage.getItem("dcarela.turno.focus");
+    if (focus) {
+      sessionStorage.removeItem("dcarela.turno.focus");
+      const row = document.getElementById(`turn-${focus}`);
+      row?.classList.add("focused");
+      row?.scrollIntoView({ block: "center", behavior: "smooth" });
+    }
   }
 
   function resumenEvento(event) {
@@ -501,7 +703,7 @@
     const gross = active.reduce((sum, event) => sum + totalDe(P(event)), 0);
     const refunds = returns.reduce((sum, event) => sum + montoDe(P(event)), 0);
     const net = gross - refunds;
-    const cash = active.filter(event => metodoDe(P(event)).includes("efectivo")).reduce((sum, event) => sum + totalDe(P(event)), 0);
+    const cash = active.reduce((sum, event) => sum + efectivoDe(P(event)), 0);
     const tax = active.reduce((sum, event) => sum + itbisDe(P(event)), 0);
     const cashEvents = activity.filter(event => ["CajaAbierta", "CajaCerrada"].includes(event.event_type));
     const cashState = cashEvents[0]?.event_type === "CajaAbierta" ? "Abierta" : "Cerrada";
@@ -541,6 +743,8 @@
     const from = inicioDia($("venDesde").value);
     const to = finDia($("venHasta").value);
     const { active, excluded } = await ventasActivas(from, to, 50000);
+    const turnos = await turnosDelRango(from, to, active);
+    const turnosPorId = new Map(turnos.map(turno => [turno.id, turno]));
     const total = active.reduce((sum, event) => sum + totalDe(P(event)), 0);
     const tax = active.reduce((sum, event) => sum + itbisDe(P(event)), 0);
     $("ventasResumen").innerHTML = metric("Ventas validas", String(active.length)) + metric("Total", money(total)) + metric("ITBIS", money(tax)) + metric("Anuladas excluidas", String(excluded));
@@ -550,12 +754,19 @@
     }
     const rows = active.map((event, index) => {
       const payload = P(event);
+      const turnoId = identificadorTurno(event);
+      const turno = turnosPorId.get(turnoId);
+      const etiquetaTurno = turno?.inicio ? fecha(turno.inicio) : turnoId ? turnoId.slice(0, 8) : "Sin turno";
       const lines = lineasDe(payload).map(line => `${esc(line.nombre || "Producto")} x ${esc(line.cantidad ?? 1)} = ${money(line.importeFinalCentavos ?? line.importe_final_centavos)}`).join("<br>");
-      return `<tr><td>${esc(fecha(fechaEventoIso(event)))}</td><td>#${esc(payload.folio ?? "--")}</td><td>${esc(payload.cajeroNombre || payload.usuarioNombre || "--")}</td><td>${esc(payload.metodo || payload.metodoPago || "--")}</td><td>${esc(payload.clienteNombre || "Consumidor final")}</td><td class="amount">${money(totalDe(payload))}</td><td><button class="secondary detail-toggle" data-detail="sale-${index}">Detalle</button></td></tr>
-        <tr id="sale-${index}" class="detail-row oculto"><td colspan="7"><div class="detail-box">${lines || "Sin lineas sincronizadas"}<br>Subtotal: ${money(payload.subtotalSinItbisCentavos)} | ITBIS: ${money(itbisDe(payload))} | Ajuste: ${money(payload.ajusteRedondeoCentavos)}${payload.nota ? `<br>Nota: ${esc(payload.nota)}` : ""}</div></td></tr>`;
+      return `<tr><td>${esc(fecha(fechaEventoIso(event)))}</td><td>#${esc(payload.folio ?? "--")}</td><td>${esc(nombreCajero(payload, userCatalog))}</td><td><button class="turn-link" data-turno="${esc(turnoId)}">${esc(etiquetaTurno)}</button></td><td>${esc(payload.metodo || payload.metodoPago || "--")}</td><td>${esc(payload.clienteNombre || "Consumidor final")}</td><td class="amount">${money(totalDe(payload))}</td><td><button class="secondary detail-toggle" data-detail="sale-${index}">Detalle</button></td></tr>
+        <tr id="sale-${index}" class="detail-row oculto"><td colspan="8"><div class="detail-box">${lines || "Sin lineas sincronizadas"}<br>Subtotal: ${money(payload.subtotalSinItbisCentavos)} | ITBIS: ${money(itbisDe(payload))} | Ajuste: ${money(payload.ajusteRedondeoCentavos)}${payload.nota ? `<br>Nota: ${esc(payload.nota)}` : ""}</div></td></tr>`;
     }).join("");
-    $("ventasTabla").innerHTML = `<table><thead><tr><th>Fecha</th><th>Folio</th><th>Cajero</th><th>Metodo</th><th>Cliente</th><th class="amount">Total</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
+    $("ventasTabla").innerHTML = `<table><thead><tr><th>Fecha</th><th>Folio</th><th>Cajero</th><th>Turno</th><th>Metodo</th><th>Cliente</th><th class="amount">Total</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
     document.querySelectorAll(".detail-toggle").forEach(button => button.addEventListener("click", () => $(button.dataset.detail).classList.toggle("oculto")));
+    $("ventasTabla").querySelectorAll("[data-turno]").forEach(button => button.addEventListener("click", () => {
+      sessionStorage.setItem("dcarela.turno.focus", button.dataset.turno);
+      location.hash = "turnos";
+    }));
   }
 
   async function cargarCaja() {
@@ -564,11 +775,17 @@
     const closings = items.filter(item => item.event_type === "CajaCerrada");
     const differences = items.filter(item => item.event_type === "CierreConDiferencia");
     const movements = items.filter(item => ["EntradaEfectivo", "SalidaEfectivo"].includes(item.event_type));
-    $("cajaResumen").innerHTML = metric("Cierres registrados", String(closings.length)) + metric("Diferencias", String(differences.length)) + metric("Movimientos", String(movements.length));
+    const sobrantes = differences.filter(item => numero(P(item).diferenciaCentavos) > 0);
+    const faltantes = differences.filter(item => numero(P(item).diferenciaCentavos) < 0);
+    $("cajaResumen").innerHTML = metric("Cierres registrados", String(closings.length)) + metric("Diferencias", String(differences.length)) + metric("Sobrantes", String(sobrantes.length)) + metric("Faltantes", String(faltantes.length)) + metric("Movimientos", String(movements.length));
     $("cajaTabla").innerHTML = tabla(items, event => {
       const payload = P(event);
       const amount = numero(payload.montoCentavos, payload.efectivoContadoCentavos, payload.montoAperturaCentavos);
-      return [fecha(fechaEventoIso(event)), event.event_type, amount ? money(amount) : "--", payload.usuarioNombre || payload.cajeroNombre || "--", payload.motivo || payload.explicacion || payload.nota || "", event.event_type.includes("Diferencia") || numero(payload.diferenciaCentavos) ? money(payload.diferenciaCentavos) : "--"];
+      const diferencia = numero(payload.diferenciaCentavos);
+      const diferenciaHtml = event.event_type.includes("Diferencia") || diferencia
+        ? `<span class="${diferencia > 0 ? "difference-surplus" : diferencia < 0 ? "difference-bad" : "difference-ok"}">${esc(money(diferencia))}</span>`
+        : "--";
+      return [fecha(fechaEventoIso(event)), event.event_type, amount ? money(amount) : "--", payload.usuarioNombre || payload.cajeroNombre || "--", payload.motivo || payload.explicacion || payload.nota || "", diferenciaHtml];
     }, ["Fecha", "Evento", "Monto", "Usuario", "Motivo / nota", "Diferencia"]);
   }
 
@@ -592,8 +809,15 @@
     const products = {};
     active.forEach(event => {
       const payload = P(event);
-      const method = metodoDe(payload);
-      methods[method] = (methods[method] || 0) + totalDe(payload);
+      const payments = Array.isArray(payload.pagos) ? payload.pagos : [];
+      if (payments.length) payments.forEach(payment => {
+        const method = String(payment.metodo || "otro").toLowerCase();
+        methods[method] = (methods[method] || 0) + numero(payment.montoCentavos, payment.monto_centavos);
+      });
+      else {
+        const method = metodoDe(payload);
+        methods[method] = (methods[method] || 0) + totalDe(payload);
+      }
       const day = inputDate(new Date(fechaEventoIso(event)));
       byDay[day] ||= { sales: 0, total: 0, tax: 0, refunds: 0 };
       byDay[day].sales += 1;
@@ -616,6 +840,13 @@
       ["Anuladas", String(excluded), "accent-green"]
     ].map(([label, value, cls]) => `<article class="kpi ${cls}"><span>${esc(label)}</span><strong>${esc(value)}</strong><small>rango seleccionado</small></article>`).join("");
     const days = Object.entries(byDay).sort(([a], [b]) => a.localeCompare(b));
+    lastReportExport = {
+      desde: $("repDesde").value, hasta: $("repHasta").value,
+      ventas: active.length, anuladas: excluded, bruto: gross, devoluciones: refunds,
+      neto: net, itbis: tax, dias: days,
+      metodos: Object.entries(methods).sort((a, b) => b[1] - a[1]),
+      productos: Object.entries(products).sort((a, b) => b[1] - a[1]).slice(0, 50)
+    };
     const maxDay = Math.max(1, ...days.map(([, value]) => value.total - value.refunds));
     $("repGrafica").innerHTML = days.length ? days.map(([day, value]) => {
       const current = value.total - value.refunds;
@@ -1535,13 +1766,96 @@
     return `<table><thead><tr><th>${esc(headers[0])}</th><th>${esc(headers[1])}</th></tr></thead><tbody>${entries.map(([key, value]) => `<tr><td>${esc(key)}</td><td class="amount">${formatter(value)}</td></tr>`).join("")}</tbody></table>`;
   }
 
+  function nuevoPdf(titulo, periodo) {
+    const Pdf = window.jspdf?.jsPDF;
+    if (!Pdf) throw new Error("El generador PDF no esta disponible. Recarga el panel.");
+    const doc = new Pdf({ orientation: "landscape", unit: "mm", format: "a4" });
+    doc.setProperties({ title: `${titulo} - D' Carela Compufoto`, author: "D' Carela POS" });
+    doc.setTextColor(10, 54, 121);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(18);
+    doc.text("D' Carela Compufoto", 14, 14);
+    doc.setFontSize(13);
+    doc.text(titulo, 14, 22);
+    doc.setTextColor(98, 115, 140);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.text(periodo, 14, 28);
+    doc.text(`Generado: ${new Date().toLocaleString("es-DO")}`, 283, 14, { align: "right" });
+    return doc;
+  }
+
+  function opcionesTablaPdf() {
+    return {
+      theme: "grid",
+      styles: { font: "helvetica", fontSize: 8, cellPadding: 2.2, textColor: [21, 34, 56], lineColor: [212, 222, 234], lineWidth: .15 },
+      headStyles: { fillColor: [10, 54, 121], textColor: 255, fontStyle: "bold" },
+      alternateRowStyles: { fillColor: [243, 247, 251] },
+      margin: { left: 14, right: 14 }
+    };
+  }
+
+  function descargarReportePdf() {
+    const data = lastReportExport;
+    if (!data) throw new Error("Genera primero el reporte que deseas descargar.");
+    const doc = nuevoPdf("Reporte de ventas", `Periodo: ${data.desde} a ${data.hasta}`);
+    doc.setTextColor(21, 34, 56);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.text(`Venta neta: ${money(data.neto)}    Ventas: ${data.ventas}    ITBIS: ${money(data.itbis)}    Devoluciones: ${money(data.devoluciones)}    Anuladas: ${data.anuladas}`, 14, 36);
+    doc.autoTable({
+      ...opcionesTablaPdf(), startY: 41,
+      head: [["Dia", "Ventas", "Bruto", "ITBIS", "Devuelto", "Neto"]],
+      body: data.dias.map(([dia, valor]) => [dia, valor.sales, money(valor.total), money(valor.tax), money(valor.refunds), money(valor.total - valor.refunds)])
+    });
+    let y = doc.lastAutoTable.finalY + 8;
+    if (y > 155) { doc.addPage(); y = 18; }
+    doc.setFontSize(11); doc.setTextColor(10, 54, 121); doc.text("Metodos de pago", 14, y);
+    doc.autoTable({
+      ...opcionesTablaPdf(), startY: y + 3, tableWidth: 118,
+      head: [["Metodo", "Total"]], body: data.metodos.map(([metodo, total]) => [metodo, money(total)])
+    });
+    doc.setFontSize(11); doc.setTextColor(10, 54, 121); doc.text("Productos por importe", 148, y);
+    doc.autoTable({
+      ...opcionesTablaPdf(), startY: y + 3, margin: { left: 148, right: 14 },
+      head: [["Producto", "Importe"]], body: data.productos.slice(0, 25).map(([producto, total]) => [producto, money(total)])
+    });
+    doc.save(`DCARELA_REPORTE_${data.desde}_${data.hasta}.pdf`);
+  }
+
+  function descargarTurnosPdf() {
+    const data = lastTurnExport;
+    if (!data) throw new Error("Consulta primero los turnos que deseas descargar.");
+    const doc = nuevoPdf("Ventas por turnos", `Periodo: ${data.desde} a ${data.hasta}`);
+    const body = data.turnos.map(turno => [
+      fecha(turno.inicio), turno.fin ? fecha(turno.fin) : "En curso", turno.cajero, turno.caja,
+      turno.ventas.length, money(turno.total), money(turno.efectivo),
+      turno.apertura === null ? "--" : money(turno.apertura),
+      turno.esperado === null ? "--" : money(turno.esperado),
+      turno.contado === null ? "--" : money(turno.contado),
+      turno.diferencia === null ? "Pendiente" : turno.diferencia === 0 ? "Exacto" : money(turno.diferencia)
+    ]);
+    doc.autoTable({
+      ...opcionesTablaPdf(), startY: 34,
+      head: [["Entrada", "Salida", "Cajero", "Caja", "Ventas", "Total", "Efectivo", "Apertura", "Esperado", "Contado", "Diferencia"]],
+      body,
+      didParseCell: hook => {
+        if (hook.section !== "body" || hook.column.index !== 10) return;
+        const turno = data.turnos[hook.row.index];
+        if (turno?.diferencia > 0) hook.cell.styles.textColor = [183, 90, 0];
+        if (turno?.diferencia < 0) hook.cell.styles.textColor = [197, 63, 72];
+      }
+    });
+    doc.save(`DCARELA_TURNOS_${data.desde}_${data.hasta}.pdf`);
+  }
+
   function scheduleLiveRefresh() {
     clearTimeout(liveRefreshTimer);
     liveRefreshTimer = setTimeout(() => {
       const view = location.hash.slice(1) || "dashboard";
       if (view === "dashboard") cargarDashboard().catch(() => {});
       if (view === "notificaciones") cargarNotificaciones().catch(() => {});
-      if (["inventario", "clientes", "proveedores", "configuracion"].includes(view)) loaders[view]?.().catch(() => {});
+      if (["ventas", "caja", "turnos", "reportes", "inventario", "clientes", "proveedores", "configuracion"].includes(view)) loaders[view]?.().catch(() => {});
     }, 700);
   }
 
@@ -1607,7 +1921,10 @@
     $("btnSalir").addEventListener("click", async () => { await sb.auth.signOut(); location.reload(); });
     $("btnNotificaciones").addEventListener("click", () => { location.hash = "notificaciones"; });
     $("btnVentas").addEventListener("click", () => cargarVentas().catch(error => mostrarError("ventas", error)));
+    $("btnTurnos").addEventListener("click", () => cargarTurnos().catch(error => mostrarError("turnos", error)));
+    $("btnTurnosPdf").addEventListener("click", () => { try { descargarTurnosPdf(); } catch (error) { toast(error.message); } });
     $("btnReporte").addEventListener("click", () => cargarReporte().catch(error => mostrarError("reportes", error)));
+    $("btnReportePdf").addEventListener("click", () => { try { descargarReportePdf(); } catch (error) { toast(error.message); } });
     $("btnNuevoProducto").addEventListener("click", () => abrirProducto().catch(error => toast(error.message)));
     $("btnNuevaCategoria").addEventListener("click", abrirCategoria);
     $("btnNuevoCliente").addEventListener("click", () => abrirCliente());

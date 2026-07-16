@@ -10,7 +10,7 @@
   <title>D' Carela Compufoto | Panel POS</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="dcarela-logo.png">
-  <link rel="stylesheet" href="panel.css?v=20260714-costos1">
+  <link rel="stylesheet" href="panel.css?v=20260715-websync2">
 </head>
 <body>
   <section id="access" class="access-shell">
@@ -52,6 +52,7 @@
         <a href="#dashboard" data-title="Resumen operativo">Resumen</a>
         <a href="#ventas" data-title="Ventas">Ventas</a>
         <a href="#caja" data-title="Caja y arqueos">Caja</a>
+        <a href="#turnos" data-title="Ventas por turnos">Turnos</a>
         <a href="#reportes" data-title="Reportes">Reportes</a>
         <a href="#inventario" data-title="Inventario">Inventario</a>
         <a href="#clientes" data-title="Clientes">Clientes</a>
@@ -131,9 +132,24 @@
         </section>
 
         <section id="v-caja" class="vista oculto">
-          <div class="section-heading"><div><h2>Caja y arqueos</h2><p>Aperturas, cierres, diferencias y movimientos de efectivo.</p></div></div>
+          <div class="section-heading"><div><h2>Caja y arqueos</h2><p>Aperturas, cierres, diferencias y movimientos de efectivo.</p></div><a class="button-link" href="#turnos">Ver ventas por turno</a></div>
           <div id="cajaResumen" class="inline-metrics"></div>
           <section class="surface"><div id="cajaTabla" class="table-wrap"></div></section>
+        </section>
+
+        <section id="v-turnos" class="vista oculto">
+          <div class="section-heading"><div><h2>Ventas por turnos</h2><p>Cada apertura se conserva separada por cajero, hora de entrada, salida y arqueo.</p></div></div>
+          <div class="filter-bar">
+            <div><label for="turDesde">Desde</label><input type="date" id="turDesde"></div>
+            <div><label for="turHasta">Hasta</label><input type="date" id="turHasta"></div>
+            <button id="btnTurnos" class="primary">Consultar turnos</button>
+            <button id="btnTurnosPdf" class="secondary">Descargar PDF</button>
+          </div>
+          <div id="turnosResumen" class="inline-metrics"></div>
+          <section class="surface">
+            <div class="surface-title"><div><h3>Conciliacion por turno</h3><p>El total de ventas no se mezcla con el efectivo contado en el arqueo.</p></div></div>
+            <div id="turnosTabla" class="table-wrap turn-table"></div>
+          </section>
         </section>
 
         <section id="v-reportes" class="vista oculto">
@@ -142,6 +158,7 @@
             <div><label for="repDesde">Desde</label><input type="date" id="repDesde"></div>
             <div><label for="repHasta">Hasta</label><input type="date" id="repHasta"></div>
             <button id="btnReporte" class="primary">Generar</button>
+            <button id="btnReportePdf" class="secondary">Descargar PDF</button>
           </div>
           <div id="repResumen" class="kpi-grid compact"></div>
           <div class="report-grid">
@@ -279,7 +296,9 @@
     };
   </script>
   <script src="supabase.min.js"></script>
-  <script src="panel.js?v=20260715-repair1"></script>
+  <script src="jspdf.umd.min.js"></script>
+  <script src="jspdf.plugin.autotable.min.js"></script>
+  <script src="panel.js?v=20260715-websync2"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));
