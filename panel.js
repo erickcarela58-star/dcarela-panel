@@ -263,7 +263,9 @@
     "cost.payment.create": "Registrar pago",
     "receipt.create": "Crear recibo",
     "receipt.signature": "Actualizar firma de recibo",
-    "receipt.cancel": "Anular recibo"
+    "receipt.cancel": "Anular recibo",
+    "device.status": "Cambiar estado del dispositivo",
+    "assistant.permissions.set": "Actualizar permisos del asistente"
   };
 
   function iaInline(text) {
@@ -299,21 +301,37 @@
   }
 
   function iaStatusLabel(status) {
-    return ({ pending: "Pendiente de confirmacion", confirmed: "Confirmando", executed: "Ejecutada", cancelled: "Cancelada", error: "Error" })[status] || status;
+    return ({ pending: "Pendiente de confirmacion", confirmed: "Confirmando", executed: "Aplicada", undone: "Deshecha", cancelled: "Cancelada", error: "Error" })[status] || status;
   }
 
   function iaActionHtml(action) {
     const status = action.status || "pending";
     const canResolve = status === "pending" && (canEdit || !action.requires_admin_approval);
+    const canUndo = status === "executed" && action.reversible && (canEdit || !action.requires_admin_approval);
     const approval = action.requires_admin_approval && status === "pending"
-      ? "Requiere aprobacion administrativa."
-      : iaStatusLabel(status);
+      ? "Espera aprobacion administrativa."
+      : status === "pending" && action.risk_level === "high"
+        ? "Confirmacion requerida por seguridad."
+        : status === "executed" && action.execution_mode === "automatic"
+          ? "Aplicada automaticamente y reversible."
+          : iaStatusLabel(status);
     return `<article class="assistant-action-card ${esc(status)}" data-ia-action="${esc(action.id)}">
       <strong>${esc(IA_ACTION_LABELS[action.action] || action.action || "Cambio propuesto")}</strong>
       <p>${esc(action.summary || "Revisa esta propuesta antes de aplicarla.")}</p>
       <small>${esc(approval)}${action.required_capability ? ` · ${esc(IA_CAPABILITY_LABELS[action.required_capability] || action.required_capability)}` : ""}</small>
-      ${canResolve ? `<div class="assistant-action-buttons"><button class="primary" type="button" data-ia-confirm="${esc(action.id)}">Confirmar</button><button class="secondary" type="button" data-ia-cancel="${esc(action.id)}">Cancelar</button></div>` : ""}
+      ${canResolve ? `<div class="assistant-action-buttons"><button class="primary" type="button" data-ia-confirm="${esc(action.id)}">Aplicar</button><button class="secondary" type="button" data-ia-cancel="${esc(action.id)}">Cancelar</button></div>` : ""}
+      ${canUndo ? `<div class="assistant-action-buttons"><button class="secondary assistant-undo" type="button" data-ia-undo="${esc(action.id)}">Deshacer cambio</button></div>` : ""}
     </article>`;
+  }
+
+  function iaQuickActionsHtml(message) {
+    const actions = Array.isArray(message?.metadata?.quick_actions) ? message.metadata.quick_actions : [];
+    if (!actions.length) return "";
+    return `<div class="assistant-context-actions">${actions.slice(0, 4).map(action => {
+      const tone = action.tone === "primary" ? "primary" : "secondary";
+      if (action.destination) return `<button class="${tone}" type="button" data-ia-destination="${esc(action.destination)}">${esc(action.label)}</button>`;
+      return `<button class="${tone}" type="button" data-ia-next-prompt="${esc(action.prompt || "")}">${esc(action.label)}</button>`;
+    }).join("")}</div>`;
   }
 
   function iaAttachmentsMeta(message) {
@@ -330,6 +348,7 @@
       <button class="assistant-copy" type="button" data-copy-message="${esc(message.id || "")}" title="Copiar mensaje" aria-label="Copiar mensaje">&#10697;</button>
       <div class="message-body">${iaMarkdown(message.content)}</div>
       ${iaAttachmentsMeta(message)}
+      ${role === "assistant" ? iaQuickActionsHtml(message) : ""}
       <div class="assistant-message-meta">${esc(fecha(message.created_at))}</div>
     </article>`;
   }
@@ -350,6 +369,16 @@
     }));
     $("iaMessages").querySelectorAll("[data-ia-confirm]").forEach(button => button.addEventListener("click", () => resolverAccionIa(button.dataset.iaConfirm, true)));
     $("iaMessages").querySelectorAll("[data-ia-cancel]").forEach(button => button.addEventListener("click", () => resolverAccionIa(button.dataset.iaCancel, false)));
+    $("iaMessages").querySelectorAll("[data-ia-undo]").forEach(button => button.addEventListener("click", () => deshacerAccionIa(button.dataset.iaUndo)));
+    $("iaMessages").querySelectorAll("[data-ia-destination]").forEach(button => button.addEventListener("click", () => {
+      location.hash = `#${button.dataset.iaDestination}`;
+    }));
+    $("iaMessages").querySelectorAll("[data-ia-next-prompt]").forEach(button => button.addEventListener("click", () => {
+      const prompt = button.dataset.iaNextPrompt || "";
+      if (!prompt || iaBusy) return;
+      $("iaInput").value = prompt;
+      enviarMensajeIa();
+    }));
   }
 
   function renderIaHistory(history) {
@@ -419,7 +448,7 @@
     }).join("");
     const current = $("iaModel").value;
     $("iaModel").innerHTML = (status.models || []).map(model => `<option value="${esc(model.id)}">${esc(model.label)} · ${esc(model.level)}</option>`).join("");
-    const preferred = localStorage.getItem(`dcarela.ia.model.${BUSINESS}`) || current || status.models?.[0]?.id;
+    const preferred = localStorage.getItem(`dcarela.ia.model.v2.${BUSINESS}`) || current || status.models?.[0]?.id;
     if (preferred && [...$("iaModel").options].some(option => option.value === preferred)) $("iaModel").value = preferred;
     $("iaInput").disabled = !status.configured || !status.capabilities?.can_use;
     $("btnIaEnviar").disabled = $("iaInput").disabled;
@@ -447,6 +476,21 @@
       if (canEdit) await renderIaApprovals();
     } catch (error) {
       $("iaError").textContent = error.message;
+    } finally { iaBusy = false; }
+  }
+
+  async function deshacerAccionIa(actionId) {
+    if (!actionId || iaBusy) return;
+    iaBusy = true;
+    $("iaError").textContent = "";
+    try {
+      const result = await iaRequest("undo_action", { action_id: actionId });
+      toast(result.message || "Cambio deshecho y sincronizado.");
+      if (iaConversationId) await abrirConversacionIa(iaConversationId);
+      if (canEdit) await renderIaApprovals();
+    } catch (error) {
+      $("iaError").textContent = error.message;
+      toast("No se pudo deshacer automaticamente. Revisa el cambio mas reciente.");
     } finally { iaBusy = false; }
   }
 
@@ -2283,7 +2327,7 @@
     $("iaInput").addEventListener("keydown", event => {
       if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); enviarMensajeIa(); }
     });
-    $("iaModel").addEventListener("change", () => localStorage.setItem(`dcarela.ia.model.${BUSINESS}`, $("iaModel").value));
+    $("iaModel").addEventListener("change", () => localStorage.setItem(`dcarela.ia.model.v2.${BUSINESS}`, $("iaModel").value));
     $("iaSuggestions").querySelectorAll("[data-prompt]").forEach(button => button.addEventListener("click", () => {
       $("iaInput").value = button.dataset.prompt;
       $("iaInput").focus();

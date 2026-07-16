@@ -301,9 +301,13 @@ tbody tr:hover { background: rgba(23,151,232,.045); }
 .assistant-thinking i { width: 6px; height: 6px; background: var(--cyan); border-radius: 50%; animation: assistantPulse 1s infinite ease-in-out; }.assistant-thinking i:nth-child(2) { animation-delay: .16s; }.assistant-thinking i:nth-child(3) { animation-delay: .32s; }
 .assistant-action-card { max-width: min(760px,88%); margin: -5px 0 14px; padding: 12px 14px; background: rgba(255,244,226,.87); border: 1px solid rgba(255,127,3,.25); border-left: 4px solid var(--orange); border-radius: 7px; animation: assistantMessageIn .24s ease both; }
 .assistant-action-card.executed { background: rgba(225,247,241,.85); border-color: rgba(22,133,121,.22); border-left-color: var(--green); }
+.assistant-action-card.undone { background: rgba(232,239,249,.86); border-color: rgba(43,91,151,.22); border-left-color: #5b78a4; }
 .assistant-action-card.cancelled, .assistant-action-card.error { background: rgba(248,231,233,.84); border-color: rgba(197,63,72,.2); border-left-color: var(--red); }
 .assistant-action-card strong, .assistant-action-card small { display: block; }.assistant-action-card strong { font-size: 11px; }.assistant-action-card p { margin: 6px 0 9px; font-size: 11px; line-height: 1.45; }.assistant-action-card small { color: var(--muted); font-size: 9px; }
 .assistant-action-buttons { display: flex; gap: 6px; margin-top: 9px; }.assistant-action-buttons button { min-height: 31px; padding: 5px 10px; border-radius: 5px; font-size: 10px; font-weight: 800; }
+.assistant-action-buttons .assistant-undo { color: #17406f; background: rgba(255,255,255,.7); border-color: rgba(23,64,111,.22); }
+.assistant-context-actions { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 12px; padding-top: 10px; border-top: 1px solid rgba(15,42,78,.09); }
+.assistant-context-actions button { min-height: 31px; padding: 6px 11px; border-radius: 6px; font-size: 9px; font-weight: 800; }
 .assistant-suggestions { padding: 8px 14px 0; display: flex; gap: 6px; overflow-x: auto; }
 .assistant-suggestions button { flex: 0 0 auto; min-height: 30px; padding: 5px 10px; color: var(--navy); background: rgba(255,255,255,.6); border: 1px solid var(--line); border-radius: 5px; font-size: 9px; font-weight: 750; }
 .assistant-attachments { padding: 8px 14px 0; display: flex; gap: 6px; flex-wrap: wrap; }

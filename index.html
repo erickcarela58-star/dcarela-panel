@@ -10,7 +10,7 @@
   <title>D' Carela Compufoto | Panel POS</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="dcarela-logo.png">
-  <link rel="stylesheet" href="panel.css?v=20260716-assistant1">
+  <link rel="stylesheet" href="panel.css?v=20260716-autonomy1">
 </head>
 <body>
   <section id="access" class="access-shell">
@@ -223,7 +223,7 @@
 
         <section id="v-asistente" class="vista oculto">
           <div class="section-heading assistant-heading">
-            <div><h2>Asistente IA</h2><p>Consulta, analiza y administra el POS con datos reales, permisos y auditoria.</p></div>
+            <div><h2>Asistente IA</h2><p>Resuelve tareas completas con datos reales. Los cambios seguros se aplican al instante y pueden deshacerse.</p></div>
             <div class="assistant-status-line"><span id="iaStatus" class="status-pill">Comprobando</span><span id="iaRole" class="tag">--</span></div>
           </div>
           <div class="assistant-layout">
@@ -241,7 +241,7 @@
               <div id="iaMessages" class="assistant-messages" aria-live="polite">
                 <div class="assistant-empty">
                   <strong>Pregunta o solicita una accion</strong>
-                  <p>El asistente consulta la informacion real y presenta cada cambio para confirmarlo antes de sincronizarlo.</p>
+                  <p>Describe el objetivo en lenguaje natural. Solo las operaciones de alto riesgo requieren confirmacion.</p>
                 </div>
               </div>
               <div id="iaSuggestions" class="assistant-suggestions">
@@ -350,7 +350,7 @@
   <script src="supabase.min.js"></script>
   <script src="jspdf.umd.min.js"></script>
   <script src="jspdf.plugin.autotable.min.js"></script>
-  <script src="panel.js?v=20260716-assistant1"></script>
+  <script src="panel.js?v=20260716-autonomy1"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));
