@@ -10,7 +10,7 @@
   <title>D' Carela Compufoto | Panel POS</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="dcarela-logo.png">
-  <link rel="stylesheet" href="panel.css?v=20260715-websync2">
+  <link rel="stylesheet" href="panel.css?v=20260716-assistant1">
 </head>
 <body>
   <section id="access" class="access-shell">
@@ -57,6 +57,7 @@
         <a href="#inventario" data-title="Inventario">Inventario</a>
         <a href="#clientes" data-title="Clientes">Clientes</a>
         <a href="#proveedores" data-title="Gastos y costos">Gastos y costos</a>
+        <a href="#asistente" data-title="Asistente IA">Asistente IA <span id="navIaPending" class="nav-count oculto">0</span></a>
         <a href="#notificaciones" data-title="Notificaciones">Notificaciones <span id="navAlertas" class="nav-count oculto">0</span></a>
         <a href="#dispositivos" data-title="Dispositivos">Dispositivos</a>
         <a href="#respaldos" data-title="Respaldos">Respaldos</a>
@@ -220,6 +221,57 @@
           <section id="provPanelRecibos" class="surface cost-panel oculto"><div class="surface-title"><div><h3>Recibos de pago</h3><p>Nomina, servicios y otros pagos con firma pendiente o confirmada.</p></div></div><div id="provRecibosTabla" class="table-wrap"></div></section>
         </section>
 
+        <section id="v-asistente" class="vista oculto">
+          <div class="section-heading assistant-heading">
+            <div><h2>Asistente IA</h2><p>Consulta, analiza y administra el POS con datos reales, permisos y auditoria.</p></div>
+            <div class="assistant-status-line"><span id="iaStatus" class="status-pill">Comprobando</span><span id="iaRole" class="tag">--</span></div>
+          </div>
+          <div class="assistant-layout">
+            <aside class="assistant-history-panel">
+              <button id="btnIaNueva" class="primary wide" type="button">Nueva conversacion</button>
+              <div class="assistant-panel-title"><strong>Conversaciones</strong><small>Guardadas en la nube</small></div>
+              <div id="iaConversations" class="assistant-conversations"></div>
+            </aside>
+
+            <section class="assistant-chat-panel" aria-label="Conversacion con el asistente">
+              <header class="assistant-chat-header">
+                <div><strong id="iaConversationTitle">Nueva conversacion</strong><small id="iaModelEffective">Datos del POS disponibles segun tu rol</small></div>
+                <label class="assistant-model"><span>Modelo</span><select id="iaModel"></select></label>
+              </header>
+              <div id="iaMessages" class="assistant-messages" aria-live="polite">
+                <div class="assistant-empty">
+                  <strong>Pregunta o solicita una accion</strong>
+                  <p>El asistente consulta la informacion real y presenta cada cambio para confirmarlo antes de sincronizarlo.</p>
+                </div>
+              </div>
+              <div id="iaSuggestions" class="assistant-suggestions">
+                <button type="button" data-prompt="Dame un resumen de las ventas de hoy y cualquier alerta que deba atender.">Resumen de hoy</button>
+                <button type="button" data-prompt="Audita los productos sin precio, sin categoria o con inventario inconsistente y dime que corregir primero.">Auditar productos</button>
+                <button type="button" data-prompt="Analiza las cuentas por cobrar, su antiguedad y recomiendame las tres acciones mas importantes.">Revisar creditos</button>
+              </div>
+              <div id="iaAttachments" class="assistant-attachments oculto"></div>
+              <form id="iaComposer" class="assistant-composer">
+                <input id="iaFiles" class="visually-hidden" type="file" multiple accept="image/*,application/pdf,text/plain,text/csv,application/json">
+                <button id="btnIaAdjuntar" class="icon-button assistant-attach" type="button" title="Adjuntar imagen o documento" aria-label="Adjuntar imagen o documento">+</button>
+                <textarea id="iaInput" rows="2" maxlength="8000" placeholder="Escribe una pregunta u orden para el POS..."></textarea>
+                <button id="btnIaEnviar" class="primary assistant-send" type="submit">Enviar</button>
+              </form>
+              <p id="iaError" class="error assistant-error" role="alert"></p>
+            </section>
+
+            <aside class="assistant-control-panel">
+              <div class="assistant-panel-title"><strong>Control y permisos</strong><small id="iaAccessSummary">Verificando acceso</small></div>
+              <div id="iaCapabilities" class="assistant-capabilities"></div>
+              <div class="assistant-panel-title admin-only oculto"><strong>Aprobaciones</strong><small>Ordenes que esperan confirmacion</small></div>
+              <div id="iaApprovals" class="assistant-approvals admin-only oculto"></div>
+              <details class="assistant-permissions admin-only oculto">
+                <summary>Permisos por usuario</summary>
+                <div id="iaPermissions"></div>
+              </details>
+            </aside>
+          </div>
+        </section>
+
         <section id="v-notificaciones" class="vista oculto">
           <div class="section-heading">
             <div><h2>Centro de notificaciones</h2><p>Alertas de caja, inventario, respaldos, dispositivos y sincronizacion.</p></div>
@@ -298,7 +350,7 @@
   <script src="supabase.min.js"></script>
   <script src="jspdf.umd.min.js"></script>
   <script src="jspdf.plugin.autotable.min.js"></script>
-  <script src="panel.js?v=20260715-websync2"></script>
+  <script src="panel.js?v=20260716-assistant1"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));

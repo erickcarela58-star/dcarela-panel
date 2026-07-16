@@ -37,6 +37,11 @@
   let costAlertsAt = 0;
   let lastReportExport = null;
   let lastTurnExport = null;
+  let iaStatusCache = null;
+  let iaConversationId = null;
+  let iaConversations = [];
+  let iaAttachments = [];
+  let iaBusy = false;
 
   const esc = value => String(value ?? "").replace(/[&<>"']/g, char => ({
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
@@ -127,6 +132,7 @@
     inventario: cargarInventario,
     clientes: cargarClientes,
     proveedores: cargarProveedores,
+    asistente: cargarAsistente,
     notificaciones: cargarNotificaciones,
     dispositivos: cargarDispositivos,
     respaldos: cargarRespaldos,
@@ -217,6 +223,340 @@
     alertasCache = null;
     toast(result.message || "Cambio guardado y enviado a sincronizacion.");
     return result;
+  }
+
+  async function iaRequest(mode, data = {}) {
+    const response = await fetch(`${cfg.url.replace(/\/$/, "")}/functions/v1/pos-assistant`, {
+      method: "POST",
+      headers: await authenticatedHeaders(true),
+      body: JSON.stringify({ business_id: BUSINESS, mode, ...data })
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok || !result.ok) throw new Error(result.error || `El asistente no respondio (HTTP ${response.status}).`);
+    return result;
+  }
+
+  const IA_CAPABILITY_LABELS = {
+    can_use: "Usar el asistente",
+    can_read_sales: "Consultar ventas",
+    can_read_finance: "Consultar finanzas y creditos",
+    can_write_catalog: "Modificar catalogo",
+    can_adjust_inventory: "Ajustar inventario",
+    can_manage_finance: "Gestionar gastos, deudas y clientes",
+    can_manage_business: "Gestionar negocio, dispositivos y auditoria",
+    can_manage_users: "Gestionar usuarios y permisos"
+  };
+
+  const IA_ACTION_LABELS = {
+    "category.upsert": "Guardar categoria",
+    "product.upsert": "Guardar producto",
+    "inventory.set": "Ajustar inventario",
+    "combo.components.set": "Cambiar componentes del combo",
+    "client.upsert": "Guardar cliente",
+    "business.update": "Actualizar negocio",
+    "expense_category.upsert": "Guardar categoria de gasto",
+    "expense.upsert": "Guardar gasto",
+    "expense.delete": "Anular gasto",
+    "cost.recurring.upsert": "Guardar costo recurrente",
+    "cost.obligation.upsert": "Guardar factura o deuda",
+    "cost.obligation.cancel": "Anular factura o deuda",
+    "cost.payment.create": "Registrar pago",
+    "receipt.create": "Crear recibo",
+    "receipt.signature": "Actualizar firma de recibo",
+    "receipt.cancel": "Anular recibo"
+  };
+
+  function iaInline(text) {
+    return esc(text)
+      .replace(/`([^`]+)`/g, "<code>$1</code>")
+      .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+  }
+
+  function iaMarkdown(text) {
+    const lines = String(text || "").replace(/\r/g, "").split("\n");
+    const html = [];
+    let list = null;
+    const closeList = () => { if (list) { html.push(`</${list}>`); list = null; } };
+    for (const raw of lines) {
+      const line = raw.trim();
+      if (!line) { closeList(); continue; }
+      if (/^-{3,}$/.test(line)) { closeList(); html.push("<hr>"); continue; }
+      const heading = line.match(/^#{1,3}\s+(.+)$/);
+      if (heading) { closeList(); html.push(`<h3>${iaInline(heading[1])}</h3>`); continue; }
+      const bullet = line.match(/^[-*]\s+(.+)$/);
+      const numbered = line.match(/^\d+[.)]\s+(.+)$/);
+      if (bullet || numbered) {
+        const wanted = bullet ? "ul" : "ol";
+        if (list !== wanted) { closeList(); list = wanted; html.push(`<${wanted}>`); }
+        html.push(`<li>${iaInline((bullet || numbered)[1])}</li>`);
+        continue;
+      }
+      closeList();
+      html.push(`<p>${iaInline(line)}</p>`);
+    }
+    closeList();
+    return html.join("");
+  }
+
+  function iaStatusLabel(status) {
+    return ({ pending: "Pendiente de confirmacion", confirmed: "Confirmando", executed: "Ejecutada", cancelled: "Cancelada", error: "Error" })[status] || status;
+  }
+
+  function iaActionHtml(action) {
+    const status = action.status || "pending";
+    const canResolve = status === "pending" && (canEdit || !action.requires_admin_approval);
+    const approval = action.requires_admin_approval && status === "pending"
+      ? "Requiere aprobacion administrativa."
+      : iaStatusLabel(status);
+    return `<article class="assistant-action-card ${esc(status)}" data-ia-action="${esc(action.id)}">
+      <strong>${esc(IA_ACTION_LABELS[action.action] || action.action || "Cambio propuesto")}</strong>
+      <p>${esc(action.summary || "Revisa esta propuesta antes de aplicarla.")}</p>
+      <small>${esc(approval)}${action.required_capability ? ` · ${esc(IA_CAPABILITY_LABELS[action.required_capability] || action.required_capability)}` : ""}</small>
+      ${canResolve ? `<div class="assistant-action-buttons"><button class="primary" type="button" data-ia-confirm="${esc(action.id)}">Confirmar</button><button class="secondary" type="button" data-ia-cancel="${esc(action.id)}">Cancelar</button></div>` : ""}
+    </article>`;
+  }
+
+  function iaAttachmentsMeta(message) {
+    const files = Array.isArray(message?.metadata?.attachments) ? message.metadata.attachments : [];
+    if (!files.length) return "";
+    return `<div class="message-body"><p>${files.map(file => `Adjunto: ${esc(file.name || "documento")}`).join("<br>")}</p></div>`;
+  }
+
+  function iaMessageHtml(message) {
+    const role = message.role === "user" ? "user" : "assistant";
+    const label = role === "user" ? (session?.user?.email || "Administrador") : "Asistente IA";
+    return `<article class="assistant-message ${role}" data-message-id="${esc(message.id || "")}">
+      <span class="message-role">${esc(label)}</span>
+      <button class="assistant-copy" type="button" data-copy-message="${esc(message.id || "")}" title="Copiar mensaje" aria-label="Copiar mensaje">&#10697;</button>
+      <div class="message-body">${iaMarkdown(message.content)}</div>
+      ${iaAttachmentsMeta(message)}
+      <div class="assistant-message-meta">${esc(fecha(message.created_at))}</div>
+    </article>`;
+  }
+
+  function iaBindMessageActions(messages) {
+    $("iaMessages").querySelectorAll("[data-copy-message]").forEach(button => button.addEventListener("click", async () => {
+      const message = messages.find(item => String(item.id) === button.dataset.copyMessage);
+      if (!message) return;
+      try {
+        await navigator.clipboard.writeText(message.content || "");
+        toast("Mensaje copiado.");
+      } catch {
+        const area = document.createElement("textarea");
+        area.value = message.content || "";
+        document.body.append(area); area.select(); document.execCommand("copy"); area.remove();
+        toast("Mensaje copiado.");
+      }
+    }));
+    $("iaMessages").querySelectorAll("[data-ia-confirm]").forEach(button => button.addEventListener("click", () => resolverAccionIa(button.dataset.iaConfirm, true)));
+    $("iaMessages").querySelectorAll("[data-ia-cancel]").forEach(button => button.addEventListener("click", () => resolverAccionIa(button.dataset.iaCancel, false)));
+  }
+
+  function renderIaHistory(history) {
+    const messages = history?.messages || [];
+    const actions = history?.actions || [];
+    const actionMap = new Map(actions.map(action => [String(action.id), action]));
+    const renderedActions = new Set();
+    const chunks = [];
+    messages.forEach(message => {
+      chunks.push(iaMessageHtml(message));
+      const ids = Array.isArray(message?.metadata?.action_ids) ? message.metadata.action_ids : [];
+      ids.forEach(id => {
+        const action = actionMap.get(String(id));
+        if (action) { chunks.push(iaActionHtml(action)); renderedActions.add(String(id)); }
+      });
+    });
+    actions.filter(action => !renderedActions.has(String(action.id))).forEach(action => chunks.push(iaActionHtml(action)));
+    $("iaMessages").innerHTML = chunks.length ? chunks.join("") : `<div class="assistant-empty"><strong>Pregunta o solicita una accion</strong><p>El asistente usara datos reales y documentara cada cambio.</p></div>`;
+    $("iaConversationTitle").textContent = history?.conversation?.title || "Nueva conversacion";
+    if (history?.conversation?.model) $("iaModel").value = history.conversation.model;
+    iaBindMessageActions(messages);
+    requestAnimationFrame(() => { $("iaMessages").scrollTop = $("iaMessages").scrollHeight; });
+  }
+
+  function renderIaConversations() {
+    $("iaConversations").innerHTML = iaConversations.length ? iaConversations.map(conversation => `
+      <button class="assistant-conversation ${String(conversation.id) === String(iaConversationId) ? "act" : ""}" type="button" data-ia-conversation="${esc(conversation.id)}">
+        <span><span>${esc(conversation.title || "Nueva conversacion")}</span><small>${esc(fecha(conversation.updated_at))}</small></span>
+        <span class="archive" data-ia-archive="${esc(conversation.id)}" title="Archivar" aria-label="Archivar conversacion">&#215;</span>
+      </button>`).join("") : `<div class="empty-state">Aun no hay conversaciones.</div>`;
+    $("iaConversations").querySelectorAll("[data-ia-conversation]").forEach(button => button.addEventListener("click", event => {
+      if (event.target.closest("[data-ia-archive]")) return;
+      abrirConversacionIa(button.dataset.iaConversation).catch(error => { $("iaError").textContent = error.message; });
+    }));
+    $("iaConversations").querySelectorAll("[data-ia-archive]").forEach(button => button.addEventListener("click", async event => {
+      event.stopPropagation();
+      await iaRequest("archive_conversation", { conversation_id: button.dataset.iaArchive });
+      if (String(iaConversationId) === String(button.dataset.iaArchive)) iaConversationId = null;
+      await cargarConversacionesIa(false);
+    }));
+  }
+
+  async function cargarConversacionesIa(openLatest = true) {
+    const result = await iaRequest("conversations");
+    iaConversations = result.conversations || [];
+    if (openLatest && !iaConversationId && iaConversations.length) iaConversationId = iaConversations[0].id;
+    renderIaConversations();
+    if (openLatest && iaConversationId) await abrirConversacionIa(iaConversationId);
+  }
+
+  async function abrirConversacionIa(id) {
+    iaConversationId = id;
+    renderIaConversations();
+    const history = await iaRequest("history", { conversation_id: id });
+    renderIaHistory(history);
+  }
+
+  function renderIaStatus(status) {
+    iaStatusCache = status;
+    $("iaStatus").textContent = status.configured ? "IA conectada" : "Falta configuracion";
+    $("iaStatus").classList.toggle("bad", !status.configured || !status.capabilities?.can_use);
+    $("iaRole").textContent = status.full_admin_access ? `${status.role} · control total` : status.role;
+    $("iaAccessSummary").textContent = status.full_admin_access ? "Acceso completo por rol administrativo" : "Acceso delegado por capacidades";
+    $("iaCapabilities").innerHTML = Object.entries(IA_CAPABILITY_LABELS).map(([key, label]) => {
+      const enabled = Boolean(status.capabilities?.[key]);
+      return `<div class="assistant-capability"><span>${esc(label)}</span><b class="${enabled ? "" : "off"}">${enabled ? "Si" : "No"}</b></div>`;
+    }).join("");
+    const current = $("iaModel").value;
+    $("iaModel").innerHTML = (status.models || []).map(model => `<option value="${esc(model.id)}">${esc(model.label)} · ${esc(model.level)}</option>`).join("");
+    const preferred = localStorage.getItem(`dcarela.ia.model.${BUSINESS}`) || current || status.models?.[0]?.id;
+    if (preferred && [...$("iaModel").options].some(option => option.value === preferred)) $("iaModel").value = preferred;
+    $("iaInput").disabled = !status.configured || !status.capabilities?.can_use;
+    $("btnIaEnviar").disabled = $("iaInput").disabled;
+  }
+
+  async function renderIaApprovals() {
+    if (!canEdit) return;
+    const result = await iaRequest("pending_approvals");
+    const actions = result.actions || [];
+    $("navIaPending").textContent = actions.length > 99 ? "99+" : String(actions.length);
+    $("navIaPending").classList.toggle("oculto", actions.length === 0);
+    $("iaApprovals").innerHTML = actions.length ? actions.map(action => `<article class="assistant-approval"><strong>${esc(IA_ACTION_LABELS[action.action] || action.action)}</strong><small>${esc(action.summary)}<br>${esc(fecha(action.created_at))}</small><div class="assistant-action-buttons"><button class="primary" data-ia-confirm="${esc(action.id)}">Aprobar</button><button class="secondary" data-ia-cancel="${esc(action.id)}">Rechazar</button></div></article>`).join("") : `<div class="empty-state">No hay acciones pendientes.</div>`;
+    $("iaApprovals").querySelectorAll("[data-ia-confirm]").forEach(button => button.addEventListener("click", () => resolverAccionIa(button.dataset.iaConfirm, true)));
+    $("iaApprovals").querySelectorAll("[data-ia-cancel]").forEach(button => button.addEventListener("click", () => resolverAccionIa(button.dataset.iaCancel, false)));
+  }
+
+  async function resolverAccionIa(actionId, confirm) {
+    if (!actionId || iaBusy) return;
+    iaBusy = true;
+    $("iaError").textContent = "";
+    try {
+      const result = await iaRequest(confirm ? "confirm_action" : "cancel_action", { action_id: actionId });
+      toast(result.message || (confirm ? "Cambio ejecutado." : "Propuesta cancelada."));
+      if (iaConversationId) await abrirConversacionIa(iaConversationId);
+      if (canEdit) await renderIaApprovals();
+    } catch (error) {
+      $("iaError").textContent = error.message;
+    } finally { iaBusy = false; }
+  }
+
+  async function renderIaPermissions() {
+    if (!canEdit) return;
+    const result = await iaRequest("permissions_list");
+    const members = result.members || [];
+    $("iaPermissions").innerHTML = members.map(member => {
+      const locked = member.inherited_full_access;
+      return `<article class="assistant-permission-user" data-ia-user="${esc(member.user_id)}">
+        <strong>${esc(member.name || member.email || member.user_id)}</strong><small>${esc(member.role)}${locked ? " · acceso completo por rol" : ""}</small>
+        <div class="assistant-permission-grid">${Object.entries(IA_CAPABILITY_LABELS).map(([key, label]) => `<label><input type="checkbox" data-capability="${esc(key)}"${member.capabilities?.[key] ? " checked" : ""}${locked ? " disabled" : ""}><span>${esc(label)}</span></label>`).join("")}</div>
+        ${locked ? "" : `<button class="secondary" type="button" data-save-permissions="${esc(member.user_id)}">Guardar permisos</button>`}
+      </article>`;
+    }).join("");
+    $("iaPermissions").querySelectorAll("[data-save-permissions]").forEach(button => button.addEventListener("click", async () => {
+      const card = button.closest("[data-ia-user]");
+      const capabilities = {};
+      card.querySelectorAll("[data-capability]").forEach(input => { capabilities[input.dataset.capability] = input.checked; });
+      button.disabled = true;
+      try {
+        const saved = await iaRequest("permissions_set", { user_id: button.dataset.savePermissions, capabilities });
+        toast(saved.message);
+        await renderIaPermissions();
+      } catch (error) { toast(error.message); }
+      finally { button.disabled = false; }
+    }));
+  }
+
+  function renderIaAttachments() {
+    $("iaAttachments").classList.toggle("oculto", iaAttachments.length === 0);
+    $("iaAttachments").innerHTML = iaAttachments.map((file, index) => `<span class="assistant-file-chip"><span>${esc(file.name)}</span><button type="button" data-remove-attachment="${index}" aria-label="Quitar adjunto">&#215;</button></span>`).join("");
+    $("iaAttachments").querySelectorAll("[data-remove-attachment]").forEach(button => button.addEventListener("click", () => {
+      iaAttachments.splice(Number(button.dataset.removeAttachment), 1);
+      renderIaAttachments();
+    }));
+  }
+
+  function fileToBase64(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || "").split(",")[1] || "");
+      reader.onerror = () => reject(new Error(`No se pudo leer ${file.name}.`));
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function agregarAdjuntosIa(fileList) {
+    const files = [...fileList].slice(0, 4 - iaAttachments.length);
+    const allowed = /^(image\/|application\/pdf$|text\/plain$|text\/csv$|application\/json$)/;
+    for (const file of files) {
+      if (!allowed.test(file.type)) { toast(`Formato no compatible: ${file.name}`); continue; }
+      if (file.size > 6 * 1024 * 1024) { toast(`${file.name} supera 6 MB.`); continue; }
+      iaAttachments.push({ name: file.name, mime: file.type || "application/octet-stream", data: await fileToBase64(file), size: file.size });
+    }
+    if (iaAttachments.reduce((sum, file) => sum + file.size, 0) > 8 * 1024 * 1024) {
+      iaAttachments.pop();
+      toast("Los adjuntos no pueden superar 8 MB en total.");
+    }
+    renderIaAttachments();
+  }
+
+  async function enviarMensajeIa() {
+    if (iaBusy) return;
+    const message = $("iaInput").value.trim();
+    if (!message && !iaAttachments.length) return;
+    iaBusy = true;
+    $("iaError").textContent = "";
+    $("btnIaEnviar").disabled = true;
+    const optimistic = { id: `temp-${Date.now()}`, role: "user", content: message || "Analiza los archivos adjuntos.", metadata: { attachments: iaAttachments }, created_at: new Date().toISOString() };
+    const empty = $("iaMessages").querySelector(".assistant-empty");
+    if (empty) empty.remove();
+    $("iaMessages").insertAdjacentHTML("beforeend", iaMessageHtml(optimistic) + `<div id="iaThinking" class="assistant-thinking"><span>Pensando y consultando datos</span><i></i><i></i><i></i></div>`);
+    $("iaMessages").scrollTop = $("iaMessages").scrollHeight;
+    const attachments = iaAttachments.map(({ name, mime, data }) => ({ name, mime, data }));
+    try {
+      const result = await iaRequest("chat", {
+        conversation_id: iaConversationId,
+        message,
+        model: $("iaModel").value,
+        attachments
+      });
+      iaConversationId = result.conversation.id;
+      $("iaModelEffective").textContent = `Respuesta generada con ${result.effective_model}`;
+      $("iaInput").value = "";
+      iaAttachments = [];
+      renderIaAttachments();
+      await cargarConversacionesIa(false);
+      await abrirConversacionIa(iaConversationId);
+      if (canEdit) await renderIaApprovals();
+    } catch (error) {
+      $("iaThinking")?.remove();
+      $("iaError").textContent = error.message;
+      toast("El asistente no pudo completar la solicitud.");
+    } finally {
+      iaBusy = false;
+      $("btnIaEnviar").disabled = !iaStatusCache?.configured || !iaStatusCache?.capabilities?.can_use;
+    }
+  }
+
+  async function cargarAsistente() {
+    $("iaError").textContent = "";
+    const status = await iaRequest("status");
+    renderIaStatus(status);
+    if (!status.capabilities?.can_use) {
+      $("iaMessages").innerHTML = `<div class="assistant-empty"><strong>Acceso no habilitado</strong><p>Un administrador debe autorizar las capacidades de esta cuenta desde este mismo modulo.</p></div>`;
+      return;
+    }
+    await cargarConversacionesIa(true);
+    if (canEdit) await Promise.all([renderIaApprovals(), renderIaPermissions()]);
   }
 
   function cerrarEditor() {
@@ -1855,7 +2195,7 @@
       const view = location.hash.slice(1) || "dashboard";
       if (view === "dashboard") cargarDashboard().catch(() => {});
       if (view === "notificaciones") cargarNotificaciones().catch(() => {});
-      if (["ventas", "caja", "turnos", "reportes", "inventario", "clientes", "proveedores", "configuracion"].includes(view)) loaders[view]?.().catch(() => {});
+      if (["ventas", "caja", "turnos", "reportes", "inventario", "clientes", "proveedores", "asistente", "configuracion"].includes(view)) loaders[view]?.().catch(() => {});
     }, 700);
   }
 
@@ -1878,6 +2218,12 @@
         obtenerAlertas(true).then(renderAlertPreview).catch(() => {});
         scheduleLiveRefresh();
       })
+      .on("postgres_changes", { event: "*", schema: "public", table: "pos_assistant_actions", filter: `business_id=eq.${BUSINESS}` }, () => {
+        if ((location.hash.slice(1) || "dashboard") === "asistente") scheduleLiveRefresh();
+      })
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "pos_assistant_messages", filter: `business_id=eq.${BUSINESS}` }, () => {
+        if ((location.hash.slice(1) || "dashboard") === "asistente" && !iaBusy) scheduleLiveRefresh();
+      })
       .subscribe(status => {
         if (status === "SUBSCRIBED") {
           $("pillVivo").textContent = "en vivo";
@@ -1893,6 +2239,7 @@
     $("sessionEmail").textContent = session?.user?.email || "Administrador";
     verEstado(true, "Sesion autenticada");
     await cargarRolEdicion().catch(() => { canEdit = false; memberRole = "viewer"; });
+    if (canEdit) renderIaApprovals().catch(() => {});
     conectarRealtime();
     await obtenerAlertas(true).catch(() => []);
     comprobarVersion();
@@ -1920,6 +2267,27 @@
     $("pass").addEventListener("keydown", event => { if (event.key === "Enter") $("btnEntrar").click(); });
     $("btnSalir").addEventListener("click", async () => { await sb.auth.signOut(); location.reload(); });
     $("btnNotificaciones").addEventListener("click", () => { location.hash = "notificaciones"; });
+    $("btnIaNueva").addEventListener("click", () => {
+      iaConversationId = null;
+      renderIaConversations();
+      $("iaConversationTitle").textContent = "Nueva conversacion";
+      $("iaMessages").innerHTML = `<div class="assistant-empty"><strong>Pregunta o solicita una accion</strong><p>El asistente usara datos reales y documentara cada cambio.</p></div>`;
+      $("iaInput").focus();
+    });
+    $("btnIaAdjuntar").addEventListener("click", () => $("iaFiles").click());
+    $("iaFiles").addEventListener("change", event => {
+      agregarAdjuntosIa(event.target.files).catch(error => { $("iaError").textContent = error.message; });
+      event.target.value = "";
+    });
+    $("iaComposer").addEventListener("submit", event => { event.preventDefault(); enviarMensajeIa(); });
+    $("iaInput").addEventListener("keydown", event => {
+      if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); enviarMensajeIa(); }
+    });
+    $("iaModel").addEventListener("change", () => localStorage.setItem(`dcarela.ia.model.${BUSINESS}`, $("iaModel").value));
+    $("iaSuggestions").querySelectorAll("[data-prompt]").forEach(button => button.addEventListener("click", () => {
+      $("iaInput").value = button.dataset.prompt;
+      $("iaInput").focus();
+    }));
     $("btnVentas").addEventListener("click", () => cargarVentas().catch(error => mostrarError("ventas", error)));
     $("btnTurnos").addEventListener("click", () => cargarTurnos().catch(error => mostrarError("turnos", error)));
     $("btnTurnosPdf").addEventListener("click", () => { try { descargarTurnosPdf(); } catch (error) { toast(error.message); } });

@@ -1,0 +1,1 @@
+﻿window.__DCARELA_DEFAULT = { url: 'https://rdmhyhsrewvrpqygtufa.supabase.co', anon: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJkbWh5aHNyZXd2cnBxeWd0dWZhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcwODc2NDMsImV4cCI6MjA5MjY2MzY0M30.5icksD5qJmcSRNax5O1ap4qCw4Kd0FqSYhhxIMDWi8s', business: 'dcarela' };
