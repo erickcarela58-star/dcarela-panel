@@ -37,6 +37,7 @@
   let costAlertsAt = 0;
   let lastReportExport = null;
   let lastTurnExport = null;
+  let lastReconciliation = null;
   let iaStatusCache = null;
   let iaConversationId = null;
   let iaConversations = [];
@@ -128,6 +129,7 @@
     ventas: cargarVentas,
     caja: cargarCaja,
     turnos: cargarTurnos,
+    recalcular: cargarRecalculador,
     reportes: cargarReporte,
     inventario: cargarInventario,
     clientes: cargarClientes,
@@ -982,6 +984,367 @@
       const row = document.getElementById(`turn-${focus}`);
       row?.classList.add("focused");
       row?.scrollIntoView({ block: "center", behavior: "smooth" });
+    }
+  }
+
+  const RECON_EVENT_TYPES = [
+    "VentaCobrada", "VentaCancelada", "CajaAbierta", "CajaCerrada", "CierreConDiferencia",
+    "EntradaEfectivo", "SalidaEfectivo", "DevolucionRegistrada", "AbonoClienteRegistrado"
+  ];
+
+  const folioVenta = event => {
+    const value = Number.parseInt(String(P(event).folio ?? ""), 10);
+    return Number.isSafeInteger(value) && value > 0 ? value : null;
+  };
+
+  const idVenta = event => String(P(event).ventaId || P(event).venta_id || event?.entity_id || event?.event_id || "").trim();
+
+  function actualizarOpcionesRecalculo(selectId, options, emptyLabel) {
+    const select = $(selectId);
+    const previous = select.value;
+    const unique = new Map(options.filter(item => item?.value).map(item => [String(item.value), String(item.label || item.value)]));
+    select.innerHTML = `<option value="">${esc(emptyLabel)}</option>${[...unique.entries()]
+      .sort((a, b) => a[1].localeCompare(b[1], "es"))
+      .map(([value, label]) => `<option value="${esc(value)}">${esc(label)}</option>`).join("")}`;
+    if (unique.has(previous)) select.value = previous;
+  }
+
+  function estadoRecalculo(text, tone = "") {
+    const pill = $("recEstadoPill");
+    pill.textContent = text;
+    pill.className = `status-pill ${tone}`.trim();
+  }
+
+  function mostrarProgresoRecalculo(text) {
+    $("recProgreso").classList.remove("oculto");
+    $("recProgresoTexto").textContent = text;
+    estadoRecalculo("Recalculando", "running");
+  }
+
+  function diferenciaIngresadaCentavos() {
+    const raw = String($("recDiferencia").value || "").trim().replace(",", ".");
+    if (!raw) return 0;
+    const parsed = Number(raw);
+    if (!Number.isFinite(parsed)) throw new Error("La diferencia conocida no es un numero valido.");
+    return Math.round(parsed * 100);
+  }
+
+  function terminalVenta(event, devices) {
+    const payload = P(event);
+    const deviceId = String(event.device_id || payload.deviceId || payload.device_id || "").trim();
+    const device = devices.get(deviceId);
+    return {
+      id: deviceId || String(payload.cajaNombre || payload.caja || "sin-terminal"),
+      label: device?.device_name || payload.cajaNombre || device?.cash_register_id || (deviceId ? `Terminal ${deviceId.slice(0, 8)}` : "Sin terminal")
+    };
+  }
+
+  function sumatoriaPagos(payload) {
+    const payments = Array.isArray(payload?.pagos) ? payload.pagos : [];
+    return {
+      detailed: payments.length > 0,
+      total: payments.reduce((sum, payment) => sum + numero(payment?.montoCentavos, payment?.monto_centavos), 0)
+    };
+  }
+
+  function sumatoriaLineas(payload) {
+    const lines = lineasDe(payload);
+    return {
+      detailed: lines.length > 0,
+      total: lines.reduce((sum, line) => sum + numero(line?.importeFinalCentavos, line?.importe_final_centavos, line?.totalCentavos, line?.total_centavos), 0)
+    };
+  }
+
+  function combinacionesParaDiferencia(target, activeSales, cancelledSales, issues, label) {
+    const amount = Math.abs(target);
+    if (!amount) return [];
+    const candidates = [];
+    const add = (type, sales, value, reason, confidence = "Exacta") => {
+      const key = `${target}|${type}|${sales.map(idVenta).join("+")}|${value}`;
+      if (candidates.some(item => item.key === key)) return;
+      candidates.push({ key, target, label, type, sales, value, reason, confidence });
+    };
+
+    cancelledSales.filter(sale => totalDe(P(sale)) === amount).slice(0, 4).forEach(sale =>
+      add("Venta anulada", [sale], amount, "Una venta anulada coincide exactamente con la diferencia."));
+    activeSales.filter(sale => totalDe(P(sale)) === amount).slice(0, 4).forEach(sale =>
+      add("Venta individual", [sale], amount, "El total del ticket coincide; verifica si fue contado o registrado dos veces.", "Candidata"));
+    activeSales.filter(sale => efectivoDe(P(sale)) === amount && totalDe(P(sale)) !== amount).slice(0, 4).forEach(sale =>
+      add("Porcion en efectivo", [sale], amount, "La parte en efectivo de una venta mixta coincide con la diferencia.", "Candidata"));
+    issues.filter(issue => Math.abs(issue.delta) === amount).slice(0, 4).forEach(issue =>
+      add("Importe incongruente", [issue.event], amount, issue.detail));
+
+    const seen = new Map();
+    let pairCount = 0;
+    for (const sale of activeSales.slice(0, 5000)) {
+      const value = totalDe(P(sale));
+      const complement = amount - value;
+      if (complement > 0 && seen.has(complement)) {
+        add("Combinacion de 2 ventas", [seen.get(complement), sale], amount,
+          "La suma de estos dos tickets coincide exactamente con la diferencia.", "Candidata");
+        pairCount += 1;
+        if (pairCount >= 4) break;
+      }
+      if (value > 0 && !seen.has(value)) seen.set(value, sale);
+    }
+    return candidates.slice(0, 12);
+  }
+
+  async function ejecutarRecalculo() {
+    const from = inicioDia($("recDesde").value);
+    const to = finDia($("recHasta").value);
+    const manualDifference = diferenciaIngresadaCentavos();
+    mostrarProgresoRecalculo("Leyendo eventos y terminales de la nube...");
+    await new Promise(resolve => setTimeout(resolve, 35));
+
+    const extendedFrom = new Date(new Date(from).getTime() - 86400000).toISOString();
+    const [rangeEvents, allCancellations, users, deviceRows] = await Promise.all([
+      eventos(RECON_EVENT_TYPES, extendedFrom, to, 100000),
+      eventos(["VentaCancelada"], null, null, 50000),
+      cargarUsuariosCloud(),
+      getDevices().catch(() => [])
+    ]);
+    const devices = new Map(deviceRows.map(device => [String(device.id), device]));
+    const inRequestedRange = event => {
+      const time = new Date(fechaEventoIso(event)).getTime();
+      return Number.isFinite(time) && time >= new Date(from).getTime() && time <= new Date(to).getTime();
+    };
+    const salesBeforeFilters = rangeEvents.filter(event => event.event_type === "VentaCobrada" && inRequestedRange(event));
+    actualizarOpcionesRecalculo("recDispositivo", salesBeforeFilters.map(event => {
+      const terminal = terminalVenta(event, devices);
+      return { value: terminal.id, label: terminal.label };
+    }), "Todas las terminales");
+    actualizarOpcionesRecalculo("recCajero", salesBeforeFilters.map(event => ({
+      value: nombreCajero(P(event), users), label: nombreCajero(P(event), users)
+    })), "Todos los cajeros");
+
+    const currentDevice = $("recDispositivo").value;
+    const currentCashier = $("recCajero").value;
+    const matchDevice = event => !currentDevice || terminalVenta(event, devices).id === currentDevice;
+    const matchCashier = event => !currentCashier || nombreCajero(P(event), users) === currentCashier;
+    const sales = salesBeforeFilters.filter(event => matchDevice(event) && matchCashier(event));
+    const eventScope = rangeEvents.filter(event => matchDevice(event));
+    const cancelledIds = new Set();
+    allCancellations.forEach(event => clavesVenta(event).forEach(id => cancelledIds.add(id)));
+    const activeSales = sales.filter(sale => !clavesVenta(sale).some(id => cancelledIds.has(id)));
+    const cancelledSales = sales.filter(sale => clavesVenta(sale).some(id => cancelledIds.has(id)));
+    mostrarProgresoRecalculo("Verificando folios, pagos y productos de cada venta...");
+    await new Promise(resolve => setTimeout(resolve, 35));
+
+    const folioGroups = new Map();
+    sales.forEach(event => {
+      const folio = folioVenta(event);
+      if (folio === null) return;
+      const terminal = terminalVenta(event, devices);
+      if (!folioGroups.has(terminal.id)) folioGroups.set(terminal.id, { terminal, byFolio: new Map() });
+      const group = folioGroups.get(terminal.id);
+      if (!group.byFolio.has(folio)) group.byFolio.set(folio, []);
+      group.byFolio.get(folio).push(event);
+    });
+    const folioGaps = [];
+    const sequenceBreaks = [];
+    const duplicates = [];
+    folioGroups.forEach(group => {
+      const sequence = [...group.byFolio.keys()].sort((a, b) => a - b);
+      sequence.forEach(folio => {
+        const events = group.byFolio.get(folio);
+        const uniqueSales = new Set(events.map(idVenta));
+        if (events.length > 1 && uniqueSales.size > 1) duplicates.push({ terminal: group.terminal, folio, events });
+      });
+      for (let index = 1; index < sequence.length; index += 1) {
+        const previous = sequence[index - 1];
+        const next = sequence[index];
+        if (next <= previous + 1) continue;
+        const count = next - previous - 1;
+        const explicit = count <= 80
+          ? Array.from({ length: count }, (_, offset) => previous + offset + 1).join(", ")
+          : `${previous + 1} a ${next - 1}`;
+        const item = { terminal: group.terminal, previous, next, count, explicit,
+          previousEvent: group.byFolio.get(previous)[0], nextEvent: group.byFolio.get(next)[0] };
+        if (count > 100) sequenceBreaks.push(item);
+        else folioGaps.push(item);
+      }
+    });
+
+    const saleIssues = [];
+    activeSales.forEach(event => {
+      const payload = P(event);
+      const total = totalDe(payload);
+      const payment = sumatoriaPagos(payload);
+      const lines = sumatoriaLineas(payload);
+      const calculatedPresent = payload.totalCalculadoCentavos !== undefined || payload.total_calculado_centavos !== undefined;
+      const calculated = numero(payload.totalCalculadoCentavos, payload.total_calculado_centavos);
+      const adjustment = numero(payload.ajusteRedondeoCentavos, payload.ajuste_redondeo_centavos);
+      const received = numero(payload.pagoConCentavos, payload.pago_con_centavos);
+      const change = numero(payload.cambioCentavos, payload.cambio_centavos);
+      const cash = efectivoDe(payload);
+      const addIssue = (kind, expected, observed, detail) => saleIssues.push({
+        event, kind, expected, observed, delta: observed - expected, detail
+      });
+      if (total <= 0) addIssue("Total no valido", 1, total, "La venta no tiene un total positivo.");
+      if (payment.detailed && payment.total !== total)
+        addIssue("Pagos no cuadran", total, payment.total, "La suma de los metodos de pago no coincide con el total cobrado.");
+      if (lines.detailed && calculatedPresent && lines.total !== calculated)
+        addIssue("Detalle no cuadra", calculated, lines.total, "La suma de productos no coincide con el total calculado antes del redondeo.");
+      if (calculatedPresent && calculated + adjustment !== total)
+        addIssue("Redondeo no cuadra", total, calculated + adjustment, "Total calculado + ajuste no coincide con el total cobrado.");
+      if (received > 0 && cash > 0 && received - change !== cash)
+        addIssue("Recibido / cambio", cash, received - change, "Efectivo recibido menos cambio no coincide con la porcion en efectivo de la venta.");
+      if (!identificadorTurno(event)) addIssue("Venta sin turno", 1, 0, "La venta no esta asociada a una apertura de caja.");
+    });
+
+    const orphanCancellations = allCancellations.filter(cancellation => inRequestedRange(cancellation)
+      && matchDevice(cancellation)
+      && !sales.some(sale => clavesVenta(cancellation).some(id => clavesVenta(sale).includes(id))));
+    mostrarProgresoRecalculo("Reconstruyendo el efectivo de cada turno...");
+    await new Promise(resolve => setTimeout(resolve, 35));
+
+    const turnMap = new Map();
+    const turn = id => {
+      if (!turnMap.has(id)) turnMap.set(id, {
+        id, terminal: "Caja", cashier: "Cajero no identificado", opened: null, closed: null,
+        opening: 0, sales: 0, cashSales: 0, entries: 0, exits: 0, refunds: 0,
+        cashPayments: 0, cashPaymentsSummary: null,
+        reportedExpected: null, counted: null, reportedDifference: null, saleCount: 0, names: new Set()
+      });
+      return turnMap.get(id);
+    };
+    eventScope.forEach(event => {
+      const payload = P(event);
+      const turnId = identificadorTurno(event);
+      if (!turnId) return;
+      const item = turn(turnId);
+      item.terminal = terminalVenta(event, devices).label || item.terminal;
+      const cashier = nombreCajero(payload, users);
+      if (cashier && cashier !== "Cajero no identificado") item.names.add(cashier);
+      if (event.event_type === "CajaAbierta") {
+        item.opened = payload.abiertoEn || fechaEventoIso(event);
+        item.opening = numero(payload.montoAperturaCentavos, payload.monto_apertura_centavos);
+      } else if (event.event_type === "CajaCerrada") {
+        item.closed = payload.cerradoEn || fechaEventoIso(event);
+        item.reportedExpected = numero(payload.efectivoEsperadoCentavos, payload.efectivo_esperado_centavos);
+        item.counted = numero(payload.efectivoContadoCentavos, payload.efectivo_contado_centavos);
+        item.reportedDifference = numero(payload.diferenciaCentavos, payload.diferencia_centavos);
+        if (payload.abonosEfectivoCentavos !== undefined || payload.abonos_efectivo_centavos !== undefined)
+          item.cashPaymentsSummary = numero(payload.abonosEfectivoCentavos, payload.abonos_efectivo_centavos);
+      } else if (event.event_type === "EntradaEfectivo") item.entries += montoDe(payload);
+      else if (event.event_type === "SalidaEfectivo") item.exits += montoDe(payload);
+      else if (event.event_type === "DevolucionRegistrada" && String(payload.metodoReembolso || "").toLowerCase() === "efectivo") item.refunds += montoDe(payload);
+      else if (event.event_type === "AbonoClienteRegistrado" && metodoDe(payload) === "efectivo") item.cashPayments += montoDe(payload);
+    });
+    activeSales.forEach(event => {
+      const turnId = identificadorTurno(event) || "sin-turno";
+      const item = turn(turnId);
+      item.sales += totalDe(P(event));
+      item.cashSales += efectivoDe(P(event));
+      item.saleCount += 1;
+      item.names.add(nombreCajero(P(event), users));
+      item.terminal = terminalVenta(event, devices).label || item.terminal;
+    });
+    const turns = [...turnMap.values()].map(item => {
+      item.cashier = [...item.names].filter(Boolean).join(" / ") || item.cashier;
+      item.reconciliationComplete = item.cashPaymentsSummary !== null;
+      item.cashPaymentsUsed = item.cashPaymentsSummary ?? item.cashPayments;
+      item.rebuiltExpected = item.opening + item.cashSales + item.cashPaymentsUsed + item.entries - item.exits - item.refunds;
+      item.cloudDelta = item.reportedExpected === null || !item.reconciliationComplete
+        ? null
+        : item.rebuiltExpected - item.reportedExpected;
+      item.legacyUnexplained = item.reportedExpected === null || item.reconciliationComplete
+        ? null
+        : item.reportedExpected - item.rebuiltExpected;
+      return item;
+    }).filter(item => (!currentCashier || item.names.has(currentCashier)) && (item.saleCount || item.opened || item.closed));
+    const turnIssues = turns.filter(item => (item.cloudDelta !== null && item.cloudDelta !== 0) || numero(item.reportedDifference) !== 0);
+
+    const targets = new Map();
+    if (manualDifference) targets.set(Math.abs(manualDifference), `Diferencia manual ${manualDifference > 0 ? "+" : "-"}${money(Math.abs(manualDifference))}`);
+    turnIssues.forEach(item => {
+      const value = Math.abs(numero(item.reportedDifference));
+      if (value && !targets.has(value)) targets.set(value, `Turno ${String(item.id).slice(0, 8)} | ${money(value)}`);
+      const cloudValue = Math.abs(numero(item.cloudDelta));
+      if (item.reconciliationComplete && cloudValue && !targets.has(cloudValue))
+        targets.set(cloudValue, `Recalculo nube ${String(item.id).slice(0, 8)} | ${money(cloudValue)}`);
+    });
+    const candidates = [...targets.entries()].flatMap(([target, label]) =>
+      combinacionesParaDiferencia(target, activeSales, cancelledSales, saleIssues, label));
+    const totalSales = activeSales.reduce((sum, event) => sum + totalDe(P(event)), 0);
+    const paymentTotal = activeSales.reduce((sum, event) => {
+      const payment = sumatoriaPagos(P(event));
+      return sum + (payment.detailed ? payment.total : totalDe(P(event)));
+    }, 0);
+    const missingCount = folioGaps.reduce((sum, gap) => sum + gap.count, 0);
+    const issueCount = saleIssues.length + duplicates.length + orphanCancellations.length + turnIssues.length;
+
+    $("recResumen").innerHTML = [
+      ["Ventas validas", String(activeSales.length), "accent-blue"], ["Total recalculado", money(totalSales), "accent-cyan"],
+      ["Pagos sumados", money(paymentTotal), "accent-green"], ["Folios faltantes", String(missingCount), missingCount ? "accent-red" : "accent-green"],
+      ["Incongruencias", String(issueCount), issueCount ? "accent-orange" : "accent-green"], ["Anuladas", String(cancelledSales.length), "accent-violet"]
+    ].map(([label, value, cls]) => `<article class="kpi ${cls}"><span>${esc(label)}</span><strong>${esc(value)}</strong><small>rango y filtros actuales</small></article>`).join("");
+
+    const findings = [
+      { tone: missingCount ? "critical" : "", title: missingCount ? `${missingCount} folio(s) faltante(s)` : "Secuencia de folios completa", text: missingCount ? "La tabla identifica cada numero ausente y las ventas anterior y posterior." : "No hay huecos operativos internos en las terminales consultadas." },
+      { tone: saleIssues.length ? "critical" : "", title: `${saleIssues.length} problema(s) de importes`, text: saleIssues.length ? "Hay ventas cuyo pago, detalle, redondeo o cambio no coincide." : "Pagos, detalle y cambio cuadran con los totales disponibles." },
+      { tone: turnIssues.length ? "warning" : "", title: `${turnIssues.length} turno(s) para revisar`, text: turnIssues.length ? "El arqueo o el efectivo reconstruido tiene diferencia; abre la tabla para ver el signo y el origen." : "Los cierres consultados no muestran diferencias." },
+      { tone: duplicates.length || orphanCancellations.length ? "warning" : "", title: `${duplicates.length} duplicado(s), ${orphanCancellations.length} anulacion(es) huerfana(s)`, text: `${sequenceBreaks.length} salto(s) grande(s) se clasificaron como cambio de secuencia por migracion y no como ventas faltantes.` }
+    ];
+    $("recLectura").textContent = issueCount || missingCount
+      ? `Se localizaron ${issueCount + missingCount} senales para revisar. Ninguna cifra se modifica desde esta calculadora.`
+      : "La informacion sincronizada del rango cuadra. No se detectaron huecos ni diferencias.";
+    $("recHallazgos").innerHTML = findings.map(item => `<article class="recon-finding ${item.tone}"><strong>${esc(item.title)}</strong><span>${esc(item.text)}</span></article>`).join("");
+
+    const folioRows = [
+      ...folioGaps.map(gap => ["<span class=\"tag bad\">Faltante</span>", esc(gap.terminal.label), `<span class="recon-code">${esc(gap.explicit)}</span>`, String(gap.count), `#${gap.previous} (${esc(fecha(fechaEventoIso(gap.previousEvent)))})`, `#${gap.next} (${esc(fecha(fechaEventoIso(gap.nextEvent)))})`]),
+      ...sequenceBreaks.map(gap => ["<span class=\"tag\">Cambio de secuencia</span>", esc(gap.terminal.label), `<span class="recon-code">${esc(gap.explicit)}</span>`, String(gap.count), `#${gap.previous} (${esc(fecha(fechaEventoIso(gap.previousEvent)))})`, `#${gap.next} (${esc(fecha(fechaEventoIso(gap.nextEvent)))})`]),
+      ...duplicates.map(item => ["<span class=\"tag warn\">Duplicado</span>", esc(item.terminal.label), `<span class="recon-code">#${item.folio}</span>`, String(item.events.length), esc(item.events.map(event => idVenta(event).slice(0, 12)).join(" / ")), "Mismo folio con ventas distintas"])
+    ];
+    $("recFolios").innerHTML = folioRows.length
+      ? `<table><thead><tr><th>Estado</th><th>Terminal</th><th>Folio(s)</th><th>Cantidad</th><th>Venta anterior / IDs</th><th>Venta posterior / causa</th></tr></thead><tbody>${folioRows.map(row => `<tr>${row.map(cell => `<td>${cell}</td>`).join("")}</tr>`).join("")}</tbody></table>`
+      : '<div class="empty-state">No hay folios faltantes ni duplicados dentro del rango.</div>';
+
+    $("recVentas").innerHTML = saleIssues.length ? tabla(saleIssues, issue => {
+      const payload = P(issue.event);
+      const deltaClass = issue.delta > 0 ? "surplus" : "";
+      return [fecha(fechaEventoIso(issue.event)), `<span class="recon-code">#${esc(payload.folio || "--")}</span>`, esc(nombreCajero(payload, users)), esc(issue.kind), money(issue.expected), money(issue.observed), `<span class="recon-delta ${deltaClass}">${issue.delta > 0 ? "+" : ""}${esc(money(issue.delta))}</span>`, esc(issue.detail)];
+    }, ["Fecha", "Folio", "Cajero", "Prueba", "Esperado", "Observado", "Diferencia", "Explicacion"]) : '<div class="empty-state">Todas las ventas disponibles pasaron las pruebas de importe.</div>';
+
+    $("recTurnos").innerHTML = turns.length ? tabla(turns, item => {
+      const delta = item.cloudDelta;
+      const actual = numero(item.reportedDifference);
+      const cloudClass = delta === 0 ? "ok" : delta > 0 ? "surplus" : "";
+      const actualClass = actual === 0 ? "ok" : actual > 0 ? "surplus" : "";
+      const cloudText = delta === null
+        ? item.legacyUnexplained === null ? "--" : `<span class="tag warn" title="Este cierre fue creado antes de sincronizar el desglose de abonos.">Historico: ${esc(money(item.legacyUnexplained))}</span>`
+        : `<span class="recon-delta ${cloudClass}">${delta > 0 ? "+" : ""}${esc(money(delta))}</span>`;
+      return [fecha(item.opened || item.closed), esc(item.cashier), esc(item.terminal), String(item.saleCount), money(item.cashSales), money(item.cashPaymentsUsed), money(item.entries), money(item.exits), item.reportedExpected === null ? "--" : money(item.reportedExpected), money(item.rebuiltExpected), cloudText, `<span class="recon-delta ${actualClass}">${actual > 0 ? "+" : ""}${esc(money(actual))}</span>`];
+    }, ["Inicio", "Cajero", "Terminal", "Ventas", "Efectivo ventas", "Abonos", "Entradas", "Salidas", "Esperado cierre", "Reconstruido", "Delta nube", "Arqueo real"]) : '<div class="empty-state">No hay turnos para conciliar en el rango.</div>';
+
+    $("recCandidatas").innerHTML = candidates.length ? tabla(candidates, item => {
+      const folios = item.sales.map(sale => `#${folioVenta(sale) || "--"}`).join(" + ");
+      const times = item.sales.map(sale => fecha(fechaEventoIso(sale))).join(" | ");
+      return [esc(item.label), `<span class="recon-confidence">${esc(item.confidence)}</span>`, esc(item.type), `<span class="recon-code">${esc(folios)}</span>`, money(item.value), esc(times), esc(item.reason)];
+    }, ["Diferencia", "Nivel", "Coincidencia", "Venta(s)", "Importe", "Fecha", "Por que aparece"]) : '<div class="empty-state">Escribe una diferencia conocida o consulta un rango con cierres descuadrados para buscar ventas candidatas.</div>';
+
+    lastReconciliation = {
+      desde: $("recDesde").value, hasta: $("recHasta").value, terminal: currentDevice || "Todas", cajero: currentCashier || "Todos",
+      totalSales, paymentTotal, activeSales: activeSales.length, cancelled: cancelledSales.length,
+      missingCount, issueCount, folioGaps, sequenceBreaks, duplicates, saleIssues, turns, candidates
+    };
+    $("recProgreso").classList.add("oculto");
+    estadoRecalculo(issueCount || missingCount ? "Requiere revision" : "Cuadra", issueCount || missingCount ? "bad" : "ok");
+  }
+
+  async function cargarRecalculador() {
+    if (!$("recDesde").value) {
+      $("recDesde").value = inputDate(new Date(Date.now() - 6 * 86400000));
+      $("recHasta").value = inputDate(new Date());
+    }
+    try {
+      await ejecutarRecalculo();
+    } catch (error) {
+      $("recProgreso").classList.add("oculto");
+      estadoRecalculo("Error", "bad");
+      $("recLectura").textContent = error?.message || String(error);
+      throw error;
     }
   }
 
@@ -2233,13 +2596,47 @@
     doc.save(`DCARELA_TURNOS_${data.desde}_${data.hasta}.pdf`);
   }
 
+  function descargarRecalculoPdf() {
+    const data = lastReconciliation;
+    if (!data) throw new Error("Ejecuta primero el recalculo que deseas descargar.");
+    const doc = nuevoPdf("Diagnostico de incongruencias", `Periodo: ${data.desde} a ${data.hasta} | Terminal: ${data.terminal} | Cajero: ${data.cajero}`);
+    doc.setTextColor(27, 43, 65);
+    doc.setFontSize(9);
+    doc.text(`Ventas validas: ${data.activeSales}   Total: ${money(data.totalSales)}   Pagos: ${money(data.paymentTotal)}   Folios faltantes: ${data.missingCount}   Incongruencias: ${data.issueCount}`, 14, 35);
+    doc.autoTable({
+      startY: 40,
+      head: [["Estado", "Terminal", "Folios", "Cantidad", "Venta anterior", "Venta posterior"]],
+      body: [
+        ...data.folioGaps.map(item => ["Faltante", item.terminal.label, item.explicit, item.count, `#${item.previous}`, `#${item.next}`]),
+        ...(data.sequenceBreaks || []).map(item => ["Cambio de secuencia", item.terminal.label, item.explicit, item.count, `#${item.previous}`, `#${item.next}`])
+      ],
+      theme: "grid", styles: { fontSize: 7 }, headStyles: { fillColor: [10, 54, 121] }
+    });
+    let y = Math.min(185, (doc.lastAutoTable?.finalY || 40) + 8);
+    if (y > 160) { doc.addPage(); y = 18; }
+    doc.autoTable({
+      startY: y,
+      head: [["Fecha", "Folio", "Cajero", "Prueba", "Esperado", "Observado", "Delta", "Explicacion"]],
+      body: data.saleIssues.map(issue => [fecha(fechaEventoIso(issue.event)), `#${folioVenta(issue.event) || "--"}`, nombreCajero(P(issue.event), userCatalog), issue.kind, money(issue.expected), money(issue.observed), `${issue.delta > 0 ? "+" : ""}${money(issue.delta)}`, issue.detail]),
+      theme: "grid", styles: { fontSize: 6.7 }, headStyles: { fillColor: [10, 54, 121] }
+    });
+    doc.addPage();
+    doc.autoTable({
+      startY: 18,
+      head: [["Inicio", "Cajero", "Terminal", "Ventas", "Efectivo ventas", "Esperado", "Reconstruido", "Delta nube", "Arqueo real"]],
+      body: data.turns.map(item => [fecha(item.opened || item.closed), item.cashier, item.terminal, item.saleCount, money(item.cashSales), item.reportedExpected === null ? "--" : money(item.reportedExpected), money(item.rebuiltExpected), item.cloudDelta === null ? "--" : `${item.cloudDelta > 0 ? "+" : ""}${money(item.cloudDelta)}`, `${numero(item.reportedDifference) > 0 ? "+" : ""}${money(item.reportedDifference)}`]),
+      theme: "grid", styles: { fontSize: 6.7 }, headStyles: { fillColor: [10, 54, 121] }
+    });
+    doc.save(`DCARELA_RECALCULO_${data.desde}_${data.hasta}.pdf`);
+  }
+
   function scheduleLiveRefresh() {
     clearTimeout(liveRefreshTimer);
     liveRefreshTimer = setTimeout(() => {
       const view = location.hash.slice(1) || "dashboard";
       if (view === "dashboard") cargarDashboard().catch(() => {});
       if (view === "notificaciones") cargarNotificaciones().catch(() => {});
-      if (["ventas", "caja", "turnos", "reportes", "inventario", "clientes", "proveedores", "asistente", "configuracion"].includes(view)) loaders[view]?.().catch(() => {});
+      if (["ventas", "caja", "turnos", "recalcular", "reportes", "inventario", "clientes", "proveedores", "asistente", "configuracion"].includes(view)) loaders[view]?.().catch(() => {});
     }, 700);
   }
 
@@ -2335,6 +2732,9 @@
     $("btnVentas").addEventListener("click", () => cargarVentas().catch(error => mostrarError("ventas", error)));
     $("btnTurnos").addEventListener("click", () => cargarTurnos().catch(error => mostrarError("turnos", error)));
     $("btnTurnosPdf").addEventListener("click", () => { try { descargarTurnosPdf(); } catch (error) { toast(error.message); } });
+    $("btnRecalcular").addEventListener("click", () => cargarRecalculador().catch(error => mostrarError("recalcular", error)));
+    $("btnRecalcularPdf").addEventListener("click", () => { try { descargarRecalculoPdf(); } catch (error) { toast(error.message); } });
+    $("recDiferencia").addEventListener("keydown", event => { if (event.key === "Enter") { event.preventDefault(); $("btnRecalcular").click(); } });
     $("btnReporte").addEventListener("click", () => cargarReporte().catch(error => mostrarError("reportes", error)));
     $("btnReportePdf").addEventListener("click", () => { try { descargarReportePdf(); } catch (error) { toast(error.message); } });
     $("btnNuevoProducto").addEventListener("click", () => abrirProducto().catch(error => toast(error.message)));

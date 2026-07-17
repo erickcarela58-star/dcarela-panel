@@ -10,7 +10,7 @@
   <title>D' Carela Compufoto | Panel POS</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="dcarela-logo.png">
-  <link rel="stylesheet" href="panel.css?v=20260716-autonomy1">
+  <link rel="stylesheet" href="panel.css?v=20260716-reconcile1">
 </head>
 <body>
   <section id="access" class="access-shell">
@@ -53,6 +53,7 @@
         <a href="#ventas" data-title="Ventas">Ventas</a>
         <a href="#caja" data-title="Caja y arqueos">Caja</a>
         <a href="#turnos" data-title="Ventas por turnos">Turnos</a>
+        <a href="#recalcular" data-title="Recalcular incongruencias">Recalcular</a>
         <a href="#reportes" data-title="Reportes">Reportes</a>
         <a href="#inventario" data-title="Inventario">Inventario</a>
         <a href="#clientes" data-title="Clientes">Clientes</a>
@@ -151,6 +152,46 @@
             <div class="surface-title"><div><h3>Conciliacion por turno</h3><p>El total de ventas no se mezcla con el efectivo contado en el arqueo.</p></div></div>
             <div id="turnosTabla" class="table-wrap turn-table"></div>
           </section>
+        </section>
+
+        <section id="v-recalcular" class="vista oculto">
+          <div class="section-heading">
+            <div><h2>Calculadora de incongruencias</h2><p>Recalcula ventas, pagos, folios y cierres para localizar exactamente donde nace una diferencia.</p></div>
+            <span id="recEstadoPill" class="status-pill">Sin calcular</span>
+          </div>
+          <div class="filter-bar recon-filter">
+            <div><label for="recDesde">Desde</label><input type="date" id="recDesde"></div>
+            <div><label for="recHasta">Hasta</label><input type="date" id="recHasta"></div>
+            <div><label for="recDispositivo">Terminal / caja</label><select id="recDispositivo"><option value="">Todas las terminales</option></select></div>
+            <div><label for="recCajero">Cajero</label><select id="recCajero"><option value="">Todos los cajeros</option></select></div>
+            <div><label for="recDiferencia">Diferencia conocida (RD$)</label><input type="number" id="recDiferencia" step="0.01" inputmode="decimal" placeholder="Ej.: 500.00"></div>
+            <button id="btnRecalcular" class="primary">Recalcular</button>
+            <button id="btnRecalcularPdf" class="secondary">Descargar diagnostico</button>
+          </div>
+          <div id="recProgreso" class="recon-progress oculto" role="status"><span></span><div><strong>Recalculando la operacion</strong><small id="recProgresoTexto">Leyendo ventas sincronizadas...</small></div></div>
+          <div id="recResumen" class="kpi-grid compact"></div>
+          <div class="recon-grid">
+            <section class="surface recon-wide">
+              <div class="surface-title"><div><h3>Diagnostico principal</h3><p id="recLectura">Ejecuta el recalculo para comparar la informacion.</p></div></div>
+              <div id="recHallazgos" class="recon-findings"></div>
+            </section>
+            <section class="surface">
+              <div class="surface-title"><div><h3>Ventas que explican la diferencia</h3><p>Coincidencias exactas por importe, venta anulada o combinacion de dos tickets.</p></div></div>
+              <div id="recCandidatas" class="table-wrap recon-table"></div>
+            </section>
+            <section class="surface recon-wide">
+              <div class="surface-title"><div><h3>Folios faltantes o duplicados</h3><p>Los huecos se calculan por terminal para no mezclar secuencias de cajas distintas.</p></div></div>
+              <div id="recFolios" class="table-wrap recon-table"></div>
+            </section>
+            <section class="surface recon-wide">
+              <div class="surface-title"><div><h3>Ventas con importes incongruentes</h3><p>Compara total cobrado, suma de pagos, detalle de productos, efectivo recibido y cambio.</p></div></div>
+              <div id="recVentas" class="table-wrap recon-table"></div>
+            </section>
+            <section class="surface recon-wide">
+              <div class="surface-title"><div><h3>Conciliacion de cierres</h3><p>Contrasta el efectivo esperado guardado por cada turno con lo reconstruido desde sus eventos.</p></div></div>
+              <div id="recTurnos" class="table-wrap recon-table"></div>
+            </section>
+          </div>
         </section>
 
         <section id="v-reportes" class="vista oculto">
@@ -350,7 +391,7 @@
   <script src="supabase.min.js"></script>
   <script src="jspdf.umd.min.js"></script>
   <script src="jspdf.plugin.autotable.min.js"></script>
-  <script src="panel.js?v=20260716-autonomy1"></script>
+  <script src="panel.js?v=20260716-reconcile1"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));
