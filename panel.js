@@ -454,6 +454,7 @@
     if (preferred && [...$("iaModel").options].some(option => option.value === preferred)) $("iaModel").value = preferred;
     $("iaInput").disabled = !status.configured || !status.capabilities?.can_use;
     $("btnIaEnviar").disabled = $("iaInput").disabled;
+    $("btnIaAdjuntar").disabled = $("iaInput").disabled;
   }
 
   async function renderIaApprovals() {
@@ -578,6 +579,7 @@
       iaConversationId = result.conversation.id;
       $("iaModelEffective").textContent = `Respuesta generada con ${result.effective_model}`;
       $("iaInput").value = "";
+      $("iaInput").style.height = "";
       iaAttachments = [];
       renderIaAttachments();
       await cargarConversacionesIa(false);
@@ -585,6 +587,8 @@
       if (canEdit) await renderIaApprovals();
     } catch (error) {
       $("iaThinking")?.remove();
+      $("iaMessages").querySelector(`[data-message-id="${optimistic.id}"]`)?.remove();
+      if (!$("iaMessages").children.length) $("iaMessages").innerHTML = `<div class="assistant-empty"><strong>Pregunta o solicita una accion</strong><p>El asistente usara datos reales y documentara cada cambio.</p></div>`;
       $("iaError").textContent = error.message;
       toast("El asistente no pudo completar la solicitud.");
     } finally {
@@ -2724,9 +2728,15 @@
     $("iaInput").addEventListener("keydown", event => {
       if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); enviarMensajeIa(); }
     });
+    $("iaInput").addEventListener("input", () => {
+      const input = $("iaInput");
+      input.style.height = "auto";
+      input.style.height = `${Math.min(input.scrollHeight, 150)}px`;
+    });
     $("iaModel").addEventListener("change", () => localStorage.setItem(`dcarela.ia.model.v2.${BUSINESS}`, $("iaModel").value));
     $("iaSuggestions").querySelectorAll("[data-prompt]").forEach(button => button.addEventListener("click", () => {
       $("iaInput").value = button.dataset.prompt;
+      $("iaInput").dispatchEvent(new Event("input"));
       $("iaInput").focus();
     }));
     $("btnVentas").addEventListener("click", () => cargarVentas().catch(error => mostrarError("ventas", error)));
