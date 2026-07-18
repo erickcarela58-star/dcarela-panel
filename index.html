@@ -10,7 +10,7 @@
   <title>D' Carela Compufoto | Panel POS</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="dcarela-logo.png">
-  <link rel="stylesheet" href="panel.css?v=20260716-assistant-polish1">
+  <link rel="stylesheet" href="panel.css?v=20260718-finanzas-movil1">
 </head>
 <body>
   <section id="access" class="access-shell">
@@ -57,7 +57,7 @@
         <a href="#reportes" data-title="Reportes">Reportes</a>
         <a href="#inventario" data-title="Inventario">Inventario</a>
         <a href="#clientes" data-title="Clientes">Clientes</a>
-        <a href="#proveedores" data-title="Gastos y costos">Gastos y costos</a>
+        <a href="#proveedores" data-title="Finanzas">Finanzas</a>
         <a href="#asistente" data-title="Asistente IA">Asistente IA <span id="navIaPending" class="nav-count oculto">0</span></a>
         <a href="#notificaciones" data-title="Notificaciones">Notificaciones <span id="navAlertas" class="nav-count oculto">0</span></a>
         <a href="#dispositivos" data-title="Dispositivos">Dispositivos</a>
@@ -233,7 +233,7 @@
 
         <section id="v-proveedores" class="vista oculto">
           <div class="section-heading">
-            <div><h2>Gastos y costos</h2><p>Control mensual, nomina, servicios, suscripciones, facturas y vencimientos.</p></div>
+            <div><h2>Finanzas</h2><p>Cuentas, efectivo ligado a ventas, tarjetas, gastos del mes y recurrentes, presupuestos y vencimientos.</p></div>
             <div class="button-row admin-only oculto">
               <button id="btnNuevoGasto" class="primary">Nuevo gasto</button>
               <button id="btnNuevoRecurrente" class="secondary">Nuevo recurrente</button>
@@ -391,7 +391,7 @@
   <script src="supabase.min.js"></script>
   <script src="jspdf.umd.min.js"></script>
   <script src="jspdf.plugin.autotable.min.js"></script>
-  <script src="panel.js?v=20260716-assistant-polish1"></script>
+  <script src="panel.js?v=20260718-finanzas-movil1"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));

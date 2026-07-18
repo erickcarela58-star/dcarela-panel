@@ -382,10 +382,16 @@ tbody tr:hover { background: rgba(23,151,232,.045); }
   .cost-analysis-band { grid-template-columns: 1fr; }
   .due-list { grid-template-columns: repeat(2,minmax(0,1fr)); }
   .update-banner { margin-inline: 14px; }
-  .assistant-layout { width: 100%; min-height: 760px; grid-template-columns: minmax(0,1fr); }
+  /* Movil: el asistente fluye en una sola columna sin recortes. Antes el
+     layout usaba overflow:hidden con alturas de escritorio y el cuadro de
+     escribir quedaba fuera de alcance o intocable en el telefono. */
+  .assistant-layout { display: flex; flex-direction: column; width: 100%; height: auto; min-height: 0; overflow: visible; }
   .assistant-history-panel { max-height: 170px; border-right: 0; border-bottom: 1px solid var(--line); }
   .assistant-conversations { display: flex; overflow-x: auto; }.assistant-conversation { min-width: 190px; }
-  .assistant-chat-panel { min-height: 610px; }
+  .assistant-chat-panel { min-height: 0; }
+  .assistant-messages { min-height: 220px; max-height: 55vh; }
+  /* 16px evita que iOS haga zoom al enfocar el textarea (lo que rompia el toque). */
+  .assistant-composer textarea { font-size: 16px; min-height: 52px; }
   .assistant-control-panel { grid-column: auto; grid-template-columns: 1fr; max-height: none; }
 }
 @media (max-width: 590px) {
