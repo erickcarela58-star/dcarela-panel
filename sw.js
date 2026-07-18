@@ -1,4 +1,4 @@
-const CACHE = "dcarela-pos-shell-20260718-money-manager-journal";
+const CACHE = "dcarela-pos-shell-20260718-transfer";
 const SHELL = [
   "./index.html",
   "./panel.css?v=20260718-money-manager-journal",

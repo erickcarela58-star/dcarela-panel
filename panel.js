@@ -2750,27 +2750,53 @@
     const state = finStateCache;
     if (!state?.accounts?.length) { toast("Agrega una cuenta antes de registrar movimientos."); return; }
     const prefs = state.preferences || {};
-    const type = defaultType === "ingreso" ? "ingreso" : "gasto";
+    const type = defaultType === "ingreso" ? "ingreso" : defaultType === "transferencia" ? "transferencia" : "gasto";
+    const activeAccounts = state.accounts.filter(item => !item.oculta && item.estado !== "eliminada");
     const defaultAccount = type === "gasto" ? prefs.cuenta_gasto_default_id : prefs.cuenta_ingreso_default_id;
-    const accountOptions = state.accounts.filter(item => !item.oculta && item.estado !== "eliminada")
-      .map(item => `<option value="${esc(item.id)}"${selected(defaultAccount, item.id)}>${esc(item.nombre)} &middot; ${money(item.saldo_actual_centavos)}</option>`).join("");
-    abrirEditor("Entrada rapida", "Monto, categoria y cuenta. El teclado propio evita errores y funciona igual en iPhone y PC.", `
+    const accountOptions = current => activeAccounts
+      .map(item => `<option value="${esc(item.id)}"${selected(current, item.id)}>${esc(item.nombre)} &middot; ${money(item.saldo_actual_centavos)}</option>`).join("");
+    const bank = activeAccounts.find(item => item.nombre.toLowerCase().includes("popular")) || activeAccounts.find(item => item.tipo === "banco") || activeAccounts[0];
+    const otra = activeAccounts.find(item => item.id !== (bank && bank.id)) || activeAccounts[1] || activeAccounts[0];
+    const esTransfer = type === "transferencia";
+    abrirEditor("Entrada rapida", "Gasto, ingreso o transferencia entre tus cuentas. El teclado propio evita errores y funciona igual en iPhone y PC.", `
       <div class="fin-quick-entry field-wide">
-        <div class="fin-quick-types"><button type="button" class="${type === "gasto" ? "act" : ""}" data-fin-quick-type="gasto">Gasto</button><button type="button" class="${type === "ingreso" ? "act" : ""}" data-fin-quick-type="ingreso">Ingreso</button></div>
+        <div class="fin-quick-types"><button type="button" class="${type === "gasto" ? "act" : ""}" data-fin-quick-type="gasto">Gasto</button><button type="button" class="${type === "ingreso" ? "act" : ""}" data-fin-quick-type="ingreso">Ingreso</button><button type="button" class="${esTransfer ? "act" : ""}" data-fin-quick-type="transferencia">Transferencia</button></div>
         <input type="hidden" name="tipo" value="${type}"><input type="hidden" name="montoCentavos" value="0">
         <output id="finQuickAmount">RD$0.00</output>
         <div class="fin-number-pad" aria-label="Teclado de monto">
           ${["1","2","3","4","5","6","7","8","9","00","0","back"].map(key => `<button type="button" data-fin-key="${key}" aria-label="${key === "back" ? "Borrar" : key}">${key === "back" ? "&#9003;" : key}</button>`).join("")}
         </div>
       </div>
-      <label><span>Categoria</span><select name="categoriaId" id="finQuickCategory" required>${finCategoryOptions(type)}</select></label>
-      <label><span>Cuenta</span><select name="cuentaId" required>${accountOptions}</select></label>
+      <div id="finQuickOperacion" class="fin-quick-group${esTransfer ? " oculto" : ""}">
+        <label><span>Categoria</span><select name="categoriaId" id="finQuickCategory"${esTransfer ? " disabled" : " required"}>${finCategoryOptions(esTransfer ? "gasto" : type)}</select></label>
+        <label><span>Cuenta</span><select name="cuentaId"${esTransfer ? " disabled" : " required"}>${accountOptions(defaultAccount)}</select></label>
+        <label><span>Persona o comercio</span><input name="payee" maxlength="180" placeholder="Opcional"${esTransfer ? " disabled" : ""}></label>
+      </div>
+      <div id="finQuickTransfer" class="fin-quick-group${esTransfer ? "" : " oculto"}">
+        <label><span>Cuenta de origen</span><select name="cuentaOrigenId"${esTransfer ? "" : " disabled"}>${accountOptions(bank && bank.id)}</select></label>
+        <label><span>Cuenta de destino</span><select name="cuentaDestinoId"${esTransfer ? "" : " disabled"}>${accountOptions(otra && otra.id)}</select></label>
+        <label><span>Comision (RD$)</span><input name="comision" type="number" min="0" step="0.01" value="0.00"${esTransfer ? "" : " disabled"}></label>
+      </div>
       <label><span>Fecha</span><input name="fecha" type="date" required value="${inputDate(new Date())}"></label>
-      <label><span>Persona o comercio</span><input name="payee" maxlength="180" placeholder="Opcional"></label>
-      <label class="field-wide"><span>Descripcion</span><input name="descripcion" maxlength="500" required placeholder="Ej. Compra de materiales"></label>
+      <label class="field-wide"><span>Descripcion</span><input name="descripcion" id="finQuickDesc" maxlength="500"${esTransfer ? "" : " required"} placeholder="Ej. Compra de materiales"></label>
       <label class="field-wide"><span>Nota</span><textarea name="nota" rows="2" maxlength="1200"></textarea></label>`, async form => {
       const amount = numero(form.get("montoCentavos"));
       if (amount <= 0) throw new Error("Escribe un monto mayor que cero.");
+      if (form.get("tipo") === "transferencia") {
+        const origen = form.get("cuentaOrigenId");
+        const destino = form.get("cuentaDestinoId");
+        if (!origen || !destino) throw new Error("Elige la cuenta de origen y la de destino.");
+        if (origen === destino) throw new Error("Elige dos cuentas distintas para transferir.");
+        await adminWrite("fin.transfer.create", null, {
+          cuentaOrigenId: origen, cuentaDestinoId: destino, montoCentavos: amount,
+          comisionCentavos: centavosInput(form.get("comision") || "0"),
+          fecha: form.get("fecha"), descripcion: form.get("descripcion"), nota: form.get("nota"),
+        });
+        cerrarEditor();
+        await cargarProveedores(true);
+        if (typeof cargarCuentasFin === "function") await cargarCuentasFin($("provMes")?.value);
+        return;
+      }
       await adminWrite("fin.movement.create", null, {
         tipo: form.get("tipo"), montoCentavos: amount, cuentaId: form.get("cuentaId"),
         categoriaId: form.get("categoriaId"), fecha: form.get("fecha"), payee: form.get("payee"),
@@ -2783,6 +2809,9 @@
     const amountInput = $("editorFields").querySelector('[name="montoCentavos"]');
     const typeInput = $("editorFields").querySelector('[name="tipo"]');
     const categoryInput = $("finQuickCategory");
+    const operacionBox = $("finQuickOperacion");
+    const transferBox = $("finQuickTransfer");
+    const descInput = $("finQuickDesc");
     const updateAmount = () => {
       const cents = numero(digits || 0);
       amountInput.value = String(cents);
@@ -2794,9 +2823,16 @@
       updateAmount();
     }));
     $("editorFields").querySelectorAll("[data-fin-quick-type]").forEach(button => button.addEventListener("click", () => {
-      typeInput.value = button.dataset.finQuickType;
+      const nuevo = button.dataset.finQuickType;
+      typeInput.value = nuevo;
       $("editorFields").querySelectorAll("[data-fin-quick-type]").forEach(item => item.classList.toggle("act", item === button));
-      categoryInput.innerHTML = finCategoryOptions(typeInput.value);
+      const transfer = nuevo === "transferencia";
+      operacionBox.classList.toggle("oculto", transfer);
+      transferBox.classList.toggle("oculto", !transfer);
+      operacionBox.querySelectorAll("select,input").forEach(el => { el.disabled = transfer; });
+      transferBox.querySelectorAll("select,input").forEach(el => { el.disabled = !transfer; });
+      descInput.required = !transfer;
+      if (!transfer) categoryInput.innerHTML = finCategoryOptions(nuevo);
     }));
   }
 
