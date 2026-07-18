@@ -267,6 +267,17 @@ tbody tr:hover { background: rgba(23,151,232,.045); }
 .due-item strong { font-size: 11px; }.due-item span { margin-top: 3px; color: var(--muted); font-size: 9px; }
 .cost-panel { margin-bottom: 12px; }
 .cost-panel .table-wrap { max-height: 520px; }
+.fin-accounts { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; margin-bottom: 14px; }
+.fin-account { padding: 13px 14px; background: rgba(255,255,255,.62); border: 1px solid rgba(255,255,255,.78); border-left: 4px solid var(--cyan); border-radius: 8px; backdrop-filter: blur(14px); }
+.fin-account.neg { border-left-color: var(--red); }
+.fin-account.pos { border-left-color: var(--green); }
+.fin-account.total { border-left-color: var(--navy); background: rgba(10,54,121,.08); }
+.fin-account-name { display: block; color: var(--muted); font-size: 10px; font-weight: 750; text-transform: uppercase; letter-spacing: .3px; }
+.fin-account strong { display: block; margin: 5px 0 2px; color: var(--navy); font-size: 19px; font-variant-numeric: tabular-nums; }
+.fin-account.neg strong { color: var(--red); }
+.fin-account small { color: var(--muted); font-size: 9px; }
+.amount.pos { color: var(--green); }
+.amount.neg { color: var(--red); }
 .cost-name { display: block; max-width: 260px; font-weight: 800; }
 .cost-sub { display: block; max-width: 260px; margin-top: 3px; color: var(--muted); font-size: 9px; white-space: normal; }
 .file-field { padding: 8px; background: rgba(255,255,255,.48); border: 1px dashed rgba(10,54,121,.24); border-radius: 6px; }

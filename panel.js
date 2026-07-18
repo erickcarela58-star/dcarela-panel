@@ -33,7 +33,7 @@
   let userCatalog = null;
   let businessConfig = null;
   let costStateCache = null;
-  let costTab = "gastos";
+  let costTab = "cuentas";
   let costAlertsAt = 0;
   let lastReportExport = null;
   let lastTurnExport = null;
@@ -1925,8 +1925,9 @@
   }
 
   function setCostTab(tab) {
-    costTab = ["gastos", "recurrentes", "obligaciones", "recibos"].includes(tab) ? tab : "gastos";
+    costTab = ["cuentas", "gastos", "recurrentes", "obligaciones", "recibos"].includes(tab) ? tab : "cuentas";
     document.querySelectorAll("[data-cost-tab]").forEach(button => button.classList.toggle("act", button.dataset.costTab === costTab));
+    $("provPanelCuentas").classList.toggle("oculto", costTab !== "cuentas");
     $("provPanelGastos").classList.toggle("oculto", costTab !== "gastos");
     $("provPanelRecurrentes").classList.toggle("oculto", costTab !== "recurrentes");
     $("provPanelObligaciones").classList.toggle("oculto", costTab !== "obligaciones");
@@ -2225,6 +2226,66 @@
     $("provRecibosTabla").querySelectorAll("[data-cancel-receipt]").forEach(button => button.addEventListener("click", () => anularRecibo(state.receipts.find(item => item.id === button.dataset.cancelReceipt))));
   }
 
+  const FIN_TIPO_LABEL = {
+    efectivo: "Efectivo", banco: "Banco", tarjeta_credito: "Tarjeta de credito",
+    tarjeta_debito: "Tarjeta de debito", ahorro: "Ahorro", inversion: "Inversion",
+    prestamo: "Prestamo", otra: "Otra",
+  };
+
+  function finSaldoCuenta(cuenta, movs) {
+    let saldo = numero(cuenta.saldo_inicial_centavos);
+    for (const m of movs) {
+      if (m.tipo === "ingreso" && m.cuenta_id === cuenta.id) saldo += numero(m.monto_centavos);
+      else if (m.tipo === "gasto" && m.cuenta_id === cuenta.id) saldo -= numero(m.monto_centavos);
+      else if (m.tipo === "transferencia") {
+        if (m.cuenta_id === cuenta.id) saldo -= numero(m.monto_centavos) + numero(m.comision_centavos);
+        if (m.cuenta_destino_id === cuenta.id) saldo += numero(m.monto_centavos);
+      }
+    }
+    return saldo;
+  }
+
+  async function cargarCuentasFin(month) {
+    const [cuentasRes, catsRes, movsRes] = await Promise.all([
+      sb.from("fin_cuentas").select("id,nombre,tipo,grupo,saldo_inicial_centavos,ligada_ventas,incluir_en_total,estado,orden")
+        .eq("business_id", BUSINESS).neq("estado", "eliminada").order("orden"),
+      sb.from("fin_categorias").select("id,nombre").eq("business_id", BUSINESS),
+      sb.from("fin_movimientos").select("id,tipo,fecha,monto_centavos,comision_centavos,cuenta_id,cuenta_destino_id,categoria_id,payee,descripcion,es_propina")
+        .eq("business_id", BUSINESS).eq("estado", "registrado").order("fecha", { ascending: false }).limit(8000),
+    ]);
+    if (cuentasRes.error) throw cuentasRes.error;
+    const cuentas = cuentasRes.data || [];
+    const cats = new Map((catsRes.data || []).map(c => [c.id, c.nombre]));
+    const nombreCuenta = new Map(cuentas.map(c => [c.id, c.nombre]));
+    const movs = movsRes.data || [];
+
+    let patrimonio = 0;
+    const cards = cuentas.map(c => {
+      const saldo = finSaldoCuenta(c, movs);
+      if (c.incluir_en_total) patrimonio += saldo;
+      return `<article class="fin-account ${saldo < 0 ? "neg" : "pos"}">
+        <span class="fin-account-name">${esc(c.nombre)}</span>
+        <strong>${money(saldo)}</strong>
+        <small>${esc(FIN_TIPO_LABEL[c.tipo] || c.tipo)}${c.ligada_ventas ? " · ligada a ventas" : ""}</small>
+      </article>`;
+    }).join("");
+    $("finCuentasCards").innerHTML = `<article class="fin-account total"><span class="fin-account-name">Patrimonio total</span><strong>${money(patrimonio)}</strong><small>Suma de cuentas incluidas</small></article>` + cards;
+
+    const mesMovs = movs.filter(m => String(m.fecha).slice(0, 7) === month);
+    const headers = ["Fecha", "Tipo", "Cuenta", "Categoria", "Descripcion", "Monto"];
+    $("finMovimientosTabla").innerHTML = tabla(mesMovs, m => {
+      const esGasto = m.tipo === "gasto";
+      const signo = esGasto ? "-" : m.tipo === "ingreso" ? "+" : "";
+      const cuentaTxt = m.tipo === "transferencia"
+        ? `${esc(nombreCuenta.get(m.cuenta_id) || "--")} → ${esc(nombreCuenta.get(m.cuenta_destino_id) || "--")}`
+        : esc(nombreCuenta.get(m.cuenta_id) || "--");
+      const tipoTxt = m.es_propina ? "Propina" : (m.tipo.charAt(0).toUpperCase() + m.tipo.slice(1));
+      return [esc(dateOnly(m.fecha)), tipoTxt, cuentaTxt, esc(cats.get(m.categoria_id) || "--"),
+        `<span class="cost-name">${esc(m.descripcion || m.payee || "")}</span>`,
+        `<span class="amount ${esGasto ? "neg" : "pos"}">${signo}${money(m.monto_centavos)}</span>`];
+    }, headers);
+  }
+
   async function cargarProveedores(force = false) {
     if (!$("provMes").value) $("provMes").value = inputDate(new Date()).slice(0, 7);
     const month = $("provMes").value;
@@ -2288,6 +2349,10 @@
     wireCostActions(state);
     setCostTab(costTab);
     $("provPanelRecurrentes").querySelector(".surface-title p").textContent = `${activeRecurring.length} plan(es) activo(s). Genera obligaciones hasta el mes siguiente sin duplicados.`;
+    cargarCuentasFin(month).catch(() => {
+      $("finCuentasCards").innerHTML = "";
+      $("finMovimientosTabla").innerHTML = '<div class="empty-state">No se pudieron cargar las cuentas.</div>';
+    });
   }
 
   function alertDefinition(event) {

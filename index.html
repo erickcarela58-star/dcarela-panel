@@ -10,7 +10,7 @@
   <title>D' Carela Compufoto | Panel POS</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="dcarela-logo.png">
-  <link rel="stylesheet" href="panel.css?v=20260718-finanzas-movil1">
+  <link rel="stylesheet" href="panel.css?v=20260718-finanzas-cuentas2">
 </head>
 <body>
   <section id="access" class="access-shell">
@@ -243,8 +243,9 @@
             </div>
           </div>
           <div class="cost-toolbar">
-            <div class="segmented" id="provTabs" role="tablist" aria-label="Secciones de gastos y costos">
-              <button class="act" data-cost-tab="gastos" role="tab">Gastos</button>
+            <div class="segmented" id="provTabs" role="tablist" aria-label="Secciones de finanzas">
+              <button class="act" data-cost-tab="cuentas" role="tab">Cuentas</button>
+              <button data-cost-tab="gastos" role="tab">Gastos</button>
               <button data-cost-tab="recurrentes" role="tab">Costos recurrentes</button>
               <button data-cost-tab="obligaciones" role="tab">Facturas y deudas</button>
               <button data-cost-tab="recibos" role="tab">Recibos de pago</button>
@@ -256,7 +257,11 @@
             <div id="provAnalisis" class="cost-analysis-copy"></div>
             <div id="provVencimientos" class="due-list"></div>
           </section>
-          <section id="provPanelGastos" class="surface cost-panel"><div class="surface-title"><div><h3>Gastos registrados</h3><p>Edita categoria, importe, metodo y nota sin perder auditoria.</p></div></div><div id="provGastosTabla" class="table-wrap"></div></section>
+          <section id="provPanelCuentas" class="cost-panel">
+            <div id="finCuentasCards" class="fin-accounts"></div>
+            <section class="surface"><div class="surface-title"><div><h3>Movimientos del mes</h3><p>Ingresos, gastos y transferencias de las cuentas en el mes seleccionado.</p></div></div><div id="finMovimientosTabla" class="table-wrap"></div></section>
+          </section>
+          <section id="provPanelGastos" class="surface cost-panel oculto"><div class="surface-title"><div><h3>Gastos registrados</h3><p>Edita categoria, importe, metodo y nota sin perder auditoria.</p></div></div><div id="provGastosTabla" class="table-wrap"></div></section>
           <section id="provPanelRecurrentes" class="surface cost-panel oculto"><div class="surface-title"><div><h3>Planes recurrentes</h3><p>Nomina quincenal, alquiler, servicios, suscripciones y cargos variables.</p></div><button id="btnGenerarObligaciones" class="secondary admin-only oculto">Generar vencimientos</button></div><div id="provRecurrentesTabla" class="table-wrap"></div></section>
           <section id="provPanelObligaciones" class="surface cost-panel oculto"><div class="surface-title"><div><h3>Facturas y deudas</h3><p>Saldo, fecha limite, pagos parciales y comprobantes respaldados en la nube.</p></div></div><div id="provObligacionesTabla" class="table-wrap"></div></section>
           <section id="provPanelRecibos" class="surface cost-panel oculto"><div class="surface-title"><div><h3>Recibos de pago</h3><p>Nomina, servicios y otros pagos con firma pendiente o confirmada.</p></div></div><div id="provRecibosTabla" class="table-wrap"></div></section>
@@ -391,7 +396,7 @@
   <script src="supabase.min.js"></script>
   <script src="jspdf.umd.min.js"></script>
   <script src="jspdf.plugin.autotable.min.js"></script>
-  <script src="panel.js?v=20260718-finanzas-movil1"></script>
+  <script src="panel.js?v=20260718-finanzas-cuentas2"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));
