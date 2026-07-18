@@ -33,6 +33,7 @@
   let userCatalog = null;
   let businessConfig = null;
   let costStateCache = null;
+  let finStateCache = null;
   let costTab = "cuentas";
   let costAlertsAt = 0;
   let lastReportExport = null;
@@ -222,6 +223,7 @@
     clientCatalog = null;
     businessConfig = null;
     costStateCache = null;
+    finStateCache = null;
     alertasCache = null;
     toast(result.message || "Cambio guardado y enviado a sincronizacion.");
     return result;
@@ -633,6 +635,11 @@
   const centavosInput = value => {
     const parsed = Number(String(value ?? "").trim().replace(",", "."));
     if (!Number.isFinite(parsed) || parsed < 0) throw new Error("Escribe un monto valido.");
+    return Math.round(parsed * 100);
+  };
+  const centavosConSignoInput = value => {
+    const parsed = Number(String(value ?? "").trim().replace(",", "."));
+    if (!Number.isFinite(parsed)) throw new Error("Escribe un monto valido.");
     return Math.round(parsed * 100);
   };
   const decimalInput = value => {
@@ -2232,58 +2239,123 @@
     prestamo: "Prestamo", otra: "Otra",
   };
 
-  function finSaldoCuenta(cuenta, movs) {
-    let saldo = numero(cuenta.saldo_inicial_centavos);
-    for (const m of movs) {
-      if (m.tipo === "ingreso" && m.cuenta_id === cuenta.id) saldo += numero(m.monto_centavos);
-      else if (m.tipo === "gasto" && m.cuenta_id === cuenta.id) saldo -= numero(m.monto_centavos);
-      else if (m.tipo === "transferencia") {
-        if (m.cuenta_id === cuenta.id) saldo -= numero(m.monto_centavos) + numero(m.comision_centavos);
-        if (m.cuenta_destino_id === cuenta.id) saldo += numero(m.monto_centavos);
-      }
+  function finTipoOptions(current) {
+    return Object.entries(FIN_TIPO_LABEL)
+      .map(([value, label]) => `<option value="${value}"${selected(current, value)}>${esc(label)}</option>`)
+      .join("");
+  }
+
+  async function cargarMovimientosFinMes(month) {
+    const [year, monthNumber] = month.split("-").map(Number);
+    const from = `${month}-01`;
+    const to = inputDate(new Date(year, monthNumber, 1));
+    const rows = [];
+    for (let offset = 0; ; offset += 1000) {
+      const { data, error } = await sb.from("fin_movimientos")
+        .select("id,tipo,fecha,monto_centavos,comision_centavos,cuenta_id,cuenta_destino_id,categoria_id,payee,descripcion,nota,es_propina,origen,venta_folio")
+        .eq("business_id", BUSINESS).eq("estado", "registrado")
+        .gte("fecha", from).lt("fecha", to)
+        .order("fecha", { ascending: false }).range(offset, offset + 999);
+      if (error) throw error;
+      rows.push(...(data || []));
+      if (!data || data.length < 1000) return rows;
     }
-    return saldo;
   }
 
   async function cargarCuentasFin(month) {
-    const [cuentasRes, catsRes, movsRes] = await Promise.all([
-      sb.from("fin_cuentas").select("id,nombre,tipo,grupo,saldo_inicial_centavos,ligada_ventas,incluir_en_total,estado,orden")
-        .eq("business_id", BUSINESS).neq("estado", "eliminada").order("orden"),
-      sb.from("fin_categorias").select("id,nombre").eq("business_id", BUSINESS),
-      sb.from("fin_movimientos").select("id,tipo,fecha,monto_centavos,comision_centavos,cuenta_id,cuenta_destino_id,categoria_id,payee,descripcion,es_propina")
-        .eq("business_id", BUSINESS).eq("estado", "registrado").order("fecha", { ascending: false }).limit(8000),
+    const [cuentasRes, catsRes, movs] = await Promise.all([
+      sb.rpc("fin_account_balances", { p_business_id: BUSINESS }),
+      sb.from("fin_categorias").select("id,nombre,tipo").eq("business_id", BUSINESS).eq("estado", "activa"),
+      cargarMovimientosFinMes(month),
     ]);
     if (cuentasRes.error) throw cuentasRes.error;
+    if (catsRes.error) throw catsRes.error;
     const cuentas = cuentasRes.data || [];
-    const cats = new Map((catsRes.data || []).map(c => [c.id, c.nombre]));
+    const catsRows = catsRes.data || [];
+    const cats = new Map(catsRows.map(c => [c.id, c.nombre]));
     const nombreCuenta = new Map(cuentas.map(c => [c.id, c.nombre]));
-    const movs = movsRes.data || [];
+    finStateCache = { accounts: cuentas, categories: catsRows, movements: movs, month };
 
     let patrimonio = 0;
     const cards = cuentas.map(c => {
-      const saldo = finSaldoCuenta(c, movs);
+      const saldo = numero(c.saldo_actual_centavos);
       if (c.incluir_en_total) patrimonio += saldo;
-      return `<article class="fin-account ${saldo < 0 ? "neg" : "pos"}">
+      const tag = canEdit ? "button" : "article";
+      const attrs = canEdit ? ` type="button" data-fin-account="${esc(c.id)}" title="Editar cuenta y saldo inicial"` : "";
+      return `<${tag} class="fin-account ${saldo < 0 ? "neg" : "pos"}${c.oculta ? " muted" : ""}"${attrs}>
         <span class="fin-account-name">${esc(c.nombre)}</span>
         <strong>${money(saldo)}</strong>
-        <small>${esc(FIN_TIPO_LABEL[c.tipo] || c.tipo)}${c.ligada_ventas ? " · ligada a ventas" : ""}</small>
-      </article>`;
+        <small>${esc(FIN_TIPO_LABEL[c.tipo] || c.tipo)}${c.ligada_ventas ? " &middot; ligada a ventas" : ""}${c.oculta ? " &middot; oculta" : ""}</small>
+      </${tag}>`;
     }).join("");
     $("finCuentasCards").innerHTML = `<article class="fin-account total"><span class="fin-account-name">Patrimonio total</span><strong>${money(patrimonio)}</strong><small>Suma de cuentas incluidas</small></article>` + cards;
+    $("finCuentasCards").querySelectorAll("[data-fin-account]").forEach(button => button.addEventListener("click", () => {
+      abrirCuentaFin(cuentas.find(account => account.id === button.dataset.finAccount));
+    }));
 
-    const mesMovs = movs.filter(m => String(m.fecha).slice(0, 7) === month);
     const headers = ["Fecha", "Tipo", "Cuenta", "Categoria", "Descripcion", "Monto"];
-    $("finMovimientosTabla").innerHTML = tabla(mesMovs, m => {
+    $("finMovimientosTabla").innerHTML = tabla(movs, m => {
       const esGasto = m.tipo === "gasto";
       const signo = esGasto ? "-" : m.tipo === "ingreso" ? "+" : "";
       const cuentaTxt = m.tipo === "transferencia"
-        ? `${esc(nombreCuenta.get(m.cuenta_id) || "--")} → ${esc(nombreCuenta.get(m.cuenta_destino_id) || "--")}`
+        ? `${esc(nombreCuenta.get(m.cuenta_id) || "--")} &rarr; ${esc(nombreCuenta.get(m.cuenta_destino_id) || "--")}`
         : esc(nombreCuenta.get(m.cuenta_id) || "--");
       const tipoTxt = m.es_propina ? "Propina" : (m.tipo.charAt(0).toUpperCase() + m.tipo.slice(1));
+      const detail = m.comision_centavos ? `${m.descripcion || m.payee || ""} (comision ${money(m.comision_centavos)})` : (m.descripcion || m.payee || "");
       return [esc(dateOnly(m.fecha)), tipoTxt, cuentaTxt, esc(cats.get(m.categoria_id) || "--"),
-        `<span class="cost-name">${esc(m.descripcion || m.payee || "")}</span>`,
-        `<span class="amount ${esGasto ? "neg" : "pos"}">${signo}${money(m.monto_centavos)}</span>`];
+        `<span class="cost-name">${esc(detail)}</span>`,
+        `<span class="amount ${esGasto ? "neg" : m.tipo === "ingreso" ? "pos" : ""}">${signo}${money(m.monto_centavos)}</span>`];
     }, headers);
+  }
+
+  function abrirCuentaFin(account = null) {
+    const item = account || {
+      nombre: "", tipo: "banco", grupo: "", moneda: "DOP", saldo_inicial_centavos: 0,
+      incluir_en_total: true, ligada_ventas: false, oculta: false, orden: 10,
+    };
+    abrirEditor(account ? "Editar cuenta" : "Agregar cuenta", "El saldo se recalcula desde el saldo inicial y todos sus movimientos.", `
+      <label><span>Nombre</span><input name="nombre" required maxlength="120" value="${esc(item.nombre)}"></label>
+      <label><span>Tipo</span><select name="tipo">${finTipoOptions(item.tipo)}</select></label>
+      <label><span>Grupo</span><input name="grupo" maxlength="120" value="${esc(item.grupo || "")}"></label>
+      <label><span>Saldo inicial (RD$)</span><input name="saldoInicial" type="number" step="0.01" required value="${pesoInput(item.saldo_inicial_centavos)}"></label>
+      <label><span>Moneda</span><input name="moneda" maxlength="8" value="${esc(item.moneda || "DOP")}"></label>
+      <label><span>Orden</span><input name="orden" type="number" step="1" value="${esc(item.orden || 0)}"></label>
+      <label class="check-row"><input name="incluirEnTotal" type="checkbox"${checked(item.incluir_en_total)}><span>Incluir en patrimonio total</span></label>
+      <label class="check-row"><input name="ligadaVentas" type="checkbox"${checked(item.ligada_ventas)}><span>Cuenta ligada a ventas</span></label>
+      <label class="check-row field-wide"><input name="oculta" type="checkbox"${checked(item.oculta)}><span>Ocultar cuenta sin borrar su historial</span></label>`, async form => {
+      await adminWrite("fin.account.upsert", account?.id, {
+        nombre: form.get("nombre"), tipo: form.get("tipo"), grupo: form.get("grupo"),
+        moneda: form.get("moneda"), saldoInicialCentavos: centavosConSignoInput(form.get("saldoInicial")),
+        incluirEnTotal: form.get("incluirEnTotal") === "on", ligadaVentas: form.get("ligadaVentas") === "on",
+        oculta: form.get("oculta") === "on", orden: Number(form.get("orden")) || 0,
+      });
+      cerrarEditor();
+      await cargarCuentasFin($("provMes").value);
+    });
+  }
+
+  function abrirTransferenciaFin() {
+    const accounts = (finStateCache?.accounts || []).filter(account => account.estado !== "eliminada" && !account.oculta);
+    if (accounts.length < 2) { toast("Necesitas al menos dos cuentas activas para transferir."); return; }
+    const bank = accounts.find(account => account.nombre.toLowerCase().includes("popular")) || accounts.find(account => account.tipo === "banco") || accounts[0];
+    const target = accounts.find(account => account.id !== bank.id) || accounts[1];
+    const options = current => accounts.map(account => `<option value="${esc(account.id)}"${selected(current, account.id)}>${esc(account.nombre)} (${money(account.saldo_actual_centavos)})</option>`).join("");
+    abrirEditor("Nueva transferencia", "Mueve dinero entre cuentas propias. El patrimonio no se duplica ni desaparece.", `
+      <label><span>Cuenta de origen</span><select name="cuentaOrigenId">${options(bank.id)}</select></label>
+      <label><span>Cuenta de destino</span><select name="cuentaDestinoId">${options(target.id)}</select></label>
+      <label><span>Monto (RD$)</span><input name="monto" type="number" min="0.01" step="0.01" required></label>
+      <label><span>Comision (RD$)</span><input name="comision" type="number" min="0" step="0.01" value="0.00"></label>
+      <label><span>Fecha</span><input name="fecha" type="date" required value="${inputDate(new Date())}"></label>
+      <label class="field-wide"><span>Descripcion</span><input name="descripcion" maxlength="500" placeholder="Ej. Deposito de efectivo a Banco Popular"></label>
+      <label class="field-wide"><span>Nota</span><textarea name="nota" rows="3" maxlength="1200"></textarea></label>`, async form => {
+      await adminWrite("fin.transfer.create", null, {
+        cuentaOrigenId: form.get("cuentaOrigenId"), cuentaDestinoId: form.get("cuentaDestinoId"),
+        montoCentavos: centavosInput(form.get("monto")), comisionCentavos: centavosInput(form.get("comision")),
+        fecha: form.get("fecha"), descripcion: form.get("descripcion"), nota: form.get("nota"),
+      });
+      cerrarEditor();
+      await cargarCuentasFin($("provMes").value);
+    });
   }
 
   async function cargarProveedores(force = false) {
@@ -2821,6 +2893,13 @@
     $("btnNuevaObligacion").addEventListener("click", () => cargarCostosCloud().then(state => abrirObligacion(state)).catch(error => toast(error.message)));
     $("btnNuevoRecibo").addEventListener("click", () => cargarCostosCloud().then(state => abrirReciboPago(state)).catch(error => toast(error.message)));
     $("btnGenerarObligaciones").addEventListener("click", () => generarObligacionesWeb().catch(error => toast(error.message)));
+    $("btnNuevaCuentaFin").addEventListener("click", () => abrirCuentaFin());
+    $("btnNuevaTransferencia").addEventListener("click", async () => {
+      try {
+        if (!finStateCache) await cargarCuentasFin($("provMes").value || inputDate(new Date()).slice(0, 7));
+        abrirTransferenciaFin();
+      } catch (error) { toast(error.message); }
+    });
     $("provTabs").querySelectorAll("[data-cost-tab]").forEach(button => button.addEventListener("click", () => setCostTab(button.dataset.costTab)));
     $("provMes").addEventListener("change", () => cargarProveedores().catch(error => mostrarError("proveedores", error)));
     $("btnInvBuscar").addEventListener("click", () => cargarInventario().catch(error => mostrarError("inventario", error)));

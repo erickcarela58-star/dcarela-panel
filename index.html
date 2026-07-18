@@ -10,7 +10,7 @@
   <title>D' Carela Compufoto | Panel POS</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="dcarela-logo.png">
-  <link rel="stylesheet" href="panel.css?v=20260718-finanzas-cuentas2">
+  <link rel="stylesheet" href="panel.css?v=20260718-finanzas-fase2">
 </head>
 <body>
   <section id="access" class="access-shell">
@@ -258,6 +258,13 @@
             <div id="provVencimientos" class="due-list"></div>
           </section>
           <section id="provPanelCuentas" class="cost-panel">
+            <div class="surface-title fin-accounts-heading">
+              <div><h3>Cuentas y saldos</h3><p>Los ingresos de ventas se reflejan automaticamente; las transferencias mueven dinero sin duplicarlo.</p></div>
+              <div class="button-row admin-only oculto">
+                <button id="btnNuevaTransferencia" class="primary">Nueva transferencia</button>
+                <button id="btnNuevaCuentaFin" class="secondary">Agregar cuenta</button>
+              </div>
+            </div>
             <div id="finCuentasCards" class="fin-accounts"></div>
             <section class="surface"><div class="surface-title"><div><h3>Movimientos del mes</h3><p>Ingresos, gastos y transferencias de las cuentas en el mes seleccionado.</p></div></div><div id="finMovimientosTabla" class="table-wrap"></div></section>
           </section>
@@ -396,7 +403,7 @@
   <script src="supabase.min.js"></script>
   <script src="jspdf.umd.min.js"></script>
   <script src="jspdf.plugin.autotable.min.js"></script>
-  <script src="panel.js?v=20260718-finanzas-cuentas2"></script>
+  <script src="panel.js?v=20260718-finanzas-fase2"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));

@@ -269,6 +269,11 @@ tbody tr:hover { background: rgba(23,151,232,.045); }
 .cost-panel .table-wrap { max-height: 520px; }
 .fin-accounts { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; margin-bottom: 14px; }
 .fin-account { padding: 13px 14px; background: rgba(255,255,255,.62); border: 1px solid rgba(255,255,255,.78); border-left: 4px solid var(--cyan); border-radius: 8px; backdrop-filter: blur(14px); }
+button.fin-account { width: 100%; min-height: 0; color: inherit; font: inherit; text-align: left; cursor: pointer; box-shadow: none; }
+button.fin-account:hover { transform: translateY(-1px); border-color: rgba(23,151,232,.55); background: rgba(255,255,255,.78); }
+.fin-account.muted { opacity: .62; }
+.fin-accounts-heading { margin: 0 0 10px; }
+.fin-accounts-heading .button-row { margin-top: 0; }
 .fin-account.neg { border-left-color: var(--red); }
 .fin-account.pos { border-left-color: var(--green); }
 .fin-account.total { border-left-color: var(--navy); background: rgba(10,54,121,.08); }
