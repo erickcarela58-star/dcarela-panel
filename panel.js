@@ -34,7 +34,11 @@
   let businessConfig = null;
   let costStateCache = null;
   let finStateCache = null;
-  let costTab = "cuentas";
+  let costTab = "resumen";
+  let finDashboardPeriod = "mes";
+  let finReferenceDate = new Date().toISOString().slice(0, 10);
+  let finFilteredMovements = [];
+  let finRealtimeChannel = null;
   let costAlertsAt = 0;
   let lastReportExport = null;
   let lastTurnExport = null;
@@ -268,6 +272,18 @@
     "receipt.create": "Crear recibo",
     "receipt.signature": "Actualizar firma de recibo",
     "receipt.cancel": "Anular recibo",
+    "fin.account.upsert": "Guardar cuenta financiera",
+    "fin.account.reconcile": "Conciliar saldo de cuenta",
+    "fin.category.upsert": "Guardar categoria financiera",
+    "fin.movement.create": "Registrar movimiento financiero",
+    "fin.movement.cancel": "Anular movimiento financiero",
+    "fin.movement.restore": "Restaurar movimiento financiero",
+    "fin.transfer.create": "Registrar transferencia",
+    "fin.card.upsert": "Configurar tarjeta",
+    "fin.card.payment": "Registrar pago de tarjeta",
+    "fin.budget.upsert": "Guardar presupuesto",
+    "fin.preferences.upsert": "Guardar preferencias financieras",
+    "fin.currency.upsert": "Guardar divisa",
     "device.status": "Cambiar estado del dispositivo",
     "assistant.permissions.set": "Actualizar permisos del asistente"
   };
@@ -616,15 +632,17 @@
     $("editorOverlay").setAttribute("aria-hidden", "true");
     $("editorFields").innerHTML = "";
     $("editorError").textContent = "";
+    $("btnGuardarEditor").textContent = "Guardar y sincronizar";
     editorSubmit = null;
   }
 
-  function abrirEditor(title, subtitle, fields, onSubmit) {
+  function abrirEditor(title, subtitle, fields, onSubmit, submitLabel = "Guardar y sincronizar") {
     if (!canEdit) { toast("Tu cuenta no tiene permiso para editar."); return; }
     $("editorTitle").textContent = title;
     $("editorSubtitle").textContent = subtitle || "El cambio quedara auditado y se aplicara en las cajas conectadas.";
     $("editorFields").innerHTML = fields;
     $("editorError").textContent = "";
+    $("btnGuardarEditor").textContent = submitLabel;
     editorSubmit = onSubmit;
     $("editorOverlay").classList.remove("oculto");
     $("editorOverlay").setAttribute("aria-hidden", "false");
@@ -1040,6 +1058,14 @@
     return Math.round(parsed * 100);
   }
 
+  function diferenciaExplicadaCentavos() {
+    const raw = String($("recDiferenciaExplicada").value || "").trim().replace(",", ".");
+    if (!raw) return 0;
+    const parsed = Number(raw);
+    if (!Number.isFinite(parsed)) throw new Error("La parte explicada no es un numero valido.");
+    return Math.round(parsed * 100);
+  }
+
   function terminalVenta(event, devices) {
     const payload = P(event);
     const deviceId = String(event.device_id || payload.deviceId || payload.device_id || "").trim();
@@ -1105,6 +1131,10 @@
     const from = inicioDia($("recDesde").value);
     const to = finDia($("recHasta").value);
     const manualDifference = diferenciaIngresadaCentavos();
+    const explainedDifference = diferenciaExplicadaCentavos();
+    const unexplainedDifference = manualDifference
+      ? Math.sign(manualDifference) * Math.max(0, Math.abs(manualDifference) - Math.abs(explainedDifference))
+      : 0;
     mostrarProgresoRecalculo("Leyendo eventos y terminales de la nube...");
     await new Promise(resolve => setTimeout(resolve, 35));
 
@@ -1269,6 +1299,9 @@
 
     const targets = new Map();
     if (manualDifference) targets.set(Math.abs(manualDifference), `Diferencia manual ${manualDifference > 0 ? "+" : "-"}${money(Math.abs(manualDifference))}`);
+    if (unexplainedDifference && Math.abs(unexplainedDifference) !== Math.abs(manualDifference)) {
+      targets.set(Math.abs(unexplainedDifference), `Parte sin explicar ${unexplainedDifference > 0 ? "+" : "-"}${money(Math.abs(unexplainedDifference))}`);
+    }
     turnIssues.forEach(item => {
       const value = Math.abs(numero(item.reportedDifference));
       if (value && !targets.has(value)) targets.set(value, `Turno ${String(item.id).slice(0, 8)} | ${money(value)}`);
@@ -1293,6 +1326,15 @@
     ].map(([label, value, cls]) => `<article class="kpi ${cls}"><span>${esc(label)}</span><strong>${esc(value)}</strong><small>rango y filtros actuales</small></article>`).join("");
 
     const findings = [
+      ...(manualDifference ? [{
+        tone: unexplainedDifference ? "critical" : "",
+        title: unexplainedDifference
+          ? `Quedan ${unexplainedDifference > 0 ? "+" : "-"}${money(Math.abs(unexplainedDifference))} sin explicar`
+          : "La diferencia indicada quedo explicada",
+        text: explainedDifference
+          ? `Arqueo indicado: ${manualDifference > 0 ? "+" : "-"}${money(Math.abs(manualDifference))}. Parte reconocida: ${money(Math.abs(explainedDifference))}. La tabla de candidatas busca exactamente el residuo.`
+          : "Indica cuanto de la diferencia ya reconoces para que el sistema busque solo el residuo.",
+      }] : []),
       { tone: missingCount ? "critical" : "", title: missingCount ? `${missingCount} folio(s) faltante(s)` : "Secuencia de folios completa", text: missingCount ? "La tabla identifica cada numero ausente y las ventas anterior y posterior." : "No hay huecos operativos internos en las terminales consultadas." },
       { tone: saleIssues.length ? "critical" : "", title: `${saleIssues.length} problema(s) de importes`, text: saleIssues.length ? "Hay ventas cuyo pago, detalle, redondeo o cambio no coincide." : "Pagos, detalle y cambio cuadran con los totales disponibles." },
       { tone: turnIssues.length ? "warning" : "", title: `${turnIssues.length} turno(s) para revisar`, text: turnIssues.length ? "El arqueo o el efectivo reconstruido tiene diferencia; abre la tabla para ver el signo y el origen." : "Los cierres consultados no muestran diferencias." },
@@ -1338,7 +1380,8 @@
     lastReconciliation = {
       desde: $("recDesde").value, hasta: $("recHasta").value, terminal: currentDevice || "Todas", cajero: currentCashier || "Todos",
       totalSales, paymentTotal, activeSales: activeSales.length, cancelled: cancelledSales.length,
-      missingCount, issueCount, folioGaps, sequenceBreaks, duplicates, saleIssues, turns, candidates
+      missingCount, issueCount, folioGaps, sequenceBreaks, duplicates, saleIssues, turns, candidates,
+      manualDifference, explainedDifference, unexplainedDifference,
     };
     $("recProgreso").classList.add("oculto");
     estadoRecalculo(issueCount || missingCount ? "Requiere revision" : "Cuadra", issueCount || missingCount ? "bad" : "ok");
@@ -1932,13 +1975,18 @@
   }
 
   function setCostTab(tab) {
-    costTab = ["cuentas", "gastos", "recurrentes", "obligaciones", "recibos"].includes(tab) ? tab : "cuentas";
+    const allowed = ["resumen", "movimientos", "cuentas", "presupuestos", "tarjetas", "recurrentes", "obligaciones", "recibos", "ajustes"];
+    costTab = allowed.includes(tab) ? tab : "resumen";
     document.querySelectorAll("[data-cost-tab]").forEach(button => button.classList.toggle("act", button.dataset.costTab === costTab));
+    $("provPanelResumen").classList.toggle("oculto", costTab !== "resumen");
+    $("provPanelMovimientos").classList.toggle("oculto", costTab !== "movimientos");
     $("provPanelCuentas").classList.toggle("oculto", costTab !== "cuentas");
-    $("provPanelGastos").classList.toggle("oculto", costTab !== "gastos");
+    $("provPanelPresupuestos").classList.toggle("oculto", costTab !== "presupuestos");
+    $("provPanelTarjetas").classList.toggle("oculto", costTab !== "tarjetas");
     $("provPanelRecurrentes").classList.toggle("oculto", costTab !== "recurrentes");
     $("provPanelObligaciones").classList.toggle("oculto", costTab !== "obligaciones");
     $("provPanelRecibos").classList.toggle("oculto", costTab !== "recibos");
+    $("provPanelAjustes").classList.toggle("oculto", costTab !== "ajustes");
   }
 
   function abrirGasto(state, expense = null) {
@@ -2252,7 +2300,7 @@
     const rows = [];
     for (let offset = 0; ; offset += 1000) {
       const { data, error } = await sb.from("fin_movimientos")
-        .select("id,tipo,fecha,monto_centavos,comision_centavos,cuenta_id,cuenta_destino_id,categoria_id,payee,descripcion,nota,es_propina,origen,venta_folio")
+        .select("id,tipo,fecha,hora,monto_centavos,comision_centavos,cuenta_id,cuenta_destino_id,categoria_id,payee,descripcion,nota,es_propina,origen,venta_folio,moneda,tasa_cambio,monto_moneda_principal_centavos,archivo_url,etiquetas,conciliado,afecta_resultado,metadata,created_at,updated_at")
         .eq("business_id", BUSINESS).eq("estado", "registrado")
         .gte("fecha", from).lt("fecha", to)
         .order("fecha", { ascending: false }).range(offset, offset + 999);
@@ -2263,50 +2311,361 @@
   }
 
   async function cargarCuentasFin(month) {
-    const [cuentasRes, catsRes, movs] = await Promise.all([
+    const [cuentasRes, catsRes, movs, cardsRes, budgetsRes, preferencesRes, currenciesRes] = await Promise.all([
       sb.rpc("fin_account_balances", { p_business_id: BUSINESS }),
-      sb.from("fin_categorias").select("id,nombre,tipo").eq("business_id", BUSINESS).eq("estado", "activa"),
+      sb.from("fin_categorias").select("id,nombre,tipo,categoria_padre_id,orden,origen,updated_at").eq("business_id", BUSINESS).eq("estado", "activa").order("tipo").order("orden").order("nombre"),
       cargarMovimientosFinMes(month),
+      sb.from("fin_tarjetas").select("*").eq("business_id", BUSINESS),
+      sb.from("fin_presupuestos").select("*").eq("business_id", BUSINESS).eq("estado", "activo").order("periodo_inicio", { ascending: false }).limit(500),
+      sb.from("fin_preferencias").select("*").eq("business_id", BUSINESS).maybeSingle(),
+      sb.from("fin_divisas").select("*").eq("business_id", BUSINESS).eq("activa", true).order("principal", { ascending: false }).order("codigo"),
     ]);
     if (cuentasRes.error) throw cuentasRes.error;
     if (catsRes.error) throw catsRes.error;
+    if (cardsRes.error) throw cardsRes.error;
+    if (budgetsRes.error) throw budgetsRes.error;
+    if (preferencesRes.error) throw preferencesRes.error;
+    if (currenciesRes.error) throw currenciesRes.error;
     const cuentas = cuentasRes.data || [];
     const catsRows = catsRes.data || [];
-    const cats = new Map(catsRows.map(c => [c.id, c.nombre]));
-    const nombreCuenta = new Map(cuentas.map(c => [c.id, c.nombre]));
-    finStateCache = { accounts: cuentas, categories: catsRows, movements: movs, month };
-
-    let patrimonio = 0;
-    const cards = cuentas.map(c => {
-      const saldo = numero(c.saldo_actual_centavos);
-      if (c.incluir_en_total) patrimonio += saldo;
-      const tag = canEdit ? "button" : "article";
-      const attrs = canEdit ? ` type="button" data-fin-account="${esc(c.id)}" title="Editar cuenta y saldo inicial"` : "";
-      return `<${tag} class="fin-account ${saldo < 0 ? "neg" : "pos"}${c.oculta ? " muted" : ""}"${attrs}>
-        <span class="fin-account-name">${esc(c.nombre)}</span>
-        <strong>${money(saldo)}</strong>
-        <small>${esc(FIN_TIPO_LABEL[c.tipo] || c.tipo)}${c.ligada_ventas ? " &middot; ligada a ventas" : ""}${c.oculta ? " &middot; oculta" : ""}</small>
-      </${tag}>`;
-    }).join("");
-    $("finCuentasCards").innerHTML = `<article class="fin-account total"><span class="fin-account-name">Patrimonio total</span><strong>${money(patrimonio)}</strong><small>Suma de cuentas incluidas</small></article>` + cards;
-    $("finCuentasCards").querySelectorAll("[data-fin-account]").forEach(button => button.addEventListener("click", () => {
-      abrirCuentaFin(cuentas.find(account => account.id === button.dataset.finAccount));
-    }));
-
-    const headers = ["Fecha", "Tipo", "Cuenta", "Categoria", "Descripcion", "Monto"];
-    $("finMovimientosTabla").innerHTML = tabla(movs, m => {
-      const esGasto = m.tipo === "gasto";
-      const signo = esGasto ? "-" : m.tipo === "ingreso" ? "+" : "";
-      const cuentaTxt = m.tipo === "transferencia"
-        ? `${esc(nombreCuenta.get(m.cuenta_id) || "--")} &rarr; ${esc(nombreCuenta.get(m.cuenta_destino_id) || "--")}`
-        : esc(nombreCuenta.get(m.cuenta_id) || "--");
-      const tipoTxt = m.es_propina ? "Propina" : (m.tipo.charAt(0).toUpperCase() + m.tipo.slice(1));
-      const detail = m.comision_centavos ? `${m.descripcion || m.payee || ""} (comision ${money(m.comision_centavos)})` : (m.descripcion || m.payee || "");
-      return [esc(dateOnly(m.fecha)), tipoTxt, cuentaTxt, esc(cats.get(m.categoria_id) || "--"),
-        `<span class="cost-name">${esc(detail)}</span>`,
-        `<span class="amount ${esGasto ? "neg" : m.tipo === "ingreso" ? "pos" : ""}">${signo}${money(m.monto_centavos)}</span>`];
-    }, headers);
+    finStateCache = {
+      accounts: cuentas,
+      categories: catsRows,
+      movements: movs,
+      cards: cardsRes.data || [],
+      budgets: budgetsRes.data || [],
+      preferences: preferencesRes.data || null,
+      currencies: currenciesRes.data || [],
+      month,
+    };
+    finDashboardPeriod = finStateCache.preferences?.periodo_dashboard || finDashboardPeriod;
+    renderFinAccounts();
+    renderFinMovements();
+    await renderFinBudgets();
+    renderFinCards();
+    renderFinSettings();
+    await renderFinDashboard();
+    subscribeFinanceRealtime();
   }
+
+  const FIN_CHART_COLORS = ["#0A3679", "#1797E8", "#FF7F03", "#168579", "#C53F48", "#7455A5", "#E2A62B", "#4A6D8C"];
+
+  function finRange(period = finDashboardPeriod, reference = finReferenceDate) {
+    const base = new Date(`${reference || inputDate(new Date())}T12:00:00`);
+    const safe = Number.isNaN(base.getTime()) ? new Date() : base;
+    let start = new Date(safe);
+    let end = new Date(safe);
+    if (period === "semana") {
+      const mondayOffset = (safe.getDay() + 6) % 7;
+      start.setDate(safe.getDate() - mondayOffset);
+      end = new Date(start);
+      end.setDate(start.getDate() + 6);
+    } else if (period === "mes") {
+      start = new Date(safe.getFullYear(), safe.getMonth(), 1, 12);
+      end = new Date(safe.getFullYear(), safe.getMonth() + 1, 0, 12);
+    }
+    return {
+      from: inputDate(start),
+      to: inputDate(end),
+      label: period === "dia" ? fechaCorta(start) : period === "semana"
+        ? `${fechaCorta(start)} al ${fechaCorta(end)}`
+        : safe.toLocaleDateString("es-DO", { month: "long", year: "numeric" }),
+    };
+  }
+
+  function finBudgetRange(budget) {
+    const start = new Date(`${budget.periodo_inicio}T12:00:00`);
+    const end = new Date(start);
+    if (budget.periodo === "semanal") end.setDate(start.getDate() + 6);
+    else if (budget.periodo === "anual") end.setFullYear(start.getFullYear() + 1, start.getMonth(), start.getDate() - 1);
+    else end.setMonth(start.getMonth() + 1, 0);
+    return { from: inputDate(start), to: inputDate(end) };
+  }
+
+  function renderFinAccounts() {
+    const state = finStateCache;
+    if (!state) return;
+    let patrimonio = 0;
+    const cards = state.accounts.map(account => {
+      const balance = numero(account.saldo_actual_centavos);
+      if (account.incluir_en_total) patrimonio += balance;
+      const isCard = account.tipo === "tarjeta_credito";
+      const display = isCard ? Math.max(0, -balance) : balance;
+      return `<article class="fin-account ${balance < 0 ? "neg" : "pos"}${account.oculta ? " muted" : ""}">
+        <button type="button" class="fin-account-open" data-fin-account-ledger="${esc(account.id)}" title="Ver los movimientos que forman este saldo">
+          <span class="fin-account-name">${esc(account.nombre)}</span>
+          <strong>${isCard ? `Deuda ${money(display)}` : money(display)}</strong>
+          <small>${esc(FIN_TIPO_LABEL[account.tipo] || account.tipo)}${account.ligada_ventas ? " &middot; ligada a ventas" : ""}${account.oculta ? " &middot; oculta" : ""}</small>
+        </button>
+        ${canEdit ? `<div class="fin-account-actions"><button type="button" data-fin-account-reconcile="${esc(account.id)}">Conciliar</button><button type="button" data-fin-account-edit="${esc(account.id)}">Editar</button></div>` : ""}
+      </article>`;
+    }).join("");
+    $("finCuentasCards").innerHTML = `<article class="fin-account total"><span class="fin-account-name">Patrimonio total</span><strong>${money(patrimonio)}</strong><small>Suma de cuentas incluidas</small></article>${cards}`;
+    $("finCuentasCards").querySelectorAll("[data-fin-account-ledger]").forEach(button => button.addEventListener("click", () => {
+      const accountId = button.dataset.finAccountLedger;
+      setCostTab("movimientos");
+      $("finMovementAccount").value = accountId;
+      renderFinMovements();
+      $("finMovementSearch").focus();
+    }));
+    $("finCuentasCards").querySelectorAll("[data-fin-account-edit]").forEach(button => button.addEventListener("click", () => {
+      abrirCuentaFin(state.accounts.find(account => account.id === button.dataset.finAccountEdit));
+    }));
+    $("finCuentasCards").querySelectorAll("[data-fin-account-reconcile]").forEach(button => button.addEventListener("click", () => {
+      abrirConciliacionCuentaFin(state.accounts.find(account => account.id === button.dataset.finAccountReconcile));
+    }));
+  }
+
+  function finMovementMatches(movement) {
+    const state = finStateCache;
+    const type = $("finMovementType")?.value || "";
+    const account = $("finMovementAccount")?.value || "";
+    const category = $("finMovementCategory")?.value || "";
+    const query = ($("finMovementSearch")?.value || "").trim().toLocaleLowerCase("es");
+    if (type && movement.tipo !== type) return false;
+    if (account && movement.cuenta_id !== account && movement.cuenta_destino_id !== account) return false;
+    if (category && movement.categoria_id !== category) return false;
+    if (!query) return true;
+    const accountNames = new Map(state.accounts.map(item => [item.id, item.nombre]));
+    const categoryNames = new Map(state.categories.map(item => [item.id, item.nombre]));
+    return [movement.descripcion, movement.payee, movement.nota, movement.venta_folio,
+      accountNames.get(movement.cuenta_id), accountNames.get(movement.cuenta_destino_id), categoryNames.get(movement.categoria_id)]
+      .some(value => String(value || "").toLocaleLowerCase("es").includes(query));
+  }
+
+  function renderFinMovements() {
+    const state = finStateCache;
+    if (!state) return;
+    const accounts = new Map(state.accounts.map(item => [item.id, item.nombre]));
+    const categories = new Map(state.categories.map(item => [item.id, item.nombre]));
+    const accountValue = $("finMovementAccount")?.value || "";
+    const categoryValue = $("finMovementCategory")?.value || "";
+    $("finMovementAccount").innerHTML = `<option value="">Todas</option>${state.accounts.map(item => `<option value="${esc(item.id)}"${selected(accountValue, item.id)}>${esc(item.nombre)}</option>`).join("")}`;
+    $("finMovementCategory").innerHTML = `<option value="">Todas</option>${state.categories.map(item => `<option value="${esc(item.id)}"${selected(categoryValue, item.id)}>${esc(item.nombre)}</option>`).join("")}`;
+    finFilteredMovements = state.movements.filter(finMovementMatches);
+    const headers = ["Fecha", "Tipo", "Cuenta", "Categoria", "Detalle", "Monto", ""];
+    $("finMovimientosTabla").innerHTML = tabla(finFilteredMovements, movement => {
+      const expense = movement.tipo === "gasto";
+      const sign = expense ? "-" : movement.tipo === "ingreso" ? "+" : "";
+      const accountText = movement.tipo === "transferencia"
+        ? `${esc(accounts.get(movement.cuenta_id) || "--")} &rarr; ${esc(accounts.get(movement.cuenta_destino_id) || "--")}`
+        : esc(accounts.get(movement.cuenta_id) || "--");
+      const typeText = movement.conciliado && movement.afecta_resultado === false
+        ? "Conciliacion"
+        : movement.es_propina ? "Propina" : movement.tipo.charAt(0).toUpperCase() + movement.tipo.slice(1);
+      const detail = movement.comision_centavos
+        ? `${movement.descripcion || movement.payee || ""} (comision ${money(movement.comision_centavos)})`
+        : movement.descripcion || movement.payee || "Sin descripcion";
+      const canCancel = canEdit && ["panel", "asistente", "movil"].includes(movement.origen);
+      return [esc(dateOnly(movement.fecha)), typeText, accountText, esc(categories.get(movement.categoria_id) || "--"),
+        `<span class="cost-name">${esc(detail)}</span><small class="cost-sub">${esc(movement.nota || movement.venta_folio ? `${movement.nota || ""}${movement.venta_folio ? ` Folio #${movement.venta_folio}` : ""}` : movement.origen || "")}</small>`,
+        `<span class="amount ${expense ? "neg" : movement.tipo === "ingreso" ? "pos" : ""}">${sign}${money(movement.monto_centavos)}</span>`,
+        canCancel ? `<button class="mini danger" data-fin-cancel="${esc(movement.id)}" title="Anular sin borrar historial">Anular</button>` : ""];
+    }, headers);
+    $("finMovimientosTabla").querySelectorAll("[data-fin-cancel]").forEach(button => button.addEventListener("click", () => {
+      const movement = state.movements.find(item => item.id === button.dataset.finCancel);
+      if (movement) confirmarAnularMovimientoFin(movement);
+    }));
+  }
+
+  async function renderFinBudgets() {
+    const state = finStateCache;
+    if (!state) return;
+    const categories = new Map(state.categories.map(item => [item.id, item.nombre]));
+    const rangeQueries = new Map();
+    for (const budget of state.budgets) {
+      const range = finBudgetRange(budget);
+      const key = `${range.from}|${range.to}`;
+      if (!rangeQueries.has(key)) rangeQueries.set(key, sb.rpc("fin_category_totals", {
+        p_business_id: BUSINESS, p_from: range.from, p_to: range.to, p_type: "gasto",
+      }));
+    }
+    const entries = [...rangeQueries.entries()];
+    const results = await Promise.all(entries.map(([, request]) => request));
+    const totalsByRange = new Map();
+    results.forEach((result, index) => {
+      if (result.error) throw result.error;
+      totalsByRange.set(entries[index][0], new Map((result.data || []).map(row => [row.categoria_id, numero(row.total_centavos)])));
+    });
+    state.budgetProgress = state.budgets.map(budget => {
+      const range = finBudgetRange(budget);
+      const spent = totalsByRange.get(`${range.from}|${range.to}`)?.get(budget.categoria_id) || 0;
+      const limit = numero(budget.monto_centavos);
+      return { ...budget, ...range, spent, percent: limit > 0 ? Math.round(spent * 100 / limit) : 0 };
+    });
+    if (!state.budgetProgress.length) {
+      $("finPresupuestosCards").innerHTML = `<div class="empty-state"><strong>Sin presupuestos</strong><p>Define un limite por categoria para anticipar excesos antes de fin de mes.</p></div>`;
+      return;
+    }
+    $("finPresupuestosCards").innerHTML = state.budgetProgress.map(item => {
+      const tone = item.percent >= 100 ? "danger" : item.percent >= item.alerta_porcentaje ? "warn" : "ok";
+      return `<button type="button" class="finance-budget ${tone}" data-fin-budget="${esc(item.id)}">
+        <span><strong>${esc(categories.get(item.categoria_id) || "Categoria")}</strong><small>${esc(item.periodo)} &middot; ${esc(item.from)} a ${esc(item.to)}</small></span>
+        <span class="finance-budget-values"><b>${money(item.spent)} / ${money(item.monto_centavos)}</b><small>${item.percent}% utilizado</small></span>
+        <i><em style="width:${Math.min(100, item.percent)}%"></em></i>
+      </button>`;
+    }).join("");
+    $("finPresupuestosCards").querySelectorAll("[data-fin-budget]").forEach(button => button.addEventListener("click", () => {
+      abrirPresupuestoFin(state.budgets.find(item => item.id === button.dataset.finBudget));
+    }));
+  }
+
+  function finCardDates(card, reference = new Date()) {
+    const y = reference.getFullYear();
+    const m = reference.getMonth();
+    const safeDay = (year, month, day) => Math.min(day, new Date(year, month + 1, 0).getDate());
+    let cut = new Date(y, m, safeDay(y, m, card.dia_corte), 12);
+    if (reference > cut) cut = new Date(y, m + 1, safeDay(y, m + 1, card.dia_corte), 12);
+    let payMonth = cut.getMonth() + (card.dia_pago <= card.dia_corte ? 1 : 0);
+    const pay = new Date(cut.getFullYear(), payMonth, safeDay(cut.getFullYear(), payMonth, card.dia_pago), 12);
+    return { cut, pay };
+  }
+
+  function renderFinCards() {
+    const state = finStateCache;
+    if (!state) return;
+    const cardAccounts = state.accounts.filter(item => item.tipo === "tarjeta_credito" && item.estado !== "eliminada");
+    const settings = new Map(state.cards.map(item => [item.cuenta_id, item]));
+    if (!cardAccounts.length) {
+      $("finTarjetasCards").innerHTML = `<div class="empty-state"><strong>Sin tarjetas de credito</strong><p>Agrega primero una cuenta de tipo Tarjeta de credito y luego configura su corte, pago y limite.</p></div>`;
+      return;
+    }
+    $("finTarjetasCards").innerHTML = cardAccounts.map(account => {
+      const card = settings.get(account.id);
+      if (!card) return `<button type="button" class="finance-credit-card setup" data-fin-card="${esc(account.id)}"><strong>${esc(account.nombre)}</strong><span>Completar configuracion</span></button>`;
+      const debt = Math.max(0, -numero(account.saldo_actual_centavos));
+      const available = Math.max(0, numero(card.limite_credito_centavos) - debt);
+      const dates = finCardDates(card);
+      const percent = card.limite_credito_centavos ? Math.min(100, Math.round(debt * 100 / card.limite_credito_centavos)) : 0;
+      return `<article class="finance-credit-card" style="--card-color:${esc(card.color || "#0A3679")}">
+        <button type="button" class="finance-card-edit" data-fin-card="${esc(account.id)}" title="Editar tarjeta">Editar</button>
+        <span>${esc(account.nombre)}</span><strong>${money(debt)}</strong><small>Deuda actual</small>
+        <div class="finance-card-line"><span>Disponible</span><b>${money(available)}</b></div>
+        <div class="finance-card-line"><span>Proximo corte</span><b>${fechaCorta(dates.cut)}</b></div>
+        <div class="finance-card-line"><span>Fecha de pago</span><b>${fechaCorta(dates.pay)}</b></div>
+        <i><em style="width:${percent}%"></em></i>
+        <button type="button" class="finance-card-pay" data-fin-card-pay="${esc(account.id)}">Registrar pago</button>
+      </article>`;
+    }).join("");
+    $("finTarjetasCards").querySelectorAll("[data-fin-card]").forEach(button => button.addEventListener("click", () => abrirTarjetaFin(button.dataset.finCard)));
+    $("finTarjetasCards").querySelectorAll("[data-fin-card-pay]").forEach(button => button.addEventListener("click", () => abrirPagoTarjetaFin(button.dataset.finCardPay)));
+  }
+
+  function renderFinSettings() {
+    const state = finStateCache;
+    if (!state) return;
+    const prefs = state.preferences || {};
+    const accountOptions = (current, includeEmpty = true) => `${includeEmpty ? '<option value="">Selecciona una cuenta</option>' : ""}${state.accounts.filter(item => !item.oculta && item.estado !== "eliminada").map(item => `<option value="${esc(item.id)}"${selected(current, item.id)}>${esc(item.nombre)}</option>`).join("")}`;
+    $("finPrefCurrency").innerHTML = state.currencies.map(item => `<option value="${esc(item.codigo)}"${selected(prefs.moneda_principal || "DOP", item.codigo)}>${esc(item.codigo)} &middot; ${esc(item.nombre)}</option>`).join("");
+    $("finPrefPeriod").value = prefs.periodo_dashboard || finDashboardPeriod;
+    $("finPrefExpenseAccount").innerHTML = accountOptions(prefs.cuenta_gasto_default_id);
+    $("finPrefIncomeAccount").innerHTML = accountOptions(prefs.cuenta_ingreso_default_id);
+    const parents = new Map(state.categories.map(item => [item.id, item.nombre]));
+    $("finCategoriasTabla").innerHTML = tabla(state.categories, item => [
+      esc(item.tipo === "gasto" ? "Gasto" : "Ingreso"), esc(item.nombre), esc(parents.get(item.categoria_padre_id) || "Principal"),
+      canEdit ? `<button class="mini" data-fin-category="${esc(item.id)}">Editar</button>` : "",
+    ], ["Tipo", "Categoria", "Pertenece a", ""]);
+    $("finCategoriasTabla").querySelectorAll("[data-fin-category]").forEach(button => button.addEventListener("click", () => abrirCategoriaFin(state.categories.find(item => item.id === button.dataset.finCategory))));
+    $("finDivisasTabla").innerHTML = tabla(state.currencies, item => [esc(item.codigo), esc(item.nombre), esc(item.simbolo), numero(item.tasa_a_principal).toLocaleString("es-DO", { maximumFractionDigits: 8 }), item.principal ? "Principal" : "Activa", canEdit ? `<button class="mini" data-fin-currency="${esc(item.id)}">Editar</button>` : ""], ["Codigo", "Nombre", "Simbolo", "Tasa", "Estado", ""]);
+    $("finDivisasTabla").querySelectorAll("[data-fin-currency]").forEach(button => button.addEventListener("click", () => abrirDivisaFin(state.currencies.find(item => item.id === button.dataset.finCurrency))));
+  }
+
+  async function renderFinDashboard() {
+    const state = finStateCache;
+    if (!state) return;
+    const range = finRange();
+    $("finFechaReferencia").value = finReferenceDate;
+    $("finPeriodTabs").querySelectorAll("[data-fin-period]").forEach(button => button.classList.toggle("act", button.dataset.finPeriod === finDashboardPeriod));
+    const [summaryRes, dailyRes, categoryRes] = await Promise.all([
+      sb.rpc("fin_period_summary", { p_business_id: BUSINESS, p_from: range.from, p_to: range.to }),
+      sb.rpc("fin_daily_totals", { p_business_id: BUSINESS, p_from: range.from, p_to: range.to }),
+      sb.rpc("fin_category_totals", { p_business_id: BUSINESS, p_from: range.from, p_to: range.to, p_type: "gasto" }),
+    ]);
+    if (summaryRes.error) throw summaryRes.error;
+    if (dailyRes.error) throw dailyRes.error;
+    if (categoryRes.error) throw categoryRes.error;
+    const summary = summaryRes.data?.[0] || {};
+    const income = numero(summary.ingresos_centavos);
+    const expense = numero(summary.gastos_centavos);
+    const net = income - expense;
+    const patrimonio = state.accounts.filter(item => item.incluir_en_total).reduce((sum, item) => sum + numero(item.saldo_actual_centavos), 0);
+    $("finDashboardKpis").innerHTML = [
+      ["Patrimonio", money(patrimonio), "Suma de cuentas"],
+      ["Ingresos", money(income), range.label],
+      ["Gastos", money(expense), range.label],
+      ["Disponible", money(net), net >= 0 ? "Ingresos menos gastos" : "Gasto superior al ingreso"],
+    ].map(([label, value, detail], index) => `<article class="finance-kpi ${index === 3 && net < 0 ? "bad" : ""}"><span>${esc(label)}</span><strong>${esc(value)}</strong><small>${esc(detail)}</small></article>`).join("");
+    renderFinFlowChart(dailyRes.data || [], range);
+    renderFinCategoryChart(categoryRes.data || [], expense);
+    renderFinRecent(range);
+    renderFinPlanning(categoryRes.data || []);
+    state.dashboard = { range, summary, daily: dailyRes.data || [], categories: categoryRes.data || [] };
+  }
+
+  function renderFinFlowChart(rows, range) {
+    $("finFlowCaption").textContent = `${range.label}. Azul: ingresos. Naranja: gastos.`;
+    if (!rows.length) {
+      $("finFlowChart").innerHTML = `<div class="empty-state"><strong>Sin movimientos</strong><p>No hay ingresos ni gastos en este periodo.</p></div>`;
+      return;
+    }
+    const max = Math.max(1, ...rows.flatMap(item => [numero(item.ingresos_centavos), numero(item.gastos_centavos)]));
+    $("finFlowChart").innerHTML = `<div class="finance-flow-bars">${rows.map(item => {
+      const incomeHeight = Math.max(2, Math.round(numero(item.ingresos_centavos) * 100 / max));
+      const expenseHeight = Math.max(2, Math.round(numero(item.gastos_centavos) * 100 / max));
+      return `<button type="button" class="finance-flow-day" data-fin-day="${esc(item.fecha)}" title="${esc(item.fecha)}: ingresos ${money(item.ingresos_centavos)}, gastos ${money(item.gastos_centavos)}"><span class="finance-bar-pair"><i class="income" style="--bar:${incomeHeight}%"></i><i class="expense" style="--bar:${expenseHeight}%"></i></span><small>${esc(fechaCorta(item.fecha))}</small></button>`;
+    }).join("")}</div>`;
+    $("finFlowChart").querySelectorAll("[data-fin-day]").forEach(button => button.addEventListener("click", () => {
+      finReferenceDate = button.dataset.finDay;
+      finDashboardPeriod = "dia";
+      renderFinDashboard().catch(error => toast(error.message));
+    }));
+  }
+
+  function renderFinCategoryChart(rows, total) {
+    if (!rows.length || total <= 0) {
+      $("finCategoryChart").innerHTML = `<div class="empty-state"><strong>Sin gastos</strong><p>La composicion aparecera al registrar movimientos.</p></div>`;
+      return;
+    }
+    let cursor = 0;
+    const segments = rows.slice(0, 8).map((item, index) => {
+      const percent = numero(item.total_centavos) * 100 / total;
+      const start = cursor;
+      cursor += percent;
+      return { ...item, percent, color: FIN_CHART_COLORS[index % FIN_CHART_COLORS.length], start, end: cursor };
+    });
+    const gradient = segments.map(item => `${item.color} ${item.start.toFixed(2)}% ${item.end.toFixed(2)}%`).join(",");
+    $("finCategoryChart").innerHTML = `<div class="finance-donut" style="--donut:${gradient}"><span><strong>${money(total)}</strong><small>Total gastado</small></span></div><div class="finance-donut-legend">${segments.map(item => `<button type="button" data-fin-category-filter="${esc(item.categoria_id || "")}"><i style="background:${item.color}"></i><span>${esc(item.nombre)}</span><b>${Math.round(item.percent)}%</b><small>${money(item.total_centavos)}</small></button>`).join("")}</div>`;
+    $("finCategoryChart").querySelectorAll("[data-fin-category-filter]").forEach(button => button.addEventListener("click", () => {
+      setCostTab("movimientos");
+      $("finMovementType").value = "gasto";
+      $("finMovementCategory").value = button.dataset.finCategoryFilter;
+      renderFinMovements();
+    }));
+  }
+
+  function renderFinRecent(range) {
+    const state = finStateCache;
+    const accounts = new Map(state.accounts.map(item => [item.id, item.nombre]));
+    const rows = state.movements.filter(item => item.fecha >= range.from && item.fecha <= range.to).slice(0, 8);
+    $("finRecentList").innerHTML = rows.length ? rows.map(item => {
+      const expense = item.tipo === "gasto";
+      return `<article><i class="${esc(item.tipo)}"></i><span><strong>${esc(item.descripcion || item.payee || (item.tipo === "transferencia" ? "Transferencia" : "Movimiento"))}</strong><small>${esc(accounts.get(item.cuenta_id) || "--")} &middot; ${esc(dateOnly(item.fecha))}</small></span><b class="${expense ? "neg" : item.tipo === "ingreso" ? "pos" : ""}">${expense ? "-" : item.tipo === "ingreso" ? "+" : ""}${money(item.monto_centavos)}</b></article>`;
+    }).join("") : `<div class="empty-state compact"><p>Sin actividad en el periodo.</p></div>`;
+  }
+
+  function renderFinPlanning(categoryRows) {
+    const state = finStateCache;
+    const categories = new Map(state.categories.map(item => [item.id, item.nombre]));
+    const budgetAlerts = (state.budgetProgress || []).filter(item => item.percent >= item.alerta_porcentaje).slice(0, 4).map(item => ({
+      tone: item.percent >= 100 ? "danger" : "warn", title: categories.get(item.categoria_id) || "Presupuesto", detail: `${item.percent}% utilizado &middot; ${money(item.spent)} de ${money(item.monto_centavos)}`,
+    }));
+    const obligations = (costStateCache?.obligations || []).filter(item => ["pendiente", "parcial", "vencida"].includes(item.estado)).slice(0, 4).map(item => ({
+      tone: item.estado === "vencida" ? "danger" : "warn", title: item.concepto || item.acreedor || "Factura pendiente", detail: `${money(item.saldoCentavos)} &middot; vence ${esc(dateOnly(item.venceEn))}`,
+    }));
+    const rows = [...budgetAlerts, ...obligations].slice(0, 6);
+    $("finBudgetAlerts").innerHTML = rows.length ? rows.map(item => `<article class="${item.tone}"><i></i><span><strong>${esc(item.title)}</strong><small>${item.detail}</small></span></article>`).join("") : `<div class="empty-state compact"><strong>Todo bajo control</strong><p>No hay presupuestos excedidos ni vencimientos pendientes.</p></div>`;
+  }
+
 
   function abrirCuentaFin(account = null) {
     const item = account || {
@@ -2334,6 +2693,28 @@
     });
   }
 
+  function abrirConciliacionCuentaFin(account) {
+    if (!account) return;
+    abrirEditor("Conciliar saldo", "Registra la diferencia sin borrar movimientos ni convertirla en ingreso o gasto operativo.", `
+      <div class="reconciliation-summary field-wide"><span>Saldo calculado</span><strong>${money(account.saldo_actual_centavos)}</strong></div>
+      <label><span>Saldo real contado (RD$)</span><input name="saldoObjetivo" type="number" step="0.01" required value="${pesoInput(account.saldo_actual_centavos)}"></label>
+      <label><span>Fecha</span><input name="fecha" type="date" required value="${inputDate(new Date())}"></label>
+      <label class="field-wide"><span>Motivo obligatorio</span><textarea name="motivo" rows="3" required placeholder="Ejemplo: saldo físico confirmado al cierre; el historial anterior no contenía retiros de caja"></textarea></label>
+      <p class="field-hint field-wide">El asiento queda identificado, genera alerta y puede anularse. Las ventas históricas permanecen intactas.</p>`, async form => {
+      const target = centavosConSignoInput(form.get("saldoObjetivo"));
+      const current = numero(account.saldo_actual_centavos);
+      const difference = target - current;
+      await adminWrite("fin.account.reconcile", account.id, {
+        cuentaId: account.id,
+        saldoObjetivoCentavos: target,
+        fecha: form.get("fecha"),
+        motivo: form.get("motivo"),
+      });
+      toast(`Saldo conciliado. Diferencia registrada: ${difference >= 0 ? "+" : "-"}${money(Math.abs(difference))}`);
+      await cargarFinanzas();
+    }, "Conciliar saldo");
+  }
+
   function abrirTransferenciaFin() {
     const accounts = (finStateCache?.accounts || []).filter(account => account.estado !== "eliminada" && !account.oculta);
     if (accounts.length < 2) { toast("Necesitas al menos dos cuentas activas para transferir."); return; }
@@ -2356,6 +2737,285 @@
       cerrarEditor();
       await cargarCuentasFin($("provMes").value);
     });
+  }
+
+  function finCategoryOptions(type, current = "") {
+    const state = finStateCache;
+    const rows = (state?.categories || []).filter(item => item.tipo === type);
+    const names = new Map(rows.map(item => [item.id, item.nombre]));
+    return `<option value="">Selecciona la categoria</option>${rows.map(item => `<option value="${esc(item.id)}"${selected(current, item.id)}>${item.categoria_padre_id ? `${esc(names.get(item.categoria_padre_id) || "General")} / ` : ""}${esc(item.nombre)}</option>`).join("")}`;
+  }
+
+  function abrirMovimientoFin(defaultType = "gasto") {
+    const state = finStateCache;
+    if (!state?.accounts?.length) { toast("Agrega una cuenta antes de registrar movimientos."); return; }
+    const prefs = state.preferences || {};
+    const type = defaultType === "ingreso" ? "ingreso" : "gasto";
+    const defaultAccount = type === "gasto" ? prefs.cuenta_gasto_default_id : prefs.cuenta_ingreso_default_id;
+    const accountOptions = state.accounts.filter(item => !item.oculta && item.estado !== "eliminada")
+      .map(item => `<option value="${esc(item.id)}"${selected(defaultAccount, item.id)}>${esc(item.nombre)} &middot; ${money(item.saldo_actual_centavos)}</option>`).join("");
+    abrirEditor("Entrada rapida", "Monto, categoria y cuenta. El teclado propio evita errores y funciona igual en iPhone y PC.", `
+      <div class="fin-quick-entry field-wide">
+        <div class="fin-quick-types"><button type="button" class="${type === "gasto" ? "act" : ""}" data-fin-quick-type="gasto">Gasto</button><button type="button" class="${type === "ingreso" ? "act" : ""}" data-fin-quick-type="ingreso">Ingreso</button></div>
+        <input type="hidden" name="tipo" value="${type}"><input type="hidden" name="montoCentavos" value="0">
+        <output id="finQuickAmount">RD$0.00</output>
+        <div class="fin-number-pad" aria-label="Teclado de monto">
+          ${["1","2","3","4","5","6","7","8","9","00","0","back"].map(key => `<button type="button" data-fin-key="${key}" aria-label="${key === "back" ? "Borrar" : key}">${key === "back" ? "&#9003;" : key}</button>`).join("")}
+        </div>
+      </div>
+      <label><span>Categoria</span><select name="categoriaId" id="finQuickCategory" required>${finCategoryOptions(type)}</select></label>
+      <label><span>Cuenta</span><select name="cuentaId" required>${accountOptions}</select></label>
+      <label><span>Fecha</span><input name="fecha" type="date" required value="${inputDate(new Date())}"></label>
+      <label><span>Persona o comercio</span><input name="payee" maxlength="180" placeholder="Opcional"></label>
+      <label class="field-wide"><span>Descripcion</span><input name="descripcion" maxlength="500" required placeholder="Ej. Compra de materiales"></label>
+      <label class="field-wide"><span>Nota</span><textarea name="nota" rows="2" maxlength="1200"></textarea></label>`, async form => {
+      const amount = numero(form.get("montoCentavos"));
+      if (amount <= 0) throw new Error("Escribe un monto mayor que cero.");
+      await adminWrite("fin.movement.create", null, {
+        tipo: form.get("tipo"), montoCentavos: amount, cuentaId: form.get("cuentaId"),
+        categoriaId: form.get("categoriaId"), fecha: form.get("fecha"), payee: form.get("payee"),
+        descripcion: form.get("descripcion"), nota: form.get("nota"), origen: "panel",
+      });
+      cerrarEditor();
+      await cargarProveedores(true);
+    });
+    let digits = "";
+    const amountInput = $("editorFields").querySelector('[name="montoCentavos"]');
+    const typeInput = $("editorFields").querySelector('[name="tipo"]');
+    const categoryInput = $("finQuickCategory");
+    const updateAmount = () => {
+      const cents = numero(digits || 0);
+      amountInput.value = String(cents);
+      $("finQuickAmount").textContent = money(cents);
+    };
+    $("editorFields").querySelectorAll("[data-fin-key]").forEach(button => button.addEventListener("click", () => {
+      if (button.dataset.finKey === "back") digits = digits.slice(0, -1);
+      else digits = `${digits}${button.dataset.finKey}`.replace(/^0+(?=\d)/, "").slice(0, 12);
+      updateAmount();
+    }));
+    $("editorFields").querySelectorAll("[data-fin-quick-type]").forEach(button => button.addEventListener("click", () => {
+      typeInput.value = button.dataset.finQuickType;
+      $("editorFields").querySelectorAll("[data-fin-quick-type]").forEach(item => item.classList.toggle("act", item === button));
+      categoryInput.innerHTML = finCategoryOptions(typeInput.value);
+    }));
+  }
+
+  function confirmarAnularMovimientoFin(movement) {
+    abrirEditor("Anular movimiento", "El asiento queda visible en auditoria, pero deja de afectar saldos y reportes.", `
+      <div class="confirm-panel field-wide"><strong>${esc(movement.descripcion || movement.payee || "Movimiento")}</strong><p>${esc(dateOnly(movement.fecha))} &middot; ${money(movement.monto_centavos)}</p></div>
+      <label class="field-wide"><span>Motivo</span><textarea name="motivo" required rows="3" maxlength="500"></textarea></label>`, async form => {
+      await adminWrite("fin.movement.cancel", movement.id, { motivo: form.get("motivo") });
+      cerrarEditor();
+      await cargarProveedores(true);
+    });
+  }
+
+  function abrirCategoriaFin(category = null) {
+    const item = category || { tipo: "gasto", nombre: "", categoria_padre_id: null, orden: 10 };
+    const parentOptions = type => `<option value="">Categoria principal</option>${(finStateCache?.categories || []).filter(value => value.tipo === type && value.id !== item.id).map(value => `<option value="${esc(value.id)}"${selected(item.categoria_padre_id, value.id)}>${esc(value.nombre)}</option>`).join("")}`;
+    abrirEditor(category ? "Editar categoria" : "Nueva categoria", "Las categorias pueden agruparse en padres e hijos, por ejemplo Transporte / Gasolina.", `
+      <label><span>Tipo</span><select name="tipo" id="finCategoryType"><option value="gasto"${selected(item.tipo, "gasto")}>Gasto</option><option value="ingreso"${selected(item.tipo, "ingreso")}>Ingreso</option></select></label>
+      <label><span>Pertenece a</span><select name="categoriaPadreId" id="finCategoryParent">${parentOptions(item.tipo)}</select></label>
+      <label class="field-wide"><span>Nombre</span><input name="nombre" required maxlength="120" value="${esc(item.nombre)}"></label>
+      <label><span>Orden</span><input name="orden" type="number" step="1" value="${esc(item.orden || 0)}"></label>`, async form => {
+      await adminWrite("fin.category.upsert", category?.id, {
+        nombre: form.get("nombre"), tipo: form.get("tipo"), categoriaPadreId: form.get("categoriaPadreId") || null,
+        orden: Number(form.get("orden")) || 0,
+      });
+      cerrarEditor();
+      await cargarProveedores(true);
+    });
+    $("finCategoryType").addEventListener("change", event => { $("finCategoryParent").innerHTML = parentOptions(event.target.value); });
+  }
+
+  function abrirPresupuestoFin(budget = null) {
+    const item = budget || { periodo: "mensual", periodo_inicio: `${$("provMes").value}-01`, monto_centavos: 0, alerta_porcentaje: 80 };
+    abrirEditor(budget ? "Editar presupuesto" : "Nuevo presupuesto", "El progreso se calcula contra movimientos reales de la categoria, nunca contra estimaciones.", `
+      <label><span>Categoria de gasto</span><select name="categoriaId" required>${finCategoryOptions("gasto", item.categoria_id)}</select></label>
+      <label><span>Periodo</span><select name="periodo"><option value="semanal"${selected(item.periodo, "semanal")}>Semanal</option><option value="mensual"${selected(item.periodo, "mensual")}>Mensual</option><option value="anual"${selected(item.periodo, "anual")}>Anual</option></select></label>
+      <label><span>Inicio</span><input name="periodoInicio" type="date" required value="${esc(item.periodo_inicio)}"></label>
+      <label><span>Limite (RD$)</span><input name="monto" type="number" min="0.01" step="0.01" required value="${pesoInput(item.monto_centavos)}"></label>
+      <label><span>Avisar al (%)</span><input name="alertaPorcentaje" type="number" min="1" max="100" value="${esc(item.alerta_porcentaje || 80)}"></label>`, async form => {
+      await adminWrite("fin.budget.upsert", budget?.id, {
+        categoriaId: form.get("categoriaId"), periodo: form.get("periodo"), periodoInicio: form.get("periodoInicio"),
+        montoCentavos: centavosInput(form.get("monto")), alertaPorcentaje: Number(form.get("alertaPorcentaje")) || 80,
+      });
+      cerrarEditor();
+      await cargarProveedores(true);
+    });
+  }
+
+  function abrirTarjetaFin(accountId = null) {
+    const state = finStateCache;
+    const creditAccounts = state.accounts.filter(item => item.tipo === "tarjeta_credito" && item.estado !== "eliminada");
+    if (!creditAccounts.length) { toast("Agrega primero una cuenta de tipo Tarjeta de credito."); setCostTab("cuentas"); return; }
+    const account = creditAccounts.find(item => item.id === accountId) || creditAccounts[0];
+    const card = state.cards.find(item => item.cuenta_id === account.id) || { cuenta_id: account.id, dia_corte: 25, dia_pago: 5, limite_credito_centavos: 0, color: "#0A3679", metodo_visualizacion: "al_comprar" };
+    const accountOptions = creditAccounts.map(item => `<option value="${esc(item.id)}"${selected(account.id, item.id)}>${esc(item.nombre)}</option>`).join("");
+    const payOptions = `<option value="">Selecciona la cuenta de pago</option>${state.accounts.filter(item => item.tipo !== "tarjeta_credito" && !item.oculta).map(item => `<option value="${esc(item.id)}"${selected(card.cuenta_pago_id, item.id)}>${esc(item.nombre)}</option>`).join("")}`;
+    abrirEditor("Configurar tarjeta", "Las compras son gasto al realizarlas; el pago mueve dinero del banco a la tarjeta sin crear otro gasto.", `
+      <label><span>Cuenta de tarjeta</span><select name="cuentaId">${accountOptions}</select></label>
+      <label><span>Cuenta habitual de pago</span><select name="cuentaPagoId">${payOptions}</select></label>
+      <label><span>Dia de corte</span><input name="diaCorte" type="number" min="1" max="31" value="${esc(card.dia_corte)}"></label>
+      <label><span>Dia de pago</span><input name="diaPago" type="number" min="1" max="31" value="${esc(card.dia_pago)}"></label>
+      <label><span>Limite (RD$)</span><input name="limite" type="number" min="0" step="0.01" value="${pesoInput(card.limite_credito_centavos)}"></label>
+      <label><span>Color</span><input name="color" type="color" value="${esc(card.color || "#0A3679")}"></label>
+      <label class="field-wide"><span>Mostrar el gasto</span><select name="metodoVisualizacion"><option value="al_comprar"${selected(card.metodo_visualizacion, "al_comprar")}>Cuando se compra (recomendado)</option><option value="al_pagar"${selected(card.metodo_visualizacion, "al_pagar")}>Cuando se paga</option></select></label>`, async form => {
+      await adminWrite("fin.card.upsert", form.get("cuentaId"), {
+        cuentaId: form.get("cuentaId"), cuentaPagoId: form.get("cuentaPagoId") || null,
+        diaCorte: Number(form.get("diaCorte")), diaPago: Number(form.get("diaPago")),
+        limiteCreditoCentavos: centavosInput(form.get("limite")), color: form.get("color"),
+        metodoVisualizacion: form.get("metodoVisualizacion"),
+      });
+      cerrarEditor();
+      await cargarProveedores(true);
+    });
+  }
+
+  function abrirPagoTarjetaFin(accountId) {
+    const state = finStateCache;
+    const card = state.cards.find(item => item.cuenta_id === accountId);
+    const account = state.accounts.find(item => item.id === accountId);
+    const sources = state.accounts.filter(item => item.id !== accountId && item.tipo !== "tarjeta_credito" && !item.oculta);
+    if (!card || !sources.length) { toast("Configura la tarjeta y una cuenta de pago antes de continuar."); return; }
+    const sourceOptions = sources.map(item => `<option value="${esc(item.id)}"${selected(card.cuenta_pago_id, item.id)}>${esc(item.nombre)} &middot; ${money(item.saldo_actual_centavos)}</option>`).join("");
+    abrirEditor("Pagar tarjeta", "Este pago reduce la cuenta de origen y la deuda de la tarjeta. No se registra como gasto otra vez.", `
+      <div class="confirm-panel field-wide"><strong>${esc(account.nombre)}</strong><p>Deuda actual: ${money(Math.max(0, -numero(account.saldo_actual_centavos)))}</p></div>
+      <label><span>Cuenta de origen</span><select name="cuentaOrigenId">${sourceOptions}</select></label>
+      <input type="hidden" name="cuentaDestinoId" value="${esc(accountId)}">
+      <label><span>Monto (RD$)</span><input name="monto" type="number" min="0.01" step="0.01" required></label>
+      <label><span>Fecha</span><input name="fecha" type="date" required value="${inputDate(new Date())}"></label>
+      <label class="field-wide"><span>Nota</span><textarea name="nota" rows="2" maxlength="1200"></textarea></label>`, async form => {
+      await adminWrite("fin.card.payment", null, {
+        cuentaOrigenId: form.get("cuentaOrigenId"), cuentaDestinoId: accountId,
+        montoCentavos: centavosInput(form.get("monto")), fecha: form.get("fecha"), nota: form.get("nota"),
+      });
+      cerrarEditor();
+      await cargarProveedores(true);
+    });
+  }
+
+  function abrirDivisaFin(currency = null) {
+    const item = currency || { codigo: "USD", nombre: "Dolar estadounidense", simbolo: "US$", tasa_a_principal: 1, principal: false, activa: true };
+    abrirEditor(currency ? "Editar divisa" : "Agregar divisa", "La tasa indica cuantas unidades de la moneda principal equivalen a una unidad de esta divisa.", `
+      <label><span>Codigo</span><input name="codigo" required minlength="3" maxlength="8" value="${esc(item.codigo)}"></label>
+      <label><span>Simbolo</span><input name="simbolo" required maxlength="12" value="${esc(item.simbolo)}"></label>
+      <label class="field-wide"><span>Nombre</span><input name="nombre" required maxlength="120" value="${esc(item.nombre)}"></label>
+      <label><span>Tasa a moneda principal</span><input name="tasa" type="number" min="0.00000001" step="0.00000001" value="${esc(item.tasa_a_principal)}"></label>
+      <label class="check-row"><input name="principal" type="checkbox"${checked(item.principal)}><span>Moneda principal</span></label>
+      <label class="check-row"><input name="activa" type="checkbox"${checked(item.activa !== false)}><span>Divisa activa</span></label>`, async form => {
+      await adminWrite("fin.currency.upsert", currency?.id, {
+        codigo: form.get("codigo"), nombre: form.get("nombre"), simbolo: form.get("simbolo"),
+        tasaAPrincipal: Number(form.get("tasa")), principal: form.has("principal"), activa: form.has("activa"),
+      });
+      cerrarEditor();
+      await cargarProveedores(true);
+    });
+  }
+
+  async function guardarPreferenciasFin(formElement) {
+    const form = new FormData(formElement);
+    await adminWrite("fin.preferences.upsert", null, {
+      monedaPrincipal: form.get("monedaPrincipal"), periodoDashboard: form.get("periodoDashboard"),
+      cuentaGastoDefaultId: form.get("cuentaGastoDefaultId") || null,
+      cuentaIngresoDefaultId: form.get("cuentaIngresoDefaultId") || null,
+      locale: "es-DO", semanaInicia: 1,
+    });
+    finDashboardPeriod = form.get("periodoDashboard");
+    await cargarProveedores(true);
+  }
+
+  function csvCell(value) { return `"${String(value ?? "").replace(/"/g, '""')}"`; }
+
+  function downloadBlob(blob, name) {
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url; link.download = name; document.body.appendChild(link); link.click(); link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  function exportarFinCsv() {
+    const state = finStateCache;
+    const accounts = new Map(state.accounts.map(item => [item.id, item.nombre]));
+    const categories = new Map(state.categories.map(item => [item.id, item.nombre]));
+    const header = ["Fecha","Hora","Tipo","Cuenta origen","Cuenta destino","Categoria","Persona o comercio","Descripcion","Nota","Monto centavos","Monto RD$","Folio","Origen"];
+    const rows = finFilteredMovements.map(item => [item.fecha,item.hora || "",item.tipo,accounts.get(item.cuenta_id) || "",accounts.get(item.cuenta_destino_id) || "",categories.get(item.categoria_id) || "",item.payee || "",item.descripcion || "",item.nota || "",item.monto_centavos,(numero(item.monto_centavos)/100).toFixed(2),item.venta_folio || "",item.origen || ""]);
+    const csv = `\uFEFF${[header, ...rows].map(row => row.map(csvCell).join(",")).join("\r\n")}`;
+    downloadBlob(new Blob([csv], { type: "text/csv;charset=utf-8" }), `DCARELA_FINANZAS_${$("provMes").value}.csv`);
+  }
+
+  function exportarFinPdf() {
+    const state = finStateCache;
+    const accounts = new Map(state.accounts.map(item => [item.id, item.nombre]));
+    const categories = new Map(state.categories.map(item => [item.id, item.nombre]));
+    const doc = nuevoPdf("Libro financiero", `Mes: ${$("provMes").value} | ${finFilteredMovements.length} movimientos filtrados`);
+    doc.autoTable({
+      ...opcionesTablaPdf(), startY: 34,
+      head: [["Fecha","Tipo","Cuenta","Categoria","Detalle","Monto"]],
+      body: finFilteredMovements.map(item => [item.fecha,item.tipo,accounts.get(item.cuenta_id) || "--",categories.get(item.categoria_id) || "--",item.descripcion || item.payee || "--",`${item.tipo === "gasto" ? "-" : item.tipo === "ingreso" ? "+" : ""}${money(item.monto_centavos)}`]),
+      didParseCell: hook => {
+        if (hook.section !== "body" || hook.column.index !== 5) return;
+        const item = finFilteredMovements[hook.row.index];
+        if (item?.tipo === "gasto") hook.cell.styles.textColor = [197,63,72];
+        if (item?.tipo === "ingreso") hook.cell.styles.textColor = [22,133,121];
+      },
+    });
+    doc.save(`DCARELA_FINANZAS_${$("provMes").value}.pdf`);
+  }
+
+  async function todosMovimientosFin() {
+    const rows = [];
+    for (let offset = 0; ; offset += 1000) {
+      const { data, error } = await sb.from("fin_movimientos").select("*").eq("business_id", BUSINESS).order("fecha", { ascending: true }).range(offset, offset + 999);
+      if (error) throw error;
+      rows.push(...(data || []));
+      if (!data || data.length < 1000) return rows;
+    }
+  }
+
+  async function backupFinanzas() {
+    const state = finStateCache;
+    $("finBackupStatus").textContent = "Preparando copia completa desde Supabase...";
+    const movements = await todosMovimientosFin();
+    const payload = {
+      schema: "dcarela-finanzas-v1", generated_at: new Date().toISOString(), business_id: BUSINESS,
+      version_pos: "1.0.17", accounts: state.accounts, categories: state.categories, movements,
+      cards: state.cards, budgets: state.budgets, preferences: state.preferences, currencies: state.currencies,
+      checksum_basis: `${state.accounts.length}:${state.categories.length}:${movements.length}:${movements.reduce((sum, item) => sum + numero(item.monto_centavos), 0)}`,
+    };
+    const name = `DCARELA_FINANZAS_BACKUP_${inputDate(new Date())}.json`;
+    const file = new File([JSON.stringify(payload, null, 2)], name, { type: "application/json" });
+    if (navigator.share && navigator.canShare?.({ files: [file] })) {
+      await navigator.share({ title: "Copia de Finanzas D' Carela", text: "Respaldo completo para guardar en iCloud Drive o Google Drive.", files: [file] });
+      $("finBackupStatus").textContent = `Copia compartida: ${movements.length.toLocaleString("es-DO")} movimientos.`;
+    } else {
+      downloadBlob(file, name);
+      $("finBackupStatus").textContent = `Copia descargada: ${movements.length.toLocaleString("es-DO")} movimientos.`;
+    }
+  }
+
+  async function validarBackupFinanzas(file) {
+    if (!file) return;
+    const payload = JSON.parse(await file.text());
+    if (payload?.schema !== "dcarela-finanzas-v1" || !Array.isArray(payload.accounts) || !Array.isArray(payload.movements)) throw new Error("El archivo no es una copia valida de Finanzas D' Carela.");
+    $("finBackupStatus").textContent = `Archivo valido: ${payload.accounts.length} cuenta(s), ${payload.categories?.length || 0} categoria(s) y ${payload.movements.length.toLocaleString("es-DO")} movimiento(s). Solo se verifico; no se modifico la nube.`;
+  }
+
+  function subscribeFinanceRealtime() {
+    if (finRealtimeChannel || !sb) return;
+    let timer = null;
+    const refresh = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        if (!$("v-proveedores").classList.contains("oculto")) cargarProveedores(true).catch(error => toast(error.message));
+      }, 500);
+    };
+    finRealtimeChannel = sb.channel(`dcarela-finance-${BUSINESS}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "fin_movimientos", filter: `business_id=eq.${BUSINESS}` }, refresh)
+      .on("postgres_changes", { event: "*", schema: "public", table: "fin_cuentas", filter: `business_id=eq.${BUSINESS}` }, refresh)
+      .on("postgres_changes", { event: "*", schema: "public", table: "fin_presupuestos", filter: `business_id=eq.${BUSINESS}` }, refresh)
+      .on("postgres_changes", { event: "*", schema: "public", table: "fin_tarjetas", filter: `business_id=eq.${BUSINESS}` }, refresh)
+      .subscribe();
   }
 
   async function cargarProveedores(force = false) {
@@ -2421,10 +3081,19 @@
     wireCostActions(state);
     setCostTab(costTab);
     $("provPanelRecurrentes").querySelector(".surface-title p").textContent = `${activeRecurring.length} plan(es) activo(s). Genera obligaciones hasta el mes siguiente sin duplicados.`;
-    cargarCuentasFin(month).catch(() => {
+    try {
+      await cargarCuentasFin(month);
+      const quickRequested = new URLSearchParams(location.search).get("quick") === "1";
+      if (quickRequested && !sessionStorage.getItem("dcarela.fin.quick.opened")) {
+        sessionStorage.setItem("dcarela.fin.quick.opened", "1");
+        setCostTab("movimientos");
+        setTimeout(() => abrirMovimientoFin("gasto"), 120);
+      }
+    } catch (error) {
       $("finCuentasCards").innerHTML = "";
-      $("finMovimientosTabla").innerHTML = '<div class="empty-state">No se pudieron cargar las cuentas.</div>';
-    });
+      $("finMovimientosTabla").innerHTML = `<div class="empty-state"><strong>No se pudo cargar Finanzas.</strong><p>${esc(error?.message || error)}</p></div>`;
+      throw error;
+    }
   }
 
   function alertDefinition(event) {
@@ -2887,7 +3556,7 @@
     $("btnNuevoProducto").addEventListener("click", () => abrirProducto().catch(error => toast(error.message)));
     $("btnNuevaCategoria").addEventListener("click", abrirCategoria);
     $("btnNuevoCliente").addEventListener("click", () => abrirCliente());
-    $("btnNuevaCategoriaGasto").addEventListener("click", abrirCategoriaGasto);
+    $("btnNuevaCategoriaGasto").addEventListener("click", () => abrirCategoriaFin());
     $("btnNuevoGasto").addEventListener("click", () => cargarCostosCloud().then(state => abrirGasto(state)).catch(error => toast(error.message)));
     $("btnNuevoRecurrente").addEventListener("click", () => cargarCostosCloud().then(state => abrirRecurrente(state)).catch(error => toast(error.message)));
     $("btnNuevaObligacion").addEventListener("click", () => cargarCostosCloud().then(state => abrirObligacion(state)).catch(error => toast(error.message)));
@@ -2900,8 +3569,47 @@
         abrirTransferenciaFin();
       } catch (error) { toast(error.message); }
     });
+    const openTransfer = async () => {
+      try {
+        if (!finStateCache) await cargarCuentasFin($("provMes").value || inputDate(new Date()).slice(0, 7));
+        abrirTransferenciaFin();
+      } catch (error) { toast(error.message); }
+    };
+    $("btnFinTransferTop").addEventListener("click", openTransfer);
+    $("btnFinQuick").addEventListener("click", () => abrirMovimientoFin("gasto"));
+    $("btnFinQuickMov").addEventListener("click", () => abrirMovimientoFin("gasto"));
+    $("btnVerMovimientosFin").addEventListener("click", () => setCostTab("movimientos"));
+    $("btnFinNuevoPresupuesto").addEventListener("click", () => abrirPresupuestoFin());
+    $("btnFinNuevaTarjeta").addEventListener("click", () => abrirTarjetaFin());
+    $("btnFinNuevaDivisa").addEventListener("click", () => abrirDivisaFin());
+    $("finPeriodTabs").querySelectorAll("[data-fin-period]").forEach(button => button.addEventListener("click", () => {
+      finDashboardPeriod = button.dataset.finPeriod;
+      renderFinDashboard().catch(error => toast(error.message));
+    }));
+    $("finFechaReferencia").addEventListener("change", event => {
+      finReferenceDate = event.target.value || inputDate(new Date());
+      const month = finReferenceDate.slice(0, 7);
+      if (month !== $("provMes").value) {
+        $("provMes").value = month;
+        cargarProveedores().catch(error => mostrarError("proveedores", error));
+      } else renderFinDashboard().catch(error => toast(error.message));
+    });
+    ["finMovementType", "finMovementAccount", "finMovementCategory"].forEach(id => $(id).addEventListener("change", renderFinMovements));
+    $("finMovementSearch").addEventListener("input", renderFinMovements);
+    $("btnFinExportCsv").addEventListener("click", () => { try { exportarFinCsv(); } catch (error) { toast(error.message); } });
+    $("btnFinExportPdf").addEventListener("click", () => { try { exportarFinPdf(); } catch (error) { toast(error.message); } });
+    ["btnFinBackupTop", "btnFinBackup", "btnFinBackupSettings"].forEach(id => $(id).addEventListener("click", () => backupFinanzas().catch(error => toast(error.message))));
+    $("btnFinRestorePreview").addEventListener("click", () => $("finRestoreFile").click());
+    $("finRestoreFile").addEventListener("change", event => validarBackupFinanzas(event.target.files?.[0]).catch(error => toast(error.message)));
+    $("finSettingsForm").addEventListener("submit", event => {
+      event.preventDefault();
+      guardarPreferenciasFin(event.currentTarget).catch(error => toast(error.message));
+    });
     $("provTabs").querySelectorAll("[data-cost-tab]").forEach(button => button.addEventListener("click", () => setCostTab(button.dataset.costTab)));
-    $("provMes").addEventListener("change", () => cargarProveedores().catch(error => mostrarError("proveedores", error)));
+    $("provMes").addEventListener("change", () => {
+      if (!finReferenceDate.startsWith($("provMes").value)) finReferenceDate = `${$("provMes").value}-01`;
+      cargarProveedores().catch(error => mostrarError("proveedores", error));
+    });
     $("btnInvBuscar").addEventListener("click", () => cargarInventario().catch(error => mostrarError("inventario", error)));
     $("btnCliBuscar").addEventListener("click", () => cargarClientes().catch(error => mostrarError("clientes", error)));
     $("invBuscar").addEventListener("keydown", event => { if (event.key === "Enter") { event.preventDefault(); $("btnInvBuscar").click(); } });

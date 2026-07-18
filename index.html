@@ -10,7 +10,7 @@
   <title>D' Carela Compufoto | Panel POS</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="dcarela-logo.png">
-  <link rel="stylesheet" href="panel.css?v=20260718-finanzas-fase2">
+  <link rel="stylesheet" href="panel.css?v=20260718-money-manager-journal">
 </head>
 <body>
   <section id="access" class="access-shell">
@@ -165,6 +165,7 @@
             <div><label for="recDispositivo">Terminal / caja</label><select id="recDispositivo"><option value="">Todas las terminales</option></select></div>
             <div><label for="recCajero">Cajero</label><select id="recCajero"><option value="">Todos los cajeros</option></select></div>
             <div><label for="recDiferencia">Diferencia conocida (RD$)</label><input type="number" id="recDiferencia" step="0.01" inputmode="decimal" placeholder="Ej.: 500.00"></div>
+            <div><label for="recDiferenciaExplicada">Parte ya explicada (RD$)</label><input type="number" id="recDiferenciaExplicada" step="0.01" inputmode="decimal" placeholder="Ej.: 120.00"></div>
             <button id="btnRecalcular" class="primary">Recalcular</button>
             <button id="btnRecalcularPdf" class="secondary">Descargar diagnostico</button>
           </div>
@@ -231,47 +232,111 @@
           <section class="surface"><div id="cliTabla" class="table-wrap"></div></section>
         </section>
 
-        <section id="v-proveedores" class="vista oculto">
-          <div class="section-heading">
-            <div><h2>Finanzas</h2><p>Cuentas, efectivo ligado a ventas, tarjetas, gastos del mes y recurrentes, presupuestos y vencimientos.</p></div>
+        <section id="v-proveedores" class="vista oculto finance-view">
+          <div class="section-heading finance-heading">
+            <div><h2>Finanzas</h2><p>Tu dinero organizado por cuentas, categorias y movimientos. Las ventas del POS se registran solas.</p></div>
             <div class="button-row admin-only oculto">
-              <button id="btnNuevoGasto" class="primary">Nuevo gasto</button>
-              <button id="btnNuevoRecurrente" class="secondary">Nuevo recurrente</button>
-              <button id="btnNuevaObligacion" class="secondary">Nueva factura o deuda</button>
-              <button id="btnNuevoRecibo" class="secondary">Nuevo recibo de pago</button>
-              <button id="btnNuevaCategoriaGasto" class="secondary">Agregar categoria</button>
+              <button id="btnFinQuick" class="primary">Registrar movimiento</button>
+              <button id="btnFinTransferTop" class="secondary">Transferir</button>
+              <button id="btnFinBackupTop" class="secondary">Respaldar</button>
             </div>
           </div>
-          <div class="cost-toolbar">
-            <div class="segmented" id="provTabs" role="tablist" aria-label="Secciones de finanzas">
-              <button class="act" data-cost-tab="cuentas" role="tab">Cuentas</button>
-              <button data-cost-tab="gastos" role="tab">Gastos</button>
-              <button data-cost-tab="recurrentes" role="tab">Costos recurrentes</button>
+
+          <div class="finance-nav-shell">
+            <div class="segmented finance-tabs" id="provTabs" role="tablist" aria-label="Secciones de finanzas">
+              <button class="act" data-cost-tab="resumen" role="tab">Resumen</button>
+              <button data-cost-tab="movimientos" role="tab">Movimientos</button>
+              <button data-cost-tab="cuentas" role="tab">Cuentas</button>
+              <button data-cost-tab="presupuestos" role="tab">Presupuestos</button>
+              <button data-cost-tab="tarjetas" role="tab">Tarjetas</button>
+              <button data-cost-tab="recurrentes" role="tab">Planificados</button>
               <button data-cost-tab="obligaciones" role="tab">Facturas y deudas</button>
-              <button data-cost-tab="recibos" role="tab">Recibos de pago</button>
+              <button data-cost-tab="recibos" role="tab">Recibos</button>
+              <button data-cost-tab="ajustes" role="tab">Ajustes</button>
             </div>
-            <label class="month-filter"><span>Mes de analisis</span><input id="provMes" type="month"></label>
+            <label class="month-filter"><span>Mes</span><input id="provMes" type="month"></label>
           </div>
-          <div id="provResumen" class="inline-metrics"></div>
-          <section class="cost-analysis-band">
-            <div id="provAnalisis" class="cost-analysis-copy"></div>
-            <div id="provVencimientos" class="due-list"></div>
-          </section>
-          <section id="provPanelCuentas" class="cost-panel">
-            <div class="surface-title fin-accounts-heading">
-              <div><h3>Cuentas y saldos</h3><p>Los ingresos de ventas se reflejan automaticamente; las transferencias mueven dinero sin duplicarlo.</p></div>
-              <div class="button-row admin-only oculto">
-                <button id="btnNuevaTransferencia" class="primary">Nueva transferencia</button>
-                <button id="btnNuevaCuentaFin" class="secondary">Agregar cuenta</button>
+
+          <section id="provPanelResumen" class="cost-panel finance-dashboard">
+            <div class="finance-period-row">
+              <div class="segmented finance-period" id="finPeriodTabs" role="group" aria-label="Periodo del tablero">
+                <button data-fin-period="dia">Dia</button><button data-fin-period="semana">Semana</button><button class="act" data-fin-period="mes">Mes</button>
               </div>
+              <label><span>Fecha de referencia</span><input id="finFechaReferencia" type="date"></label>
+            </div>
+            <div id="finDashboardKpis" class="finance-kpis"></div>
+            <div class="finance-dashboard-grid">
+              <section class="surface finance-chart-main">
+                <div class="surface-title"><div><h3>Ingresos y gastos</h3><p id="finFlowCaption">Comportamiento del periodo seleccionado.</p></div></div>
+                <div id="finFlowChart" class="finance-flow-chart"></div>
+              </section>
+              <section class="surface finance-category-panel">
+                <div class="surface-title"><div><h3>Gastos por categoria</h3><p>Distribucion real del periodo.</p></div></div>
+                <div id="finCategoryChart" class="finance-category-chart"></div>
+              </section>
+              <section class="surface finance-recent-panel">
+                <div class="surface-title"><div><h3>Actividad reciente</h3><p>Ultimos movimientos confirmados.</p></div><button id="btnVerMovimientosFin" class="text-button">Ver todos</button></div>
+                <div id="finRecentList" class="finance-timeline"></div>
+              </section>
+              <section class="surface finance-planning-panel">
+                <div class="surface-title"><div><h3>Planificacion</h3><p>Presupuestos y vencimientos que requieren atencion.</p></div></div>
+                <div id="finBudgetAlerts" class="finance-planning-list"></div>
+              </section>
+            </div>
+            <div id="provResumen" class="inline-metrics finance-legacy-metrics"></div>
+            <section class="cost-analysis-band finance-cost-analysis">
+              <div id="provAnalisis" class="cost-analysis-copy"></div>
+              <div id="provVencimientos" class="due-list"></div>
+            </section>
+          </section>
+
+          <section id="provPanelMovimientos" class="cost-panel oculto">
+            <div class="surface finance-movement-surface">
+              <div class="surface-title">
+                <div><h3>Movimientos</h3><p>Filtra, revisa y exporta el libro financiero sin alterar su historial.</p></div>
+                <div class="button-row admin-only oculto"><button id="btnNuevoGasto" class="secondary">Gasto detallado</button><button id="btnFinQuickMov" class="primary">Entrada rapida</button></div>
+              </div>
+              <div class="finance-filters">
+                <label class="filter-grow"><span>Buscar</span><input id="finMovementSearch" type="search" placeholder="Descripcion, persona, categoria o folio"></label>
+                <label><span>Tipo</span><select id="finMovementType"><option value="">Todos</option><option value="ingreso">Ingresos</option><option value="gasto">Gastos</option><option value="transferencia">Transferencias</option></select></label>
+                <label><span>Cuenta</span><select id="finMovementAccount"><option value="">Todas</option></select></label>
+                <label><span>Categoria</span><select id="finMovementCategory"><option value="">Todas</option></select></label>
+              </div>
+              <div class="button-row finance-export-row"><button id="btnFinExportCsv" class="secondary">CSV / Excel</button><button id="btnFinExportPdf" class="secondary">PDF</button><button id="btnFinBackup" class="secondary">Copia completa</button></div>
+              <div id="finMovimientosTabla" class="table-wrap"></div>
+              <details class="finance-legacy-details"><summary>Administrar gastos importados o registrados desde la caja</summary><div id="provGastosTabla" class="table-wrap"></div></details>
+            </div>
+          </section>
+
+          <section id="provPanelCuentas" class="cost-panel oculto">
+            <div class="surface-title fin-accounts-heading">
+              <div><h3>Cuentas y saldos</h3><p>El patrimonio se recalcula desde cada movimiento; una transferencia nunca duplica dinero.</p></div>
+              <div class="button-row admin-only oculto"><button id="btnNuevaTransferencia" class="primary">Nueva transferencia</button><button id="btnNuevaCuentaFin" class="secondary">Agregar cuenta</button></div>
             </div>
             <div id="finCuentasCards" class="fin-accounts"></div>
-            <section class="surface"><div class="surface-title"><div><h3>Movimientos del mes</h3><p>Ingresos, gastos y transferencias de las cuentas en el mes seleccionado.</p></div></div><div id="finMovimientosTabla" class="table-wrap"></div></section>
+            <section class="surface finance-account-help"><strong>Regla de saldo</strong><p>Ingreso suma, gasto resta y transferencia mueve el mismo monto entre dos cuentas. Las tarjetas muestran deuda, no un saldo disponible ficticio.</p></section>
           </section>
-          <section id="provPanelGastos" class="surface cost-panel oculto"><div class="surface-title"><div><h3>Gastos registrados</h3><p>Edita categoria, importe, metodo y nota sin perder auditoria.</p></div></div><div id="provGastosTabla" class="table-wrap"></div></section>
-          <section id="provPanelRecurrentes" class="surface cost-panel oculto"><div class="surface-title"><div><h3>Planes recurrentes</h3><p>Nomina quincenal, alquiler, servicios, suscripciones y cargos variables.</p></div><button id="btnGenerarObligaciones" class="secondary admin-only oculto">Generar vencimientos</button></div><div id="provRecurrentesTabla" class="table-wrap"></div></section>
-          <section id="provPanelObligaciones" class="surface cost-panel oculto"><div class="surface-title"><div><h3>Facturas y deudas</h3><p>Saldo, fecha limite, pagos parciales y comprobantes respaldados en la nube.</p></div></div><div id="provObligacionesTabla" class="table-wrap"></div></section>
-          <section id="provPanelRecibos" class="surface cost-panel oculto"><div class="surface-title"><div><h3>Recibos de pago</h3><p>Nomina, servicios y otros pagos con firma pendiente o confirmada.</p></div></div><div id="provRecibosTabla" class="table-wrap"></div></section>
+
+          <section id="provPanelPresupuestos" class="cost-panel oculto">
+            <div class="surface-title"><div><h3>Presupuestos</h3><p>Limites semanales, mensuales o anuales por categoria con alertas de consumo.</p></div><button id="btnFinNuevoPresupuesto" class="primary admin-only oculto">Nuevo presupuesto</button></div>
+            <div id="finPresupuestosCards" class="finance-budget-grid"></div>
+          </section>
+
+          <section id="provPanelTarjetas" class="cost-panel oculto">
+            <div class="surface-title"><div><h3>Tarjetas de credito</h3><p>Deuda, disponible, fecha de corte y pago sin contabilizar el gasto dos veces.</p></div><button id="btnFinNuevaTarjeta" class="primary admin-only oculto">Configurar tarjeta</button></div>
+            <div id="finTarjetasCards" class="finance-card-grid"></div>
+          </section>
+
+          <section id="provPanelRecurrentes" class="surface cost-panel oculto"><div class="surface-title"><div><h3>Pagos planificados</h3><p>Nomina quincenal, alquiler, servicios, suscripciones y cargos variables.</p></div><div class="button-row admin-only oculto"><button id="btnNuevoRecurrente" class="primary">Nuevo plan</button><button id="btnGenerarObligaciones" class="secondary">Generar vencimientos</button></div></div><div id="provRecurrentesTabla" class="table-wrap"></div></section>
+          <section id="provPanelObligaciones" class="surface cost-panel oculto"><div class="surface-title"><div><h3>Facturas y deudas</h3><p>Saldo, fecha limite, pagos parciales y comprobantes respaldados en la nube.</p></div><button id="btnNuevaObligacion" class="primary admin-only oculto">Nueva factura o deuda</button></div><div id="provObligacionesTabla" class="table-wrap"></div></section>
+          <section id="provPanelRecibos" class="surface cost-panel oculto"><div class="surface-title"><div><h3>Recibos de pago</h3><p>Nomina, servicios y otros pagos con firma pendiente o confirmada.</p></div><button id="btnNuevoRecibo" class="primary admin-only oculto">Nuevo recibo</button></div><div id="provRecibosTabla" class="table-wrap"></div></section>
+
+          <section id="provPanelAjustes" class="cost-panel oculto finance-settings-grid">
+            <section class="surface"><div class="surface-title"><div><h3>Preferencias</h3><p>Moneda, cuentas predeterminadas y periodo de inicio.</p></div></div><form id="finSettingsForm" class="form-grid"><label><span>Moneda principal</span><select id="finPrefCurrency" name="monedaPrincipal"></select></label><label><span>Periodo inicial</span><select id="finPrefPeriod" name="periodoDashboard"><option value="dia">Dia</option><option value="semana">Semana</option><option value="mes">Mes</option></select></label><label><span>Cuenta habitual para gastos</span><select id="finPrefExpenseAccount" name="cuentaGastoDefaultId"></select></label><label><span>Cuenta habitual para ingresos</span><select id="finPrefIncomeAccount" name="cuentaIngresoDefaultId"></select></label><div class="field-wide button-row"><button type="submit" class="primary admin-only oculto">Guardar preferencias</button></div></form></section>
+            <section class="surface"><div class="surface-title"><div><h3>Categorias</h3><p>Estructura padre e hijo para ingresos y gastos.</p></div><button id="btnNuevaCategoriaGasto" class="secondary admin-only oculto">Agregar categoria</button></div><div id="finCategoriasTabla" class="table-wrap"></div></section>
+            <section class="surface"><div class="surface-title"><div><h3>Divisas</h3><p>Tasas manuales respecto a la moneda principal.</p></div><button id="btnFinNuevaDivisa" class="secondary admin-only oculto">Agregar divisa</button></div><div id="finDivisasTabla" class="table-wrap"></div></section>
+            <section class="surface"><div class="surface-title"><div><h3>Respaldo y portabilidad</h3><p>Supabase guarda el libro. Tambien puedes descargar o compartir una copia compatible con iCloud Drive y Google Drive.</p></div></div><div class="button-row"><button id="btnFinBackupSettings" class="primary">Descargar / compartir copia</button><button id="btnFinRestorePreview" class="secondary">Validar archivo</button><input id="finRestoreFile" class="visually-hidden" type="file" accept="application/json,.json"></div><p id="finBackupStatus" class="field-hint">La restauracion nunca se ejecuta sin una revision previa.</p></section>
+          </section>
         </section>
 
         <section id="v-asistente" class="vista oculto">
@@ -403,7 +468,7 @@
   <script src="supabase.min.js"></script>
   <script src="jspdf.umd.min.js"></script>
   <script src="jspdf.plugin.autotable.min.js"></script>
-  <script src="panel.js?v=20260718-finanzas-fase2"></script>
+  <script src="panel.js?v=20260718-money-manager-journal"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));
