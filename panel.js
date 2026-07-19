@@ -395,7 +395,8 @@
 
   function iaMessageBody(message) {
     const content = String(message.content || "");
-    if (content.length <= 1800) return `<div class="message-body">${iaMarkdown(content)}</div>`;
+    const collapseAt = message.role === "user" ? 1800 : 12000;
+    if (content.length <= collapseAt) return `<div class="message-body">${iaMarkdown(content)}</div>`;
     const title = content.split(/\r?\n/).find(Boolean)?.trim().slice(0, 90) || "Documento extenso";
     const preview = content.replace(/\s+/g, " ").trim().slice(0, 320);
     return `<details class="assistant-long-message">
