@@ -10,7 +10,7 @@
   <title>D' Carela Compufoto | Panel POS</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="dcarela-logo.png">
-  <link rel="stylesheet" href="panel.css?v=20260719-compromisos-frecuencia">
+  <link rel="stylesheet" href="panel.css?v=20260719-finanzas-tarjetas">
 </head>
 <body>
   <section id="access" class="access-shell">
@@ -295,7 +295,7 @@
             <div class="surface finance-movement-surface">
               <div class="surface-title">
                 <div><h3>Movimientos</h3><p>Filtra, revisa y exporta el libro financiero sin alterar su historial.</p></div>
-                <div class="button-row admin-only oculto"><button id="btnNuevoGasto" class="secondary">Gasto detallado</button><button id="btnFinQuickMov" class="primary">Entrada rapida</button></div>
+                <div class="button-row admin-only oculto"><button id="btnNuevoGasto" class="secondary">Nuevo gasto</button><button id="btnFinQuickMov" class="primary">Entrada rapida</button></div>
               </div>
               <div class="finance-filters">
                 <label class="filter-grow"><span>Buscar</span><input id="finMovementSearch" type="search" placeholder="Descripcion, persona, categoria o folio"></label>
@@ -324,7 +324,7 @@
           </section>
 
           <section id="provPanelTarjetas" class="cost-panel oculto">
-            <div class="surface-title"><div><h3>Tarjetas de credito</h3><p>Deuda, disponible, fecha de corte y pago sin contabilizar el gasto dos veces.</p></div><button id="btnFinNuevaTarjeta" class="primary admin-only oculto">Configurar tarjeta</button></div>
+            <div class="surface-title"><div><h3>Tarjetas de credito</h3><p>Deuda y disponible en tiempo real. Corte el dia 30; pago maximo el dia 5 del mes siguiente.</p></div><button id="btnFinNuevaTarjeta" class="primary admin-only oculto">Configurar tarjeta</button></div>
             <div id="finTarjetasCards" class="finance-card-grid"></div>
           </section>
 
@@ -480,7 +480,7 @@
   <script src="supabase.min.js"></script>
   <script src="jspdf.umd.min.js"></script>
   <script src="jspdf.plugin.autotable.min.js"></script>
-  <script src="panel.js?v=20260719-compromisos-frecuencia"></script>
+  <script src="panel.js?v=20260719-finanzas-tarjetas"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));

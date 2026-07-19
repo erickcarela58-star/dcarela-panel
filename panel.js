@@ -2756,7 +2756,7 @@
         <span>${esc(account.nombre)}</span><strong>${money(debt)}</strong><small>Deuda actual</small>
         <div class="finance-card-line"><span>Disponible</span><b>${money(available)}</b></div>
         <div class="finance-card-line"><span>Proximo corte</span><b>${fechaCorta(dates.cut)}</b></div>
-        <div class="finance-card-line"><span>Fecha de pago</span><b>${fechaCorta(dates.pay)}</b></div>
+        <div class="finance-card-line"><span>Pago maximo</span><b>${fechaCorta(dates.pay)}</b></div>
         <i><em style="width:${percent}%"></em></i>
         ${avisoFavor}
         ${acciones}
@@ -3139,16 +3139,17 @@
     const creditAccounts = state.accounts.filter(item => item.tipo === "tarjeta_credito" && item.estado !== "eliminada");
     if (!creditAccounts.length) { toast("Agrega primero una cuenta de tipo Tarjeta de credito."); setCostTab("cuentas"); return; }
     const account = creditAccounts.find(item => item.id === accountId) || creditAccounts[0];
-    const card = state.cards.find(item => item.cuenta_id === account.id) || { cuenta_id: account.id, dia_corte: 25, dia_pago: 5, limite_credito_centavos: 0, color: "#0A3679", metodo_visualizacion: "al_comprar" };
+    const card = state.cards.find(item => item.cuenta_id === account.id) || { cuenta_id: account.id, dia_corte: 30, dia_pago: 5, limite_credito_centavos: 0, color: "#0A3679", metodo_visualizacion: "al_comprar" };
     const accountOptions = creditAccounts.map(item => `<option value="${esc(item.id)}"${selected(account.id, item.id)}>${esc(item.nombre)}</option>`).join("");
     const payOptions = `<option value="">Selecciona la cuenta de pago</option>${state.accounts.filter(item => item.tipo !== "tarjeta_credito" && !item.oculta).map(item => `<option value="${esc(item.id)}"${selected(card.cuenta_pago_id, item.id)}>${esc(item.nombre)}</option>`).join("")}`;
-    abrirEditor("Configurar tarjeta", "Las compras son gasto al realizarlas; el pago mueve dinero del banco a la tarjeta sin crear otro gasto.", `
+    abrirEditor("Configurar tarjeta", "Las compras aumentan la deuda y reducen el disponible. El pago mueve dinero del banco a la tarjeta sin crear otro gasto.", `
       <label><span>Cuenta de tarjeta</span><select name="cuentaId">${accountOptions}</select></label>
       <label><span>Cuenta habitual de pago</span><select name="cuentaPagoId">${payOptions}</select></label>
-      <label><span>Dia de corte</span><input name="diaCorte" type="number" min="1" max="31" value="${esc(card.dia_corte)}"></label>
-      <label><span>Dia de pago</span><input name="diaPago" type="number" min="1" max="31" value="${esc(card.dia_pago)}"></label>
+      <label><span>Dia de corte</span><input name="diaCorte" type="number" value="30" readonly></label>
+      <label><span>Pago maximo</span><input name="diaPago" type="number" value="5" readonly></label>
       <label><span>Limite (RD$)</span><input name="limite" type="number" min="0" step="0.01" value="${pesoInput(card.limite_credito_centavos)}"></label>
       <label><span>Color</span><input name="color" type="color" value="${esc(card.color || "#0A3679")}"></label>
+      <p class="field-hint field-wide">La tarjeta cierra el dia 30 y debe pagarse, como maximo, el dia 5 del mes siguiente.</p>
       <label class="field-wide"><span>Mostrar el gasto</span><select name="metodoVisualizacion"><option value="al_comprar"${selected(card.metodo_visualizacion, "al_comprar")}>Cuando se compra (recomendado)</option><option value="al_pagar"${selected(card.metodo_visualizacion, "al_pagar")}>Cuando se paga</option></select></label>`, async form => {
       await adminWrite("fin.card.upsert", form.get("cuentaId"), {
         cuentaId: form.get("cuentaId"), cuentaPagoId: form.get("cuentaPagoId") || null,
@@ -3846,7 +3847,7 @@
     $("btnNuevaCategoria").addEventListener("click", abrirCategoria);
     $("btnNuevoCliente").addEventListener("click", () => abrirCliente());
     $("btnNuevaCategoriaGasto").addEventListener("click", () => abrirCategoriaFin());
-    $("btnNuevoGasto").addEventListener("click", () => cargarCostosCloud().then(state => abrirGasto(state)).catch(error => toast(error.message)));
+    $("btnNuevoGasto").addEventListener("click", () => abrirMovimientoFin("gasto"));
     $("btnNuevoRecurrente").addEventListener("click", () => cargarCostosCloud().then(state => abrirRecurrente(state)).catch(error => toast(error.message)));
     $("btnNuevaObligacion").addEventListener("click", () => cargarCostosCloud().then(state => abrirObligacion(state)).catch(error => toast(error.message)));
     $("btnNuevoRecibo").addEventListener("click", () => cargarCostosCloud().then(state => abrirReciboPago(state)).catch(error => toast(error.message)));

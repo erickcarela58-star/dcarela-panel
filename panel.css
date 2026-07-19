@@ -367,11 +367,12 @@ tbody tr:hover { background: rgba(23,151,232,.045); }
 @keyframes financeWidth { from { width: 0; } }
 
 .visually-hidden { position: absolute !important; width: 1px !important; height: 1px !important; padding: 0 !important; margin: -1px !important; overflow: hidden !important; clip: rect(0,0,0,0) !important; white-space: nowrap !important; border: 0 !important; }
+#v-asistente:not(.oculto) { min-height: 520px; height: calc(100dvh - 142px); display: flex; flex-direction: column; }
 .assistant-heading { align-items: center; }
 .assistant-status-line { display: flex; align-items: center; gap: 7px; }
 .assistant-status-line .status-pill { color: #075d51; background: rgba(22,133,121,.12); border: 1px solid rgba(22,133,121,.18); }
 .assistant-status-line .status-pill.bad { color: #87232c; background: rgba(197,63,72,.1); border-color: rgba(197,63,72,.18); }
-.assistant-layout { min-height: 690px; height: calc(100vh - 165px); display: grid; grid-template-columns: 230px minmax(440px,1fr) 270px; overflow: hidden; background: rgba(246,250,254,.62); border: 1px solid rgba(255,255,255,.82); border-radius: 8px; box-shadow: var(--shadow); backdrop-filter: blur(22px) saturate(120%); }
+.assistant-layout { min-height: 0; height: auto; flex: 1 1 auto; display: grid; grid-template-columns: 220px minmax(440px,1fr) 260px; overflow: hidden; background: rgba(246,250,254,.62); border: 1px solid rgba(255,255,255,.82); border-radius: 8px; box-shadow: var(--shadow); backdrop-filter: blur(22px) saturate(120%); }
 .assistant-history-panel, .assistant-control-panel { min-width: 0; padding: 14px; overflow: auto; background: rgba(226,236,246,.54); }
 .assistant-history-panel { border-right: 1px solid var(--line); }
 .assistant-control-panel { border-left: 1px solid var(--line); }
@@ -387,7 +388,7 @@ tbody tr:hover { background: rgba(23,151,232,.045); }
 .assistant-conversation span { font-size: 11px; font-weight: 800; }
 .assistant-conversation small { margin-top: 3px; color: var(--muted); font-size: 9px; }
 .assistant-conversation .archive { width: 25px; height: 25px; padding: 0; color: var(--muted); background: transparent; border: 0; font-size: 15px; }
-.assistant-chat-panel { min-width: 0; display: grid; grid-template-rows: auto minmax(0,1fr) auto auto auto; background: rgba(255,255,255,.27); }
+.assistant-chat-panel { min-width: 0; min-height: 0; overflow: hidden; display: grid; grid-template-rows: auto minmax(0,1fr) auto auto auto auto; background: rgba(255,255,255,.27); }
 .assistant-chat-header { min-height: 66px; padding: 11px 16px; display: flex; align-items: center; justify-content: space-between; gap: 14px; border-bottom: 1px solid var(--line); background: rgba(255,255,255,.46); backdrop-filter: blur(14px); }
 .assistant-chat-header strong, .assistant-chat-header small { display: block; }
 .assistant-chat-header strong { font-size: 13px; }
@@ -395,7 +396,7 @@ tbody tr:hover { background: rgba(23,151,232,.045); }
 .assistant-model { width: min(230px,42%); color: var(--muted); font-size: 9px; font-weight: 800; }
 .assistant-model span { display: block; margin-bottom: 3px; }
 .assistant-model select { min-height: 35px; padding-block: 6px; font-size: 10px; }
-.assistant-messages { min-height: 0; padding: 18px; overflow-y: auto; scroll-behavior: smooth; }
+.assistant-messages { min-height: 0; padding: 18px max(18px,calc((100% - 980px)/2)); overflow-y: auto; overscroll-behavior: contain; scroll-behavior: smooth; }
 .assistant-empty { max-width: 480px; margin: 11vh auto 0; color: var(--muted); text-align: center; }
 .assistant-empty strong { color: var(--navy); font-size: 17px; }
 .assistant-empty p { font-size: 12px; line-height: 1.55; }
@@ -429,7 +430,7 @@ tbody tr:hover { background: rgba(23,151,232,.045); }
 .assistant-attachments { padding: 8px 14px 0; display: flex; gap: 6px; flex-wrap: wrap; }
 .assistant-file-chip { display: inline-flex; align-items: center; gap: 7px; max-width: 220px; padding: 6px 8px; color: #334a68; background: rgba(255,255,255,.7); border: 1px solid var(--line); border-radius: 5px; font-size: 9px; }
 .assistant-file-chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.assistant-file-chip button { padding: 0; color: var(--red); background: transparent; border: 0; font-weight: 900; }
-.assistant-composer { padding: 10px 14px 14px; display: grid; grid-template-columns: 38px minmax(0,1fr) auto; gap: 8px; align-items: end; }
+.assistant-composer { position: relative; z-index: 2; padding: 10px 14px 14px; display: grid; grid-template-columns: 38px minmax(0,1fr) auto; gap: 8px; align-items: end; background: rgba(241,247,252,.9); border-top: 1px solid rgba(31,61,99,.1); backdrop-filter: blur(18px) saturate(125%); }
 .assistant-composer textarea { min-height: 48px; max-height: 150px; resize: none; line-height: 1.4; }
 .assistant-attach { width: 38px; height: 38px; margin-bottom: 5px; border-radius: 6px; font-size: 21px; }
 .assistant-send { min-height: 48px; padding-inline: 18px; }
@@ -460,7 +461,9 @@ tbody tr:hover { background: rgba(23,151,232,.045); }
   .finance-settings-grid { grid-template-columns: 1fr; }
   .finance-filters { grid-template-columns: minmax(220px,2fr) repeat(2,minmax(130px,1fr)); }
   .finance-filters label:last-child { grid-column: 2 / 3; }
-  .assistant-layout { height: auto; min-height: 760px; grid-template-columns: 210px minmax(0,1fr); }
+  #v-asistente:not(.oculto) { height: auto; min-height: 0; }
+  .assistant-layout { height: auto; min-height: 0; grid-template-columns: 210px minmax(0,1fr); }
+  .assistant-chat-panel { height: min(680px,calc(100dvh - 120px)); min-height: 520px; }
   .assistant-control-panel { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 12px; border-left: 0; border-top: 1px solid var(--line); max-height: 300px; }
   .assistant-control-panel > .assistant-panel-title { margin-top: 0; }
 }
@@ -494,7 +497,7 @@ tbody tr:hover { background: rgba(23,151,232,.045); }
   .assistant-layout { display: flex; flex-direction: column; width: 100%; height: auto; min-height: 0; overflow: visible; }
   .assistant-history-panel { max-height: 170px; border-right: 0; border-bottom: 1px solid var(--line); }
   .assistant-conversations { display: flex; overflow-x: auto; }.assistant-conversation { min-width: 190px; }
-  .assistant-chat-panel { min-height: 0; }
+  .assistant-chat-panel { height: auto; min-height: 0; overflow: visible; }
   .assistant-messages { min-height: 220px; max-height: 55vh; }
   /* 16px evita que iOS haga zoom al enfocar el textarea (lo que rompia el toque). */
   .assistant-composer textarea { font-size: 16px; min-height: 52px; }
