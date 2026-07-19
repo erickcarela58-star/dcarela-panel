@@ -10,7 +10,7 @@
   <title>D' Carela Compufoto | Panel POS</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="dcarela-logo.png">
-  <link rel="stylesheet" href="panel.css?v=20260719-asistente-finanzas-v2">
+  <link rel="stylesheet" href="panel.css?v=20260719-asistente-v13-v3">
 </head>
 <body>
   <section id="access" class="access-shell">
@@ -353,25 +353,32 @@
 
         <section id="v-asistente" class="vista oculto">
           <div class="section-heading assistant-heading">
-            <div><h2>Asistente IA</h2><p>Resuelve tareas completas con datos reales. Los cambios seguros se aplican al instante y pueden deshacerse.</p></div>
+            <div><h2>Conversaciones</h2><p id="iaContextHeadline">Contexto del negocio y memoria operativa</p></div>
             <div class="assistant-status-line"><span id="iaStatus" class="status-pill">Comprobando</span><span id="iaRole" class="tag">--</span></div>
           </div>
-          <div class="assistant-layout">
-            <aside class="assistant-history-panel">
+          <div id="iaLayout" class="assistant-layout">
+            <button id="iaDrawerScrim" class="assistant-drawer-scrim" type="button" aria-label="Cerrar panel lateral"></button>
+            <aside id="iaHistoryPanel" class="assistant-history-panel" aria-label="Historial de conversaciones">
+              <div class="assistant-drawer-header"><strong>Conversaciones</strong><button id="btnIaCerrarHistorial" class="icon-button" type="button" aria-label="Cerrar conversaciones">&#215;</button></div>
               <button id="btnIaNueva" class="primary wide" type="button">Nueva conversacion</button>
-              <div class="assistant-panel-title"><strong>Conversaciones</strong><small>Guardadas en la nube</small></div>
+              <label class="assistant-history-search"><span class="visually-hidden">Buscar conversaciones</span><input id="iaConversationSearch" type="search" placeholder="Buscar conversacion..."></label>
+              <div class="assistant-panel-title"><strong>Historial</strong><small>Guardado en la nube</small></div>
               <div id="iaConversations" class="assistant-conversations"></div>
             </aside>
 
             <section class="assistant-chat-panel" aria-label="Conversacion con el asistente">
               <header class="assistant-chat-header">
-                <div><strong id="iaConversationTitle">Nueva conversacion</strong><small id="iaModelEffective">Datos del POS disponibles segun tu rol</small></div>
-                <label class="assistant-model"><span>Modelo</span><select id="iaModel"></select></label>
+                <button id="btnIaHistorial" class="secondary assistant-header-button" type="button" aria-controls="iaHistoryPanel" aria-expanded="false">Conversaciones</button>
+                <div class="assistant-chat-identity"><strong id="iaConversationTitle">Nueva conversacion</strong><small id="iaModelEffective">Datos del POS disponibles segun tu rol</small></div>
+                <div class="assistant-chat-tools">
+                  <label class="assistant-model"><span>Modelo</span><select id="iaModel"></select></label>
+                  <button id="btnIaControl" class="secondary assistant-header-button" type="button" aria-controls="iaControlPanel" aria-expanded="false">Control</button>
+                </div>
               </header>
               <div id="iaMessages" class="assistant-messages" aria-live="polite">
                 <div class="assistant-empty">
-                  <strong>Pregunta o solicita una accion</strong>
-                  <p>Describe el objetivo en lenguaje natural. Solo las operaciones de alto riesgo requieren confirmacion.</p>
+                  <strong>Nueva conversacion</strong>
+                  <p>Escribe una pregunta, una orden o adjunta un documento.</p>
                 </div>
               </div>
               <div id="iaSuggestions" class="assistant-suggestions">
@@ -381,7 +388,7 @@
               </div>
               <div id="iaAttachments" class="assistant-attachments oculto"></div>
               <form id="iaComposer" class="assistant-composer">
-                <input id="iaFiles" class="visually-hidden" type="file" multiple accept="image/*,application/pdf,text/plain,text/csv,application/json">
+                <input id="iaFiles" class="visually-hidden" type="file" multiple accept="image/*,application/pdf,text/plain,text/csv,application/json,.txt,.md,.csv,.json">
                 <button id="btnIaAdjuntar" class="icon-button assistant-attach" type="button" title="Adjuntar imagen o documento" aria-label="Adjuntar imagen o documento">+</button>
                 <textarea id="iaInput" rows="2" maxlength="8000" placeholder="Escribe una pregunta u orden para el POS..."></textarea>
                 <button id="btnIaEnviar" class="primary assistant-send" type="submit">Enviar</button>
@@ -389,9 +396,12 @@
               <p id="iaError" class="error assistant-error" role="alert"></p>
             </section>
 
-            <aside class="assistant-control-panel">
-              <div class="assistant-panel-title"><strong>Control y permisos</strong><small id="iaAccessSummary">Verificando acceso</small></div>
+            <aside id="iaControlPanel" class="assistant-control-panel" aria-label="Control, memoria y permisos">
+              <div class="assistant-drawer-header"><strong>Control</strong><button id="btnIaCerrarControl" class="icon-button" type="button" aria-label="Cerrar control">&#215;</button></div>
+              <div class="assistant-panel-title"><strong>Acceso</strong><small id="iaAccessSummary">Verificando</small></div>
               <div id="iaCapabilities" class="assistant-capabilities"></div>
+              <div class="assistant-panel-title"><strong>Memoria activa</strong><small id="iaDocumentSummary">Sin documentos</small></div>
+              <div id="iaDocuments" class="assistant-documents"></div>
               <div class="assistant-panel-title admin-only oculto"><strong>Aprobaciones</strong><small>Ordenes que esperan confirmacion</small></div>
               <div id="iaApprovals" class="assistant-approvals admin-only oculto"></div>
               <details class="assistant-permissions admin-only oculto">
@@ -480,7 +490,7 @@
   <script src="supabase.min.js"></script>
   <script src="jspdf.umd.min.js"></script>
   <script src="jspdf.plugin.autotable.min.js"></script>
-  <script src="panel.js?v=20260719-asistente-finanzas-v2"></script>
+  <script src="panel.js?v=20260719-asistente-v13-v3"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));

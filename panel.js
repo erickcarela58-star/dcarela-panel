@@ -354,10 +354,55 @@
     }).join("")}</div>`;
   }
 
+  function iaFileSize(bytes) {
+    const value = Number(bytes) || 0;
+    if (value < 1024) return `${value} B`;
+    if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`;
+    return `${(value / 1024 / 1024).toFixed(1)} MB`;
+  }
+
+  function iaDocumentLabel(file) {
+    const kind = file.document_kind || file.kind || "reference";
+    if (kind === "system_rules") return "Reglas activas";
+    if (kind === "invoice") return "Factura";
+    if (kind === "dataset") return "Datos";
+    if (kind === "image") return "Imagen";
+    return "Documento";
+  }
+
+  function iaDocumentCards(files) {
+    if (!files.length) return "";
+    return `<div class="assistant-document-list">${files.map(file => {
+      const details = [
+        file.version_label || file.version ? `v${file.version_label || file.version}` : "",
+        file.size || file.size_bytes ? iaFileSize(file.size || file.size_bytes) : "",
+        file.character_count ? `${Number(file.character_count).toLocaleString("es-DO")} caracteres` : "",
+      ].filter(Boolean).join(" / ");
+      const verified = file.persisted || file.id || file.document_id;
+      const state = file.active === false ? "Archivado" : verified ? iaDocumentLabel(file) : "Preparando";
+      return `<article class="assistant-document-card">
+        <strong>${esc(file.name || file.original_name || "documento")}</strong>
+        <small>${esc(details || file.mime || file.mime_type || "Archivo adjunto")}</small>
+        <span class="assistant-document-state">${esc(state)}</span>
+      </article>`;
+    }).join("")}</div>`;
+  }
+
   function iaAttachmentsMeta(message) {
     const files = Array.isArray(message?.metadata?.attachments) ? message.metadata.attachments : [];
-    if (!files.length) return "";
-    return `<div class="message-body"><p>${files.map(file => `Adjunto: ${esc(file.name || "documento")}`).join("<br>")}</p></div>`;
+    return iaDocumentCards(files);
+  }
+
+  function iaMessageBody(message) {
+    const content = String(message.content || "");
+    if (content.length <= 1800) return `<div class="message-body">${iaMarkdown(content)}</div>`;
+    const title = content.split(/\r?\n/).find(Boolean)?.trim().slice(0, 90) || "Documento extenso";
+    const preview = content.replace(/\s+/g, " ").trim().slice(0, 320);
+    return `<details class="assistant-long-message">
+      <summary><span>${esc(title)}</span><small>${content.length.toLocaleString("es-DO")} caracteres</small></summary>
+      <p class="assistant-long-preview">${esc(preview)}...</p>
+      <div class="message-body assistant-long-content">${iaMarkdown(content)}</div>
+    </details>`;
   }
 
   function iaMessageHtml(message) {
@@ -366,7 +411,7 @@
     return `<article class="assistant-message ${role}" data-message-id="${esc(message.id || "")}">
       <span class="message-role">${esc(label)}</span>
       <button class="assistant-copy" type="button" data-copy-message="${esc(message.id || "")}" title="Copiar mensaje" aria-label="Copiar mensaje">&#10697;</button>
-      <div class="message-body">${iaMarkdown(message.content)}</div>
+      ${iaMessageBody(message)}
       ${iaAttachmentsMeta(message)}
       ${role === "assistant" ? iaQuickActionsHtml(message) : ""}
       <div class="assistant-message-meta">${esc(fecha(message.created_at))}</div>
@@ -419,18 +464,42 @@
     $("iaMessages").innerHTML = chunks.length ? chunks.join("") : `<div class="assistant-empty"><strong>Pregunta o solicita una accion</strong><p>El asistente usara datos reales y documentara cada cambio.</p></div>`;
     $("iaConversationTitle").textContent = history?.conversation?.title || "Nueva conversacion";
     if (history?.conversation?.model) $("iaModel").value = history.conversation.model;
+    renderIaDocuments(history?.active_documents || iaStatusCache?.active_documents || []);
     iaBindMessageActions(messages);
     requestAnimationFrame(() => { $("iaMessages").scrollTop = $("iaMessages").scrollHeight; });
   }
 
+  function renderIaDocuments(documents) {
+    const active = (Array.isArray(documents) ? documents : []).filter(document => document.active !== false && document.is_active !== false);
+    $("iaDocumentSummary").textContent = active.length ? `${active.length} vigente${active.length === 1 ? "" : "s"}` : "Sin documentos";
+    $("iaDocuments").innerHTML = active.length ? iaDocumentCards(active) : `<div class="empty-state compact"><p>No hay reglas ni documentos activos.</p></div>`;
+    const rules = active.find(document => (document.kind || document.document_kind) === "system_rules");
+    $("iaContextHeadline").textContent = rules
+      ? `Reglas ${rules.version || rules.version_label ? `v${rules.version || rules.version_label}` : "operativas"} activas`
+      : "Contexto del negocio y memoria operativa";
+  }
+
+  function setIaDrawer(name, open) {
+    const layout = $("iaLayout");
+    const history = name === "history" && open;
+    const control = name === "control" && open;
+    layout.classList.toggle("history-open", history);
+    layout.classList.toggle("control-open", control);
+    $("btnIaHistorial").setAttribute("aria-expanded", String(history));
+    $("btnIaControl").setAttribute("aria-expanded", String(control));
+  }
+
   function renderIaConversations() {
-    $("iaConversations").innerHTML = iaConversations.length ? iaConversations.map(conversation => `
+    const query = ($("iaConversationSearch")?.value || "").trim().toLocaleLowerCase("es");
+    const visible = query ? iaConversations.filter(conversation => String(conversation.title || "").toLocaleLowerCase("es").includes(query)) : iaConversations;
+    $("iaConversations").innerHTML = visible.length ? visible.map(conversation => `
       <button class="assistant-conversation ${String(conversation.id) === String(iaConversationId) ? "act" : ""}" type="button" data-ia-conversation="${esc(conversation.id)}">
         <span><span>${esc(conversation.title || "Nueva conversacion")}</span><small>${esc(fecha(conversation.updated_at))}</small></span>
         <span class="archive" data-ia-archive="${esc(conversation.id)}" title="Archivar" aria-label="Archivar conversacion">&#215;</span>
       </button>`).join("") : `<div class="empty-state">Aun no hay conversaciones.</div>`;
     $("iaConversations").querySelectorAll("[data-ia-conversation]").forEach(button => button.addEventListener("click", event => {
       if (event.target.closest("[data-ia-archive]")) return;
+      setIaDrawer("history", false);
       abrirConversacionIa(button.dataset.iaConversation).catch(error => { $("iaError").textContent = error.message; });
     }));
     $("iaConversations").querySelectorAll("[data-ia-archive]").forEach(button => button.addEventListener("click", async event => {
@@ -473,6 +542,7 @@
     $("iaInput").disabled = !status.configured || !status.capabilities?.can_use;
     $("btnIaEnviar").disabled = $("iaInput").disabled;
     $("btnIaAdjuntar").disabled = $("iaInput").disabled;
+    renderIaDocuments(status.active_documents || []);
   }
 
   async function renderIaApprovals() {
@@ -563,9 +633,14 @@
     const files = [...fileList].slice(0, 4 - iaAttachments.length);
     const allowed = /^(image\/|application\/pdf$|text\/plain$|text\/csv$|application\/json$)/;
     for (const file of files) {
-      if (!allowed.test(file.type)) { toast(`Formato no compatible: ${file.name}`); continue; }
+      const extensionMime = /\.csv$/i.test(file.name) ? "text/csv"
+        : /\.json$/i.test(file.name) ? "application/json"
+        : /\.(txt|md|log)$/i.test(file.name) ? "text/plain"
+        : "application/octet-stream";
+      const mime = file.type || extensionMime;
+      if (!allowed.test(mime)) { toast(`Formato no compatible: ${file.name}`); continue; }
       if (file.size > 6 * 1024 * 1024) { toast(`${file.name} supera 6 MB.`); continue; }
-      iaAttachments.push({ name: file.name, mime: file.type || "application/octet-stream", data: await fileToBase64(file), size: file.size });
+      iaAttachments.push({ name: file.name, mime, data: await fileToBase64(file), size: file.size });
     }
     if (iaAttachments.reduce((sum, file) => sum + file.size, 0) > 8 * 1024 * 1024) {
       iaAttachments.pop();
@@ -3813,12 +3888,35 @@
       renderIaConversations();
       $("iaConversationTitle").textContent = "Nueva conversacion";
       $("iaMessages").innerHTML = `<div class="assistant-empty"><strong>Pregunta o solicita una accion</strong><p>El asistente usara datos reales y documentara cada cambio.</p></div>`;
+      setIaDrawer("history", false);
       $("iaInput").focus();
+    });
+    $("btnIaHistorial").addEventListener("click", () => setIaDrawer("history", !$("iaLayout").classList.contains("history-open")));
+    $("btnIaControl").addEventListener("click", () => setIaDrawer("control", !$("iaLayout").classList.contains("control-open")));
+    $("btnIaCerrarHistorial").addEventListener("click", () => setIaDrawer("history", false));
+    $("btnIaCerrarControl").addEventListener("click", () => setIaDrawer("control", false));
+    $("iaDrawerScrim").addEventListener("click", () => setIaDrawer("", false));
+    $("iaConversationSearch").addEventListener("input", renderIaConversations);
+    document.addEventListener("keydown", event => {
+      if (event.key === "Escape" && ($("iaLayout").classList.contains("history-open") || $("iaLayout").classList.contains("control-open"))) {
+        setIaDrawer("", false);
+      }
     });
     $("btnIaAdjuntar").addEventListener("click", () => $("iaFiles").click());
     $("iaFiles").addEventListener("change", event => {
       agregarAdjuntosIa(event.target.files).catch(error => { $("iaError").textContent = error.message; });
       event.target.value = "";
+    });
+    $("iaComposer").addEventListener("dragover", event => { event.preventDefault(); $("iaComposer").classList.add("dragging"); });
+    $("iaComposer").addEventListener("dragleave", () => $("iaComposer").classList.remove("dragging"));
+    $("iaComposer").addEventListener("drop", event => {
+      event.preventDefault();
+      $("iaComposer").classList.remove("dragging");
+      agregarAdjuntosIa(event.dataTransfer?.files || []).catch(error => { $("iaError").textContent = error.message; });
+    });
+    $("iaInput").addEventListener("paste", event => {
+      const files = [...(event.clipboardData?.files || [])];
+      if (files.length) agregarAdjuntosIa(files).catch(error => { $("iaError").textContent = error.message; });
     });
     $("iaComposer").addEventListener("submit", event => { event.preventDefault(); enviarMensajeIa(); });
     $("iaInput").addEventListener("keydown", event => {
