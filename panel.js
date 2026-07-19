@@ -2311,7 +2311,7 @@
   }
 
   async function cargarCuentasFin(month) {
-    const [cuentasRes, catsRes, movs, cardsRes, budgetsRes, preferencesRes, currenciesRes] = await Promise.all([
+    const [cuentasRes, catsRes, movs, cardsRes, budgetsRes, preferencesRes, currenciesRes, cumuloRes] = await Promise.all([
       sb.rpc("fin_account_balances", { p_business_id: BUSINESS }),
       sb.from("fin_categorias").select("id,nombre,tipo,categoria_padre_id,orden,origen,updated_at").eq("business_id", BUSINESS).eq("estado", "activa").order("tipo").order("orden").order("nombre"),
       cargarMovimientosFinMes(month),
@@ -2319,6 +2319,7 @@
       sb.from("fin_presupuestos").select("*").eq("business_id", BUSINESS).eq("estado", "activo").order("periodo_inicio", { ascending: false }).limit(500),
       sb.from("fin_preferencias").select("*").eq("business_id", BUSINESS).maybeSingle(),
       sb.from("fin_divisas").select("*").eq("business_id", BUSINESS).eq("activa", true).order("principal", { ascending: false }).order("codigo"),
+      sb.rpc("fin_cumulo_mensual", { p_business_id: BUSINESS }),
     ]);
     if (cuentasRes.error) throw cuentasRes.error;
     if (catsRes.error) throw catsRes.error;
@@ -2336,8 +2337,10 @@
       budgets: budgetsRes.data || [],
       preferences: preferencesRes.data || null,
       currencies: currenciesRes.data || [],
+      cumulo: cumuloRes.error ? null : (cumuloRes.data || null),
       month,
     };
+    dispararAlertaCumuloMensual();
     finDashboardPeriod = finStateCache.preferences?.periodo_dashboard || finDashboardPeriod;
     renderFinAccounts();
     renderFinMovements();
@@ -2346,6 +2349,17 @@
     renderFinSettings();
     await renderFinDashboard();
     subscribeFinanceRealtime();
+  }
+
+  function dispararAlertaCumuloMensual() {
+    if (!canEdit) return;
+    try {
+      const hoy = inputDate(new Date());
+      if (localStorage.getItem("finCumuloAlerta") === hoy) return;
+      sb.rpc("fin_alerta_cumulo_mensual", { p_business_id: BUSINESS })
+        .then(({ error }) => { if (!error) localStorage.setItem("finCumuloAlerta", hoy); })
+        .catch(() => {});
+    } catch { /* localStorage no disponible */ }
   }
 
   const FIN_CHART_COLORS = ["#0A3679", "#1797E8", "#FF7F03", "#168579", "#C53F48", "#7455A5", "#E2A62B", "#4A6D8C"];
@@ -2400,7 +2414,11 @@
         ${canEdit ? `<div class="fin-account-actions"><button type="button" data-fin-account-reconcile="${esc(account.id)}">Conciliar</button><button type="button" data-fin-account-edit="${esc(account.id)}">Editar</button></div>` : ""}
       </article>`;
     }).join("");
-    $("finCuentasCards").innerHTML = `<article class="fin-account total"><span class="fin-account-name">Patrimonio total</span><strong>${money(patrimonio)}</strong><small>Suma de cuentas incluidas</small></article>${cards}`;
+    const cumulo = state.cumulo;
+    const cumuloCard = cumulo && numero(cumulo.total_centavos) > 0
+      ? `<article class="fin-account cumulo"><span class="fin-account-name">Cumulo a saldar este mes</span><strong>${money(numero(cumulo.total_centavos))}</strong><small>${cumulo.compromisos_n || 0} compromisos${numero(cumulo.deuda_tarjetas_centavos) > 0 ? ` + ${money(numero(cumulo.deuda_tarjetas_centavos))} tarjetas` : ""} &middot; te avisa al telefono</small></article>`
+      : "";
+    $("finCuentasCards").innerHTML = `<article class="fin-account total"><span class="fin-account-name">Patrimonio total</span><strong>${money(patrimonio)}</strong><small>Suma de cuentas incluidas</small></article>${cumuloCard}${cards}`;
     $("finCuentasCards").querySelectorAll("[data-fin-account-ledger]").forEach(button => button.addEventListener("click", () => {
       const accountId = button.dataset.finAccountLedger;
       setCostTab("movimientos");
@@ -2532,23 +2550,66 @@
     }
     $("finTarjetasCards").innerHTML = cardAccounts.map(account => {
       const card = settings.get(account.id);
-      if (!card) return `<button type="button" class="finance-credit-card setup" data-fin-card="${esc(account.id)}"><strong>${esc(account.nombre)}</strong><span>Completar configuracion</span></button>`;
-      const debt = Math.max(0, -numero(account.saldo_actual_centavos));
+      const balance = numero(account.saldo_actual_centavos);
+      const debt = Math.max(0, -balance);
+      const aFavor = Math.max(0, balance);
+      const color = esc(card?.color || "#0A3679");
+      const avisoFavor = aFavor > 0
+        ? `<div class="finance-card-warning">Saldo a favor ${money(aFavor)}. En una tarjeta de credito revisa el saldo inicial: deberia ser tu deuda (o 0), no un monto positivo. Editala para que tus consumos se reflejen como deuda.</div>`
+        : "";
+      const acciones = `<div class="finance-card-actions">
+          <button type="button" class="finance-card-consumo" data-fin-card-consumo="${esc(account.id)}">Registrar consumo</button>
+          <button type="button" class="finance-card-pay" data-fin-card-pay="${esc(account.id)}">Registrar pago</button>
+        </div>`;
+      if (!card) {
+        return `<article class="finance-credit-card partial" style="--card-color:${color}">
+          <button type="button" class="finance-card-edit" data-fin-card="${esc(account.id)}" title="Configurar tarjeta">Configurar</button>
+          <span>${esc(account.nombre)}</span><strong>${money(debt)}</strong><small>Deuda actual</small>
+          <div class="finance-card-line"><span>Falta configurar</span><b>Corte, pago y limite</b></div>
+          ${avisoFavor}
+          ${acciones}
+        </article>`;
+      }
       const available = Math.max(0, numero(card.limite_credito_centavos) - debt);
       const dates = finCardDates(card);
       const percent = card.limite_credito_centavos ? Math.min(100, Math.round(debt * 100 / card.limite_credito_centavos)) : 0;
-      return `<article class="finance-credit-card" style="--card-color:${esc(card.color || "#0A3679")}">
+      return `<article class="finance-credit-card" style="--card-color:${color}">
         <button type="button" class="finance-card-edit" data-fin-card="${esc(account.id)}" title="Editar tarjeta">Editar</button>
         <span>${esc(account.nombre)}</span><strong>${money(debt)}</strong><small>Deuda actual</small>
         <div class="finance-card-line"><span>Disponible</span><b>${money(available)}</b></div>
         <div class="finance-card-line"><span>Proximo corte</span><b>${fechaCorta(dates.cut)}</b></div>
         <div class="finance-card-line"><span>Fecha de pago</span><b>${fechaCorta(dates.pay)}</b></div>
         <i><em style="width:${percent}%"></em></i>
-        <button type="button" class="finance-card-pay" data-fin-card-pay="${esc(account.id)}">Registrar pago</button>
+        ${avisoFavor}
+        ${acciones}
       </article>`;
     }).join("");
     $("finTarjetasCards").querySelectorAll("[data-fin-card]").forEach(button => button.addEventListener("click", () => abrirTarjetaFin(button.dataset.finCard)));
     $("finTarjetasCards").querySelectorAll("[data-fin-card-pay]").forEach(button => button.addEventListener("click", () => abrirPagoTarjetaFin(button.dataset.finCardPay)));
+    $("finTarjetasCards").querySelectorAll("[data-fin-card-consumo]").forEach(button => button.addEventListener("click", () => abrirConsumoTarjetaFin(button.dataset.finCardConsumo)));
+  }
+
+  function abrirConsumoTarjetaFin(accountId) {
+    const state = finStateCache;
+    const account = state?.accounts.find(item => item.id === accountId);
+    if (!account) { toast("Tarjeta no encontrada."); return; }
+    abrirEditor("Registrar consumo", `Compra o cargo con ${account.nombre}. Se registra como gasto y aumenta la deuda de la tarjeta; el pago posterior no lo vuelve a contar como gasto.`, `
+      <label><span>Monto (RD$)</span><input name="monto" type="number" min="0.01" step="0.01" required></label>
+      <label><span>Categoria</span><select name="categoriaId" required>${finCategoryOptions("gasto")}</select></label>
+      <label><span>Fecha</span><input name="fecha" type="date" required value="${inputDate(new Date())}"></label>
+      <label><span>Persona o comercio</span><input name="payee" maxlength="180" placeholder="Opcional"></label>
+      <label class="field-wide"><span>Descripcion</span><input name="descripcion" maxlength="500" required placeholder="Ej. Compra de materiales"></label>
+      <label class="field-wide"><span>Nota</span><textarea name="nota" rows="2" maxlength="1200"></textarea></label>`, async form => {
+      const amount = centavosInput(form.get("monto"));
+      if (amount <= 0) throw new Error("Escribe un monto mayor que cero.");
+      await adminWrite("fin.movement.create", null, {
+        tipo: "gasto", montoCentavos: amount, cuentaId: accountId,
+        categoriaId: form.get("categoriaId"), fecha: form.get("fecha"), payee: form.get("payee"),
+        descripcion: form.get("descripcion"), nota: form.get("nota"), origen: "panel",
+      });
+      cerrarEditor();
+      await cargarCuentasFin($("provMes").value);
+    });
   }
 
   function renderFinSettings() {
@@ -2672,24 +2733,38 @@
       nombre: "", tipo: "banco", grupo: "", moneda: "DOP", saldo_inicial_centavos: 0,
       incluir_en_total: true, ligada_ventas: false, oculta: false, orden: 10,
     };
+    const esTarjeta = item.tipo === "tarjeta_credito";
+    const saldoMostrado = esTarjeta ? Math.abs(numero(item.saldo_inicial_centavos)) : item.saldo_inicial_centavos;
     abrirEditor(account ? "Editar cuenta" : "Agregar cuenta", "El saldo se recalcula desde el saldo inicial y todos sus movimientos.", `
       <label><span>Nombre</span><input name="nombre" required maxlength="120" value="${esc(item.nombre)}"></label>
-      <label><span>Tipo</span><select name="tipo">${finTipoOptions(item.tipo)}</select></label>
+      <label><span>Tipo</span><select name="tipo" id="finAccountTipo">${finTipoOptions(item.tipo)}</select></label>
       <label><span>Grupo</span><input name="grupo" maxlength="120" value="${esc(item.grupo || "")}"></label>
-      <label><span>Saldo inicial (RD$)</span><input name="saldoInicial" type="number" step="0.01" required value="${pesoInput(item.saldo_inicial_centavos)}"></label>
+      <label><span id="finAccountSaldoLabel">${esTarjeta ? "Deuda inicial (RD$)" : "Saldo inicial (RD$)"}</span><input name="saldoInicial" type="number" step="0.01" required value="${pesoInput(saldoMostrado)}"></label>
+      <p id="finAccountSaldoHint" class="field-hint field-wide"${esTarjeta ? "" : ' style="display:none"'}>En una tarjeta de credito escribe cuanto DEBES hoy (0 si esta al dia). Las compras se registran despues con "Registrar consumo".</p>
       <label><span>Moneda</span><input name="moneda" maxlength="8" value="${esc(item.moneda || "DOP")}"></label>
       <label><span>Orden</span><input name="orden" type="number" step="1" value="${esc(item.orden || 0)}"></label>
       <label class="check-row"><input name="incluirEnTotal" type="checkbox"${checked(item.incluir_en_total)}><span>Incluir en patrimonio total</span></label>
       <label class="check-row"><input name="ligadaVentas" type="checkbox"${checked(item.ligada_ventas)}><span>Cuenta ligada a ventas</span></label>
       <label class="check-row field-wide"><input name="oculta" type="checkbox"${checked(item.oculta)}><span>Ocultar cuenta sin borrar su historial</span></label>`, async form => {
+      const tipo = form.get("tipo");
+      let saldo = centavosConSignoInput(form.get("saldoInicial"));
+      if (tipo === "tarjeta_credito") saldo = -Math.abs(saldo);
       await adminWrite("fin.account.upsert", account?.id, {
-        nombre: form.get("nombre"), tipo: form.get("tipo"), grupo: form.get("grupo"),
-        moneda: form.get("moneda"), saldoInicialCentavos: centavosConSignoInput(form.get("saldoInicial")),
+        nombre: form.get("nombre"), tipo, grupo: form.get("grupo"),
+        moneda: form.get("moneda"), saldoInicialCentavos: saldo,
         incluirEnTotal: form.get("incluirEnTotal") === "on", ligadaVentas: form.get("ligadaVentas") === "on",
         oculta: form.get("oculta") === "on", orden: Number(form.get("orden")) || 0,
       });
       cerrarEditor();
       await cargarCuentasFin($("provMes").value);
+    });
+    const tipoSel = $("finAccountTipo");
+    const saldoLabel = $("finAccountSaldoLabel");
+    const saldoHint = $("finAccountSaldoHint");
+    tipoSel?.addEventListener("change", () => {
+      const card = tipoSel.value === "tarjeta_credito";
+      if (saldoLabel) saldoLabel.textContent = card ? "Deuda inicial (RD$)" : "Saldo inicial (RD$)";
+      if (saldoHint) saldoHint.style.display = card ? "" : "none";
     });
   }
 
