@@ -2446,9 +2446,9 @@
   }
 
   const FIN_COMMITMENT_FREQUENCY = {
-    unica: "Una vez", semanal: "Semanal", quincenal: "Cada 14 dias",
+    unica: "Una vez", semanal: "Semanal", quincenal: "Quincenal",
     mensual: "Mensual", bimestral: "Cada 2 meses", trimestral: "Trimestral",
-    semestral: "Semestral", anual: "Anual",
+    semestral: "Semestral", anual: "Anual", personalizada: "Personalizada",
   };
 
   function optionalInteger(value) {
@@ -2476,7 +2476,10 @@
       <label><span>Frecuencia</span><select name="frecuencia">${frequencyOptions}</select></label>
       <label><span>Cuota o importe previsto (RD$)</span><input name="monto" type="number" min="0" step="0.01" required value="${pesoInput(item.monto_centavos)}"></label>
       <label><span>Proximo vencimiento</span><input name="proximoVencimiento" type="date" value="${esc(item.proximo_vencimiento || "")}"></label>
-      <label><span>Dia semanal (lunes = 1)</span><input name="diaSemana" type="number" min="1" max="7" value="${esc(item.dia_semana ?? "")}"></label>
+      <label data-frequency-field="semanal"><span>Dia semanal</span><select name="diaSemana"><option value="">Usar fecha de inicio</option><option value="1"${selected(item.dia_semana, 1)}>Lunes</option><option value="2"${selected(item.dia_semana, 2)}>Martes</option><option value="3"${selected(item.dia_semana, 3)}>Miercoles</option><option value="4"${selected(item.dia_semana, 4)}>Jueves</option><option value="5"${selected(item.dia_semana, 5)}>Viernes</option><option value="6"${selected(item.dia_semana, 6)}>Sabado</option><option value="7"${selected(item.dia_semana, 7)}>Domingo</option></select></label>
+      <label data-frequency-field="quincenal"><span>Primer dia de pago</span><input name="diaMes1" type="number" min="1" max="31" value="${esc(item.dia_mes_1 ?? "")}" placeholder="Ej. 15"></label>
+      <label data-frequency-field="quincenal"><span>Segundo dia de pago</span><input name="diaMes2" type="number" min="1" max="31" value="${esc(item.dia_mes_2 ?? "")}" placeholder="Ej. 30"></label>
+      <label data-frequency-field="personalizada"><span>Repetir cada cuantos dias</span><input name="intervaloDias" type="number" min="1" max="3650" value="${esc(item.intervalo_dias ?? "")}" placeholder="Ej. 10"></label>
       <label><span>Fecha de inicio</span><input name="fechaInicio" type="date" value="${esc(item.fecha_inicio || "")}"></label>
       <label><span>Saldo contractual pendiente (RD$)</span><input name="saldoPendiente" type="number" min="0" step="0.01" value="${item.saldo_pendiente_centavos == null ? "" : pesoInput(item.saldo_pendiente_centavos)}"></label>
       <label><span>Capital pendiente (RD$)</span><input name="capitalPendiente" type="number" min="0" step="0.01" value="${item.capital_pendiente_centavos == null ? "" : pesoInput(item.capital_pendiente_centavos)}"></label>
@@ -2492,10 +2495,17 @@
       const capital = optionalCents(form.get("capitalPendiente"));
       const charges = optionalCents(form.get("cargosPendientes"));
       if (balance != null && capital != null && capital > balance) throw new Error("El capital no puede superar el saldo contractual.");
+      const frequency = form.get("frecuencia");
+      const intervaloDias = optionalInteger(form.get("intervaloDias"));
+      const diaMes1 = optionalInteger(form.get("diaMes1"));
+      const diaMes2 = optionalInteger(form.get("diaMes2"));
+      if (frequency === "personalizada" && !intervaloDias) throw new Error("La frecuencia personalizada necesita intervalo en dias.");
+      if (frequency === "quincenal" && diaMes1 && diaMes2 && diaMes1 === diaMes2) throw new Error("Los dos dias quincenales deben ser diferentes.");
       await adminWrite("fin.commitment.upsert", commitment?.id, {
-        nombre: form.get("nombre"), tipo: form.get("tipo"), frecuencia: form.get("frecuencia"),
+        nombre: form.get("nombre"), tipo: form.get("tipo"), frecuencia: frequency,
         montoCentavos: centavosInput(form.get("monto")), proximoVencimiento: form.get("proximoVencimiento") || null,
-        diaSemana: optionalInteger(form.get("diaSemana")), fechaInicio: form.get("fechaInicio") || null,
+        diaSemana: optionalInteger(form.get("diaSemana")), diaMes1, diaMes2, intervaloDias,
+        fechaInicio: form.get("fechaInicio") || null,
         saldoInicialRegistradoCentavos: commitment?.saldo_inicial_registrado_centavos ?? balance,
         saldoPendienteCentavos: balance, capitalPendienteCentavos: capital,
         cargosInteresesPendientesCentavos: charges,
@@ -2508,6 +2518,16 @@
       await cargarProveedores(true);
       setCostTab("compromisos");
     });
+    const editorForm = $("editorForm");
+    const frequencySelect = editorForm?.elements?.frecuencia;
+    const updateFrequencyFields = () => {
+      const frequency = frequencySelect?.value || "mensual";
+      editorForm?.querySelectorAll("[data-frequency-field]").forEach(field => {
+        field.classList.toggle("oculto", field.dataset.frequencyField !== frequency);
+      });
+    };
+    frequencySelect?.addEventListener("change", updateFrequencyFields);
+    updateFrequencyFields();
   }
 
   function abrirPagoCompromisoFin(commitment) {
@@ -2564,11 +2584,18 @@
       + metric("Tarjetas", money(summary.deuda_tarjetas_centavos || 0));
     const dueMap = new Map((summary.detalle || []).map(item => [String(item.id), item]));
     const rows = state.commitments || [];
+    const frequencyLabel = item => {
+      if (item.frecuencia === "quincenal" && (item.dia_mes_1 || item.dia_mes_2)) {
+        return `Quincenal ${[item.dia_mes_1, item.dia_mes_2].filter(Boolean).join(" y ")}`;
+      }
+      if (item.frecuencia === "personalizada") return `Cada ${item.intervalo_dias || "?"} dias`;
+      return FIN_COMMITMENT_FREQUENCY[item.frecuencia] || item.frecuencia || "--";
+    };
     $("finCompromisosTabla").innerHTML = tabla(rows, item => {
       const due = dueMap.get(String(item.id)) || {};
       const installments = item.cuotas_totales
         ? `Cuota ${item.cuota_actual || Math.min(item.cuotas_pagadas + 1, item.cuotas_totales)} de ${item.cuotas_totales} (${Math.max(0, item.cuotas_totales - item.cuotas_pagadas)} restante(s))`
-        : FIN_COMMITMENT_FREQUENCY[item.frecuencia] || item.frecuencia;
+        : frequencyLabel(item);
       const actions = canEdit ? `<div class="table-actions"><button type="button" data-fin-commitment-pay="${esc(item.id)}"${item.activo ? "" : " disabled"}>Pagar</button><button type="button" data-fin-commitment-edit="${esc(item.id)}">Editar</button>${item.activo ? `<button type="button" data-fin-commitment-off="${esc(item.id)}">Desactivar</button>` : ""}</div>` : "";
       return [
         `<strong>${esc(item.nombre)}</strong><small>${esc(item.nota || "")}</small>`,

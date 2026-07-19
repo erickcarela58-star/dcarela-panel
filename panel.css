@@ -290,6 +290,7 @@ tbody tr:hover { background: rgba(23,151,232,.045); }
 .finance-commitment-surface td strong,
 .finance-commitment-surface td small { display: block; }
 .finance-commitment-surface td small { max-width: 320px; margin-top: 3px; color: var(--muted); line-height: 1.35; }
+.editor-dialog [data-frequency-field] { padding: 9px 10px; background: rgba(255,255,255,.42); border: 1px solid rgba(255,255,255,.72); border-radius: 7px; box-shadow: 0 5px 15px rgba(15,42,78,.04); }
 .table-actions { display: flex; flex-wrap: wrap; gap: 5px; min-width: 185px; }
 .table-actions button { min-height: 28px; padding: 5px 8px; border-radius: 5px; box-shadow: none; font-size: 9px; }
 .amount.pos { color: var(--green); }
