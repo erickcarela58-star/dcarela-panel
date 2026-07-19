@@ -326,6 +326,9 @@
 
   function iaActionHtml(action) {
     const status = action.status || "pending";
+    const actionError = status === "error"
+      ? String(action?.result?.error || action?.result?.message || "La accion fallo sin un detalle registrado.")
+      : "";
     const canResolve = status === "pending" && (canEdit || !action.requires_admin_approval);
     const canUndo = status === "executed" && action.reversible && (canEdit || !action.requires_admin_approval);
     const approval = action.requires_admin_approval && status === "pending"
@@ -339,6 +342,7 @@
       <strong>${esc(IA_ACTION_LABELS[action.action] || action.action || "Cambio propuesto")}</strong>
       <p>${esc(action.summary || "Revisa esta propuesta antes de aplicarla.")}</p>
       <small>${esc(approval)}${action.required_capability ? ` · ${esc(IA_CAPABILITY_LABELS[action.required_capability] || action.required_capability)}` : ""}</small>
+      ${actionError ? `<div class="assistant-action-error"><strong>Detalle del error</strong><span>${esc(actionError)}</span></div>` : ""}
       ${canResolve ? `<div class="assistant-action-buttons"><button class="primary" type="button" data-ia-confirm="${esc(action.id)}">Aplicar</button><button class="secondary" type="button" data-ia-cancel="${esc(action.id)}">Cancelar</button></div>` : ""}
       ${canUndo ? `<div class="assistant-action-buttons"><button class="secondary assistant-undo" type="button" data-ia-undo="${esc(action.id)}">Deshacer cambio</button></div>` : ""}
     </article>`;
