@@ -10,7 +10,7 @@
   <title>D' Carela Compufoto | Panel POS</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="dcarela-logo.png">
-  <link rel="stylesheet" href="panel.css?v=20260718-tarjetas">
+  <link rel="stylesheet" href="panel.css?v=20260718-compromisos">
 </head>
 <body>
   <section id="access" class="access-shell">
@@ -249,6 +249,7 @@
               <button data-cost-tab="cuentas" role="tab">Cuentas</button>
               <button data-cost-tab="presupuestos" role="tab">Presupuestos</button>
               <button data-cost-tab="tarjetas" role="tab">Tarjetas</button>
+              <button data-cost-tab="compromisos" role="tab">Compromisos</button>
               <button data-cost-tab="recurrentes" role="tab">Planificados</button>
               <button data-cost-tab="obligaciones" role="tab">Facturas y deudas</button>
               <button data-cost-tab="recibos" role="tab">Recibos</button>
@@ -325,6 +326,17 @@
           <section id="provPanelTarjetas" class="cost-panel oculto">
             <div class="surface-title"><div><h3>Tarjetas de credito</h3><p>Deuda, disponible, fecha de corte y pago sin contabilizar el gasto dos veces.</p></div><button id="btnFinNuevaTarjeta" class="primary admin-only oculto">Configurar tarjeta</button></div>
             <div id="finTarjetasCards" class="finance-card-grid"></div>
+          </section>
+
+          <section id="provPanelCompromisos" class="cost-panel oculto">
+            <div class="surface-title">
+              <div><h3>Compromisos y prestamos</h3><p>Cuotas del mes, saldo contractual, capital pendiente y pagos sin duplicar gastos.</p></div>
+              <button id="btnFinNuevoCompromiso" class="primary admin-only oculto">Nuevo compromiso</button>
+            </div>
+            <div id="finCompromisosResumen" class="inline-metrics"></div>
+            <section class="surface finance-commitment-surface">
+              <div id="finCompromisosTabla" class="table-wrap"></div>
+            </section>
           </section>
 
           <section id="provPanelRecurrentes" class="surface cost-panel oculto"><div class="surface-title"><div><h3>Pagos planificados</h3><p>Nomina quincenal, alquiler, servicios, suscripciones y cargos variables.</p></div><div class="button-row admin-only oculto"><button id="btnNuevoRecurrente" class="primary">Nuevo plan</button><button id="btnGenerarObligaciones" class="secondary">Generar vencimientos</button></div></div><div id="provRecurrentesTabla" class="table-wrap"></div></section>
@@ -468,7 +480,7 @@
   <script src="supabase.min.js"></script>
   <script src="jspdf.umd.min.js"></script>
   <script src="jspdf.plugin.autotable.min.js"></script>
-  <script src="panel.js?v=20260718-tarjetas"></script>
+  <script src="panel.js?v=20260718-compromisos"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));

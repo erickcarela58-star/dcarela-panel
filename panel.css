@@ -280,11 +280,18 @@ tbody tr:hover { background: rgba(23,151,232,.045); }
 .fin-accounts-heading .button-row { margin-top: 0; }
 .fin-account.neg { border-left-color: var(--red); }
 .fin-account.pos { border-left-color: var(--green); }
-.fin-account.total { border-left-color: var(--navy); background: rgba(10,54,121,.08); }.fin-account.cumulo { padding: 13px 14px; border-left-color: var(--orange); background: rgba(255,127,3,.1); }.fin-account.cumulo strong { color: var(--orange); }
+.fin-account.total { border-left-color: var(--navy); background: rgba(10,54,121,.08); }.fin-account.cumulo { border-left-color: var(--orange); background: rgba(255,127,3,.1); }.fin-account.cumulo strong { color: var(--orange); }
 .fin-account-name { display: block; color: var(--muted); font-size: 10px; font-weight: 750; text-transform: uppercase; letter-spacing: 0; }
 .fin-account strong { display: block; margin: 5px 0 2px; color: var(--navy); font-size: 19px; font-variant-numeric: tabular-nums; }
 .fin-account.neg strong { color: var(--red); }
 .fin-account small { color: var(--muted); font-size: 9px; }
+.finance-commitment-surface { margin-top: 12px; padding: 0; overflow: hidden; }
+.finance-commitment-surface td:first-child { min-width: 210px; }
+.finance-commitment-surface td strong,
+.finance-commitment-surface td small { display: block; }
+.finance-commitment-surface td small { max-width: 320px; margin-top: 3px; color: var(--muted); line-height: 1.35; }
+.table-actions { display: flex; flex-wrap: wrap; gap: 5px; min-width: 185px; }
+.table-actions button { min-height: 28px; padding: 5px 8px; border-radius: 5px; box-shadow: none; font-size: 9px; }
 .amount.pos { color: var(--green); }
 .amount.neg { color: var(--red); }
 .cost-name { display: block; max-width: 260px; font-weight: 800; }

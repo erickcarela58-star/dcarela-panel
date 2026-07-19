@@ -1975,7 +1975,7 @@
   }
 
   function setCostTab(tab) {
-    const allowed = ["resumen", "movimientos", "cuentas", "presupuestos", "tarjetas", "recurrentes", "obligaciones", "recibos", "ajustes"];
+    const allowed = ["resumen", "movimientos", "cuentas", "presupuestos", "tarjetas", "compromisos", "recurrentes", "obligaciones", "recibos", "ajustes"];
     costTab = allowed.includes(tab) ? tab : "resumen";
     document.querySelectorAll("[data-cost-tab]").forEach(button => button.classList.toggle("act", button.dataset.costTab === costTab));
     $("provPanelResumen").classList.toggle("oculto", costTab !== "resumen");
@@ -1983,6 +1983,7 @@
     $("provPanelCuentas").classList.toggle("oculto", costTab !== "cuentas");
     $("provPanelPresupuestos").classList.toggle("oculto", costTab !== "presupuestos");
     $("provPanelTarjetas").classList.toggle("oculto", costTab !== "tarjetas");
+    $("provPanelCompromisos").classList.toggle("oculto", costTab !== "compromisos");
     $("provPanelRecurrentes").classList.toggle("oculto", costTab !== "recurrentes");
     $("provPanelObligaciones").classList.toggle("oculto", costTab !== "obligaciones");
     $("provPanelRecibos").classList.toggle("oculto", costTab !== "recibos");
@@ -2311,7 +2312,7 @@
   }
 
   async function cargarCuentasFin(month) {
-    const [cuentasRes, catsRes, movs, cardsRes, budgetsRes, preferencesRes, currenciesRes, cumuloRes] = await Promise.all([
+    const [cuentasRes, catsRes, movs, cardsRes, budgetsRes, preferencesRes, currenciesRes, cumuloRes, commitmentsRes, commitmentPaymentsRes] = await Promise.all([
       sb.rpc("fin_account_balances", { p_business_id: BUSINESS }),
       sb.from("fin_categorias").select("id,nombre,tipo,categoria_padre_id,orden,origen,updated_at").eq("business_id", BUSINESS).eq("estado", "activa").order("tipo").order("orden").order("nombre"),
       cargarMovimientosFinMes(month),
@@ -2320,6 +2321,10 @@
       sb.from("fin_preferencias").select("*").eq("business_id", BUSINESS).maybeSingle(),
       sb.from("fin_divisas").select("*").eq("business_id", BUSINESS).eq("activa", true).order("principal", { ascending: false }).order("codigo"),
       sb.rpc("fin_cumulo_mensual", { p_business_id: BUSINESS }),
+      sb.from("fin_compromisos").select("*").eq("business_id", BUSINESS)
+        .order("activo", { ascending: false }).order("proximo_vencimiento", { ascending: true, nullsFirst: false }),
+      sb.from("fin_compromiso_pagos").select("*").eq("business_id", BUSINESS)
+        .order("fecha", { ascending: false }).limit(500),
     ]);
     if (cuentasRes.error) throw cuentasRes.error;
     if (catsRes.error) throw catsRes.error;
@@ -2327,6 +2332,8 @@
     if (budgetsRes.error) throw budgetsRes.error;
     if (preferencesRes.error) throw preferencesRes.error;
     if (currenciesRes.error) throw currenciesRes.error;
+    if (commitmentsRes.error) throw commitmentsRes.error;
+    if (commitmentPaymentsRes.error) throw commitmentPaymentsRes.error;
     const cuentas = cuentasRes.data || [];
     const catsRows = catsRes.data || [];
     finStateCache = {
@@ -2338,11 +2345,14 @@
       preferences: preferencesRes.data || null,
       currencies: currenciesRes.data || [],
       cumulo: cumuloRes.error ? null : (cumuloRes.data || null),
+      commitments: commitmentsRes.data || [],
+      commitmentPayments: commitmentPaymentsRes.data || [],
       month,
     };
     dispararAlertaCumuloMensual();
     finDashboardPeriod = finStateCache.preferences?.periodo_dashboard || finDashboardPeriod;
     renderFinAccounts();
+    renderFinCommitments();
     renderFinMovements();
     await renderFinBudgets();
     renderFinCards();
@@ -2416,7 +2426,7 @@
     }).join("");
     const cumulo = state.cumulo;
     const cumuloCard = cumulo && numero(cumulo.total_centavos) > 0
-      ? `<article class="fin-account cumulo"><span class="fin-account-name">Cumulo a saldar este mes</span><strong>${money(numero(cumulo.total_centavos))}</strong><small>${cumulo.compromisos_n || 0} compromisos${numero(cumulo.deuda_tarjetas_centavos) > 0 ? ` + ${money(numero(cumulo.deuda_tarjetas_centavos))} tarjetas` : ""} &middot; te avisa al telefono</small></article>`
+      ? `<article class="fin-account cumulo"><button type="button" class="fin-account-open" data-fin-open-commitments title="Ver cuotas, capital y saldos pendientes"><span class="fin-account-name">Por saldar este mes</span><strong>${money(numero(cumulo.total_centavos))}</strong><small>${cumulo.compromisos_n || 0} vencimiento(s) &middot; prestamos pendientes ${money(numero(cumulo.deuda_prestamos_centavos))}</small></button></article>`
       : "";
     $("finCuentasCards").innerHTML = `<article class="fin-account total"><span class="fin-account-name">Patrimonio total</span><strong>${money(patrimonio)}</strong><small>Suma de cuentas incluidas</small></article>${cumuloCard}${cards}`;
     $("finCuentasCards").querySelectorAll("[data-fin-account-ledger]").forEach(button => button.addEventListener("click", () => {
@@ -2432,6 +2442,147 @@
     $("finCuentasCards").querySelectorAll("[data-fin-account-reconcile]").forEach(button => button.addEventListener("click", () => {
       abrirConciliacionCuentaFin(state.accounts.find(account => account.id === button.dataset.finAccountReconcile));
     }));
+    $("finCuentasCards").querySelector("[data-fin-open-commitments]")?.addEventListener("click", () => setCostTab("compromisos"));
+  }
+
+  const FIN_COMMITMENT_FREQUENCY = {
+    unica: "Una vez", semanal: "Semanal", quincenal: "Cada 14 dias",
+    mensual: "Mensual", bimestral: "Cada 2 meses", trimestral: "Trimestral",
+    semestral: "Semestral", anual: "Anual",
+  };
+
+  function optionalInteger(value) {
+    const text = String(value ?? "").trim();
+    if (!text) return null;
+    const parsed = Number(text);
+    if (!Number.isInteger(parsed) || parsed < 0) throw new Error("Escribe un numero entero valido.");
+    return parsed;
+  }
+
+  function optionalCents(value) {
+    return String(value ?? "").trim() ? centavosInput(value) : null;
+  }
+
+  function abrirCompromisoFin(commitment = null) {
+    const item = commitment || {
+      tipo: "obligacion", frecuencia: "mensual", activo: true,
+      proximo_vencimiento: todayKey(), cuotas_pagadas: 0,
+    };
+    const frequencyOptions = Object.entries(FIN_COMMITMENT_FREQUENCY)
+      .map(([value, label]) => `<option value="${value}"${selected(item.frecuencia, value)}>${label}</option>`).join("");
+    abrirEditor(commitment ? "Editar compromiso" : "Nuevo compromiso", "Separa la cuota del mes, el saldo contractual y el capital. El historial de pagos no se borra.", `
+      <label class="field-wide"><span>Nombre</span><input name="nombre" required maxlength="180" value="${esc(item.nombre || "")}"></label>
+      <label><span>Tipo</span><select name="tipo"><option value="prestamo"${selected(item.tipo, "prestamo")}>Prestamo</option><option value="servicio"${selected(item.tipo, "servicio")}>Servicio</option><option value="alquiler"${selected(item.tipo, "alquiler")}>Alquiler</option><option value="nomina"${selected(item.tipo, "nomina")}>Nomina</option><option value="obligacion"${selected(item.tipo, "obligacion")}>Otra obligacion</option></select></label>
+      <label><span>Frecuencia</span><select name="frecuencia">${frequencyOptions}</select></label>
+      <label><span>Cuota o importe previsto (RD$)</span><input name="monto" type="number" min="0" step="0.01" required value="${pesoInput(item.monto_centavos)}"></label>
+      <label><span>Proximo vencimiento</span><input name="proximoVencimiento" type="date" value="${esc(item.proximo_vencimiento || "")}"></label>
+      <label><span>Dia semanal (lunes = 1)</span><input name="diaSemana" type="number" min="1" max="7" value="${esc(item.dia_semana ?? "")}"></label>
+      <label><span>Fecha de inicio</span><input name="fechaInicio" type="date" value="${esc(item.fecha_inicio || "")}"></label>
+      <label><span>Saldo contractual pendiente (RD$)</span><input name="saldoPendiente" type="number" min="0" step="0.01" value="${item.saldo_pendiente_centavos == null ? "" : pesoInput(item.saldo_pendiente_centavos)}"></label>
+      <label><span>Capital pendiente (RD$)</span><input name="capitalPendiente" type="number" min="0" step="0.01" value="${item.capital_pendiente_centavos == null ? "" : pesoInput(item.capital_pendiente_centavos)}"></label>
+      <label><span>Intereses y cargos pendientes (RD$)</span><input name="cargosPendientes" type="number" min="0" step="0.01" value="${item.cargos_intereses_pendientes_centavos == null ? "" : pesoInput(item.cargos_intereses_pendientes_centavos)}"></label>
+      <label><span>Cuotas totales</span><input name="cuotasTotales" type="number" min="1" value="${esc(item.cuotas_totales ?? "")}"></label>
+      <label><span>Cuota actual</span><input name="cuotaActual" type="number" min="1" value="${esc(item.cuota_actual ?? "")}"></label>
+      <label><span>Cuotas pagadas</span><input name="cuotasPagadas" type="number" min="0" value="${esc(item.cuotas_pagadas ?? 0)}"></label>
+      <label class="checkbox-field"><input name="montoVariable" type="checkbox"${checked(item.monto_variable)}><span>El importe puede variar</span></label>
+      <label class="checkbox-field"><input name="capitalEsVariable" type="checkbox"${checked(item.capital_es_variable)}><span>El capital cambia con cada pago</span></label>
+      <label class="checkbox-field"><input name="activo" type="checkbox"${checked(item.activo !== false)}><span>Compromiso activo</span></label>
+      <label class="field-wide"><span>Nota</span><textarea name="nota" rows="3" maxlength="1400">${esc(item.nota || "")}</textarea></label>`, async form => {
+      const balance = optionalCents(form.get("saldoPendiente"));
+      const capital = optionalCents(form.get("capitalPendiente"));
+      const charges = optionalCents(form.get("cargosPendientes"));
+      if (balance != null && capital != null && capital > balance) throw new Error("El capital no puede superar el saldo contractual.");
+      await adminWrite("fin.commitment.upsert", commitment?.id, {
+        nombre: form.get("nombre"), tipo: form.get("tipo"), frecuencia: form.get("frecuencia"),
+        montoCentavos: centavosInput(form.get("monto")), proximoVencimiento: form.get("proximoVencimiento") || null,
+        diaSemana: optionalInteger(form.get("diaSemana")), fechaInicio: form.get("fechaInicio") || null,
+        saldoInicialRegistradoCentavos: commitment?.saldo_inicial_registrado_centavos ?? balance,
+        saldoPendienteCentavos: balance, capitalPendienteCentavos: capital,
+        cargosInteresesPendientesCentavos: charges,
+        cuotasTotales: optionalInteger(form.get("cuotasTotales")), cuotaActual: optionalInteger(form.get("cuotaActual")),
+        cuotasPagadas: optionalInteger(form.get("cuotasPagadas")) || 0,
+        montoVariable: form.get("montoVariable") === "on", capitalEsVariable: form.get("capitalEsVariable") === "on",
+        activo: form.get("activo") === "on", nota: form.get("nota"), metadata: item.metadata || {},
+      });
+      cerrarEditor();
+      await cargarProveedores(true);
+      setCostTab("compromisos");
+    });
+  }
+
+  function abrirPagoCompromisoFin(commitment) {
+    const accountOptions = (finStateCache?.accounts || []).filter(item => item.estado !== "eliminada")
+      .map(item => `<option value="${esc(item.id)}">${esc(item.nombre)}</option>`).join("");
+    abrirEditor("Registrar pago", `${commitment.nombre}. El saldo se reduce una sola vez y el desglose queda auditado.`, `
+      <label><span>Fecha</span><input name="fecha" type="date" required value="${todayKey()}"></label>
+      <label><span>Monto pagado (RD$)</span><input name="monto" type="number" min="0.01" step="0.01" required value="${pesoInput(commitment.monto_centavos)}"></label>
+      <label><span>Abono a capital (RD$)</span><input name="capital" type="number" min="0" step="0.01" value=""></label>
+      <label><span>Interes (RD$)</span><input name="interes" type="number" min="0" step="0.01" value=""></label>
+      <label><span>Otros cargos (RD$)</span><input name="cargos" type="number" min="0" step="0.01" value=""></label>
+      <label><span>Cuenta usada</span><select name="cuentaId"><option value="">Sin vincular</option>${accountOptions}</select></label>
+      <label><span>Numero de cuota</span><input name="numeroCuota" type="number" min="1" value="${esc(commitment.cuota_actual ?? "")}"></label>
+      <label><span>Cuotas aplicadas</span><input name="cuotasAplicadas" type="number" min="1" value="1"></label>
+      <label><span>Siguiente vencimiento (opcional)</span><input name="proximoVencimiento" type="date"></label>
+      <label><span>Referencia o recibo</span><input name="referencia" maxlength="180"></label>
+      <label class="field-wide"><span>Nota</span><textarea name="nota" rows="3" maxlength="1200"></textarea></label>`, async form => {
+      const amount = centavosInput(form.get("monto"));
+      const capital = optionalCents(form.get("capital")) || 0;
+      const interest = optionalCents(form.get("interes")) || 0;
+      const charges = optionalCents(form.get("cargos")) || 0;
+      if (capital + interest + charges > amount) throw new Error("Capital, interes y cargos no pueden superar el pago.");
+      await adminWrite("fin.commitment.payment", commitment.id, {
+        fecha: form.get("fecha"), montoCentavos: amount, capitalCentavos: capital,
+        interesCentavos: interest, cargosCentavos: charges, cuentaId: form.get("cuentaId") || null,
+        numeroCuota: optionalInteger(form.get("numeroCuota")), cuotasAplicadas: optionalInteger(form.get("cuotasAplicadas")) || 1,
+        proximoVencimiento: form.get("proximoVencimiento") || null,
+        referencia: form.get("referencia"), nota: form.get("nota"),
+      });
+      cerrarEditor();
+      await cargarProveedores(true);
+      setCostTab("compromisos");
+    }, "Registrar pago");
+  }
+
+  function desactivarCompromisoFin(commitment) {
+    abrirEditor("Desactivar compromiso", "No se borra ningun pago ni saldo historico. Puedes reactivarlo editandolo.", `
+      <div class="confirm-panel field-wide"><strong>${esc(commitment.nombre)}</strong><p>${money(commitment.saldo_pendiente_centavos || 0)} pendientes.</p></div>
+      <label class="field-wide"><span>Motivo</span><textarea name="motivo" rows="3" required></textarea></label>`, async form => {
+      await adminWrite("fin.commitment.deactivate", commitment.id, { motivo: form.get("motivo") });
+      cerrarEditor();
+      await cargarProveedores(true);
+      setCostTab("compromisos");
+    }, "Desactivar sin borrar");
+  }
+
+  function renderFinCommitments() {
+    const state = finStateCache;
+    if (!state) return;
+    const summary = state.cumulo || {};
+    $("finCompromisosResumen").innerHTML = metric("Por saldar este mes", money(summary.compromisos_centavos || 0))
+      + metric("Deuda de prestamos", money(summary.deuda_prestamos_centavos || 0))
+      + metric("Capital pendiente", money(summary.capital_prestamos_centavos || 0))
+      + metric("Tarjetas", money(summary.deuda_tarjetas_centavos || 0));
+    const dueMap = new Map((summary.detalle || []).map(item => [String(item.id), item]));
+    const rows = state.commitments || [];
+    $("finCompromisosTabla").innerHTML = tabla(rows, item => {
+      const due = dueMap.get(String(item.id)) || {};
+      const installments = item.cuotas_totales
+        ? `Cuota ${item.cuota_actual || Math.min(item.cuotas_pagadas + 1, item.cuotas_totales)} de ${item.cuotas_totales} (${Math.max(0, item.cuotas_totales - item.cuotas_pagadas)} restante(s))`
+        : FIN_COMMITMENT_FREQUENCY[item.frecuencia] || item.frecuencia;
+      const actions = canEdit ? `<div class="table-actions"><button type="button" data-fin-commitment-pay="${esc(item.id)}"${item.activo ? "" : " disabled"}>Pagar</button><button type="button" data-fin-commitment-edit="${esc(item.id)}">Editar</button>${item.activo ? `<button type="button" data-fin-commitment-off="${esc(item.id)}">Desactivar</button>` : ""}</div>` : "";
+      return [
+        `<strong>${esc(item.nombre)}</strong><small>${esc(item.nota || "")}</small>`,
+        `<span>${esc(installments)}</span><small>${item.proximo_vencimiento ? `Proximo ${esc(dateOnly(item.proximo_vencimiento))}` : "Sin fecha fija"}</small>`,
+        money(numero(due.monto_periodo_centavos)),
+        item.saldo_pendiente_centavos == null ? "--" : money(item.saldo_pendiente_centavos),
+        item.capital_pendiente_centavos == null ? "--" : money(item.capital_pendiente_centavos),
+        `<span class="tag ${item.activo ? "ok" : "bad"}">${item.activo ? "Activo" : "Inactivo"}</span>`,
+        actions,
+      ];
+    }, ["Compromiso", "Frecuencia / cuota", "Este mes", "Saldo total", "Capital", "Estado", "Acciones"]);
+    $("finCompromisosTabla").querySelectorAll("[data-fin-commitment-pay]").forEach(button => button.addEventListener("click", () => abrirPagoCompromisoFin(rows.find(item => item.id === button.dataset.finCommitmentPay))));
+    $("finCompromisosTabla").querySelectorAll("[data-fin-commitment-edit]").forEach(button => button.addEventListener("click", () => abrirCompromisoFin(rows.find(item => item.id === button.dataset.finCommitmentEdit))));
+    $("finCompromisosTabla").querySelectorAll("[data-fin-commitment-off]").forEach(button => button.addEventListener("click", () => desactivarCompromisoFin(rows.find(item => item.id === button.dataset.finCommitmentOff))));
   }
 
   function finMovementMatches(movement) {
@@ -3692,6 +3843,7 @@
     $("btnVerMovimientosFin").addEventListener("click", () => setCostTab("movimientos"));
     $("btnFinNuevoPresupuesto").addEventListener("click", () => abrirPresupuestoFin());
     $("btnFinNuevaTarjeta").addEventListener("click", () => abrirTarjetaFin());
+    $("btnFinNuevoCompromiso").addEventListener("click", () => abrirCompromisoFin());
     $("btnFinNuevaDivisa").addEventListener("click", () => abrirDivisaFin());
     $("finPeriodTabs").querySelectorAll("[data-fin-period]").forEach(button => button.addEventListener("click", () => {
       finDashboardPeriod = button.dataset.finPeriod;

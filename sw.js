@@ -1,8 +1,8 @@
-const CACHE = "dcarela-pos-shell-20260718-tarjetas";
+const CACHE = "dcarela-pos-shell-20260718-compromisos";
 const SHELL = [
   "./index.html",
-  "./panel.css?v=20260718-money-manager-journal",
-  "./panel.js?v=20260718-money-manager-journal",
+  "./panel.css?v=20260718-compromisos",
+  "./panel.js?v=20260718-compromisos",
   "./supabase.min.js",
   "./jspdf.umd.min.js",
   "./jspdf.plugin.autotable.min.js",
