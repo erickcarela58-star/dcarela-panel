@@ -656,17 +656,25 @@
 
   async function enviarMensajeIa() {
     if (iaBusy) return;
-    const message = $("iaInput").value.trim();
+    const input = $("iaInput");
+    const originalDraft = input.value;
+    const message = originalDraft.trim();
     if (!message && !iaAttachments.length) return;
+    const attachmentDraft = iaAttachments;
     iaBusy = true;
     $("iaError").textContent = "";
     $("btnIaEnviar").disabled = true;
-    const optimistic = { id: `temp-${Date.now()}`, role: "user", content: message || "Analiza los archivos adjuntos.", metadata: { attachments: iaAttachments }, created_at: new Date().toISOString() };
+    const optimistic = { id: `temp-${Date.now()}`, role: "user", content: message || "Analiza los archivos adjuntos.", metadata: { attachments: attachmentDraft }, created_at: new Date().toISOString() };
     const empty = $("iaMessages").querySelector(".assistant-empty");
     if (empty) empty.remove();
     $("iaMessages").insertAdjacentHTML("beforeend", iaMessageHtml(optimistic) + `<div id="iaThinking" class="assistant-thinking"><span>Pensando y consultando datos</span><i></i><i></i><i></i></div>`);
     $("iaMessages").scrollTop = $("iaMessages").scrollHeight;
-    const attachments = iaAttachments.map(({ name, mime, data }) => ({ name, mime, data }));
+    const attachments = attachmentDraft.map(({ name, mime, data }) => ({ name, mime, data }));
+    input.value = "";
+    input.style.height = "";
+    iaAttachments = [];
+    renderIaAttachments();
+    input.focus();
     try {
       const result = await iaRequest("chat", {
         conversation_id: iaConversationId,
@@ -676,10 +684,6 @@
       });
       iaConversationId = result.conversation.id;
       $("iaModelEffective").textContent = `Respuesta generada con ${result.effective_model}`;
-      $("iaInput").value = "";
-      $("iaInput").style.height = "";
-      iaAttachments = [];
-      renderIaAttachments();
       await cargarConversacionesIa(false);
       await abrirConversacionIa(iaConversationId);
       if (canEdit) await renderIaApprovals();
@@ -687,6 +691,14 @@
       $("iaThinking")?.remove();
       $("iaMessages").querySelector(`[data-message-id="${optimistic.id}"]`)?.remove();
       if (!$("iaMessages").children.length) $("iaMessages").innerHTML = `<div class="assistant-empty"><strong>Pregunta o solicita una accion</strong><p>El asistente usara datos reales y documentara cada cambio.</p></div>`;
+      if (!input.value) {
+        input.value = originalDraft;
+        input.dispatchEvent(new Event("input"));
+      }
+      if (!iaAttachments.length && attachmentDraft.length) {
+        iaAttachments = attachmentDraft;
+        renderIaAttachments();
+      }
       $("iaError").textContent = error.message;
       toast("El asistente no pudo completar la solicitud.");
     } finally {
