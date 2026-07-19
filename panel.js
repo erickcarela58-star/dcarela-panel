@@ -348,6 +348,14 @@
     </article>`;
   }
 
+  function iaHistoricalErrorsHtml(actions) {
+    if (!actions.length) return "";
+    return `<details class="assistant-historical-actions">
+      <summary><span>Errores tecnicos anteriores</span><small>${actions.length} registro${actions.length === 1 ? "" : "s"} conservado${actions.length === 1 ? "" : "s"} para auditoria</small></summary>
+      <div class="assistant-historical-list">${actions.map(iaActionHtml).join("")}</div>
+    </details>`;
+  }
+
   function iaQuickActionsHtml(message) {
     const actions = Array.isArray(message?.metadata?.quick_actions) ? message.metadata.quick_actions : [];
     if (!actions.length) return "";
@@ -465,7 +473,9 @@
         if (action) { chunks.push(iaActionHtml(action)); renderedActions.add(String(id)); }
       });
     });
-    actions.filter(action => !renderedActions.has(String(action.id))).forEach(action => chunks.push(iaActionHtml(action)));
+    const orphanedActions = actions.filter(action => !renderedActions.has(String(action.id)));
+    orphanedActions.filter(action => action.status !== "error").forEach(action => chunks.push(iaActionHtml(action)));
+    chunks.push(iaHistoricalErrorsHtml(orphanedActions.filter(action => action.status === "error")));
     $("iaMessages").innerHTML = chunks.length ? chunks.join("") : `<div class="assistant-empty"><strong>Pregunta o solicita una accion</strong><p>El asistente usara datos reales y documentara cada cambio.</p></div>`;
     $("iaConversationTitle").textContent = history?.conversation?.title || "Nueva conversacion";
     if (history?.conversation?.model) $("iaModel").value = history.conversation.model;

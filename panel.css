@@ -452,6 +452,11 @@ tbody tr:hover { background: rgba(23,151,232,.045); }
 .assistant-action-error strong { font-size: 10px; }
 .assistant-action-buttons { display: flex; gap: 6px; margin-top: 9px; }.assistant-action-buttons button { min-height: 31px; padding: 5px 10px; border-radius: 5px; font-size: 10px; font-weight: 800; }
 .assistant-action-buttons .assistant-undo { color: #17406f; background: rgba(255,255,255,.7); border-color: rgba(23,64,111,.22); }
+.assistant-historical-actions { max-width: min(840px,84%); margin: 2px 0 18px; border: 1px solid rgba(15,42,78,.12); border-radius: 7px; background: rgba(255,255,255,.54); overflow: hidden; }
+.assistant-historical-actions > summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 13px; color: var(--navy); cursor: pointer; font-size: 10px; font-weight: 800; list-style-position: inside; }
+.assistant-historical-actions > summary small { color: var(--muted); font-size: 9px; font-weight: 600; }
+.assistant-historical-list { display: grid; gap: 8px; padding: 0 10px 10px; }
+.assistant-historical-list .assistant-action-card { max-width: none; margin: 0; }
 .assistant-context-actions { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 12px; padding-top: 10px; border-top: 1px solid rgba(15,42,78,.09); }
 .assistant-context-actions button { min-height: 31px; padding: 6px 11px; border-radius: 6px; font-size: 9px; font-weight: 800; }
 .assistant-suggestions { padding: 8px max(14px,calc((100% - 1000px)/2)) 0; display: flex; gap: 6px; overflow-x: auto; }
