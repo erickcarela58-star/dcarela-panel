@@ -10,7 +10,7 @@
   <title>D' Carela Compufoto | Panel POS</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="dcarela-logo.png">
-  <link rel="stylesheet" href="panel.css?v=20260719-asistente-v13-v4">
+  <link rel="stylesheet" href="panel.css?v=20260719-asistente-v13-v5">
 </head>
 <body>
   <section id="access" class="access-shell">
@@ -368,6 +368,7 @@
 
             <section class="assistant-chat-panel" aria-label="Conversacion con el asistente">
               <header class="assistant-chat-header">
+                <a class="assistant-mobile-back secondary" href="#dashboard" aria-label="Volver al panel">Panel</a>
                 <button id="btnIaHistorial" class="secondary assistant-header-button" type="button" aria-controls="iaHistoryPanel" aria-expanded="false">Conversaciones</button>
                 <div class="assistant-chat-identity"><strong id="iaConversationTitle">Nueva conversacion</strong><small id="iaModelEffective">Datos del POS disponibles segun tu rol</small></div>
                 <div class="assistant-chat-tools">
@@ -490,7 +491,7 @@
   <script src="supabase.min.js"></script>
   <script src="jspdf.umd.min.js"></script>
   <script src="jspdf.plugin.autotable.min.js"></script>
-  <script src="panel.js?v=20260719-asistente-v13-v4"></script>
+  <script src="panel.js?v=20260719-asistente-v13-v5"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));
