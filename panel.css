@@ -495,10 +495,11 @@ tbody tr:hover { background: rgba(23,151,232,.045); }
      layout usaba overflow:hidden con alturas de escritorio y el cuadro de
      escribir quedaba fuera de alcance o intocable en el telefono. */
   .assistant-layout { display: flex; flex-direction: column; width: 100%; height: auto; min-height: 0; overflow: visible; }
-  .assistant-history-panel { max-height: 170px; border-right: 0; border-bottom: 1px solid var(--line); }
+  .assistant-chat-panel { order: 1; height: min(680px,calc(100dvh - 110px)); min-height: 540px; overflow: hidden; }
+  .assistant-history-panel { order: 2; max-height: 150px; border-right: 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+  .assistant-control-panel { order: 3; }
   .assistant-conversations { display: flex; overflow-x: auto; }.assistant-conversation { min-width: 190px; }
-  .assistant-chat-panel { height: auto; min-height: 0; overflow: visible; }
-  .assistant-messages { min-height: 220px; max-height: 55vh; }
+  .assistant-messages { min-height: 0; max-height: none; }
   /* 16px evita que iOS haga zoom al enfocar el textarea (lo que rompia el toque). */
   .assistant-composer textarea { font-size: 16px; min-height: 52px; }
   .assistant-control-panel { grid-column: auto; grid-template-columns: 1fr; max-height: none; }
