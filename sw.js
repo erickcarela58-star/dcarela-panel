@@ -1,4 +1,4 @@
-const CACHE = "dcarela-pos-shell-20260719-asistente-estable-v8";
+const CACHE = "dcarela-pos-shell-20260721-cobro-sync-v9";
 const SHELL = [
   "./index.html",
   "./panel.css?v=20260719-asistente-estable-v8",

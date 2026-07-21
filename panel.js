@@ -326,6 +326,15 @@
 
   function iaActionHtml(action) {
     const status = action.status || "pending";
+    const terminalSync = action?.result?.terminal_sync || null;
+    const terminalState = terminalSync?.state || "";
+    const terminalLabel = terminalState === "applied"
+      ? `Aplicada en terminal${terminalSync.applied_by_device_id ? ` ${terminalSync.applied_by_device_id}` : ""}${terminalSync.applied_at ? ` · ${fecha(terminalSync.applied_at)}` : ""}.`
+      : terminalState === "pending"
+        ? "Guardada en la nube y enviada; pendiente de confirmacion de una terminal."
+        : terminalState === "not_required"
+          ? "Guardada y verificada en la nube; no requiere modificar una terminal."
+          : "Guardada y verificada por el servicio.";
     const actionError = status === "error"
       ? String(action?.result?.error || action?.result?.message || "La accion fallo sin un detalle registrado.")
       : "";
@@ -335,8 +344,8 @@
       ? "Espera aprobacion administrativa."
       : status === "pending" && action.risk_level === "high"
         ? "Confirmacion requerida por seguridad."
-        : status === "executed" && action.execution_mode === "automatic"
-          ? "Aplicada automaticamente y reversible."
+        : status === "executed"
+          ? terminalLabel
           : iaStatusLabel(status);
     return `<article class="assistant-action-card ${esc(status)}" data-ia-action="${esc(action.id)}">
       <strong>${esc(IA_ACTION_LABELS[action.action] || action.action || "Cambio propuesto")}</strong>
