@@ -91,6 +91,35 @@
   const itbisDe = payload => numero(payload?.itbisCentavos, payload?.itbis_centavos, payload?.impuestoCentavos, payload?.impuesto_centavos);
   const montoDe = payload => numero(payload?.montoCentavos, payload?.monto_centavos, payload?.totalCentavos, payload?.total_centavos, payload?.efectivoContadoCentavos);
   const metodoDe = payload => String(payload?.metodo || payload?.metodoPago || payload?.metodo_pago || payload?.formaPago || "otro").toLowerCase();
+  const cuentasTransferenciaDe = payload => {
+    const pagos = Array.isArray(payload?.pagos) ? payload.pagos : [];
+    const nombres = pagos
+      .filter(pago => String(pago?.metodo || pago?.metodoPago || "").toLowerCase() === "transferencia")
+      .map(pago => pago?.cuentaFinancieraNombre || pago?.cuenta_financiera_nombre
+        || payload?.cuentaFinancieraNombre || payload?.cuenta_financiera_nombre)
+      .filter(Boolean);
+    if (!nombres.length && metodoDe(payload) === "transferencia") {
+      const nombre = payload?.cuentaFinancieraNombre || payload?.cuenta_financiera_nombre;
+      if (nombre) nombres.push(nombre);
+    }
+    return [...new Set(nombres.map(nombre => String(nombre).trim()).filter(Boolean))];
+  };
+  const metodoConCuentaDe = payload => {
+    const pagos = Array.isArray(payload?.pagos) ? payload.pagos : [];
+    if (pagos.length > 1) {
+      return pagos.map(pago => {
+        const metodo = String(pago?.metodo || pago?.metodoPago || "otro").toLowerCase();
+        const nombre = metodo === "transferencia"
+          ? pago?.cuentaFinancieraNombre || pago?.cuenta_financiera_nombre
+            || payload?.cuentaFinancieraNombre || payload?.cuenta_financiera_nombre
+          : null;
+        return `${metodo}${nombre ? ` · ${nombre}` : ""}`;
+      }).join(" + ");
+    }
+    const metodo = metodoDe(payload);
+    const cuentas = cuentasTransferenciaDe(payload);
+    return `${metodo}${cuentas.length ? ` · ${cuentas.join(" / ")}` : ""}`;
+  };
   const efectivoDe = payload => {
     const pagos = Array.isArray(payload?.pagos) ? payload.pagos : [];
     if (pagos.length) return pagos
@@ -1101,7 +1130,7 @@
         ? turno.ventas.map(venta => {
             const payload = P(venta);
             const hora = new Date(fechaEventoIso(venta)).toLocaleTimeString("es-DO", { hour: "2-digit", minute: "2-digit" });
-            return `<div class="turn-sale"><span>#${esc(payload.folio ?? "--")}</span><span>${esc(hora)}</span><span>${esc(nombreCajero(payload, userCatalog))}</span><span>${esc(payload.metodo || payload.metodoPago || "--")}</span><strong>${money(totalDe(payload))}</strong></div>`;
+            return `<div class="turn-sale"><span>#${esc(payload.folio ?? "--")}</span><span>${esc(hora)}</span><span>${esc(nombreCajero(payload, userCatalog))}</span><span>${esc(metodoConCuentaDe(payload))}</span><strong>${money(totalDe(payload))}</strong></div>`;
           }).join("")
         : '<div class="empty-state">Este turno no tiene ventas sincronizadas.</div>';
       return `<tr class="turn-row" id="turn-${esc(turno.id)}"><td>${esc(fecha(turno.inicio))}</td><td>${turno.fin ? esc(fecha(turno.fin)) : "En curso"}</td><td>${esc(turno.cajero)}</td><td>${esc(turno.caja)}</td><td>${turno.ventas.length}</td><td class="amount">${money(turno.total)}</td><td class="amount">${money(turno.efectivo)}</td><td class="amount">${turno.apertura === null ? "--" : money(turno.apertura)}</td><td class="amount">${turno.esperado === null ? "--" : money(turno.esperado)}</td><td class="amount">${turno.contado === null ? "--" : money(turno.contado)}</td><td class="amount ${diferenciaClase}" title="${esc(turno.motivo)}">${esc(diferenciaTexto)}</td><td><span class="tag ${turno.estado === "cerrado" ? "ok" : "warn"}">${esc(turno.estado)}</span></td><td><button class="secondary turn-toggle" data-detail="turn-detail-${index}">Ventas</button></td></tr>
@@ -1661,8 +1690,11 @@
       const turno = turnosPorId.get(turnoId);
       const etiquetaTurno = turno?.inicio ? fecha(turno.inicio) : turnoId ? turnoId.slice(0, 8) : "Sin turno";
       const lines = lineasDe(payload).map(line => `${esc(line.nombre || "Producto")} x ${esc(line.cantidad ?? 1)} = ${money(line.importeFinalCentavos ?? line.importe_final_centavos)}`).join("<br>");
-      return `<tr><td>${esc(fecha(fechaEventoIso(event)))}</td><td>#${esc(payload.folio ?? "--")}</td><td>${esc(nombreCajero(payload, userCatalog))}</td><td><button class="turn-link" data-turno="${esc(turnoId)}">${esc(etiquetaTurno)}</button></td><td>${esc(payload.metodo || payload.metodoPago || "--")}</td><td>${esc(payload.clienteNombre || "Consumidor final")}</td><td class="amount">${money(totalDe(payload))}</td><td><button class="secondary detail-toggle" data-detail="sale-${index}">Detalle</button></td></tr>
-        <tr id="sale-${index}" class="detail-row oculto"><td colspan="8"><div class="detail-box">${lines || "Sin lineas sincronizadas"}<br>Subtotal: ${money(payload.subtotalSinItbisCentavos)} | ITBIS: ${money(itbisDe(payload))} | Ajuste: ${money(payload.ajusteRedondeoCentavos)}${payload.nota ? `<br>Nota: ${esc(payload.nota)}` : ""}</div></td></tr>`;
+      const cuentasTransferencia = cuentasTransferenciaDe(payload);
+      const referenciaPago = payload.referencia || (Array.isArray(payload.pagos)
+        ? payload.pagos.map(pago => pago?.referencia).find(Boolean) : null);
+      return `<tr><td>${esc(fecha(fechaEventoIso(event)))}</td><td>#${esc(payload.folio ?? "--")}</td><td>${esc(nombreCajero(payload, userCatalog))}</td><td><button class="turn-link" data-turno="${esc(turnoId)}">${esc(etiquetaTurno)}</button></td><td>${esc(metodoConCuentaDe(payload))}</td><td>${esc(payload.clienteNombre || "Consumidor final")}</td><td class="amount">${money(totalDe(payload))}</td><td><button class="secondary detail-toggle" data-detail="sale-${index}">Detalle</button></td></tr>
+        <tr id="sale-${index}" class="detail-row oculto"><td colspan="8"><div class="detail-box">${lines || "Sin lineas sincronizadas"}<br>Subtotal: ${money(payload.subtotalSinItbisCentavos)} | ITBIS: ${money(itbisDe(payload))} | Ajuste: ${money(payload.ajusteRedondeoCentavos)}${cuentasTransferencia.length ? `<br>Cuenta receptora: ${esc(cuentasTransferencia.join(" / "))}` : ""}${referenciaPago ? `<br>Referencia: ${esc(referenciaPago)}` : ""}${payload.nota ? `<br>Nota: ${esc(payload.nota)}` : ""}</div></td></tr>`;
     }).join("");
     $("ventasTabla").innerHTML = `<table><thead><tr><th>Fecha</th><th>Folio</th><th>Cajero</th><th>Turno</th><th>Metodo</th><th>Cliente</th><th class="amount">Total</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
     document.querySelectorAll(".detail-toggle").forEach(button => button.addEventListener("click", () => $(button.dataset.detail).classList.toggle("oculto")));

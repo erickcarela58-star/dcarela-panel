@@ -1,8 +1,8 @@
-const CACHE = "dcarela-pos-shell-20260721-cobro-sync-v9";
+const CACHE = "dcarela-pos-shell-20260722-transferencias-cuentas-v10";
 const SHELL = [
   "./index.html",
   "./panel.css?v=20260719-asistente-estable-v8",
-  "./panel.js?v=20260719-asistente-estable-v8",
+  "./panel.js?v=20260722-transferencias-cuentas-v10",
   "./supabase.min.js",
   "./jspdf.umd.min.js",
   "./jspdf.plugin.autotable.min.js",
