@@ -4,7 +4,16 @@
   document.documentElement.dataset.panelModule = "started";
   const $ = id => document.getElementById(id);
   const cfg = JSON.parse(localStorage.getItem("dcarela.cfg") || "null") || window.__DCARELA_DEFAULT || null;
-  const BUSINESS = cfg?.business || "dcarela";
+  // Sucursal por URL (?b=<business_id>) para paneles divididos con una sola
+  // publicacion. El parametro manda; sin el, la publicacion usa su negocio por
+  // defecto. Cada sucursal se abre con su propia direccion y ve solo sus datos.
+  const _urlBiz = (() => {
+    try {
+      const raw = new URLSearchParams(location.search).get("b") || "";
+      return /^[a-z0-9][a-z0-9-]{1,60}$/i.test(raw) ? raw : "";
+    } catch { return ""; }
+  })();
+  const BUSINESS = _urlBiz || window.__DCARELA_DEFAULT?.business || cfg?.business || "dcarela";
   const READ_KEY = `dcarela.alertas.leidas.${BUSINESS}`;
   const RELEVANT_EVENTS = [
     "CierreConDiferencia", "ErrorSincronizacion", "BackupSnapshotFallido", "VentaCancelada",

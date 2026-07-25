@@ -1,4 +1,4 @@
-const CACHE = "dcarela-pos-shell-20260722-transferencias-cuentas-v10";
+const CACHE = "dcarela-pos-shell-20260722-sucursal-v11";
 const SHELL = [
   "./index.html",
   "./panel.css?v=20260719-asistente-estable-v8",
