@@ -660,3 +660,129 @@ tbody tr:hover { background: rgba(23,151,232,.045); }
   .turn-sale span:nth-child(4), .turn-sale strong:last-child { grid-column: auto; }
   footer { padding-inline: 14px; }
 }
+
+/* 2026-07-26 v14: composición integral inspirada en los widgets React.
+   Mantiene la densidad operativa, pero hace visible el vidrio sobre la marca. */
+body {
+  background-color: #dbe6f0;
+  background-image:
+    linear-gradient(rgba(237,244,250,.80), rgba(226,236,246,.88)),
+    url("dcarela-logo.png"),
+    repeating-linear-gradient(90deg, transparent 0, transparent 79px, rgba(10,54,121,.04) 80px),
+    repeating-linear-gradient(0deg, transparent 0, transparent 79px, rgba(10,54,121,.025) 80px);
+  background-repeat: no-repeat, no-repeat, repeat, repeat;
+  background-position: center, calc(100% + 70px) calc(100% + 70px), 0 0, 0 0;
+  background-size: auto, 360px, auto, auto;
+  background-attachment: fixed;
+}
+.app-shell { grid-template-columns: 246px minmax(0,1fr); }
+.sidebar {
+  padding: 20px 14px 15px;
+  background: rgba(7,35,76,.93);
+  box-shadow: 16px 0 38px rgba(8,34,71,.13);
+  backdrop-filter: blur(28px) saturate(135%);
+}
+.brand-logo { box-shadow: 0 9px 22px rgba(0,18,48,.22); }
+nav { gap: 5px; }
+nav a { min-height: 40px; padding-inline: 13px; transition: color .18s ease, background .18s ease, transform .18s ease; }
+nav a:hover { transform: translateX(2px); }
+nav a.act {
+  background: rgba(23,151,232,.22);
+  border-color: rgba(120,207,255,.36);
+  box-shadow: inset 3px 0 var(--cyan), 0 9px 22px rgba(0,20,55,.12);
+}
+.topbar {
+  min-height: 76px;
+  background: rgba(237,244,250,.70);
+  border-color: rgba(255,255,255,.75);
+  box-shadow: 0 9px 25px rgba(15,42,78,.08);
+  backdrop-filter: blur(30px) saturate(140%);
+}
+.topbar-back, .mobile-panel-link, .alert-button, .secondary {
+  background: rgba(255,255,255,.54);
+  border-color: rgba(255,255,255,.82);
+  box-shadow: 0 7px 18px rgba(15,42,78,.07);
+  backdrop-filter: blur(18px) saturate(130%);
+}
+.primary {
+  background: linear-gradient(135deg, #0a3679, #155b9e);
+  box-shadow: 0 8px 18px rgba(10,54,121,.18);
+}
+.surface, .kpi, .branch-card, .branch-summary article,
+.finance-kpi, .finance-chart-main, .finance-category-panel {
+  background: rgba(255,255,255,.62);
+  border-color: rgba(255,255,255,.88);
+  box-shadow: 0 16px 38px rgba(15,42,78,.11), inset 0 1px rgba(255,255,255,.62);
+  backdrop-filter: blur(25px) saturate(132%);
+}
+.kpi {
+  transition: transform .2s ease, box-shadow .2s ease, background .2s ease;
+}
+.kpi:hover {
+  transform: translateY(-2px);
+  background: rgba(255,255,255,.76);
+  box-shadow: 0 20px 42px rgba(15,42,78,.14), inset 0 1px rgba(255,255,255,.72);
+}
+.kpi::after {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 1px;
+  background: rgba(255,255,255,.9);
+}
+.hour-chart {
+  background: rgba(242,247,252,.34);
+  border: 1px solid rgba(255,255,255,.56);
+  border-radius: 7px;
+}
+.hour-bar {
+  box-shadow: 0 8px 15px rgba(23,151,232,.16), inset 0 -4px rgba(10,54,121,.17);
+  animation: chartRise .55s cubic-bezier(.2,.8,.2,1) both;
+  transform-origin: bottom;
+}
+.event-item, .health-row { border-color: rgba(31,61,99,.10); }
+.vista:not(.oculto) { animation: viewEnter .22s ease both; }
+.fin-account.visual {
+  box-shadow: 0 18px 38px color-mix(in srgb,var(--account-primary) 20%,transparent), inset 0 1px rgba(255,255,255,.28);
+  transition: transform .2s ease, box-shadow .2s ease;
+}
+.fin-account.visual:hover { transform: translateY(-2px); }
+.assistant-layout {
+  background: rgba(239,246,252,.60);
+  border-color: rgba(255,255,255,.92);
+  box-shadow: 0 20px 52px rgba(15,42,78,.15);
+  backdrop-filter: blur(30px) saturate(138%);
+}
+.assistant-message.assistant, .assistant-thinking {
+  background: rgba(255,255,255,.78);
+  backdrop-filter: blur(24px) saturate(132%);
+}
+@keyframes chartRise { from { transform: scaleY(.08); opacity: .25; } to { transform: scaleY(1); opacity: 1; } }
+@keyframes viewEnter { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
+@media (max-width: 860px) {
+  body {
+    padding-bottom: 74px;
+    background-position: center, calc(100% + 55px) calc(100% + 55px), 0 0, 0 0;
+    background-size: auto, 230px, auto, auto;
+  }
+  .app-shell { grid-template-columns: minmax(0,1fr); }
+  .sidebar { box-shadow: 0 12px 28px rgba(8,34,71,.14); }
+  .mobile-panel-link {
+    min-width: 174px;
+    min-height: 48px;
+    position: fixed;
+    left: 50%;
+    bottom: max(14px,env(safe-area-inset-bottom));
+    z-index: 950;
+    display: inline-flex;
+    justify-content: center;
+    color: white;
+    background: rgba(8,40,85,.90);
+    border-color: rgba(255,255,255,.42);
+    box-shadow: 0 18px 38px rgba(8,40,85,.30);
+    transform: translateX(-50%);
+    backdrop-filter: blur(24px) saturate(135%);
+  }
+  body:has(#v-asistente:not(.oculto)) .mobile-panel-link { display: none; }
+}

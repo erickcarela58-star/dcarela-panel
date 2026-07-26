@@ -4,6 +4,10 @@ Panel publicado:
 
 `https://erickcarela58-star.github.io/dcarela-panel/`
 
+Aplicacion movil React:
+
+`https://erickcarela58-star.github.io/dcarela-panel/mobile/?b=dcarela`
+
 Muestra ventas, caja, reportes, inventario, clientes, gastos, asistente IA,
 notificaciones, dispositivos, respaldos y configuracion. Los datos proceden de Supabase y se
 actualizan por Realtime y refrescos controlados.
@@ -46,5 +50,6 @@ repositorio fuente privado.
 
 ## Publicacion
 
-`.github/workflows/pages.yml` publica `web/` en GitHub Pages. El panel publico
-tambien se conserva en `panel-publicar/` para una publicacion estatica directa.
+La rama `main` de este repositorio publica el panel operativo y la salida Vite
+de `mobile/` en GitHub Pages. Ambas experiencias comparten dominio, sesion de
+Supabase, selector de sucursal y datos reales.

@@ -1,7 +1,7 @@
-const CACHE = "dcarela-pos-shell-20260726-multisucursal-v13";
+const CACHE = "dcarela-pos-shell-20260726-panel-total-v14";
 const SHELL = [
-  "./panel.css?v=20260726-multisucursal-v13",
-  "./panel.js?v=20260726-multisucursal-v13",
+  "./panel.css?v=20260726-panel-total-v14",
+  "./panel.js?v=20260726-panel-total-v14",
   "./supabase.min.js",
   "./jspdf.umd.min.js",
   "./jspdf.plugin.autotable.min.js",
@@ -14,7 +14,8 @@ self.addEventListener("install", event => {
     await cache.addAll(SHELL);
     await Promise.all([
       cache.add("./index.html").catch(() => null),
-      cache.add("./panel.html").catch(() => null)
+      cache.add("./panel.html").catch(() => null),
+      cache.add("./mobile/index.html").catch(() => null)
     ]);
   }));
   self.skipWaiting();

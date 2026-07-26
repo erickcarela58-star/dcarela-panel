@@ -10,7 +10,7 @@
   <title>D' Carela Compufoto | Panel POS</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="dcarela-logo.png">
-  <link rel="stylesheet" href="panel.css?v=20260726-multisucursal-v13">
+  <link rel="stylesheet" href="panel.css?v=20260726-panel-total-v14">
 </head>
 <body>
   <section id="access" class="access-shell">
@@ -81,7 +81,7 @@
             <span>Sucursal</span>
             <select id="branchSelector" aria-label="Cambiar sucursal"></select>
           </label>
-          <a class="mobile-panel-link" href="./index.html#dashboard" title="Abrir panel adaptable">Movil</a>
+          <a class="mobile-panel-link" href="./mobile/" title="Abrir panel móvil">Móvil</a>
           <button id="btnNotificaciones" class="alert-button" aria-label="Abrir notificaciones">
             Alertas <span id="alertCount" class="count-badge">0</span>
           </button>
@@ -523,7 +523,7 @@
   <script src="supabase.min.js"></script>
   <script src="jspdf.umd.min.js"></script>
   <script src="jspdf.plugin.autotable.min.js"></script>
-  <script src="panel.js?v=20260726-multisucursal-v13"></script>
+  <script src="panel.js?v=20260726-panel-total-v14"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));

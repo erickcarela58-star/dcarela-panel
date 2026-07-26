@@ -256,7 +256,7 @@
     $("branchEyebrow").textContent = nombreSucursal();
     $("branchCount").textContent = `${businessCatalog.length} sucursal${businessCatalog.length === 1 ? "" : "es"}`;
     const mobile = document.querySelector(".mobile-panel-link");
-    if (mobile) mobile.href = `./index.html?b=${encodeURIComponent(BUSINESS)}#dashboard`;
+    if (mobile) mobile.href = `./mobile/?b=${encodeURIComponent(BUSINESS)}`;
     document.querySelector('a[href="#sucursales"]')?.classList.toggle("oculto", businessCatalog.length < 2);
   }
 
