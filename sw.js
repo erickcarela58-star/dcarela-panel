@@ -1,8 +1,7 @@
-const CACHE = "dcarela-pos-shell-20260722-sucursal-v11";
+const CACHE = "dcarela-pos-shell-20260726-multisucursal-v13";
 const SHELL = [
-  "./index.html",
-  "./panel.css?v=20260719-asistente-estable-v8",
-  "./panel.js?v=20260722-transferencias-cuentas-v10",
+  "./panel.css?v=20260726-multisucursal-v13",
+  "./panel.js?v=20260726-multisucursal-v13",
   "./supabase.min.js",
   "./jspdf.umd.min.js",
   "./jspdf.plugin.autotable.min.js",
@@ -11,7 +10,13 @@ const SHELL = [
 ];
 
 self.addEventListener("install", event => {
-  event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(SHELL)));
+  event.waitUntil(caches.open(CACHE).then(async cache => {
+    await cache.addAll(SHELL);
+    await Promise.all([
+      cache.add("./index.html").catch(() => null),
+      cache.add("./panel.html").catch(() => null)
+    ]);
+  }));
   self.skipWaiting();
 });
 
@@ -31,5 +36,6 @@ self.addEventListener("fetch", event => {
     const copy = response.clone();
     if (response.ok) caches.open(CACHE).then(cache => cache.put(request, copy));
     return response;
-  }).catch(() => caches.match(request).then(cached => cached || caches.match("./index.html"))));
+  }).catch(() => caches.match(request).then(async cached =>
+    cached || await caches.match("./panel.html") || await caches.match("./index.html"))));
 });

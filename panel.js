@@ -57,6 +57,8 @@
   let iaConversations = [];
   let iaAttachments = [];
   let iaBusy = false;
+  let businessCatalog = [];
+  let businessMemberships = [];
 
   const esc = value => String(value ?? "").replace(/[&<>"']/g, char => ({
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
@@ -169,6 +171,7 @@
 
   const loaders = {
     dashboard: cargarDashboard,
+    sucursales: cargarSucursales,
     ventas: cargarVentas,
     caja: cargarCaja,
     turnos: cargarTurnos,
@@ -201,6 +204,206 @@
     verEstado(false, "Error al consultar datos");
     const target = document.querySelector(`#v-${module} .surface:last-child`) || $("v-" + module);
     if (target) target.insertAdjacentHTML("afterbegin", `<p class="error">${esc(error?.message || error)}</p>`);
+  }
+
+  function nombreSucursal(id = BUSINESS) {
+    return businessCatalog.find(item => item.id === id)?.name || id;
+  }
+
+  function abrirSucursal(businessId, view = location.hash.slice(1) || "dashboard") {
+    if (!businessId || businessId === BUSINESS) {
+      location.hash = view;
+      return;
+    }
+    const next = new URL(location.href);
+    next.searchParams.set("b", businessId);
+    next.hash = view;
+    const saved = JSON.parse(localStorage.getItem("dcarela.cfg") || "null");
+    if (saved) localStorage.setItem("dcarela.cfg", JSON.stringify({ ...saved, business: businessId }));
+    location.assign(next.toString());
+  }
+
+  async function cargarSucursalesDisponibles() {
+    if (!session?.user?.id) return;
+    const { data: memberships, error: membershipError } = await sb.from("pos_business_members")
+      .select("business_id,role,active")
+      .eq("user_id", session.user.id)
+      .eq("active", true);
+    if (membershipError) throw membershipError;
+    businessMemberships = memberships || [];
+    const ids = [...new Set(businessMemberships.map(item => item.business_id).filter(Boolean))];
+    if (!ids.length) ids.push(BUSINESS);
+
+    const { data: businesses, error: businessError } = await sb.from("pos_businesses")
+      .select("id,name,parent_business_id,catalog_source_business_id,branch_type,active")
+      .in("id", ids)
+      .eq("active", true)
+      .order("parent_business_id", { ascending: true, nullsFirst: true })
+      .order("name");
+    if (businessError) throw businessError;
+    businessCatalog = (businesses || []).map(item => ({
+      ...item,
+      role: businessMemberships.find(member => member.business_id === item.id)?.role || "viewer",
+    }));
+    if (!businessCatalog.some(item => item.id === BUSINESS)) {
+      throw new Error("Tu usuario no tiene acceso activo a esta sucursal.");
+    }
+
+    const selector = $("branchSelector");
+    selector.innerHTML = businessCatalog.map(item =>
+      `<option value="${esc(item.id)}"${selected(BUSINESS, item.id)}>${esc(item.name)}</option>`).join("");
+    selector.disabled = businessCatalog.length < 2;
+    $("branchEyebrow").textContent = nombreSucursal();
+    $("branchCount").textContent = `${businessCatalog.length} sucursal${businessCatalog.length === 1 ? "" : "es"}`;
+    const mobile = document.querySelector(".mobile-panel-link");
+    if (mobile) mobile.href = `./index.html?b=${encodeURIComponent(BUSINESS)}#dashboard`;
+    document.querySelector('a[href="#sucursales"]')?.classList.toggle("oculto", businessCatalog.length < 2);
+  }
+
+  function clavesVentaSucursal(event) {
+    const payload = P(event);
+    return [event?.entity_id, payload.id, payload.ventaId, payload.venta_id, payload.saleId, payload.sale_id]
+      .filter(Boolean).map(value => String(value).trim().toLowerCase());
+  }
+
+  function gananciaDocumentada(payload) {
+    const directa = [
+      payload?.gananciaCentavos, payload?.ganancia_centavos,
+      payload?.gananciaEstimadaCentavos, payload?.ganancia_estimada_centavos,
+    ].find(value => value !== null && value !== undefined && value !== "");
+    if (directa !== undefined) return { amount: numero(directa), revenue: totalDe(payload), complete: true };
+    // Eleventa no conserva un costo historico confiable: algunas importaciones
+    // traen el precio actual del catalogo o valores escalados como si fueran el
+    // costo de la venta original. La venta sigue siendo valida, pero no debe
+    // contaminar la ganancia documentada de la sucursal.
+    const origin = String(payload?.origen || payload?.source || "").toLowerCase();
+    if (origin.includes("migracion") || origin.includes("eleventa")) {
+      return { amount: 0, revenue: 0, complete: false };
+    }
+    let amount = 0;
+    let revenue = 0;
+    let complete = true;
+    const lines = lineasDe(payload);
+    if (!lines.length) return { amount: 0, revenue: 0, complete: false };
+    lines.forEach(line => {
+      const lineRevenue = numero(line.importeFinalCentavos, line.importe_final_centavos, line.totalCentavos, line.total_centavos);
+      const rawCost = line.costoUnitarioCentavos ?? line.costo_unitario_centavos;
+      const quantity = numero(line.cantidad, line.quantity, 1);
+      if (rawCost === null || rawCost === undefined || rawCost === "") {
+        complete = false;
+        return;
+      }
+      const unitCost = numero(rawCost);
+      const lineCost = Math.round(unitCost * quantity);
+      if (quantity <= 0 || unitCost < 0 || lineRevenue <= 0 || lineCost > lineRevenue * 4) {
+        complete = false;
+        return;
+      }
+      revenue += lineRevenue;
+      amount += lineRevenue - lineCost;
+    });
+    return { amount: Math.round(amount), revenue, complete };
+  }
+
+  async function resumenSucursal(branch) {
+    const start = new Date();
+    start.setDate(1);
+    start.setHours(0, 0, 0, 0);
+    const branchId = branch.id;
+    const [eventsResult, devicesResult, alertsResult, catalogResult] = await Promise.all([
+      sb.from("sync_events")
+        .select("event_id,event_type,entity_id,payload,created_at_local,received_at_cloud,device_id")
+        .eq("business_id", branchId)
+        .in("event_type", ["VentaCobrada", "VentaCancelada", "CajaAbierta", "CajaCerrada", "CierreConDiferencia", "GastoRegistrado"])
+        .gte("created_at_local", start.toISOString())
+        .order("created_at_local", { ascending: false })
+        .limit(5000),
+      sb.from("devices")
+        .select("id,device_name,status,last_seen_at,installed_version")
+        .eq("business_id", branchId)
+        .order("last_seen_at", { ascending: false, nullsFirst: false })
+        .limit(20),
+      sb.from("system_alerts")
+        .select("id", { count: "exact", head: true })
+        .eq("business_id", branchId)
+        .is("acknowledged_at", null),
+      sb.from("sync_events")
+        .select("entity_id")
+        .eq("business_id", branchId)
+        .eq("event_type", "ProductoCreado")
+        .limit(5000),
+    ]);
+    if (eventsResult.error) throw eventsResult.error;
+    if (devicesResult.error) throw devicesResult.error;
+    if (alertsResult.error) throw alertsResult.error;
+    if (catalogResult.error) throw catalogResult.error;
+
+    const all = eventsResult.data || [];
+    const cancellations = new Set();
+    all.filter(item => item.event_type === "VentaCancelada")
+      .forEach(item => clavesVentaSucursal(item).forEach(key => cancellations.add(key)));
+    const sales = all.filter(item => item.event_type === "VentaCobrada"
+      && !clavesVentaSucursal(item).some(key => cancellations.has(key)));
+    const total = sales.reduce((sum, item) => sum + totalDe(P(item)), 0);
+    const profits = sales.map(item => gananciaDocumentada(P(item)));
+    const profit = profits.reduce((sum, item) => sum + item.amount, 0);
+    const profitCoverage = total > 0
+      ? Math.round(profits.reduce((sum, item) => sum + item.revenue, 0) / total * 100)
+      : 100;
+    const devices = devicesResult.data || [];
+    const latestDevice = devices[0] || null;
+    const connected = latestDevice?.last_seen_at
+      ? Date.now() - new Date(latestDevice.last_seen_at).getTime() < 10 * 60 * 1000
+      : false;
+    return {
+      ...branch,
+      total,
+      sales: sales.length,
+      profit,
+      profitCoverage: Math.max(0, Math.min(100, profitCoverage)),
+      movements: all.length,
+      alerts: alertsResult.count || 0,
+      products: new Set((catalogResult.data || []).map(item => item.entity_id).filter(Boolean)).size,
+      device: latestDevice,
+      connected,
+    };
+  }
+
+  async function cargarSucursales() {
+    if (!businessCatalog.length) await cargarSucursalesDisponibles();
+    $("branchCards").innerHTML = `<div class="loading">Calculando cada sucursal sin mezclar sus movimientos...</div>`;
+    const summaries = await Promise.all(businessCatalog.map(resumenSucursal));
+    const total = summaries.reduce((sum, item) => sum + item.total, 0);
+    const profit = summaries.reduce((sum, item) => sum + item.profit, 0);
+    const sales = summaries.reduce((sum, item) => sum + item.sales, 0);
+    const alerts = summaries.reduce((sum, item) => sum + item.alerts, 0);
+    $("branchSummary").innerHTML = `
+      <article><span>Venta neta del mes</span><strong>${money(total)}</strong></article>
+      <article><span>Ganancia documentada</span><strong>${money(profit)}</strong></article>
+      <article><span>Ventas validas</span><strong>${sales}</strong></article>
+      <article class="${alerts ? "warn" : ""}"><span>Alertas abiertas</span><strong>${alerts}</strong></article>`;
+    $("branchCards").innerHTML = summaries.map(item => `
+      <article class="branch-card${item.id === BUSINESS ? " current" : ""}">
+        <header><div><span>${esc(item.branch_type === "principal" ? "Sucursal principal" : "Sucursal de fotografia")}</span><h3>${esc(item.name)}</h3></div><i class="${item.connected ? "online" : ""}"></i></header>
+        <div class="branch-card-kpis">
+          <div><span>Venta del mes</span><strong>${money(item.total)}</strong></div>
+          <div><span>Ganancia</span><strong>${money(item.profit)}</strong><small>${item.profitCoverage}% del ingreso con costo documentado</small></div>
+          <div><span>Tickets</span><strong>${item.sales}</strong></div>
+          <div><span>Catalogo</span><strong>${item.products}</strong><small>productos vinculados</small></div>
+        </div>
+        <div class="branch-card-status">
+          <span><b>${item.connected ? "Conectada" : "Sin conexion reciente"}</b>${item.device ? ` &middot; ${esc(item.device.device_name)}` : ""}</span>
+          <small>${item.device?.last_seen_at ? `Ultima conexion ${esc(fecha(item.device.last_seen_at))}` : "Sin terminal registrada"} &middot; ${item.alerts} alerta(s)</small>
+        </div>
+        <footer>
+          <button type="button" class="primary" data-open-branch="${esc(item.id)}">Abrir sucursal</button>
+          <button type="button" class="secondary" data-branch-finance="${esc(item.id)}">Ver finanzas</button>
+        </footer>
+      </article>`).join("");
+    $("branchCards").querySelectorAll("[data-open-branch]").forEach(button =>
+      button.addEventListener("click", () => abrirSucursal(button.dataset.openBranch, "dashboard")));
+    $("branchCards").querySelectorAll("[data-branch-finance]").forEach(button =>
+      button.addEventListener("click", () => abrirSucursal(button.dataset.branchFinance, "proveedores")));
   }
 
   async function eventos(types, from, to, limit = 400) {
@@ -728,6 +931,9 @@
         conversation_id: iaConversationId,
         message,
         model: $("iaModel").value,
+        reasoning_mode: $("iaDepth").value,
+        initiative: $("iaInitiative").value,
+        response_detail: $("iaDetail").value,
         attachments
       });
       iaConversationId = result.conversation.id;
@@ -765,6 +971,17 @@
     }
     await cargarConversacionesIa(true);
     if (canEdit) await Promise.all([renderIaApprovals(), renderIaPermissions()]);
+    const pendingKey = `dcarela.ia.pending.${BUSINESS}`;
+    const pending = localStorage.getItem(pendingKey);
+    if (pending) {
+      localStorage.removeItem(pendingKey);
+      iaConversationId = null;
+      $("iaConversationTitle").textContent = "Nueva conversacion";
+      $("iaMessages").innerHTML = "";
+      $("iaInput").value = pending;
+      $("iaInput").dispatchEvent(new Event("input"));
+      await enviarMensajeIa();
+    }
   }
 
   function cerrarEditor() {
@@ -2455,8 +2672,11 @@
   }
 
   async function cargarCuentasFin(month) {
-    const [cuentasRes, catsRes, movs, cardsRes, budgetsRes, preferencesRes, currenciesRes, cumuloRes, commitmentsRes, commitmentPaymentsRes] = await Promise.all([
+    const [cuentasRes, accountVisualsRes, catsRes, movs, cardsRes, budgetsRes, preferencesRes, currenciesRes, cumuloRes, commitmentsRes, commitmentPaymentsRes] = await Promise.all([
       sb.rpc("fin_account_balances", { p_business_id: BUSINESS }),
+      sb.from("fin_cuentas")
+        .select("id,visual_tono,visual_tono_secundario,visual_icono,visual_estilo,visual_mascara")
+        .eq("business_id", BUSINESS),
       sb.from("fin_categorias").select("id,nombre,tipo,categoria_padre_id,orden,origen,updated_at").eq("business_id", BUSINESS).eq("estado", "activa").order("tipo").order("orden").order("nombre"),
       cargarMovimientosFinMes(month),
       sb.from("fin_tarjetas").select("*").eq("business_id", BUSINESS),
@@ -2470,6 +2690,7 @@
         .order("fecha", { ascending: false }).limit(500),
     ]);
     if (cuentasRes.error) throw cuentasRes.error;
+    if (accountVisualsRes.error) throw accountVisualsRes.error;
     if (catsRes.error) throw catsRes.error;
     if (cardsRes.error) throw cardsRes.error;
     if (budgetsRes.error) throw budgetsRes.error;
@@ -2477,7 +2698,8 @@
     if (currenciesRes.error) throw currenciesRes.error;
     if (commitmentsRes.error) throw commitmentsRes.error;
     if (commitmentPaymentsRes.error) throw commitmentPaymentsRes.error;
-    const cuentas = cuentasRes.data || [];
+    const visuals = new Map((accountVisualsRes.data || []).map(item => [item.id, item]));
+    const cuentas = (cuentasRes.data || []).map(item => ({ ...item, ...(visuals.get(item.id) || {}) }));
     const catsRows = catsRes.data || [];
     finStateCache = {
       accounts: cuentas,
@@ -2516,6 +2738,11 @@
   }
 
   const FIN_CHART_COLORS = ["#0A3679", "#1797E8", "#FF7F03", "#168579", "#C53F48", "#7455A5", "#E2A62B", "#4A6D8C"];
+  const FIN_ACCOUNT_ICONS = {
+    landmark: "B", wallet: "$", card: "C", savings: "A", cash: "$", camera: "F",
+  };
+  const safeAccountColor = (value, fallback) =>
+    /^#[0-9a-f]{6}$/i.test(String(value || "")) ? String(value).toUpperCase() : fallback;
 
   function finRange(period = finDashboardPeriod, reference = finReferenceDate) {
     const base = new Date(`${reference || inputDate(new Date())}T12:00:00`);
@@ -2558,9 +2785,14 @@
       if (account.incluir_en_total) patrimonio += balance;
       const isCard = account.tipo === "tarjeta_credito";
       const display = isCard ? Math.max(0, -balance) : balance;
-      return `<article class="fin-account ${balance < 0 ? "neg" : "pos"}${account.oculta ? " muted" : ""}">
+      const primary = safeAccountColor(account.visual_tono, "#0A3679");
+      const secondary = safeAccountColor(account.visual_tono_secundario, "#1797E8");
+      const style = ["glass", "solid", "outline", "metal"].includes(account.visual_estilo) ? account.visual_estilo : "glass";
+      const icon = FIN_ACCOUNT_ICONS[account.visual_icono] || FIN_ACCOUNT_ICONS.landmark;
+      const mask = account.visual_mascara ? `&bull;&bull;&bull;&bull; ${esc(account.visual_mascara)}` : "";
+      return `<article class="fin-account visual ${style} ${balance < 0 ? "neg" : "pos"}${account.oculta ? " muted" : ""}" style="--account-primary:${primary};--account-secondary:${secondary}">
         <button type="button" class="fin-account-open" data-fin-account-ledger="${esc(account.id)}" title="Ver los movimientos que forman este saldo">
-          <span class="fin-account-name">${esc(account.nombre)}</span>
+          <span class="fin-account-visual-head"><i>${esc(icon)}</i><span><b>${esc(account.nombre)}</b><small>${mask || esc(FIN_TIPO_LABEL[account.tipo] || account.tipo)}</small></span></span>
           <strong>${isCard ? `Deuda ${money(display)}` : money(display)}</strong>
           <small>${esc(FIN_TIPO_LABEL[account.tipo] || account.tipo)}${account.ligada_ventas ? " &middot; ligada a ventas" : ""}${account.oculta ? " &middot; oculta" : ""}</small>
         </button>
@@ -3053,9 +3285,13 @@
     const item = account || {
       nombre: "", tipo: "banco", grupo: "", moneda: "DOP", saldo_inicial_centavos: 0,
       incluir_en_total: true, ligada_ventas: false, oculta: false, orden: 10,
+      visual_tono: "#0A3679", visual_tono_secundario: "#1797E8",
+      visual_icono: "landmark", visual_estilo: "glass", visual_mascara: "",
     };
     const esTarjeta = item.tipo === "tarjeta_credito";
     const saldoMostrado = esTarjeta ? Math.abs(numero(item.saldo_inicial_centavos)) : item.saldo_inicial_centavos;
+    const primary = safeAccountColor(item.visual_tono, "#0A3679");
+    const secondary = safeAccountColor(item.visual_tono_secundario, "#1797E8");
     abrirEditor(account ? "Editar cuenta" : "Agregar cuenta", "El saldo se recalcula desde el saldo inicial y todos sus movimientos.", `
       <label><span>Nombre</span><input name="nombre" required maxlength="120" value="${esc(item.nombre)}"></label>
       <label><span>Tipo</span><select name="tipo" id="finAccountTipo">${finTipoOptions(item.tipo)}</select></label>
@@ -3064,6 +3300,31 @@
       <p id="finAccountSaldoHint" class="field-hint field-wide"${esTarjeta ? "" : ' style="display:none"'}>En una tarjeta de credito escribe cuanto DEBES hoy (0 si esta al dia). Las compras se registran despues con "Registrar consumo".</p>
       <label><span>Moneda</span><input name="moneda" maxlength="8" value="${esc(item.moneda || "DOP")}"></label>
       <label><span>Orden</span><input name="orden" type="number" step="1" value="${esc(item.orden || 0)}"></label>
+      <div class="account-visual-editor field-wide">
+        <div class="account-visual-preview ${esc(item.visual_estilo || "glass")}" id="finAccountVisualPreview" style="--account-primary:${primary};--account-secondary:${secondary}">
+          <i id="finAccountPreviewIcon">${esc(FIN_ACCOUNT_ICONS[item.visual_icono] || "B")}</i>
+          <span><small>Vista sincronizada</small><strong id="finAccountPreviewName">${esc(item.nombre || "Nombre de la cuenta")}</strong><b id="finAccountPreviewMask">${item.visual_mascara ? `&bull;&bull;&bull;&bull; ${esc(item.visual_mascara)}` : "Cuenta financiera"}</b></span>
+        </div>
+        <div class="account-visual-controls">
+          <label><span>Color principal</span><input name="visualTono" type="color" value="${primary}"></label>
+          <label><span>Color secundario</span><input name="visualTonoSecundario" type="color" value="${secondary}"></label>
+          <label><span>Icono</span><select name="visualIcono">
+            <option value="landmark"${selected(item.visual_icono, "landmark")}>Banco</option>
+            <option value="wallet"${selected(item.visual_icono, "wallet")}>Billetera</option>
+            <option value="cash"${selected(item.visual_icono, "cash")}>Efectivo</option>
+            <option value="card"${selected(item.visual_icono, "card")}>Tarjeta</option>
+            <option value="savings"${selected(item.visual_icono, "savings")}>Ahorros</option>
+            <option value="camera"${selected(item.visual_icono, "camera")}>Fotografia</option>
+          </select></label>
+          <label><span>Estilo</span><select name="visualEstilo">
+            <option value="glass"${selected(item.visual_estilo, "glass")}>Cristal</option>
+            <option value="solid"${selected(item.visual_estilo, "solid")}>Solido</option>
+            <option value="outline"${selected(item.visual_estilo, "outline")}>Contorno</option>
+            <option value="metal"${selected(item.visual_estilo, "metal")}>Metal</option>
+          </select></label>
+          <label class="visual-mask"><span>Ultimos 4 digitos (opcional)</span><input name="visualMascara" inputmode="numeric" pattern="[0-9]{0,4}" maxlength="4" value="${esc(item.visual_mascara || "")}" placeholder="1234"></label>
+        </div>
+      </div>
       <label class="check-row"><input name="incluirEnTotal" type="checkbox"${checked(item.incluir_en_total)}><span>Incluir en patrimonio total</span></label>
       <label class="check-row"><input name="ligadaVentas" type="checkbox"${checked(item.ligada_ventas)}><span>Cuenta ligada a ventas</span></label>
       <label class="check-row field-wide"><input name="oculta" type="checkbox"${checked(item.oculta)}><span>Ocultar cuenta sin borrar su historial</span></label>`, async form => {
@@ -3075,6 +3336,9 @@
         moneda: form.get("moneda"), saldoInicialCentavos: saldo,
         incluirEnTotal: form.get("incluirEnTotal") === "on", ligadaVentas: form.get("ligadaVentas") === "on",
         oculta: form.get("oculta") === "on", orden: Number(form.get("orden")) || 0,
+        visualTono: form.get("visualTono"), visualTonoSecundario: form.get("visualTonoSecundario"),
+        visualIcono: form.get("visualIcono"), visualEstilo: form.get("visualEstilo"),
+        visualMascara: form.get("visualMascara"),
       });
       cerrarEditor();
       await cargarCuentasFin($("provMes").value);
@@ -3087,6 +3351,23 @@
       if (saldoLabel) saldoLabel.textContent = card ? "Deuda inicial (RD$)" : "Saldo inicial (RD$)";
       if (saldoHint) saldoHint.style.display = card ? "" : "none";
     });
+    const form = $("editorForm");
+    const updateVisualPreview = () => {
+      const preview = $("finAccountVisualPreview");
+      if (!preview) return;
+      const data = new FormData(form);
+      const visualStyle = ["glass", "solid", "outline", "metal"].includes(String(data.get("visualEstilo")))
+        ? String(data.get("visualEstilo")) : "glass";
+      preview.className = `account-visual-preview ${visualStyle}`;
+      preview.style.setProperty("--account-primary", safeAccountColor(data.get("visualTono"), "#0A3679"));
+      preview.style.setProperty("--account-secondary", safeAccountColor(data.get("visualTonoSecundario"), "#1797E8"));
+      $("finAccountPreviewIcon").textContent = FIN_ACCOUNT_ICONS[data.get("visualIcono")] || "B";
+      $("finAccountPreviewName").textContent = String(data.get("nombre") || "").trim() || "Nombre de la cuenta";
+      const mask = String(data.get("visualMascara") || "").replace(/\D/g, "").slice(-4);
+      $("finAccountPreviewMask").textContent = mask ? `•••• ${mask}` : "Cuenta financiera";
+    };
+    ["nombre", "visualTono", "visualTonoSecundario", "visualIcono", "visualEstilo", "visualMascara"]
+      .forEach(name => form.elements.namedItem(name)?.addEventListener("input", updateVisualPreview));
   }
 
   function abrirConciliacionCuentaFin(account) {
@@ -3922,6 +4203,7 @@
     $("app").classList.remove("oculto");
     $("sessionEmail").textContent = session?.user?.email || "Administrador";
     verEstado(true, "Sesion autenticada");
+    await cargarSucursalesDisponibles();
     await cargarRolEdicion().catch(() => { canEdit = false; memberRole = "viewer"; });
     if (canEdit) renderIaApprovals().catch(() => {});
     conectarRealtime();
@@ -3950,6 +4232,11 @@
     });
     $("pass").addEventListener("keydown", event => { if (event.key === "Enter") $("btnEntrar").click(); });
     $("btnSalir").addEventListener("click", async () => { await sb.auth.signOut(); location.reload(); });
+    $("btnVolver").addEventListener("click", () => {
+      if (history.length > 1) history.back();
+      else location.hash = "dashboard";
+    });
+    $("branchSelector").addEventListener("change", event => abrirSucursal(event.target.value, "dashboard"));
     $("btnNotificaciones").addEventListener("click", () => { location.hash = "notificaciones"; });
     $("btnIaNueva").addEventListener("click", () => {
       iaConversationId = null;
@@ -3996,6 +4283,17 @@
       input.style.height = `${Math.min(input.scrollHeight, 150)}px`;
     });
     $("iaModel").addEventListener("change", () => localStorage.setItem(`dcarela.ia.model.v2.${BUSINESS}`, $("iaModel").value));
+    [
+      ["iaDepth", "balanced"],
+      ["iaInitiative", "proactive"],
+      ["iaDetail", "standard"],
+    ].forEach(([id, fallback]) => {
+      const key = `dcarela.ia.preference.${id}.${BUSINESS}`;
+      const control = $(id);
+      const saved = localStorage.getItem(key);
+      control.value = saved && [...control.options].some(option => option.value === saved) ? saved : fallback;
+      control.addEventListener("change", () => localStorage.setItem(key, control.value));
+    });
     $("iaSuggestions").querySelectorAll("[data-prompt]").forEach(button => button.addEventListener("click", () => {
       $("iaInput").value = button.dataset.prompt;
       $("iaInput").dispatchEvent(new Event("input"));
