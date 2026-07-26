@@ -1,7 +1,7 @@
-const CACHE = "dcarela-pos-shell-20260726-componentes-reales-v15";
+const CACHE = "dcarela-pos-shell-20260726-efferd-global-v16";
 const SHELL = [
-  "./panel.css?v=20260726-componentes-reales-v15",
-  "./panel.js?v=20260726-componentes-reales-v15",
+  "./panel.css?v=20260726-efferd-global-v16",
+  "./panel.js?v=20260726-efferd-global-v16",
   "./supabase.min.js",
   "./jspdf.umd.min.js",
   "./jspdf.plugin.autotable.min.js",

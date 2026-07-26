@@ -962,3 +962,75 @@ td { padding: 12px 13px; font-size: 12px; }
   .fin-accounts { grid-template-columns: 1fr; }
   .assistant-message { max-width: 94%; }
 }
+
+/* 2026-07-26 v16: operational modules rendered inside the global Efferd shell. */
+html.embedded-panel,
+html.embedded-panel body {
+  min-height: 100%;
+  background: transparent;
+}
+
+html.embedded-panel body {
+  overflow-x: hidden;
+}
+
+html.embedded-panel .app-shell {
+  min-height: 100dvh;
+  display: block;
+  background: transparent;
+}
+
+html.embedded-panel .sidebar,
+html.embedded-panel .topbar,
+html.embedded-panel .mobile-command-dock,
+html.embedded-panel .workspace > footer {
+  display: none !important;
+}
+
+html.embedded-panel .workspace {
+  min-width: 0;
+  min-height: 100dvh;
+  background: transparent;
+}
+
+html.embedded-panel .workspace > main {
+  width: 100%;
+  max-width: none;
+  min-height: 100dvh;
+  padding: 22px clamp(16px, 2.2vw, 34px) 36px;
+}
+
+html.embedded-panel .access-shell {
+  min-height: 100dvh;
+  padding: 24px;
+  background:
+    radial-gradient(circle at 14% 18%, rgba(23,151,232,.15), transparent 28%),
+    radial-gradient(circle at 86% 82%, rgba(255,127,3,.09), transparent 24%),
+    rgba(232,240,247,.78);
+}
+
+html.embedded-panel .auth-panel {
+  border-radius: 18px;
+  background: rgba(246,250,254,.7);
+  border-color: rgba(255,255,255,.88);
+  box-shadow: 0 26px 70px rgba(7,31,65,.18);
+  backdrop-filter: blur(28px) saturate(135%);
+}
+
+html.embedded-panel .update-banner {
+  margin: 16px clamp(16px,2.2vw,34px) 0;
+}
+
+@media (max-width: 860px) {
+  html.embedded-panel body {
+    padding-bottom: 0;
+  }
+
+  html.embedded-panel .workspace > main {
+    padding: 16px 12px 24px;
+  }
+
+  html.embedded-panel .assistant-layout {
+    border-radius: 14px;
+  }
+}

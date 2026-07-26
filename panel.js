@@ -14,6 +14,7 @@
     } catch { return ""; }
   })();
   const BUSINESS = _urlBiz || window.__DCARELA_DEFAULT?.business || cfg?.business || "dcarela";
+  const EMBEDDED = new URLSearchParams(location.search).get("embedded") === "1";
   const READ_KEY = `dcarela.alertas.leidas.${BUSINESS}`;
   const RELEVANT_EVENTS = [
     "CierreConDiferencia", "ErrorSincronizacion", "BackupSnapshotFallido", "VentaCancelada",
@@ -197,6 +198,9 @@
       link.classList.toggle("act", active);
       if (active) $("pageTitle").textContent = link.dataset.title || link.textContent.trim();
     });
+    if (EMBEDDED && window.parent !== window) {
+      window.parent.postMessage({ type: "dcarela:panel-route", view: selected, businessId: BUSINESS }, location.origin);
+    }
     loaders[selected]().catch(error => mostrarError(selected, error));
   }
 

@@ -1,0 +1,545 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0a3679">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="D' Carela POS">
+  <title>D' Carela Compufoto | Panel POS</title>
+  <script>
+    if (new URLSearchParams(location.search).get("embedded") === "1") {
+      document.documentElement.classList.add("embedded-panel");
+    }
+  </script>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="dcarela-logo.png">
+  <link rel="stylesheet" href="panel.css?v=20260726-efferd-global-v16">
+</head>
+<body>
+  <section id="access" class="access-shell">
+    <div id="v-config" class="auth-panel oculto">
+      <img src="dcarela-logo.png" alt="D' Carela Compufoto" class="auth-logo">
+      <p class="eyebrow">Panel administrativo</p>
+      <h1>Conectar la nube</h1>
+      <p class="muted">Usa la URL y la clave publica del proyecto Supabase.</p>
+      <label for="cfgUrl">URL del proyecto</label>
+      <input id="cfgUrl" placeholder="https://proyecto.supabase.co">
+      <label for="cfgAnon">Clave publica (anon key)</label>
+      <input id="cfgAnon" type="password" autocomplete="off">
+      <button id="btnGuardarCfg" class="primary wide">Guardar y conectar</button>
+      <p id="cfgErr" class="error" role="alert"></p>
+    </div>
+
+    <div id="v-login" class="auth-panel oculto">
+      <img src="dcarela-logo.png" alt="D' Carela Compufoto" class="auth-logo">
+      <p class="eyebrow">D' Carela Compufoto</p>
+      <h1>Panel del Punto de Venta</h1>
+      <p class="muted">Acceso reservado para administracion.</p>
+      <label for="email">Correo</label>
+      <input id="email" type="email" autocomplete="username">
+      <label for="pass">Contrasena</label>
+      <input id="pass" type="password" autocomplete="current-password">
+      <button id="btnEntrar" class="primary wide">Entrar</button>
+      <button id="btnCambiarCfg" class="text-button">Cambiar conexion</button>
+      <p id="loginErr" class="error" role="alert"></p>
+    </div>
+  </section>
+
+  <div id="app" class="app-shell oculto">
+    <aside class="sidebar">
+      <div class="brand">
+        <img src="dcarela-logo.png" alt="" class="brand-logo">
+        <div><strong>D' Carela Compufoto</strong><span>Punto de Venta</span></div>
+      </div>
+      <nav id="menu" aria-label="Navegacion principal">
+        <a href="#dashboard" data-title="Resumen operativo">Resumen</a>
+        <a href="#sucursales" data-title="Sucursales">Sucursales</a>
+        <a href="#ventas" data-title="Ventas">Ventas</a>
+        <a href="#caja" data-title="Caja y arqueos">Caja</a>
+        <a href="#turnos" data-title="Ventas por turnos">Turnos</a>
+        <a href="#recalcular" data-title="Recalcular incongruencias">Recalcular</a>
+        <a href="#reportes" data-title="Reportes">Reportes</a>
+        <a href="#inventario" data-title="Inventario">Inventario</a>
+        <a href="#clientes" data-title="Clientes">Clientes</a>
+        <a href="#proveedores" data-title="Finanzas">Finanzas</a>
+        <a href="#asistente" data-title="Asistente IA">Asistente IA <span id="navIaPending" class="nav-count oculto">0</span></a>
+        <a href="#notificaciones" data-title="Notificaciones">Notificaciones <span id="navAlertas" class="nav-count oculto">0</span></a>
+        <a href="#dispositivos" data-title="Dispositivos">Dispositivos</a>
+        <a href="#respaldos" data-title="Respaldos">Respaldos</a>
+        <a href="#descargar" data-title="Instalador y versiones">Instalador</a>
+        <a href="#configuracion" data-title="Configuracion">Configuracion</a>
+      </nav>
+      <div class="connection-card">
+        <span id="dot" class="status-dot"></span>
+        <div><strong id="estadoTxt">Desconectado</strong><small id="estadoDetalle">Esperando sesion</small></div>
+      </div>
+    </aside>
+
+    <div class="workspace">
+      <header class="topbar">
+        <button id="btnVolver" class="topbar-back" type="button" title="Volver" aria-label="Volver">&#8592;</button>
+        <div class="topbar-title"><p class="eyebrow" id="branchEyebrow">D' Carela POS</p><h1 id="pageTitle">Resumen operativo</h1></div>
+        <div class="top-actions">
+          <label class="branch-switcher" for="branchSelector">
+            <span>Sucursal</span>
+            <select id="branchSelector" aria-label="Cambiar sucursal"></select>
+          </label>
+          <a class="mobile-panel-link" href="./mobile/" title="Abrir panel móvil">Móvil</a>
+          <button id="btnNotificaciones" class="alert-button" aria-label="Abrir notificaciones">
+            Alertas <span id="alertCount" class="count-badge">0</span>
+          </button>
+          <div class="session-user"><span id="sessionEmail">Administrador</span><small>Conectado a Supabase</small></div>
+        </div>
+      </header>
+
+      <div id="updateBanner" class="update-banner oculto">
+        <div><strong id="updateTitle">Actualizacion disponible</strong><span id="updateNotes"></span></div>
+        <a id="updateLink" class="button-link" href="#descargar">Revisar</a>
+      </div>
+
+      <main>
+        <section id="v-sucursales" class="vista oculto">
+          <div class="section-heading">
+            <div><h2>Control de sucursales</h2><p>Compara ventas, ganancia estimada, alertas y ultima conexion sin mezclar inventarios.</p></div>
+            <span id="branchCount" class="status-pill">--</span>
+          </div>
+          <div id="branchSummary" class="branch-summary"></div>
+          <div id="branchCards" class="branch-grid">
+            <div class="loading">Consultando las sucursales autorizadas...</div>
+          </div>
+          <section class="surface branch-rules">
+            <div class="surface-title"><div><h3>Catalogo vinculado, inventario independiente</h3><p>Los nombres, categorias, precios y combos se reflejan desde la central. Las existencias y ventas permanecen separadas por sucursal.</p></div></div>
+            <div class="branch-rule-grid">
+              <article><strong>Central</strong><span>Fuente del catalogo y administracion general.</span></article>
+              <article><strong>Plaza Artesanal</strong><span>Fotografia e impresiones, con existencia inicial en cero.</span></article>
+              <article><strong>Sin duplicados</strong><span>La sincronizacion usa IDs estables y nunca copia ajustes de inventario.</span></article>
+            </div>
+          </section>
+        </section>
+
+        <section id="v-dashboard" class="vista oculto">
+          <div class="section-heading">
+            <div><h2>Operacion de hoy</h2><p>Ventas netas, caja, respaldo y actividad en tiempo real.</p></div>
+            <span id="pillVivo" class="status-pill live">conectando</span>
+          </div>
+          <div class="kpi-grid">
+            <article class="kpi accent-blue"><span>Venta neta</span><strong id="kVenta">--</strong><small id="kVentaDetalle">hoy</small><div id="kSparkVenta" class="kpi-sparkline"></div></article>
+            <article class="kpi accent-cyan"><span>Transacciones</span><strong id="kNum">--</strong><small id="kNumDetalle">ventas validas</small><div id="kSparkNum" class="kpi-sparkline"></div></article>
+            <article class="kpi accent-orange"><span>Ticket promedio</span><strong id="kProm">--</strong><small>por venta</small><div id="kSparkProm" class="kpi-sparkline"></div></article>
+            <article class="kpi accent-green"><span>Efectivo</span><strong id="kEfec">--</strong><small>cobrado hoy</small><div id="kSparkEfec" class="kpi-sparkline"></div></article>
+            <article class="kpi accent-violet"><span>ITBIS</span><strong id="kItbis">--</strong><small>registrado hoy</small><div id="kSparkItbis" class="kpi-sparkline"></div></article>
+            <article class="kpi accent-red"><span>Caja</span><strong id="kCaja">--</strong><small id="kCajaDetalle">ultimo evento</small><div id="kSparkCaja" class="kpi-sparkline status"></div></article>
+          </div>
+
+          <div class="dashboard-grid">
+            <section class="surface span-2">
+              <div class="surface-title"><div><h3>Ritmo de ventas</h3><p>Importe por hora, sin ventas anuladas.</p></div><strong id="chartTotal"></strong></div>
+              <div id="chartHoras" class="hour-chart"></div>
+            </section>
+            <section class="surface">
+              <div class="surface-title"><div><h3>Salud operativa</h3><p>Estado de los servicios criticos.</p></div></div>
+              <div id="healthList" class="health-list"></div>
+            </section>
+            <section class="surface span-2">
+              <div class="surface-title"><div><h3>Actividad en vivo</h3><p>Ventas, caja, inventario y configuracion.</p></div><a href="#notificaciones">Ver alertas</a></div>
+              <div id="feed" class="event-feed"></div>
+            </section>
+            <section class="surface">
+              <div class="surface-title"><div><h3>Alertas abiertas</h3><p>Eventos que requieren revision.</p></div></div>
+              <div id="alertPreview" class="alert-preview"></div>
+            </section>
+          </div>
+        </section>
+
+        <section id="v-ventas" class="vista oculto">
+          <div class="section-heading"><div><h2>Ventas</h2><p>Detalle fiscal y comercial, descontando anulaciones.</p></div></div>
+          <div class="filter-bar">
+            <div><label for="venDesde">Desde</label><input type="date" id="venDesde"></div>
+            <div><label for="venHasta">Hasta</label><input type="date" id="venHasta"></div>
+            <button id="btnVentas" class="primary">Buscar</button>
+          </div>
+          <div id="ventasResumen" class="inline-metrics"></div>
+          <section class="surface"><div id="ventasTabla" class="table-wrap"></div></section>
+        </section>
+
+        <section id="v-caja" class="vista oculto">
+          <div class="section-heading"><div><h2>Caja y arqueos</h2><p>Aperturas, cierres, diferencias y movimientos de efectivo.</p></div><a class="button-link" href="#turnos">Ver ventas por turno</a></div>
+          <div id="cajaResumen" class="inline-metrics"></div>
+          <section class="surface"><div id="cajaTabla" class="table-wrap"></div></section>
+        </section>
+
+        <section id="v-turnos" class="vista oculto">
+          <div class="section-heading"><div><h2>Ventas por turnos</h2><p>Cada apertura se conserva separada por cajero, hora de entrada, salida y arqueo.</p></div></div>
+          <div class="filter-bar">
+            <div><label for="turDesde">Desde</label><input type="date" id="turDesde"></div>
+            <div><label for="turHasta">Hasta</label><input type="date" id="turHasta"></div>
+            <button id="btnTurnos" class="primary">Consultar turnos</button>
+            <button id="btnTurnosPdf" class="secondary">Descargar PDF</button>
+          </div>
+          <div id="turnosResumen" class="inline-metrics"></div>
+          <section class="surface">
+            <div class="surface-title"><div><h3>Conciliacion por turno</h3><p>El total de ventas no se mezcla con el efectivo contado en el arqueo.</p></div></div>
+            <div id="turnosTabla" class="table-wrap turn-table"></div>
+          </section>
+        </section>
+
+        <section id="v-recalcular" class="vista oculto">
+          <div class="section-heading">
+            <div><h2>Calculadora de incongruencias</h2><p>Recalcula ventas, pagos, folios y cierres para localizar exactamente donde nace una diferencia.</p></div>
+            <span id="recEstadoPill" class="status-pill">Sin calcular</span>
+          </div>
+          <div class="filter-bar recon-filter">
+            <div><label for="recDesde">Desde</label><input type="date" id="recDesde"></div>
+            <div><label for="recHasta">Hasta</label><input type="date" id="recHasta"></div>
+            <div><label for="recDispositivo">Terminal / caja</label><select id="recDispositivo"><option value="">Todas las terminales</option></select></div>
+            <div><label for="recCajero">Cajero</label><select id="recCajero"><option value="">Todos los cajeros</option></select></div>
+            <div><label for="recDiferencia">Diferencia conocida (RD$)</label><input type="number" id="recDiferencia" step="0.01" inputmode="decimal" placeholder="Ej.: 500.00"></div>
+            <div><label for="recDiferenciaExplicada">Parte ya explicada (RD$)</label><input type="number" id="recDiferenciaExplicada" step="0.01" inputmode="decimal" placeholder="Ej.: 120.00"></div>
+            <button id="btnRecalcular" class="primary">Recalcular</button>
+            <button id="btnRecalcularPdf" class="secondary">Descargar diagnostico</button>
+          </div>
+          <div id="recProgreso" class="recon-progress oculto" role="status"><span></span><div><strong>Recalculando la operacion</strong><small id="recProgresoTexto">Leyendo ventas sincronizadas...</small></div></div>
+          <div id="recResumen" class="kpi-grid compact"></div>
+          <div class="recon-grid">
+            <section class="surface recon-wide">
+              <div class="surface-title"><div><h3>Diagnostico principal</h3><p id="recLectura">Ejecuta el recalculo para comparar la informacion.</p></div></div>
+              <div id="recHallazgos" class="recon-findings"></div>
+            </section>
+            <section class="surface">
+              <div class="surface-title"><div><h3>Ventas que explican la diferencia</h3><p>Coincidencias exactas por importe, venta anulada o combinacion de dos tickets.</p></div></div>
+              <div id="recCandidatas" class="table-wrap recon-table"></div>
+            </section>
+            <section class="surface recon-wide">
+              <div class="surface-title"><div><h3>Folios faltantes o duplicados</h3><p>Los huecos se calculan por terminal para no mezclar secuencias de cajas distintas.</p></div></div>
+              <div id="recFolios" class="table-wrap recon-table"></div>
+            </section>
+            <section class="surface recon-wide">
+              <div class="surface-title"><div><h3>Ventas con importes incongruentes</h3><p>Compara total cobrado, suma de pagos, detalle de productos, efectivo recibido y cambio.</p></div></div>
+              <div id="recVentas" class="table-wrap recon-table"></div>
+            </section>
+            <section class="surface recon-wide">
+              <div class="surface-title"><div><h3>Conciliacion de cierres</h3><p>Contrasta el efectivo esperado guardado por cada turno con lo reconstruido desde sus eventos.</p></div></div>
+              <div id="recTurnos" class="table-wrap recon-table"></div>
+            </section>
+          </div>
+        </section>
+
+        <section id="v-reportes" class="vista oculto">
+          <div class="section-heading"><div><h2>Reportes</h2><p>Lectura neta de ventas, impuestos, devoluciones y metodos de pago.</p></div></div>
+          <div class="filter-bar">
+            <div><label for="repDesde">Desde</label><input type="date" id="repDesde"></div>
+            <div><label for="repHasta">Hasta</label><input type="date" id="repHasta"></div>
+            <button id="btnReporte" class="primary">Generar</button>
+            <button id="btnReportePdf" class="secondary">Descargar PDF</button>
+          </div>
+          <div id="repResumen" class="kpi-grid compact"></div>
+          <div class="report-grid">
+            <section class="surface span-2"><div class="surface-title"><div><h3>Comportamiento diario</h3><p>Ventas e ITBIS por fecha.</p></div></div><div id="repGrafica" class="report-bars"></div></section>
+            <section class="surface"><div class="surface-title"><div><h3>Metodos de pago</h3></div></div><div id="repMetodos"></div></section>
+            <section class="surface span-2"><div class="surface-title"><div><h3>Detalle diario</h3></div></div><div id="repPorDia" class="table-wrap"></div></section>
+            <section class="surface"><div class="surface-title"><div><h3>Productos con mayor importe</h3></div></div><div id="repTop" class="table-wrap"></div></section>
+          </div>
+        </section>
+
+        <section id="v-inventario" class="vista oculto">
+          <div class="section-heading">
+            <div><h2>Inventario</h2><p>Catalogo editable, precios y existencias sincronizados con todas las cajas.</p></div>
+            <div class="button-row admin-only oculto"><button id="btnNuevaCategoria" class="secondary">Nueva categoria</button><button id="btnNuevoProducto" class="primary">Nuevo producto</button></div>
+          </div>
+          <div class="filter-bar compact-filter"><div class="filter-grow"><label for="invBuscar">Buscar producto</label><input id="invBuscar" type="search" placeholder="Nombre, codigo o categoria"></div><button id="btnInvBuscar" class="secondary">Filtrar</button></div>
+          <div id="invResumen" class="inline-metrics"></div>
+          <section class="surface"><div id="invTabla" class="table-wrap"></div></section>
+        </section>
+
+        <section id="v-clientes" class="vista oculto">
+          <div class="section-heading">
+            <div><h2>Clientes</h2><p>Datos de contacto y condiciones de credito. El saldo solo cambia mediante ventas y abonos.</p></div>
+            <button id="btnNuevoCliente" class="primary admin-only oculto">Nuevo cliente</button>
+          </div>
+          <div class="filter-bar compact-filter"><div class="filter-grow"><label for="cliBuscar">Buscar cliente</label><input id="cliBuscar" type="search" placeholder="Nombre, telefono, RNC o correo"></div><button id="btnCliBuscar" class="secondary">Filtrar</button></div>
+          <div id="cliResumen" class="inline-metrics"></div>
+          <section class="surface"><div id="cliTabla" class="table-wrap"></div></section>
+        </section>
+
+        <section id="v-proveedores" class="vista oculto finance-view">
+          <div class="section-heading finance-heading">
+            <div><h2>Finanzas</h2><p>Tu dinero organizado por cuentas, categorias y movimientos. Las ventas del POS se registran solas.</p></div>
+            <div class="button-row admin-only oculto">
+              <button id="btnFinQuick" class="primary">Registrar movimiento</button>
+              <button id="btnFinTransferTop" class="secondary">Transferir</button>
+              <button id="btnFinBackupTop" class="secondary">Respaldar</button>
+            </div>
+          </div>
+
+          <div class="finance-nav-shell">
+            <div class="segmented finance-tabs" id="provTabs" role="tablist" aria-label="Secciones de finanzas">
+              <button class="act" data-cost-tab="resumen" role="tab">Resumen</button>
+              <button data-cost-tab="movimientos" role="tab">Movimientos</button>
+              <button data-cost-tab="cuentas" role="tab">Cuentas</button>
+              <button data-cost-tab="presupuestos" role="tab">Presupuestos</button>
+              <button data-cost-tab="tarjetas" role="tab">Tarjetas</button>
+              <button data-cost-tab="compromisos" role="tab">Compromisos</button>
+              <button data-cost-tab="recurrentes" role="tab">Planificados</button>
+              <button data-cost-tab="obligaciones" role="tab">Facturas y deudas</button>
+              <button data-cost-tab="recibos" role="tab">Recibos</button>
+              <button data-cost-tab="ajustes" role="tab">Ajustes</button>
+            </div>
+            <label class="month-filter"><span>Mes</span><input id="provMes" type="month"></label>
+          </div>
+
+          <section id="provPanelResumen" class="cost-panel finance-dashboard">
+            <div class="finance-period-row">
+              <div class="segmented finance-period" id="finPeriodTabs" role="group" aria-label="Periodo del tablero">
+                <button data-fin-period="dia">Dia</button><button data-fin-period="semana">Semana</button><button class="act" data-fin-period="mes">Mes</button>
+              </div>
+              <label><span>Fecha de referencia</span><input id="finFechaReferencia" type="date"></label>
+            </div>
+            <div id="finDashboardKpis" class="finance-kpis"></div>
+            <div class="finance-dashboard-grid">
+              <section class="surface finance-chart-main">
+                <div class="surface-title"><div><h3>Ingresos y gastos</h3><p id="finFlowCaption">Comportamiento del periodo seleccionado.</p></div></div>
+                <div id="finFlowChart" class="finance-flow-chart"></div>
+              </section>
+              <section class="surface finance-category-panel">
+                <div class="surface-title"><div><h3>Gastos por categoria</h3><p>Distribucion real del periodo.</p></div></div>
+                <div id="finCategoryChart" class="finance-category-chart"></div>
+              </section>
+              <section class="surface finance-recent-panel">
+                <div class="surface-title"><div><h3>Actividad reciente</h3><p>Ultimos movimientos confirmados.</p></div><button id="btnVerMovimientosFin" class="text-button">Ver todos</button></div>
+                <div id="finRecentList" class="finance-timeline"></div>
+              </section>
+              <section class="surface finance-planning-panel">
+                <div class="surface-title"><div><h3>Planificacion</h3><p>Presupuestos y vencimientos que requieren atencion.</p></div></div>
+                <div id="finBudgetAlerts" class="finance-planning-list"></div>
+              </section>
+            </div>
+            <div id="provResumen" class="inline-metrics finance-legacy-metrics"></div>
+            <section class="cost-analysis-band finance-cost-analysis">
+              <div id="provAnalisis" class="cost-analysis-copy"></div>
+              <div id="provVencimientos" class="due-list"></div>
+            </section>
+          </section>
+
+          <section id="provPanelMovimientos" class="cost-panel oculto">
+            <div class="surface finance-movement-surface">
+              <div class="surface-title">
+                <div><h3>Movimientos</h3><p>Filtra, revisa y exporta el libro financiero sin alterar su historial.</p></div>
+                <div class="button-row admin-only oculto"><button id="btnNuevoGasto" class="secondary">Nuevo gasto</button><button id="btnFinQuickMov" class="primary">Entrada rapida</button></div>
+              </div>
+              <div class="finance-filters">
+                <label class="filter-grow"><span>Buscar</span><input id="finMovementSearch" type="search" placeholder="Descripcion, persona, categoria o folio"></label>
+                <label><span>Tipo</span><select id="finMovementType"><option value="">Todos</option><option value="ingreso">Ingresos</option><option value="gasto">Gastos</option><option value="transferencia">Transferencias</option></select></label>
+                <label><span>Cuenta</span><select id="finMovementAccount"><option value="">Todas</option></select></label>
+                <label><span>Categoria</span><select id="finMovementCategory"><option value="">Todas</option></select></label>
+              </div>
+              <div class="button-row finance-export-row"><button id="btnFinExportCsv" class="secondary">CSV / Excel</button><button id="btnFinExportPdf" class="secondary">PDF</button><button id="btnFinBackup" class="secondary">Copia completa</button></div>
+              <div id="finMovimientosTabla" class="table-wrap"></div>
+              <details class="finance-legacy-details"><summary>Administrar gastos importados o registrados desde la caja</summary><div id="provGastosTabla" class="table-wrap"></div></details>
+            </div>
+          </section>
+
+          <section id="provPanelCuentas" class="cost-panel oculto">
+            <div class="surface-title fin-accounts-heading">
+              <div><h3>Cuentas y saldos</h3><p>El patrimonio se recalcula desde cada movimiento; una transferencia nunca duplica dinero.</p></div>
+              <div class="button-row admin-only oculto"><button id="btnNuevaTransferencia" class="primary">Nueva transferencia</button><button id="btnNuevaCuentaFin" class="secondary">Agregar cuenta</button></div>
+            </div>
+            <div id="finCuentasCards" class="fin-accounts"></div>
+            <section class="surface finance-account-help"><strong>Regla de saldo</strong><p>Ingreso suma, gasto resta y transferencia mueve el mismo monto entre dos cuentas. Las tarjetas muestran deuda, no un saldo disponible ficticio.</p></section>
+          </section>
+
+          <section id="provPanelPresupuestos" class="cost-panel oculto">
+            <div class="surface-title"><div><h3>Presupuestos</h3><p>Limites semanales, mensuales o anuales por categoria con alertas de consumo.</p></div><button id="btnFinNuevoPresupuesto" class="primary admin-only oculto">Nuevo presupuesto</button></div>
+            <div id="finPresupuestosCards" class="finance-budget-grid"></div>
+          </section>
+
+          <section id="provPanelTarjetas" class="cost-panel oculto">
+            <div class="surface-title"><div><h3>Tarjetas de credito</h3><p>Deuda y disponible en tiempo real. Corte el dia 30; pago maximo el dia 5 del mes siguiente.</p></div><button id="btnFinNuevaTarjeta" class="primary admin-only oculto">Configurar tarjeta</button></div>
+            <div id="finTarjetasCards" class="finance-card-grid"></div>
+          </section>
+
+          <section id="provPanelCompromisos" class="cost-panel oculto">
+            <div class="surface-title">
+              <div><h3>Compromisos y prestamos</h3><p>Cuotas del mes, saldo contractual, capital pendiente y pagos sin duplicar gastos.</p></div>
+              <button id="btnFinNuevoCompromiso" class="primary admin-only oculto">Nuevo compromiso</button>
+            </div>
+            <div id="finCompromisosResumen" class="inline-metrics"></div>
+            <section class="surface finance-commitment-surface">
+              <div id="finCompromisosTabla" class="table-wrap"></div>
+            </section>
+          </section>
+
+          <section id="provPanelRecurrentes" class="surface cost-panel oculto"><div class="surface-title"><div><h3>Pagos planificados</h3><p>Nomina quincenal, alquiler, servicios, suscripciones y cargos variables.</p></div><div class="button-row admin-only oculto"><button id="btnNuevoRecurrente" class="primary">Nuevo plan</button><button id="btnGenerarObligaciones" class="secondary">Generar vencimientos</button></div></div><div id="provRecurrentesTabla" class="table-wrap"></div></section>
+          <section id="provPanelObligaciones" class="surface cost-panel oculto"><div class="surface-title"><div><h3>Facturas y deudas</h3><p>Saldo, fecha limite, pagos parciales y comprobantes respaldados en la nube.</p></div><button id="btnNuevaObligacion" class="primary admin-only oculto">Nueva factura o deuda</button></div><div id="provObligacionesTabla" class="table-wrap"></div></section>
+          <section id="provPanelRecibos" class="surface cost-panel oculto"><div class="surface-title"><div><h3>Recibos de pago</h3><p>Nomina, servicios y otros pagos con firma pendiente o confirmada.</p></div><button id="btnNuevoRecibo" class="primary admin-only oculto">Nuevo recibo</button></div><div id="provRecibosTabla" class="table-wrap"></div></section>
+
+          <section id="provPanelAjustes" class="cost-panel oculto finance-settings-grid">
+            <section class="surface"><div class="surface-title"><div><h3>Preferencias</h3><p>Moneda, cuentas predeterminadas y periodo de inicio.</p></div></div><form id="finSettingsForm" class="form-grid"><label><span>Moneda principal</span><select id="finPrefCurrency" name="monedaPrincipal"></select></label><label><span>Periodo inicial</span><select id="finPrefPeriod" name="periodoDashboard"><option value="dia">Dia</option><option value="semana">Semana</option><option value="mes">Mes</option></select></label><label><span>Cuenta habitual para gastos</span><select id="finPrefExpenseAccount" name="cuentaGastoDefaultId"></select></label><label><span>Cuenta habitual para ingresos</span><select id="finPrefIncomeAccount" name="cuentaIngresoDefaultId"></select></label><div class="field-wide button-row"><button type="submit" class="primary admin-only oculto">Guardar preferencias</button></div></form></section>
+            <section class="surface"><div class="surface-title"><div><h3>Categorias</h3><p>Estructura padre e hijo para ingresos y gastos.</p></div><button id="btnNuevaCategoriaGasto" class="secondary admin-only oculto">Agregar categoria</button></div><div id="finCategoriasTabla" class="table-wrap"></div></section>
+            <section class="surface"><div class="surface-title"><div><h3>Divisas</h3><p>Tasas manuales respecto a la moneda principal.</p></div><button id="btnFinNuevaDivisa" class="secondary admin-only oculto">Agregar divisa</button></div><div id="finDivisasTabla" class="table-wrap"></div></section>
+            <section class="surface"><div class="surface-title"><div><h3>Respaldo y portabilidad</h3><p>Supabase guarda el libro. Tambien puedes descargar o compartir una copia compatible con iCloud Drive y Google Drive.</p></div></div><div class="button-row"><button id="btnFinBackupSettings" class="primary">Descargar / compartir copia</button><button id="btnFinRestorePreview" class="secondary">Validar archivo</button><input id="finRestoreFile" class="visually-hidden" type="file" accept="application/json,.json"></div><p id="finBackupStatus" class="field-hint">La restauracion nunca se ejecuta sin una revision previa.</p></section>
+          </section>
+        </section>
+
+        <section id="v-asistente" class="vista oculto">
+          <div class="section-heading assistant-heading">
+            <div><h2>Conversaciones</h2><p id="iaContextHeadline">Contexto del negocio y memoria operativa</p></div>
+            <div class="assistant-status-line"><span id="iaStatus" class="status-pill">Comprobando</span><span id="iaRole" class="tag">--</span></div>
+          </div>
+          <div id="iaLayout" class="assistant-layout">
+            <button id="iaDrawerScrim" class="assistant-drawer-scrim" type="button" aria-label="Cerrar panel lateral"></button>
+            <aside id="iaHistoryPanel" class="assistant-history-panel" aria-label="Historial de conversaciones">
+              <div class="assistant-drawer-header"><strong>Conversaciones</strong><button id="btnIaCerrarHistorial" class="icon-button" type="button" aria-label="Cerrar conversaciones">&#215;</button></div>
+              <button id="btnIaNueva" class="primary wide" type="button">Nueva conversacion</button>
+              <label class="assistant-history-search"><span class="visually-hidden">Buscar conversaciones</span><input id="iaConversationSearch" type="search" placeholder="Buscar conversacion..."></label>
+              <div class="assistant-panel-title"><strong>Historial</strong><small>Guardado en la nube</small></div>
+              <div id="iaConversations" class="assistant-conversations"></div>
+            </aside>
+
+            <section class="assistant-chat-panel" aria-label="Conversacion con el asistente">
+              <header class="assistant-chat-header">
+                <a class="assistant-mobile-back secondary" href="#dashboard" aria-label="Volver al panel">Panel</a>
+                <button id="btnIaHistorial" class="secondary assistant-header-button" type="button" aria-controls="iaHistoryPanel" aria-expanded="false">Conversaciones</button>
+                <div class="assistant-chat-identity"><strong id="iaConversationTitle">Nueva conversacion</strong><small id="iaModelEffective">Datos del POS disponibles segun tu rol</small></div>
+                <div class="assistant-chat-tools">
+                  <label class="assistant-model"><span>Modelo</span><select id="iaModel"></select></label>
+                  <button id="btnIaControl" class="secondary assistant-header-button" type="button" aria-controls="iaControlPanel" aria-expanded="false">Control</button>
+                </div>
+              </header>
+              <div id="iaMessages" class="assistant-messages" aria-live="polite">
+                <div class="assistant-empty">
+                  <strong>Nueva conversacion</strong>
+                  <p>Escribe una pregunta, una orden o adjunta un documento.</p>
+                </div>
+              </div>
+              <div id="iaSuggestions" class="assistant-suggestions">
+                <button type="button" data-prompt="Dame un resumen de las ventas de hoy y cualquier alerta que deba atender.">Resumen de hoy</button>
+                <button type="button" data-prompt="Audita los productos sin precio, sin categoria o con inventario inconsistente y dime que corregir primero.">Auditar productos</button>
+                <button type="button" data-prompt="Analiza las cuentas por cobrar, su antiguedad y recomiendame las tres acciones mas importantes.">Revisar creditos</button>
+              </div>
+              <div id="iaAttachments" class="assistant-attachments oculto"></div>
+              <form id="iaComposer" class="assistant-composer">
+                <input id="iaFiles" class="visually-hidden" type="file" multiple accept="image/*,application/pdf,text/plain,text/csv,application/json,.txt,.md,.csv,.json">
+                <button id="btnIaAdjuntar" class="icon-button assistant-attach" type="button" title="Adjuntar imagen o documento" aria-label="Adjuntar imagen o documento">+</button>
+                <textarea id="iaInput" rows="2" maxlength="8000" placeholder="Escribe una pregunta u orden para el POS..."></textarea>
+                <button id="btnIaEnviar" class="primary assistant-send" type="submit">Enviar</button>
+              </form>
+              <p id="iaError" class="error assistant-error" role="alert"></p>
+            </section>
+
+            <aside id="iaControlPanel" class="assistant-control-panel" aria-label="Control, memoria y permisos">
+              <div class="assistant-drawer-header"><strong>Control</strong><button id="btnIaCerrarControl" class="icon-button" type="button" aria-label="Cerrar control">&#215;</button></div>
+              <div class="assistant-panel-title"><strong>Acceso</strong><small id="iaAccessSummary">Verificando</small></div>
+              <div class="assistant-preferences" aria-label="Comportamiento del asistente">
+                <label><span>Profundidad</span><select id="iaDepth"><option value="fast">Rapida</option><option value="balanced" selected>Equilibrada</option><option value="deep">Profunda</option></select></label>
+                <label><span>Iniciativa</span><select id="iaInitiative"><option value="careful">Conservadora</option><option value="proactive" selected>Proactiva</option></select></label>
+                <label><span>Detalle</span><select id="iaDetail"><option value="concise">Conciso</option><option value="standard" selected>Normal</option><option value="extended">Ampliado</option></select></label>
+                <p>La seguridad, los permisos y la auditoria no cambian. La profundidad amplia consultas y razonamiento.</p>
+              </div>
+              <div id="iaCapabilities" class="assistant-capabilities"></div>
+              <div class="assistant-panel-title"><strong>Memoria activa</strong><small id="iaDocumentSummary">Sin documentos</small></div>
+              <div id="iaDocuments" class="assistant-documents"></div>
+              <div class="assistant-panel-title admin-only oculto"><strong>Aprobaciones</strong><small>Ordenes que esperan confirmacion</small></div>
+              <div id="iaApprovals" class="assistant-approvals admin-only oculto"></div>
+              <details class="assistant-permissions admin-only oculto">
+                <summary>Permisos por usuario</summary>
+                <div id="iaPermissions"></div>
+              </details>
+            </aside>
+          </div>
+        </section>
+
+        <section id="v-notificaciones" class="vista oculto">
+          <div class="section-heading">
+            <div><h2>Centro de notificaciones</h2><p>Alertas de caja, inventario, respaldos, dispositivos y sincronizacion.</p></div>
+            <button id="btnLeerTodas" class="secondary">Marcar visibles como leidas</button>
+          </div>
+          <div class="filter-bar compact-filter">
+            <div><label for="alertFilter">Mostrar</label><select id="alertFilter"><option value="all">Todas</option><option value="open">No leidas</option><option value="critical">Criticas</option><option value="warning">Advertencias</option><option value="info">Informativas</option></select></div>
+          </div>
+          <div id="notificacionesResumen" class="inline-metrics"></div>
+          <div id="notificacionesLista" class="notification-list"></div>
+        </section>
+
+        <section id="v-dispositivos" class="vista oculto">
+          <div class="section-heading"><div><h2>Dispositivos</h2><p>Cajas autorizadas, version instalada y ultima conexion.</p></div></div>
+          <section class="surface"><div id="devTabla"></div></section>
+        </section>
+
+        <section id="v-respaldos" class="vista oculto">
+          <div class="section-heading"><div><h2>Respaldos</h2><p>Snapshots, integridad y recuperacion desde Supabase Storage.</p></div></div>
+          <div id="bakResumen" class="inline-metrics"></div>
+          <section class="surface"><div id="bakTabla" class="table-wrap"></div></section>
+        </section>
+
+        <section id="v-descargar" class="vista oculto">
+          <div class="section-heading"><div><h2>Instalador y versiones</h2><p>Canal estable, notas, integridad y descarga del programa.</p></div></div>
+          <section class="surface release-card"><div id="dlInfo" class="loading">Consultando la version publicada...</div></section>
+        </section>
+
+        <section id="v-configuracion" class="vista oculto">
+          <div class="section-heading"><div><h2>Configuracion</h2><p>Datos del negocio y ticket sincronizados con todas las cajas.</p></div></div>
+          <section class="surface admin-only oculto">
+            <div class="surface-title"><div><h3>Negocio y ticket</h3><p>Los cambios entran a la cola cloud y se aplican en cada caja conectada.</p></div><button id="btnGuardarNegocio" class="primary">Guardar cambios</button></div>
+            <form id="formNegocio" class="form-grid" autocomplete="off">
+              <label><span>Nombre comercial</span><input id="negNombre" required maxlength="180"></label>
+              <label><span>RNC</span><input id="negRnc" maxlength="80"></label>
+              <label class="field-wide"><span>Slogan</span><input id="negSlogan" maxlength="240"></label>
+              <label class="field-wide"><span>Direccion</span><input id="negDireccion" maxlength="500"></label>
+              <label><span>WhatsApp</span><input id="negWhatsapp" maxlength="80"></label>
+              <label><span>Telefono</span><input id="negTelefono" maxlength="80"></label>
+              <label><span>Instagram</span><input id="negInstagram" maxlength="160"></label>
+              <label><span>TikTok</span><input id="negTiktok" maxlength="160"></label>
+              <label class="field-wide"><span>Pie del ticket</span><textarea id="negTicketPie" rows="3" maxlength="500"></textarea></label>
+              <label class="check-row field-wide"><input id="negLogoActivo" type="checkbox"><span>Imprimir logo en el ticket</span></label>
+            </form>
+          </section>
+          <div class="config-grid">
+            <section class="surface"><div id="cfgInfo"></div><div class="button-row"><button class="secondary" id="btnSalir">Cerrar sesion</button><button class="secondary" id="btnReset">Cambiar conexion</button></div></section>
+            <section class="surface"><div class="surface-title"><div><h3>Cambios recientes</h3></div></div><div id="cfgEventos" class="table-wrap"></div></section>
+          </div>
+        </section>
+      </main>
+      <footer><span>D' Carela Compufoto</span><span id="footerClock"></span></footer>
+    </div>
+    <nav class="mobile-command-dock" aria-label="Accesos principales">
+      <a href="#dashboard"><i aria-hidden="true">⌂</i><span>Resumen</span></a>
+      <a href="#proveedores"><i aria-hidden="true">$</i><span>Finanzas</span></a>
+      <a href="#inventario"><i aria-hidden="true">▦</i><span>Inventario</span></a>
+      <a href="#asistente"><i aria-hidden="true">✦</i><span>IA</span></a>
+      <a href="#notificaciones"><i aria-hidden="true">•</i><span>Alertas</span></a>
+    </nav>
+  </div>
+
+  <div id="editorOverlay" class="editor-overlay oculto" aria-hidden="true">
+    <section class="editor-dialog" role="dialog" aria-modal="true" aria-labelledby="editorTitle">
+      <header class="editor-header"><div><p class="eyebrow">Edicion administrativa</p><h2 id="editorTitle">Editar</h2><p id="editorSubtitle"></p></div><button id="btnCerrarEditor" class="icon-button" type="button" aria-label="Cerrar">&#215;</button></header>
+      <form id="editorForm">
+        <div id="editorFields" class="form-grid"></div>
+        <p id="editorError" class="error" role="alert"></p>
+        <div class="editor-actions"><button id="btnCancelarEditor" class="secondary" type="button">Cancelar</button><button id="btnGuardarEditor" class="primary" type="submit">Guardar y sincronizar</button></div>
+      </form>
+    </section>
+  </div>
+
+  <div id="toast" class="toast oculto" role="status"></div>
+
+  <script>
+    window.__DCARELA_DEFAULT = {
+      url: 'https://rdmhyhsrewvrpqygtufa.supabase.co',
+      anon: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJkbWh5aHNyZXd2cnBxeWd0dWZhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcwODc2NDMsImV4cCI6MjA5MjY2MzY0M30.5icksD5qJmcSRNax5O1ap4qCw4Kd0FqSYhhxIMDWi8s',
+      business: 'dcarela'
+    };
+  </script>
+  <script src="supabase.min.js"></script>
+  <script src="jspdf.umd.min.js"></script>
+  <script src="jspdf.plugin.autotable.min.js"></script>
+  <script src="panel.js?v=20260726-efferd-global-v16"></script>
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));
+    }
+  </script>
+</body>
+</html>
