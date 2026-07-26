@@ -1828,6 +1828,32 @@
     $("chartTotal").textContent = money(sales.reduce((sum, event) => sum + totalDe(P(event)), 0));
   }
 
+  function dashboardBuckets(sales, valueOf) {
+    const buckets = Array.from({ length: 7 }, () => []);
+    const ordered = [...sales].sort((a, b) => fechaEventoIso(a).localeCompare(fechaEventoIso(b)));
+    ordered.forEach((event, index) => {
+      const bucket = Math.min(6, Math.floor(index * 7 / Math.max(1, ordered.length)));
+      buckets[bucket].push(valueOf(event));
+    });
+    return buckets.map(items => items.reduce((sum, value) => sum + value, 0));
+  }
+
+  function renderKpiSparkline(id, points, color) {
+    const host = $(id);
+    if (!host) return;
+    const values = points.length > 1 ? points : [0, 0];
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    const range = Math.max(1, max - min);
+    const coordinates = values.map((value, index) => {
+      const x = index * 150 / Math.max(1, values.length - 1);
+      const y = 53 - ((value - min) * 43 / range);
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    }).join(" ");
+    const area = `0,60 ${coordinates} 150,60`;
+    host.innerHTML = `<svg viewBox="0 0 150 60" preserveAspectRatio="none" aria-hidden="true"><defs><linearGradient id="${esc(id)}Fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${color}" stop-opacity=".38"/><stop offset="1" stop-color="${color}" stop-opacity="0"/></linearGradient></defs><polygon points="${area}" fill="url(#${esc(id)}Fill)"/><polyline points="${coordinates}" fill="none" stroke="${color}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+  }
+
   function metric(label, value) {
     return `<div class="metric-chip"><span>${esc(label)}</span><strong>${esc(value)}</strong></div>`;
   }
@@ -1875,6 +1901,17 @@
     $("kItbis").textContent = money(tax);
     $("kCaja").textContent = cashState;
     $("kCajaDetalle").textContent = cashEvents[0] ? fecha(fechaEventoIso(cashEvents[0])) : "sin eventos";
+    const totalSeries = dashboardBuckets(active, event => totalDe(P(event)));
+    const countSeries = dashboardBuckets(active, () => 1);
+    const cashSeries = dashboardBuckets(active, event => efectivoDe(P(event)));
+    const taxSeries = dashboardBuckets(active, event => itbisDe(P(event)));
+    const averageSeries = totalSeries.map((value, index) => countSeries[index] ? Math.round(value / countSeries[index]) : 0);
+    renderKpiSparkline("kSparkVenta", totalSeries, "#1797e8");
+    renderKpiSparkline("kSparkNum", countSeries, "#0a3679");
+    renderKpiSparkline("kSparkProm", averageSeries, "#ff7f03");
+    renderKpiSparkline("kSparkEfec", cashSeries, "#15867b");
+    renderKpiSparkline("kSparkItbis", taxSeries, "#7455a5");
+    renderKpiSparkline("kSparkCaja", cashEvents.length ? [0, 1, 1, 2, 2, 3, 4] : [0, 0], cashState === "Abierta" ? "#15867b" : "#c93c3c");
     renderHourChart(active);
     renderFeed(activity);
 
@@ -2077,7 +2114,7 @@
     const rowHtml = component => `<div class="combo-component-row"><select name="componente" required><option value="">Selecciona el componente</option>${optionHtml(component?.productoId)}</select><input name="cantidad" type="number" min="0.001" step="0.001" value="${esc(component?.cantidad || 1)}" required><button type="button" class="icon-button combo-remove" aria-label="Quitar componente">&#215;</button></div>`;
     abrirEditor(`Componentes | ${combo.nombre}`, "Cada cantidad se descuenta al vender el combo y el costo se calcula desde sus componentes.", `
       <div id="comboRows" class="field-wide combo-editor">${current.map(rowHtml).join("") || rowHtml(null)}</div>
-      <div class="field-wide combo-footer"><button id="btnAddComboRow" class="secondary" type="button">Agregar componente</button><strong id="comboCostPreview">Costo calculado: RD$0.00</strong></div>`, async form => {
+      <div class="field-wide combo-footer"><button id="btnAddComboRow" class="secondary" type="button">Agregar componente</button><strong id="comboCostPreview">Costo calculado: RD$0.00</strong></div>`, async () => {
       const rows = [...document.querySelectorAll("#comboRows .combo-component-row")];
       const componentes = rows.map(row => ({ productoId: row.querySelector("select").value, cantidad: decimalInput(row.querySelector("input").value) })).filter(item => item.productoId);
       if (!componentes.length) throw new Error("Agrega al menos un componente.");
@@ -2208,14 +2245,6 @@
       cerrarEditor();
       await cargarClientesCloud(true);
       await cargarClientes();
-    });
-  }
-
-  function abrirCategoriaGasto() {
-    abrirEditor("Nueva categoria de gasto", "La categoria quedara disponible para gastos y salidas registradas en las cajas.", `<label class="field-wide"><span>Nombre</span><input name="nombre" required maxlength="120"></label>`, async form => {
-      await adminWrite("expense_category.upsert", null, { nombre: form.get("nombre") });
-      cerrarEditor();
-      await cargarProveedores(true);
     });
   }
 
@@ -3212,7 +3241,7 @@
     renderFinFlowChart(dailyRes.data || [], range);
     renderFinCategoryChart(categoryRes.data || [], expense);
     renderFinRecent(range);
-    renderFinPlanning(categoryRes.data || []);
+    renderFinPlanning();
     state.dashboard = { range, summary, daily: dailyRes.data || [], categories: categoryRes.data || [] };
   }
 
@@ -3267,7 +3296,7 @@
     }).join("") : `<div class="empty-state compact"><p>Sin actividad en el periodo.</p></div>`;
   }
 
-  function renderFinPlanning(categoryRows) {
+  function renderFinPlanning() {
     const state = finStateCache;
     const categories = new Map(state.categories.map(item => [item.id, item.nombre]));
     const budgetAlerts = (state.budgetProgress || []).filter(item => item.percent >= item.alerta_porcentaje).slice(0, 4).map(item => ({

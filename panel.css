@@ -786,3 +786,179 @@ nav a.act {
   }
   body:has(#v-asistente:not(.oculto)) .mobile-panel-link { display: none; }
 }
+
+/* 2026-07-26 v15: integración fiel de los componentes entregados.
+   Aumenta jerarquía, escala y movimiento sin reducir la superficie funcional. */
+.mobile-command-dock { display: none; }
+
+@media (min-width: 861px) {
+  body { font-size: 14px; }
+  .app-shell { grid-template-columns: 268px minmax(0,1fr); }
+  .sidebar { padding: 24px 17px 18px; }
+  .brand { padding: 0 5px 20px; }
+  .brand-logo { width: 52px; height: 52px; border-radius: 16px; }
+  .brand strong { font-size: 16px; }.brand span { font-size: 11px; }
+  nav a { min-height: 46px; padding: 11px 15px; border-radius: 13px; font-size: 13px; }
+  .connection-card { padding: 13px; border-radius: 16px; }
+  .topbar { min-height: 86px; padding: 14px 30px; }
+  .topbar h1 { font-size: 24px; }.topbar .eyebrow { font-size: 10px; }
+  main { padding: 30px 32px 38px; }
+  .section-heading { margin-bottom: 22px; }
+  .section-heading h2 { font-size: 28px; }.section-heading p { margin-top: 6px; font-size: 14px; line-height: 1.5; }
+  .surface-title h3 { font-size: 18px; }.surface-title p { margin-top: 5px; font-size: 13px; line-height: 1.45; }.surface-title a { font-size: 12px; }
+}
+
+.surface, .branch-card, .branch-summary article {
+  border-radius: 20px;
+}
+.surface { padding: 22px; }
+button, .button-link, input, select, textarea { border-radius: 12px; }
+button, .button-link { min-height: 42px; padding: 9px 15px; font-size: 12px; }
+input, select, textarea { min-height: 44px; padding: 10px 12px; font-size: 13px; }
+
+.kpi-grid, .kpi-grid.compact {
+  grid-template-columns: repeat(3,minmax(240px,1fr));
+  gap: 16px;
+  margin-bottom: 20px;
+}
+.kpi {
+  min-height: 164px;
+  padding: 22px;
+  display: grid;
+  grid-template-columns: minmax(0,1fr) minmax(108px,42%);
+  grid-template-rows: auto auto 1fr;
+  align-items: center;
+  column-gap: 16px;
+  border-radius: 22px;
+}
+.kpi::before { width: 5px; }
+.kpi > span, .kpi > strong, .kpi > small { grid-column: 1; }
+.kpi > span { align-self: end; font-size: 13px; font-weight: 750; }
+.kpi > strong { margin: 6px 0 3px; padding: 3px 0; overflow: visible; font-size: clamp(25px,2vw,34px); line-height: 1.18; }
+.kpi > small { align-self: start; font-size: 11px; line-height: 1.35; }
+.kpi-sparkline { height: 78px; grid-column: 2; grid-row: 1 / 4; align-self: center; }
+.kpi-sparkline svg { width: 100%; height: 100%; overflow: visible; }
+.kpi-sparkline polyline { stroke-dasharray: 240; stroke-dashoffset: 240; animation: widgetLineIn .9s ease forwards; }
+.kpi-sparkline polygon { opacity: 0; animation: widgetAreaIn .7s ease .18s forwards; }
+
+.dashboard-grid { gap: 16px; }
+.hour-chart { min-height: 250px; padding: 24px 18px 12px; border-radius: 16px; }
+.hour-column span { font-size: 10px; }
+.health-row { min-height: 60px; padding: 10px 4px; }.health-row b { font-size: 13px; }.health-row small, .health-value { font-size: 10px; }
+.event-item { min-height: 66px; padding: 12px 4px; }.event-copy strong { font-size: 13px; }.event-copy small, .event-time { font-size: 10px; }
+
+.finance-nav-shell { top: 72px; padding: 10px; border-radius: 18px; }
+.finance-tabs button { min-height: 42px; padding: 9px 14px; font-size: 11px; }
+.finance-kpis { gap: 14px; margin-bottom: 16px; }
+.finance-kpi { min-height: 138px; padding: 19px; border-radius: 20px; }
+.finance-kpi span { font-size: 11px; }.finance-kpi strong { margin: 8px 0 6px; font-size: clamp(24px,2vw,32px); }.finance-kpi small { font-size: 10px; }
+.finance-dashboard-grid { gap: 16px; }
+.finance-chart-main, .finance-category-panel { min-height: 410px; }
+.finance-flow-chart { height: 320px; }
+.finance-category-chart { min-height: 320px; grid-template-columns: minmax(220px,.9fr) minmax(230px,1.1fr); gap: 26px; }
+.finance-donut { width: min(270px,100%); box-shadow: 0 18px 36px rgba(10,54,121,.14); }
+.finance-donut strong { font-size: 18px; }.finance-donut small { font-size: 10px; }
+.finance-donut-legend { gap: 8px; padding-right: 8px; }
+.finance-donut-legend button { min-height: 44px; padding: 8px 10px; grid-template-columns: 10px minmax(0,1fr) 38px 92px; border-radius: 12px; }
+.finance-donut-legend span, .finance-donut-legend b { font-size: 11px; }.finance-donut-legend small { font-size: 10px; }
+.finance-timeline article { min-height: 54px; padding: 10px 6px; }.finance-timeline strong, .finance-timeline b { font-size: 12px; }.finance-timeline small { font-size: 10px; }
+.finance-planning-list article { padding: 13px; border-radius: 14px; }.finance-planning-list strong { font-size: 12px; }.finance-planning-list small { font-size: 10px; }
+
+.fin-accounts { grid-template-columns: repeat(auto-fill,minmax(280px,1fr)); gap: 15px; }
+.fin-account { min-height: 154px; border-radius: 22px; }
+.fin-account.total, .fin-account.cumulo { padding: 20px; }
+.fin-account-open { min-height: 116px; padding: 19px 20px 14px; }
+.fin-account-visual-head > i { width: 42px; height: 42px; border-radius: 14px; font-size: 16px; }
+.fin-account-visual-head b { font-size: 14px; }.fin-account-visual-head small { font-size: 10px; }
+.fin-account strong { margin: 12px 0 5px; font-size: 25px; }.fin-account small { font-size: 10px; }
+.fin-account-actions { padding: 9px 12px 12px; gap: 8px; }
+.fin-account-actions button { min-height: 34px; padding: 6px 11px; border-radius: 10px; font-size: 10px; }
+.finance-credit-card { min-height: 290px; padding: 23px; border-radius: 22px; }
+.finance-credit-card > span { font-size: 13px; }.finance-credit-card > strong { font-size: 31px; }.finance-credit-card > small, .finance-card-line { font-size: 11px; }
+
+.assistant-layout {
+  border-radius: 24px;
+  background-color: rgba(7,35,76,.78);
+  background-image: linear-gradient(112deg,rgba(4,24,55,.96),rgba(10,54,121,.80) 58%,rgba(23,151,232,.46)),url("dcarela-logo.png");
+  background-repeat: no-repeat;
+  background-position: center, calc(100% + 100px) center;
+  background-size: auto, 460px;
+}
+.assistant-chat-panel { background: rgba(238,246,252,.28); }
+.assistant-chat-header { min-height: 82px; padding: 14px 20px; background: rgba(242,248,253,.78); }
+.assistant-chat-header strong { font-size: 16px; }.assistant-chat-header small { font-size: 11px; }
+.assistant-model { font-size: 10px; }.assistant-model select { min-height: 42px; font-size: 12px; }
+.assistant-messages { padding-block: 28px; }
+.assistant-message { margin-bottom: 20px; padding: 16px 48px 15px 18px; border-radius: 18px; }
+.assistant-message .message-role { font-size: 10px; }.assistant-message .message-body { font-size: 14px; line-height: 1.65; }
+.assistant-message .message-body h3 { font-size: 15px; }.assistant-message-meta { font-size: 10px; }
+.assistant-thinking { padding: 15px 17px; border-radius: 16px; font-size: 13px; }
+.assistant-suggestions { padding-top: 12px; gap: 9px; }
+.assistant-suggestions button { min-height: 38px; padding: 8px 14px; border-radius: 999px; font-size: 11px; background: rgba(5,26,58,.54); color: white; border-color: rgba(255,255,255,.24); backdrop-filter: blur(18px); }
+.assistant-composer { padding-top: 13px; padding-bottom: 18px; background: rgba(4,24,55,.84); border-color: rgba(255,255,255,.16); }
+.assistant-composer textarea { min-height: 58px; padding: 14px; color: white; background: rgba(0,0,0,.24); border-color: rgba(255,255,255,.22); font-size: 14px; }
+.assistant-composer textarea::placeholder { color: rgba(255,255,255,.54); }
+.assistant-attach { width: 46px; height: 46px; color: white; background: rgba(255,255,255,.12); border-color: rgba(255,255,255,.22); border-radius: 14px; }
+.assistant-send { min-height: 50px; border-radius: 14px; background: white; color: var(--navy); }
+.assistant-history-panel, .assistant-control-panel { padding: 19px; }
+.assistant-conversation { min-height: 68px; padding: 12px; border-radius: 14px; }.assistant-conversation span { font-size: 12px; }.assistant-conversation small { font-size: 10px; }
+.assistant-capability { padding: 10px; border-radius: 11px; font-size: 11px; }
+
+.table-wrap { border-radius: 16px; }
+th { padding: 12px 13px; font-size: 11px; }
+td { padding: 12px 13px; font-size: 12px; }
+
+@keyframes widgetLineIn { to { stroke-dashoffset: 0; } }
+@keyframes widgetAreaIn { to { opacity: 1; } }
+
+@media (max-width: 1500px) {
+  .kpi-grid, .kpi-grid.compact { grid-template-columns: repeat(2,minmax(230px,1fr)); }
+  .finance-kpis { grid-template-columns: repeat(2,minmax(0,1fr)); }
+}
+
+@media (max-width: 860px) {
+  body { padding-bottom: 96px; }
+  main { padding: 20px 16px 30px; }
+  .mobile-panel-link { display: none; }
+  .mobile-command-dock {
+    min-height: 70px;
+    position: fixed;
+    left: 50%;
+    bottom: max(12px,env(safe-area-inset-bottom));
+    z-index: 960;
+    display: flex;
+    align-items: end;
+    gap: 4px;
+    padding: 8px 10px;
+    background: rgba(246,250,254,.82);
+    border: 1px solid rgba(255,255,255,.82);
+    border-radius: 24px;
+    box-shadow: 0 20px 48px rgba(7,31,65,.28);
+    transform: translateX(-50%) perspective(700px) rotateX(5deg);
+    backdrop-filter: blur(26px) saturate(135%);
+  }
+  .mobile-command-dock a { width: 56px; min-height: 51px; display: grid; place-items: center; align-content: center; gap: 2px; color: #315372; text-decoration: none; border-radius: 16px; transition: transform .18s ease,background .18s ease; }
+  .mobile-command-dock a:hover, .mobile-command-dock a:focus-visible { color: var(--navy); background: white; transform: translateY(-4px) scale(1.07); }
+  .mobile-command-dock i { font-size: 20px; font-style: normal; line-height: 1; }.mobile-command-dock span { font-size: 8px; font-weight: 800; }
+  body:has(#v-asistente:not(.oculto)) .mobile-command-dock { display: none; }
+  .kpi { min-height: 150px; }
+  .finance-nav-shell { top: 58px; border-radius: 15px; }
+  .finance-dashboard-grid { grid-template-columns: 1fr; }
+  .finance-chart-main, .finance-category-panel { min-height: 350px; }
+  .assistant-layout { border-radius: 0; }
+}
+
+@media (max-width: 590px) {
+  .kpi-grid, .kpi-grid.compact { grid-template-columns: 1fr; }
+  .kpi { min-height: 156px; padding: 19px; }
+  .kpi > strong { font-size: 28px; }
+  .section-heading h2 { font-size: 23px; }.section-heading p { font-size: 13px; }
+  .surface { padding: 17px; border-radius: 18px; }
+  .finance-kpis { grid-template-columns: 1fr 1fr; }
+  .finance-kpi { min-height: 118px; padding: 14px; }
+  .finance-kpi strong { font-size: 20px; }
+  .finance-category-chart { grid-template-columns: 1fr; }
+  .finance-donut { width: 230px; }
+  .fin-accounts { grid-template-columns: 1fr; }
+  .assistant-message { max-width: 94%; }
+}

@@ -10,7 +10,7 @@
   <title>D' Carela Compufoto | Panel POS</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="dcarela-logo.png">
-  <link rel="stylesheet" href="panel.css?v=20260726-panel-total-v14">
+  <link rel="stylesheet" href="panel.css?v=20260726-componentes-reales-v15">
 </head>
 <body>
   <section id="access" class="access-shell">
@@ -120,12 +120,12 @@
             <span id="pillVivo" class="status-pill live">conectando</span>
           </div>
           <div class="kpi-grid">
-            <article class="kpi accent-blue"><span>Venta neta</span><strong id="kVenta">--</strong><small id="kVentaDetalle">hoy</small></article>
-            <article class="kpi accent-cyan"><span>Transacciones</span><strong id="kNum">--</strong><small id="kNumDetalle">ventas validas</small></article>
-            <article class="kpi accent-orange"><span>Ticket promedio</span><strong id="kProm">--</strong><small>por venta</small></article>
-            <article class="kpi accent-green"><span>Efectivo</span><strong id="kEfec">--</strong><small>cobrado hoy</small></article>
-            <article class="kpi accent-violet"><span>ITBIS</span><strong id="kItbis">--</strong><small>registrado hoy</small></article>
-            <article class="kpi accent-red"><span>Caja</span><strong id="kCaja">--</strong><small id="kCajaDetalle">ultimo evento</small></article>
+            <article class="kpi accent-blue"><span>Venta neta</span><strong id="kVenta">--</strong><small id="kVentaDetalle">hoy</small><div id="kSparkVenta" class="kpi-sparkline"></div></article>
+            <article class="kpi accent-cyan"><span>Transacciones</span><strong id="kNum">--</strong><small id="kNumDetalle">ventas validas</small><div id="kSparkNum" class="kpi-sparkline"></div></article>
+            <article class="kpi accent-orange"><span>Ticket promedio</span><strong id="kProm">--</strong><small>por venta</small><div id="kSparkProm" class="kpi-sparkline"></div></article>
+            <article class="kpi accent-green"><span>Efectivo</span><strong id="kEfec">--</strong><small>cobrado hoy</small><div id="kSparkEfec" class="kpi-sparkline"></div></article>
+            <article class="kpi accent-violet"><span>ITBIS</span><strong id="kItbis">--</strong><small>registrado hoy</small><div id="kSparkItbis" class="kpi-sparkline"></div></article>
+            <article class="kpi accent-red"><span>Caja</span><strong id="kCaja">--</strong><small id="kCajaDetalle">ultimo evento</small><div id="kSparkCaja" class="kpi-sparkline status"></div></article>
           </div>
 
           <div class="dashboard-grid">
@@ -498,6 +498,13 @@
       </main>
       <footer><span>D' Carela Compufoto</span><span id="footerClock"></span></footer>
     </div>
+    <nav class="mobile-command-dock" aria-label="Accesos principales">
+      <a href="#dashboard"><i aria-hidden="true">⌂</i><span>Resumen</span></a>
+      <a href="#proveedores"><i aria-hidden="true">$</i><span>Finanzas</span></a>
+      <a href="#inventario"><i aria-hidden="true">▦</i><span>Inventario</span></a>
+      <a href="#asistente"><i aria-hidden="true">✦</i><span>IA</span></a>
+      <a href="#notificaciones"><i aria-hidden="true">•</i><span>Alertas</span></a>
+    </nav>
   </div>
 
   <div id="editorOverlay" class="editor-overlay oculto" aria-hidden="true">
@@ -523,7 +530,7 @@
   <script src="supabase.min.js"></script>
   <script src="jspdf.umd.min.js"></script>
   <script src="jspdf.plugin.autotable.min.js"></script>
-  <script src="panel.js?v=20260726-panel-total-v14"></script>
+  <script src="panel.js?v=20260726-componentes-reales-v15"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));
