@@ -371,6 +371,24 @@ tbody tr:hover { background: rgba(23,151,232,.045); }
 .finance-chart-main { min-height: 330px; }.finance-category-panel { min-height: 330px; }
 .finance-recent-panel, .finance-planning-panel { min-height: 270px; }
 .finance-flow-chart { height: 250px; min-width: 0; }
+.finance-flow-wave { width: 100%; height: calc(100% - 28px); overflow: visible; color: var(--text); }
+.finance-flow-grid line { stroke: var(--line); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.finance-flow-area { fill: url(#financeIncomeArea); }
+.finance-flow-income, .finance-flow-expense { fill: none; stroke-linecap: round; stroke-linejoin: round; stroke-width: 2; vector-effect: non-scaling-stroke; }
+.finance-flow-income { stroke: currentColor; }
+.finance-flow-expense { stroke: var(--muted); stroke-width: 1.35; }
+.finance-flow-point { color: var(--text); cursor: pointer; outline: none; }
+.finance-flow-point .finance-flow-hit { stroke: transparent; stroke-width: 14; vector-effect: non-scaling-stroke; }
+.finance-flow-point circle { vector-effect: non-scaling-stroke; transition: r .18s ease, fill .18s ease; }
+.finance-flow-point circle.income { fill: var(--surface); stroke: currentColor; stroke-width: 1.7; }
+.finance-flow-point circle.expense { fill: var(--muted); stroke: var(--surface); stroke-width: 1; }
+.finance-flow-point:hover circle, .finance-flow-point:focus-visible circle { r: 5px; }
+.finance-flow-label { fill: var(--muted); font-size: 10px; text-anchor: middle; }
+.finance-flow-legend { height: 28px; display: flex; align-items: center; gap: 14px; font-size: 10px; color: var(--muted); }
+.finance-flow-legend span { display: inline-flex; align-items: center; gap: 5px; }
+.finance-flow-legend i { width: 13px; height: 2px; background: currentColor; }
+.finance-flow-legend .expense { opacity: .58; }
+.finance-flow-legend small { margin-left: auto; font-size: 9px; }
 .finance-flow-bars { height: 100%; padding: 8px 4px 0; display: grid; grid-template-columns: repeat(auto-fit,minmax(28px,1fr)); gap: 3px; align-items: end; border-bottom: 1px solid rgba(98,115,140,.23); }
 .finance-flow-day { min-width: 0; height: 100%; padding: 0; display: grid; grid-template-rows: minmax(0,1fr) 24px; color: var(--muted); background: transparent; border: 0; box-shadow: none; }
 .finance-flow-day:hover { transform: none; background: rgba(23,151,232,.06); }
@@ -1032,5 +1050,2080 @@ html.embedded-panel .update-banner {
 
   html.embedded-panel .assistant-layout {
     border-radius: 14px;
+  }
+}
+
+/* 2026-07-27 v17: sistema visual operativo unico.
+   Esta capa reemplaza las escalas contradictorias de v14/v15 sin cambiar la
+   logica de los modulos. Vidrio, densidad y radios son consistentes en todo el
+   panel y en el documento embebido dentro del shell React. */
+:root {
+  --canvas: #e3ebf2;
+  --surface: rgba(249, 252, 255, .66);
+  --surface-strong: rgba(252, 254, 255, .88);
+  --line: rgba(39, 67, 99, .14);
+  --shadow: 0 12px 30px rgba(20, 42, 70, .10);
+  --radius-card: 8px;
+  --radius-control: 6px;
+}
+
+body {
+  font-size: 14px;
+  background-color: var(--canvas);
+  background-image: none;
+}
+
+body::before {
+  content: "";
+  width: min(440px, 36vw);
+  aspect-ratio: 1;
+  position: fixed;
+  right: -90px;
+  bottom: -85px;
+  z-index: -1;
+  opacity: .035;
+  background: url("dcarela-logo.png") center / contain no-repeat;
+  pointer-events: none;
+}
+
+.app-shell { grid-template-columns: 236px minmax(0, 1fr); }
+.sidebar {
+  padding: 18px 12px 14px;
+  background: rgba(8, 38, 80, .94);
+  box-shadow: 12px 0 30px rgba(8, 34, 71, .10);
+  backdrop-filter: blur(26px) saturate(125%);
+}
+.brand { padding-bottom: 16px; }
+.brand-logo { width: 44px; height: 44px; padding: 5px; border-radius: var(--radius-control); }
+nav { gap: 3px; }
+nav a {
+  min-height: 40px;
+  padding: 9px 11px;
+  border-radius: var(--radius-control);
+  transform: none;
+}
+nav a:hover { transform: none; }
+.connection-card { border-radius: var(--radius-card); }
+.auth-panel { border-radius: var(--radius-card); }
+
+.topbar {
+  min-height: 72px;
+  padding: 11px 22px;
+  background: rgba(239, 246, 251, .76);
+  box-shadow: 0 8px 22px rgba(20, 42, 70, .07);
+  backdrop-filter: blur(26px) saturate(125%);
+}
+.topbar h1 { font-size: 20px; }
+main { padding: 22px 24px 30px; }
+
+button, .button-link, input, select, textarea {
+  border-radius: var(--radius-control);
+}
+button, .button-link {
+  min-height: 38px;
+  padding: 8px 13px;
+  font-size: 12px;
+}
+input, select, textarea {
+  min-height: 40px;
+  padding: 8px 10px;
+  font-size: 13px;
+}
+
+.section-heading {
+  align-items: end;
+  margin-bottom: 14px;
+}
+.section-heading h2 { font-size: 23px; }
+.section-heading p { margin-top: 4px; font-size: 12px; line-height: 1.45; }
+.surface-title { margin-bottom: 12px; }
+.surface-title h3 { font-size: 15px; }
+.surface-title p { font-size: 11px; line-height: 1.45; }
+
+.surface, .kpi, .branch-card, .branch-summary article,
+.metric-chip, .filter-bar, .notification, .cost-analysis-copy, .due-list,
+.finance-kpi, .finance-chart-main, .finance-category-panel {
+  border-radius: var(--radius-card);
+  background: var(--surface);
+  border: 1px solid rgba(255, 255, 255, .82);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(22px) saturate(125%);
+}
+.surface { padding: 16px; }
+
+.kpi-grid, .kpi-grid.compact {
+  grid-template-columns: repeat(3, minmax(190px, 1fr));
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.kpi {
+  min-height: 124px;
+  padding: 15px 16px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(82px, 35%);
+  grid-template-rows: auto auto 1fr;
+  column-gap: 12px;
+  border-radius: var(--radius-card);
+}
+.kpi::before { width: 4px; }
+.kpi > span, .kpi > strong, .kpi > small { grid-column: 1; }
+.kpi > span { align-self: end; font-size: 11px; }
+.kpi > strong {
+  margin: 5px 0 3px;
+  padding: 0;
+  font-size: clamp(21px, 1.7vw, 28px);
+  line-height: 1.15;
+}
+.kpi > small { align-self: start; font-size: 10px; }
+.kpi-sparkline {
+  height: 62px;
+  grid-column: 2;
+  grid-row: 1 / 4;
+  align-self: center;
+}
+
+.dashboard-grid, .report-grid {
+  grid-template-columns: minmax(0, 1.65fr) minmax(280px, .85fr);
+  gap: 12px;
+}
+.hour-chart { min-height: 215px; padding: 20px 12px 8px; border-radius: var(--radius-card); }
+.health-row, .event-item { min-height: 52px; }
+
+.filter-bar {
+  padding: 11px 13px;
+  gap: 9px;
+}
+.filter-bar > div { min-width: 145px; flex: 1 1 155px; }
+.inline-metrics { gap: 8px; }
+.metric-chip { min-width: 155px; padding: 11px 12px; }
+
+.table-wrap {
+  overflow: auto;
+  border: 1px solid rgba(39, 67, 99, .10);
+  border-radius: var(--radius-card);
+  background: rgba(255, 255, 255, .34);
+  scrollbar-gutter: stable;
+}
+table { font-size: 12px; }
+th { padding: 10px 11px; font-size: 10px; }
+td { padding: 10px 11px; font-size: 12px; }
+tbody tr:hover { background: rgba(23, 151, 232, .07); }
+
+.branch-summary { gap: 10px; }
+.branch-summary article { min-height: 92px; padding: 13px 14px; }
+.branch-grid { gap: 12px; }
+.branch-card { padding: 16px; border-top-width: 3px; }
+.branch-card-kpis > div, .branch-card-status { border-radius: var(--radius-control); }
+
+.notification { padding: 12px 13px; }
+.notification-actions button, .table-actions button, .table-action {
+  min-height: 30px;
+  padding: 5px 8px;
+  border-radius: var(--radius-control);
+  font-size: 10px;
+}
+
+.segmented { border-radius: var(--radius-card); }
+.segmented button { border-radius: 5px; }
+.finance-nav-shell {
+  top: 64px;
+  padding: 7px;
+  border-radius: var(--radius-card);
+}
+.finance-tabs button { min-height: 36px; padding: 7px 11px; font-size: 10px; }
+.finance-kpis {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 9px;
+  margin-bottom: 12px;
+}
+.finance-kpi {
+  min-height: 108px;
+  padding: 14px;
+  border-radius: var(--radius-card);
+}
+.finance-kpi span { font-size: 9px; }
+.finance-kpi strong { margin: 5px 0 4px; font-size: clamp(19px, 1.7vw, 26px); }
+.finance-kpi small { font-size: 9px; }
+.finance-dashboard-grid {
+  grid-template-columns: minmax(0, 1.55fr) minmax(290px, .85fr);
+  gap: 12px;
+}
+.finance-chart-main, .finance-category-panel { min-height: 340px; }
+.finance-flow-chart { height: 260px; }
+.finance-category-chart {
+  min-height: 260px;
+  grid-template-columns: minmax(180px, .85fr) minmax(190px, 1.15fr);
+  gap: 18px;
+}
+.finance-donut { width: min(220px, 100%); box-shadow: 0 12px 28px rgba(10, 54, 121, .11); }
+.finance-donut-legend { gap: 6px; padding-right: 6px; }
+.finance-donut-legend button {
+  min-height: 38px;
+  padding: 7px 8px;
+  grid-template-columns: 8px minmax(0, 1fr) 34px 84px;
+  border-radius: var(--radius-control);
+}
+.finance-donut-legend span, .finance-donut-legend b { font-size: 10px; }
+.finance-donut-legend small { font-size: 9px; }
+.finance-planning-list article { padding: 10px; border-radius: var(--radius-control); }
+
+.fin-accounts { grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 11px; }
+.fin-account, .finance-credit-card {
+  min-height: 0;
+  border-radius: var(--radius-card);
+}
+.fin-account-open { min-height: 96px; padding: 14px 15px 10px; }
+.fin-account-visual-head > i { width: 34px; height: 34px; border-radius: var(--radius-control); }
+.fin-account-visual-head b { font-size: 12px; }
+.fin-account strong { margin: 7px 0 3px; font-size: 21px; }
+.fin-account-actions { padding: 7px 9px 9px; }
+.fin-account-actions button { min-height: 29px; padding: 5px 8px; border-radius: 5px; font-size: 9px; }
+.finance-credit-card { min-height: 250px; padding: 17px; }
+.finance-credit-card::after { display: none; }
+.finance-credit-card > strong { font-size: 26px; }
+
+.editor-overlay {
+  background: rgba(5, 20, 43, .42);
+  backdrop-filter: blur(22px) saturate(112%);
+}
+.editor-dialog {
+  border-radius: var(--radius-card);
+  background: rgba(242, 248, 253, .88);
+  box-shadow: 0 26px 72px rgba(0, 15, 43, .34);
+  backdrop-filter: blur(28px) saturate(125%);
+}
+.editor-dialog [data-frequency-field] { border-radius: var(--radius-control); }
+
+.assistant-layout {
+  border-radius: var(--radius-card);
+  background: rgba(238, 245, 250, .62);
+  background-image: none;
+  box-shadow: 0 16px 40px rgba(15, 42, 78, .13);
+  backdrop-filter: blur(28px) saturate(130%);
+}
+.assistant-chat-panel { background: rgba(255, 255, 255, .18); }
+.assistant-chat-header {
+  min-height: 68px;
+  padding: 10px 14px;
+  background: rgba(249, 252, 255, .72);
+}
+.assistant-chat-header strong { font-size: 14px; }
+.assistant-chat-header small { font-size: 9px; }
+.assistant-model { font-size: 9px; }
+.assistant-model select { min-height: 36px; font-size: 10px; }
+.assistant-messages { padding-block: 20px; }
+.assistant-message {
+  margin-bottom: 14px;
+  padding: 13px 42px 12px 14px;
+  border-radius: var(--radius-card);
+}
+.assistant-message.user { background: #0a3679; }
+.assistant-message .message-role { font-size: 9px; }
+.assistant-message .message-body { font-size: 12px; line-height: 1.58; }
+.assistant-message-meta { font-size: 8px; }
+.assistant-thinking { padding: 12px 14px; border-radius: var(--radius-card); font-size: 11px; }
+.assistant-suggestions { padding-top: 8px; gap: 6px; }
+.assistant-suggestions button {
+  min-height: 31px;
+  padding: 6px 10px;
+  border-radius: var(--radius-control);
+  color: var(--navy);
+  background: rgba(255, 255, 255, .62);
+  border-color: var(--line);
+  font-size: 9px;
+}
+.assistant-composer {
+  padding-top: 10px;
+  padding-bottom: 14px;
+  background: rgba(239, 246, 251, .92);
+  border-color: var(--line);
+}
+.assistant-composer textarea {
+  min-height: 50px;
+  padding: 12px;
+  color: var(--ink);
+  background: rgba(255, 255, 255, .72);
+  border-color: var(--line);
+  font-size: 13px;
+}
+.assistant-composer textarea::placeholder { color: var(--muted); }
+.assistant-attach { width: 40px; height: 40px; color: var(--navy); border-radius: var(--radius-control); }
+.assistant-send { min-height: 46px; color: white; background: var(--navy); border-radius: var(--radius-control); }
+.assistant-history-panel, .assistant-control-panel { padding: 15px; }
+.assistant-conversation { min-height: 58px; padding: 9px 10px; border-radius: var(--radius-control); }
+.assistant-conversation span { font-size: 10px; }
+.assistant-conversation small { font-size: 8px; }
+.assistant-capability { padding: 7px 8px; border-radius: 5px; font-size: 9px; }
+
+html.embedded-panel body::before { display: none; }
+html.embedded-panel .workspace > main {
+  min-height: 100dvh;
+  padding: 18px clamp(14px, 1.8vw, 28px) 28px;
+}
+html.embedded-panel .assistant-layout { min-height: calc(100dvh - 52px); }
+.mobile-command-dock, .mobile-command-dock a { border-radius: var(--radius-card); }
+
+@media (max-width: 1250px) {
+  .kpi-grid, .kpi-grid.compact { grid-template-columns: repeat(2, minmax(190px, 1fr)); }
+  .finance-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .finance-dashboard-grid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 860px) {
+  body { padding-bottom: 0; }
+  .app-shell { grid-template-columns: minmax(0, 1fr); }
+  main { padding: 17px 13px 24px; }
+  .section-heading { align-items: flex-start; flex-direction: column; }
+  .section-heading h2 { font-size: 21px; }
+  .dashboard-grid, .report-grid, .config-grid, .recon-grid,
+  .finance-dashboard-grid, .finance-settings-grid { grid-template-columns: 1fr; }
+  .finance-nav-shell { top: 58px; }
+  .finance-category-chart { grid-template-columns: 1fr; }
+  .assistant-layout { border-radius: var(--radius-card); }
+  .assistant-chat-header { grid-template-columns: auto minmax(0, 1fr) auto; }
+}
+
+@media (max-width: 590px) {
+  .kpi-grid, .kpi-grid.compact { grid-template-columns: 1fr; }
+  .kpi { min-height: 118px; }
+  .finance-kpis { grid-template-columns: 1fr 1fr; }
+  .surface { padding: 14px; }
+  .branch-summary { grid-template-columns: 1fr 1fr; }
+  .assistant-message { max-width: 94%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+  }
+}
+
+/* 2026-07-27 v18: primitives shadcn + motion language shared with React shell. */
+:root {
+  --background: #e3ebf2;
+  --foreground: #152238;
+  --card: rgba(249, 252, 255, .68);
+  --card-foreground: #152238;
+  --primary: #0a3679;
+  --primary-foreground: #fff;
+  --secondary: rgba(236, 244, 250, .82);
+  --secondary-foreground: #0a3679;
+  --accent: #1797e8;
+  --destructive: #c53f48;
+  --border: rgba(39, 67, 99, .14);
+  --ring: #1797e8;
+}
+
+@keyframes panel-enter {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes panel-beam {
+  from { background-position: 160% 0; }
+  to { background-position: -60% 0; }
+}
+
+.view:not(.oculto) > .section-heading,
+.view:not(.oculto) > .kpi-grid,
+.view:not(.oculto) > .dashboard-grid,
+.view:not(.oculto) > .report-grid,
+.view:not(.oculto) > .surface,
+.view:not(.oculto) > .finance-nav-shell,
+.view:not(.oculto) > .finance-kpis,
+.view:not(.oculto) > .finance-dashboard-grid,
+.view:not(.oculto) > .assistant-layout {
+  animation: panel-enter .38s ease-out both;
+}
+
+.surface,
+.kpi,
+.branch-card,
+.branch-summary article,
+.finance-kpi,
+.fin-account,
+.finance-credit-card,
+.notification,
+.assistant-message,
+.editor-dialog {
+  color: var(--card-foreground);
+  border-color: rgba(255, 255, 255, .82);
+  background-color: var(--card);
+  transition: border-color .18s ease, box-shadow .18s ease, background-color .18s ease;
+}
+
+.surface:hover,
+.branch-card:hover,
+.fin-account:hover {
+  border-color: rgba(23, 151, 232, .22);
+  box-shadow: 0 15px 34px rgba(15, 42, 78, .12);
+}
+
+.primary,
+.button-link,
+.assistant-send {
+  color: var(--primary-foreground);
+  background-color: var(--primary);
+}
+
+.secondary,
+.text-button,
+.mobile-panel-link,
+.topbar-back {
+  color: var(--secondary-foreground);
+  background-color: var(--secondary);
+  border-color: var(--border);
+}
+
+button,
+.button-link,
+input,
+select,
+textarea,
+[tabindex] {
+  transition: border-color .18s ease, background-color .18s ease, color .18s ease,
+    box-shadow .18s ease, transform .18s ease;
+}
+
+button:focus-visible,
+.button-link:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[tabindex]:focus-visible {
+  outline: 0;
+  box-shadow: 0 0 0 3px rgba(23, 151, 232, .20);
+}
+
+.segmented,
+.finance-tabs {
+  padding: 4px;
+  border: 1px solid var(--border);
+  background: rgba(229, 238, 246, .78);
+  backdrop-filter: blur(18px);
+}
+
+.segmented button.act,
+.finance-tabs button.act,
+.finance-tabs button[aria-selected="true"] {
+  color: var(--primary);
+  background: rgba(255, 255, 255, .88);
+  box-shadow: 0 4px 12px rgba(15, 42, 78, .08);
+}
+
+.update-banner {
+  position: relative;
+  overflow: hidden;
+}
+
+.update-banner::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(100deg, transparent 25%, rgba(255,255,255,.34) 46%, transparent 67%);
+  background-size: 220% 100%;
+  animation: panel-beam 8s linear infinite;
+}
+
+@media (max-width: 860px) {
+  .surface:hover,
+  .branch-card:hover,
+  .fin-account:hover {
+    box-shadow: var(--shadow);
+  }
+}
+
+/* El shell React ya aporta navegación, título y avisos. En modo embebido el
+   asistente debe ser una sola superficie de chat, sin encabezados duplicados
+   ni scroll exterior que esconda el compositor. */
+html.embedded-panel body:has(#v-asistente:not(.oculto)) {
+  height: 100dvh;
+  overflow: hidden;
+}
+
+html.embedded-panel body:has(#v-asistente:not(.oculto)) .update-banner,
+html.embedded-panel #v-asistente:not(.oculto) > .assistant-heading {
+  display: none !important;
+}
+
+html.embedded-panel body:has(#v-asistente:not(.oculto)) .workspace,
+html.embedded-panel body:has(#v-asistente:not(.oculto)) .workspace > main,
+html.embedded-panel #v-asistente:not(.oculto) {
+  width: 100%;
+  height: 100dvh;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+html.embedded-panel #v-asistente:not(.oculto) > .assistant-layout {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+html.embedded-panel #v-asistente:not(.oculto) .assistant-messages {
+  padding-inline: clamp(16px, 4vw, 64px);
+}
+
+html.embedded-panel #v-asistente:not(.oculto) .assistant-suggestions,
+html.embedded-panel #v-asistente:not(.oculto) .assistant-attachments,
+html.embedded-panel #v-asistente:not(.oculto) .assistant-composer {
+  padding-inline: clamp(14px, 4vw, 64px);
+}
+
+/* 2026-07-27 v19: adapta el lenguaje visual Ruixen Moon al chat operativo.
+   La conversación real conserva historial, permisos, adjuntos y auditoría; esta
+   capa solo reemplaza el acabado claro que anulaba el componente entregado. */
+html.embedded-panel #v-asistente:not(.oculto) > .assistant-layout {
+  color: #f7fbff;
+  background-color: rgba(4, 22, 50, .96);
+  background-image: url("dcarela-logo.png");
+  background-repeat: no-repeat;
+  background-position: calc(100% + 90px) center;
+  background-size: min(46vw, 520px);
+  backdrop-filter: blur(28px) saturate(125%);
+}
+
+html.embedded-panel #v-asistente:not(.oculto) .assistant-chat-panel {
+  background: rgba(5, 27, 61, .70);
+}
+
+html.embedded-panel #v-asistente:not(.oculto) .assistant-chat-header {
+  color: #f7fbff;
+  background: rgba(3, 18, 42, .78);
+  border-color: rgba(255, 255, 255, .16);
+  backdrop-filter: blur(24px) saturate(125%);
+}
+
+html.embedded-panel #v-asistente:not(.oculto) .assistant-chat-header small,
+html.embedded-panel #v-asistente:not(.oculto) .assistant-model {
+  color: rgba(235, 246, 255, .68);
+}
+
+html.embedded-panel #v-asistente:not(.oculto) .assistant-chat-header button,
+html.embedded-panel #v-asistente:not(.oculto) .assistant-mobile-back,
+html.embedded-panel #v-asistente:not(.oculto) .assistant-model select {
+  color: #f7fbff;
+  background: rgba(255, 255, 255, .10);
+  border-color: rgba(255, 255, 255, .22);
+  backdrop-filter: blur(18px);
+}
+
+html.embedded-panel #v-asistente:not(.oculto) .assistant-header-button {
+  color: #f7fbff !important;
+}
+
+html.embedded-panel #v-asistente:not(.oculto) .assistant-empty {
+  color: rgba(247, 251, 255, .72);
+}
+
+html.embedded-panel #v-asistente:not(.oculto) .assistant-empty strong {
+  color: #f7fbff;
+}
+
+html.embedded-panel #v-asistente:not(.oculto) .assistant-message {
+  border-radius: 14px;
+  box-shadow: 0 16px 36px rgba(0, 10, 28, .24);
+}
+
+html.embedded-panel #v-asistente:not(.oculto) .assistant-message.user {
+  color: #fff;
+  background: rgba(13, 67, 137, .92);
+  border-color: rgba(255, 255, 255, .18);
+  backdrop-filter: blur(18px);
+}
+
+html.embedded-panel #v-asistente:not(.oculto) .assistant-message.assistant,
+html.embedded-panel #v-asistente:not(.oculto) .assistant-thinking {
+  color: #10233f;
+  background: rgba(249, 252, 255, .92);
+  border-color: rgba(255, 255, 255, .96);
+  backdrop-filter: blur(22px) saturate(115%);
+}
+
+html.embedded-panel #v-asistente:not(.oculto) .assistant-suggestions {
+  background: rgba(4, 22, 50, .58);
+  border-top: 1px solid rgba(255, 255, 255, .08);
+  backdrop-filter: blur(18px);
+}
+
+html.embedded-panel #v-asistente:not(.oculto) .assistant-suggestions button {
+  min-height: 36px;
+  color: rgba(247, 251, 255, .90);
+  background: rgba(0, 0, 0, .22);
+  border-color: rgba(255, 255, 255, .20);
+  border-radius: 999px;
+  backdrop-filter: blur(18px);
+}
+
+html.embedded-panel #v-asistente:not(.oculto) .assistant-composer {
+  background: rgba(3, 18, 42, .88);
+  border-color: rgba(255, 255, 255, .14);
+  backdrop-filter: blur(24px) saturate(120%);
+}
+
+html.embedded-panel #v-asistente:not(.oculto) .assistant-composer textarea {
+  color: #fff;
+  background: rgba(0, 0, 0, .28);
+  border-color: rgba(255, 255, 255, .22);
+  border-radius: 12px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .07);
+}
+
+html.embedded-panel #v-asistente:not(.oculto) .assistant-composer textarea::placeholder {
+  color: rgba(235, 246, 255, .54);
+}
+
+html.embedded-panel #v-asistente:not(.oculto) .assistant-attach {
+  color: #fff;
+  background: rgba(255, 255, 255, .10);
+  border-color: rgba(255, 255, 255, .22);
+}
+
+html.embedded-panel #v-asistente:not(.oculto) .assistant-send {
+  color: #0a3679;
+  background: #fff;
+  border-color: rgba(255, 255, 255, .86);
+}
+
+html.embedded-panel #v-asistente:not(.oculto) .assistant-error:empty {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  html.embedded-panel #v-asistente:not(.oculto) > .assistant-layout {
+    background-position: calc(100% + 120px) center;
+    background-size: 360px;
+  }
+
+  html.embedded-panel #v-asistente:not(.oculto) .assistant-chat-header {
+    min-height: 58px;
+  }
+
+  html.embedded-panel #v-asistente:not(.oculto) .assistant-message {
+    max-width: 96%;
+  }
+}
+
+/* 2026-07-27 v20: contrato visual movil del chat entregado por el usuario.
+   El espacio estrecho reorganiza controles, pero no elimina identidad, avatar,
+   burbujas, animaciones ni el compositor de una sola pieza. */
+html.embedded-panel #v-asistente:not(.oculto) .assistant-chat-avatar {
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, .24);
+  border-radius: 50%;
+  background:
+    url("dcarela-logo.png") center / 74% no-repeat,
+    linear-gradient(145deg, #1797e8, #0a3679);
+  box-shadow: 0 9px 22px rgba(0, 10, 28, .24);
+}
+
+html.embedded-panel #v-asistente:not(.oculto) .assistant-message.assistant::before,
+html.embedded-panel #v-asistente:not(.oculto) .assistant-thinking::before {
+  content: "";
+  position: absolute;
+  left: -40px;
+  bottom: 0;
+  width: 30px;
+  height: 30px;
+  border: 1px solid rgba(255, 255, 255, .62);
+  border-radius: 50%;
+  background:
+    url("dcarela-logo.png") center / 72% no-repeat,
+    linear-gradient(145deg, #1797e8, #0a3679);
+  box-shadow: 0 8px 18px rgba(0, 10, 28, .2);
+}
+
+html.embedded-panel #v-asistente:not(.oculto) .assistant-message.user {
+  border-top-right-radius: 5px;
+}
+
+html.embedded-panel #v-asistente:not(.oculto) .assistant-message.assistant {
+  margin-left: 40px;
+  border-top-left-radius: 5px;
+}
+
+html.embedded-panel #v-asistente:not(.oculto) .assistant-thinking {
+  position: relative;
+  margin-left: 40px;
+  border-top-left-radius: 5px;
+}
+
+html.embedded-panel #v-asistente:not(.oculto) .assistant-attach {
+  font-family: "Segoe UI Symbol", "Segoe UI", sans-serif;
+  font-size: 17px;
+  line-height: 1;
+}
+
+html.embedded-panel #v-asistente:not(.oculto) .assistant-send {
+  min-width: 48px;
+}
+
+@media (max-width: 640px) {
+  html.embedded-panel #v-asistente:not(.oculto) .assistant-chat-header {
+    min-height: 104px;
+    padding: 9px 10px;
+    display: grid;
+    grid-template-columns: 36px minmax(0, 1fr) auto auto;
+    grid-template-areas:
+      "avatar identity history control"
+      "model model model model";
+    gap: 7px;
+  }
+
+  html.embedded-panel #v-asistente:not(.oculto) .assistant-mobile-back {
+    display: none;
+  }
+
+  html.embedded-panel #v-asistente:not(.oculto) .assistant-chat-avatar {
+    grid-area: avatar;
+  }
+
+  html.embedded-panel #v-asistente:not(.oculto) .assistant-chat-identity {
+    grid-area: identity;
+    display: block;
+    min-width: 0;
+  }
+
+  html.embedded-panel #v-asistente:not(.oculto) .assistant-chat-identity strong {
+    color: #fff;
+    font-size: 12px;
+  }
+
+  html.embedded-panel #v-asistente:not(.oculto) .assistant-chat-identity small {
+    display: block;
+    overflow: hidden;
+    color: rgba(235, 246, 255, .62);
+    font-size: 8px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  html.embedded-panel #v-asistente:not(.oculto) #btnIaHistorial {
+    grid-area: history;
+  }
+
+  html.embedded-panel #v-asistente:not(.oculto) .assistant-chat-tools {
+    display: contents;
+  }
+
+  html.embedded-panel #v-asistente:not(.oculto) #btnIaControl {
+    grid-area: control;
+  }
+
+  html.embedded-panel #v-asistente:not(.oculto) .assistant-model {
+    grid-area: model;
+    width: 100%;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 8px;
+  }
+
+  html.embedded-panel #v-asistente:not(.oculto) .assistant-model span {
+    display: block;
+    margin: 0;
+    color: rgba(235, 246, 255, .62);
+    font-size: 8px;
+  }
+
+  html.embedded-panel #v-asistente:not(.oculto) .assistant-model select {
+    width: 100%;
+    min-height: 32px;
+    padding-block: 4px;
+    font-size: 9px;
+  }
+
+  html.embedded-panel #v-asistente:not(.oculto) .assistant-header-button {
+    width: 34px;
+    min-width: 34px;
+    min-height: 34px;
+    padding: 0;
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+    color: transparent !important;
+    font-size: 0;
+    border-radius: 9px;
+  }
+
+  html.embedded-panel #v-asistente:not(.oculto) #btnIaHistorial::before {
+    content: "\2630";
+    color: #fff;
+    font-size: 16px;
+  }
+
+  html.embedded-panel #v-asistente:not(.oculto) #btnIaControl::before {
+    content: "\2699";
+    color: #fff;
+    font-family: "Segoe UI Symbol", "Segoe UI", sans-serif;
+    font-size: 16px;
+  }
+
+  html.embedded-panel #v-asistente:not(.oculto) .assistant-messages {
+    padding: 16px 12px 18px 50px;
+  }
+
+  html.embedded-panel #v-asistente:not(.oculto) .assistant-message {
+    max-width: 88%;
+    margin-bottom: 13px;
+    padding: 11px 38px 10px 13px;
+    border-radius: 16px;
+  }
+
+  html.embedded-panel #v-asistente:not(.oculto) .assistant-message.user {
+    max-width: 84%;
+    border-top-right-radius: 5px;
+  }
+
+  html.embedded-panel #v-asistente:not(.oculto) .assistant-message.assistant {
+    max-width: 92%;
+    margin-left: 0;
+    border-top-left-radius: 5px;
+  }
+
+  html.embedded-panel #v-asistente:not(.oculto) .assistant-message .message-body {
+    font-size: 13px;
+    line-height: 1.55;
+  }
+
+  html.embedded-panel #v-asistente:not(.oculto) .assistant-message.assistant::before,
+  html.embedded-panel #v-asistente:not(.oculto) .assistant-thinking::before {
+    left: -38px;
+    width: 29px;
+    height: 29px;
+  }
+
+  html.embedded-panel #v-asistente:not(.oculto) .assistant-suggestions {
+    padding: 8px 10px 3px;
+  }
+
+  html.embedded-panel #v-asistente:not(.oculto) .assistant-suggestions button {
+    min-height: 34px;
+    padding-inline: 12px;
+    font-size: 10px;
+  }
+
+  html.embedded-panel #v-asistente:not(.oculto) .assistant-composer {
+    padding: 8px 10px calc(9px + env(safe-area-inset-bottom));
+    grid-template-columns: 40px minmax(0, 1fr) 40px;
+    gap: 7px;
+    align-items: end;
+  }
+
+  html.embedded-panel #v-asistente:not(.oculto) .assistant-composer textarea {
+    min-height: 42px;
+    max-height: 112px;
+    padding: 10px 11px;
+    font-size: 16px;
+    line-height: 20px;
+  }
+
+  html.embedded-panel #v-asistente:not(.oculto) .assistant-attach {
+    width: 40px;
+    height: 40px;
+    margin: 1px 0;
+    border-radius: 10px;
+  }
+
+  html.embedded-panel #v-asistente:not(.oculto) .assistant-send {
+    grid-column: 3;
+    width: 40px;
+    min-width: 40px;
+    min-height: 40px;
+    margin: 1px 0;
+    padding: 0;
+    display: grid;
+    place-items: center;
+    border-radius: 10px;
+    overflow: hidden;
+  }
+
+  html.embedded-panel #v-asistente:not(.oculto) .assistant-send span {
+    display: none;
+  }
+
+  html.embedded-panel #v-asistente:not(.oculto) .assistant-send::before {
+    content: "\2191";
+    color: #0a3679;
+    font-size: 21px;
+    font-weight: 900;
+    line-height: 1;
+  }
+}
+
+/* 2026-07-27 v21: compositor web definitivo basado en el PromptBox entregado.
+   Conserva la paleta D' Carela y mantiene exactamente la misma pieza en movil. */
+html.embedded-panel #v-asistente:not(.oculto) .assistant-composer {
+  width: calc(100% - clamp(24px, 8vw, 128px));
+  max-width: 1000px;
+  margin: 8px auto 14px;
+  padding: 8px;
+  display: block;
+  overflow: visible;
+  background: rgba(8, 37, 80, .94);
+  border: 1px solid rgba(255, 255, 255, .17);
+  border-radius: 28px;
+  box-shadow: 0 18px 44px rgba(0, 10, 28, .28);
+  backdrop-filter: blur(28px) saturate(125%);
+}
+
+html.embedded-panel #v-asistente:not(.oculto) .assistant-composer.dragging {
+  background: rgba(10, 54, 121, .96);
+  border-color: rgba(103, 194, 255, .72);
+  box-shadow: 0 0 0 3px rgba(23, 151, 232, .22), 0 18px 44px rgba(0, 10, 28, .32);
+}
+
+html.embedded-panel #v-asistente:not(.oculto) .assistant-composer textarea {
+  width: 100%;
+  min-height: 48px;
+  max-height: 200px;
+  padding: 12px 14px 8px;
+  display: block;
+  resize: none;
+  color: #fff;
+  background: transparent;
+  border: 0;
+  border-radius: 20px;
+  box-shadow: none;
+  font-size: 14px;
+  line-height: 1.55;
+  outline: 0;
+}
+
+html.embedded-panel #v-asistente:not(.oculto) .assistant-composer textarea:focus {
+  box-shadow: none;
+}
+
+html.embedded-panel #v-asistente:not(.oculto) .assistant-composer-toolbar {
+  min-width: 0;
+  padding: 2px 4px 3px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+html.embedded-panel #v-asistente:not(.oculto) .assistant-composer-toolbar button,
+html.embedded-panel #v-asistente:not(.oculto) .assistant-tools summary {
+  min-height: 36px;
+  color: rgba(255, 255, 255, .9);
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+
+html.embedded-panel #v-asistente:not(.oculto) .assistant-composer-toolbar button:hover,
+html.embedded-panel #v-asistente:not(.oculto) .assistant-tools summary:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, .12);
+  transform: none;
+}
+
+html.embedded-panel #v-asistente:not(.oculto) .assistant-attach,
+html.embedded-panel #v-asistente:not(.oculto) .assistant-mic,
+html.embedded-panel #v-asistente:not(.oculto) .assistant-send {
+  width: 36px;
+  min-width: 36px;
+  height: 36px;
+  min-height: 36px;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+}
+
+html.embedded-panel #v-asistente:not(.oculto) .assistant-attach {
+  font-size: 17px;
+}
+
+html.embedded-panel #v-asistente:not(.oculto) .assistant-mic {
+  font-size: 0;
+}
+
+html.embedded-panel #v-asistente:not(.oculto) .assistant-mic::before {
+  content: none;
+}
+
+html.embedded-panel #v-asistente:not(.oculto) .assistant-mic.listening {
+  color: #fff;
+  background: #c53f48;
+  animation: assistantMicPulse 1.1s ease-in-out infinite;
+}
+
+html.embedded-panel #v-asistente:not(.oculto) .assistant-send {
+  grid-column: auto;
+  color: #0a3679;
+  background: #fff;
+  border: 0;
+}
+
+html.embedded-panel #v-asistente:not(.oculto) .assistant-send span {
+  display: none;
+}
+
+html.embedded-panel #v-asistente:not(.oculto) .assistant-send::before {
+  content: none;
+}
+
+html.embedded-panel #v-asistente:not(.oculto) .assistant-send:disabled {
+  color: rgba(255, 255, 255, .3);
+  background: rgba(255, 255, 255, .14);
+}
+
+html.embedded-panel #v-asistente:not(.oculto) .assistant-send:disabled::before {
+  color: rgba(255, 255, 255, .3);
+}
+
+html.embedded-panel #v-asistente:not(.oculto) .assistant-toolbar-icon {
+  width: 18px;
+  height: 18px;
+  display: block;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+html.embedded-panel #v-asistente:not(.oculto) .assistant-composer-spacer {
+  flex: 1 1 auto;
+}
+
+html.embedded-panel #v-asistente:not(.oculto) .assistant-tools {
+  position: relative;
+}
+
+html.embedded-panel #v-asistente:not(.oculto) .assistant-tools summary {
+  min-height: 36px;
+  padding: 0 10px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  border-radius: 999px;
+  cursor: pointer;
+  list-style: none;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+html.embedded-panel #v-asistente:not(.oculto) .assistant-tools summary::-webkit-details-marker {
+  display: none;
+}
+
+html.embedded-panel #v-asistente:not(.oculto) .assistant-tools-icon {
+  font-family: "Segoe UI Symbol", "Segoe UI", sans-serif;
+  font-size: 16px;
+}
+
+html.embedded-panel #v-asistente:not(.oculto) .assistant-tools-menu {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 9px);
+  z-index: 20;
+  width: min(290px, calc(100vw - 44px));
+  padding: 7px;
+  display: grid;
+  gap: 3px;
+  color: #fff;
+  background: rgba(8, 37, 80, .98);
+  border: 1px solid rgba(255, 255, 255, .18);
+  border-radius: 18px;
+  box-shadow: 0 22px 50px rgba(0, 10, 28, .42);
+  backdrop-filter: blur(26px);
+}
+
+html.embedded-panel #v-asistente:not(.oculto) .assistant-tools-menu button {
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 11px;
+  justify-content: flex-start;
+  border-radius: 11px;
+  text-align: left;
+  font-size: 11px;
+}
+
+html.embedded-panel #v-asistente:not(.oculto) .assistant-active-tool {
+  max-width: min(250px, 30vw);
+  min-height: 30px;
+  padding: 6px 10px;
+  overflow: hidden;
+  color: #8bd0ff;
+  background: rgba(255, 255, 255, .09);
+  border: 1px solid rgba(255, 255, 255, .12);
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 750;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+html.embedded-panel #v-asistente:not(.oculto) .assistant-attachments {
+  width: calc(100% - clamp(24px, 8vw, 128px));
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 6px 9px 0;
+}
+
+@keyframes assistantMicPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(197, 63, 72, .38); }
+  50% { box-shadow: 0 0 0 7px rgba(197, 63, 72, 0); }
+}
+
+@media (max-width: 640px) {
+  html.embedded-panel #v-asistente:not(.oculto) .assistant-composer {
+    width: calc(100% - 16px);
+    margin: 6px 8px calc(8px + env(safe-area-inset-bottom));
+    padding: 7px;
+    display: block;
+    border-radius: 24px;
+  }
+
+  html.embedded-panel #v-asistente:not(.oculto) .assistant-composer textarea {
+    min-height: 46px;
+    max-height: 148px;
+    padding: 10px 11px 7px;
+    font-size: 16px;
+    line-height: 21px;
+  }
+
+  html.embedded-panel #v-asistente:not(.oculto) .assistant-composer-toolbar {
+    gap: 2px;
+  }
+
+  html.embedded-panel #v-asistente:not(.oculto) .assistant-tools summary {
+    width: 36px;
+    padding: 0;
+    justify-content: center;
+    overflow: hidden;
+    font-size: 0;
+  }
+
+  html.embedded-panel #v-asistente:not(.oculto) .assistant-tools-icon {
+    font-size: 16px;
+  }
+
+  html.embedded-panel #v-asistente:not(.oculto) .assistant-active-tool {
+    max-width: 92px;
+    padding-inline: 8px;
+  }
+
+  html.embedded-panel #v-asistente:not(.oculto) .assistant-attachments {
+    width: calc(100% - 16px);
+  }
+
+  html.embedded-panel #v-asistente:not(.oculto) .assistant-suggestions {
+    padding-bottom: 2px;
+  }
+}
+
+/* 2026-07-27 v22: sistema visual final para todos los modulos internos.
+   Reemplaza la apariencia heredada sin alterar datos, eventos ni permisos. */
+html.embedded-panel {
+  --module-surface: rgba(248, 251, 254, .78);
+  --module-surface-strong: rgba(255, 255, 255, .92);
+  --module-line: rgba(31, 61, 99, .13);
+  --module-shadow: 0 12px 32px rgba(15, 42, 78, .09);
+  --module-shadow-float: 0 24px 64px rgba(4, 22, 50, .24);
+}
+
+html.embedded-panel body {
+  color: #152238;
+  background: transparent;
+}
+
+html.embedded-panel .workspace,
+html.embedded-panel .workspace > main {
+  min-width: 0;
+  background: transparent;
+}
+
+html.embedded-panel .workspace > main {
+  padding: clamp(14px, 2vw, 26px);
+}
+
+html.embedded-panel .vista:not(.oculto) {
+  min-width: 0;
+  animation: moduleEnter .28s cubic-bezier(.22, 1, .36, 1) both;
+}
+
+html.embedded-panel .section-heading {
+  min-height: 64px;
+  margin: 0 0 14px;
+  padding: 0 2px 13px;
+  align-items: center;
+  border-bottom: 1px solid var(--module-line);
+}
+
+html.embedded-panel .section-heading h2 {
+  color: #0a3679;
+  font-size: clamp(20px, 2vw, 26px);
+  line-height: 1.1;
+}
+
+html.embedded-panel .section-heading p {
+  max-width: 760px;
+  color: #62738c;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+html.embedded-panel .surface,
+html.embedded-panel .branch-card,
+html.embedded-panel .branch-summary article,
+html.embedded-panel .kpi,
+html.embedded-panel .finance-kpi,
+html.embedded-panel .cost-analysis-copy,
+html.embedded-panel .due-list {
+  color: #152238;
+  background: var(--module-surface);
+  border: 1px solid rgba(255, 255, 255, .82);
+  border-radius: 8px;
+  box-shadow: var(--module-shadow);
+  backdrop-filter: blur(22px) saturate(122%);
+}
+
+html.embedded-panel .surface,
+html.embedded-panel .branch-card {
+  padding: clamp(14px, 1.5vw, 19px);
+}
+
+html.embedded-panel .surface-title {
+  min-height: 42px;
+  margin-bottom: 12px;
+  align-items: center;
+}
+
+html.embedded-panel .surface-title h3 {
+  color: #152238;
+  font-size: 14px;
+}
+
+html.embedded-panel .surface-title p {
+  max-width: 720px;
+  color: #70829a;
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+html.embedded-panel button,
+html.embedded-panel .button-link,
+html.embedded-panel .mobile-panel-link {
+  min-height: 38px;
+  padding: 8px 13px;
+  border-radius: 7px;
+  box-shadow: none;
+  font-size: 10px;
+  font-weight: 750;
+  transition: background-color .18s ease, border-color .18s ease, color .18s ease, box-shadow .18s ease, transform .18s ease;
+}
+
+html.embedded-panel button:hover,
+html.embedded-panel .button-link:hover,
+html.embedded-panel .mobile-panel-link:hover {
+  transform: translateY(-1px);
+}
+
+html.embedded-panel button.primary,
+html.embedded-panel .button-link.primary {
+  color: #fff;
+  background: #0a3679;
+  border-color: #0a3679;
+  box-shadow: 0 8px 20px rgba(10, 54, 121, .16);
+}
+
+html.embedded-panel button.primary:hover,
+html.embedded-panel .button-link.primary:hover {
+  background: #0d478e;
+  border-color: #0d478e;
+}
+
+html.embedded-panel button.secondary,
+html.embedded-panel .button-link,
+html.embedded-panel .mobile-panel-link {
+  color: #0a3679;
+  background: rgba(255, 255, 255, .7);
+  border-color: rgba(31, 61, 99, .16);
+}
+
+html.embedded-panel input,
+html.embedded-panel select,
+html.embedded-panel textarea {
+  min-height: 40px;
+  color: #152238;
+  background: rgba(255, 255, 255, .78);
+  border: 1px solid rgba(31, 61, 99, .17);
+  border-radius: 7px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .7);
+}
+
+html.embedded-panel input:focus,
+html.embedded-panel select:focus,
+html.embedded-panel textarea:focus {
+  border-color: rgba(23, 151, 232, .64);
+  box-shadow: 0 0 0 3px rgba(23, 151, 232, .12);
+  outline: 0;
+}
+
+html.embedded-panel label {
+  color: #5f7088;
+  font-size: 9px;
+  font-weight: 750;
+}
+
+html.embedded-panel .filter-bar,
+html.embedded-panel .finance-filters,
+html.embedded-panel .finance-period-row {
+  margin-bottom: 13px;
+  padding: 11px;
+  gap: 8px;
+  background: rgba(238, 245, 251, .72);
+  border: 1px solid rgba(255, 255, 255, .82);
+  border-radius: 8px;
+  box-shadow: 0 8px 22px rgba(15, 42, 78, .055);
+  backdrop-filter: blur(20px);
+}
+
+html.embedded-panel .inline-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+}
+
+html.embedded-panel .metric-chip {
+  min-width: 0;
+  min-height: 72px;
+  padding: 12px;
+  background: rgba(255, 255, 255, .68);
+  border: 1px solid rgba(255, 255, 255, .84);
+  border-radius: 8px;
+  box-shadow: 0 7px 18px rgba(15, 42, 78, .05);
+}
+
+html.embedded-panel .metric-chip span {
+  color: #70829a;
+  font-size: 9px;
+}
+
+html.embedded-panel .metric-chip strong {
+  margin-top: 6px;
+  color: #0a3679;
+  font-size: clamp(16px, 1.5vw, 21px);
+}
+
+html.embedded-panel .kpi-grid,
+html.embedded-panel .kpi-grid.compact {
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 10px;
+}
+
+html.embedded-panel .kpi {
+  min-height: 132px;
+  padding: 15px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(70px, .72fr);
+  grid-template-rows: auto auto auto;
+  column-gap: 10px;
+}
+
+html.embedded-panel .kpi::before {
+  width: 4px;
+  border-radius: 8px 0 0 8px;
+}
+
+html.embedded-panel .kpi strong {
+  margin: 7px 0 4px;
+  color: #0a3679;
+  font-size: clamp(21px, 2vw, 29px);
+  font-variant-numeric: tabular-nums;
+}
+
+html.embedded-panel .kpi-sparkline {
+  min-width: 0;
+  height: 70px;
+  grid-column: 2;
+  grid-row: 1 / 4;
+  align-self: center;
+}
+
+html.embedded-panel .dashboard-grid,
+html.embedded-panel .report-grid,
+html.embedded-panel .recon-grid,
+html.embedded-panel .finance-dashboard-grid {
+  gap: 12px;
+}
+
+html.embedded-panel .table-wrap {
+  max-width: 100%;
+  overflow: auto;
+  background: rgba(255, 255, 255, .56);
+  border: 1px solid rgba(31, 61, 99, .11);
+  border-radius: 8px;
+  scrollbar-gutter: stable;
+}
+
+html.embedded-panel .table-wrap table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+html.embedded-panel .table-wrap th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding: 11px 12px;
+  color: #0a3679;
+  text-align: left;
+  background: rgba(224, 235, 246, .96);
+  border: 0;
+  border-bottom: 1px solid rgba(31, 61, 99, .15);
+  font-size: 9px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+html.embedded-panel .table-wrap td {
+  padding: 11px 12px;
+  color: #233b58;
+  background: rgba(255, 255, 255, .28);
+  border: 0;
+  border-bottom: 1px solid rgba(31, 61, 99, .08);
+  font-size: 10px;
+  line-height: 1.42;
+}
+
+html.embedded-panel .table-wrap tr:last-child td {
+  border-bottom: 0;
+}
+
+html.embedded-panel .table-wrap tbody tr:hover td {
+  background: rgba(23, 151, 232, .08);
+}
+
+html.embedded-panel .finance-nav-shell {
+  top: 0;
+  margin-bottom: 14px;
+  padding: 8px;
+  background: rgba(237, 244, 250, .92);
+  border: 1px solid rgba(255, 255, 255, .9);
+  border-radius: 8px;
+  box-shadow: 0 10px 26px rgba(15, 42, 78, .09);
+}
+
+html.embedded-panel .finance-tabs {
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  scrollbar-width: none;
+}
+
+html.embedded-panel .finance-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+html.embedded-panel .segmented,
+html.embedded-panel .finance-tabs {
+  border-radius: 7px;
+}
+
+html.embedded-panel .segmented button,
+html.embedded-panel .finance-tabs button {
+  min-height: 36px;
+  border-radius: 6px;
+}
+
+html.embedded-panel .segmented button.act,
+html.embedded-panel .finance-tabs button.act,
+html.embedded-panel .finance-tabs button[aria-selected="true"] {
+  color: #fff;
+  background: #0a3679;
+  box-shadow: 0 7px 16px rgba(10, 54, 121, .14);
+}
+
+html.embedded-panel .finance-kpis {
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+}
+
+html.embedded-panel .finance-kpi {
+  min-height: 112px;
+  padding: 14px;
+  border-radius: 8px;
+}
+
+html.embedded-panel .finance-chart-main,
+html.embedded-panel .finance-category-panel {
+  min-height: 360px;
+}
+
+html.embedded-panel .finance-donut {
+  width: min(235px, 100%);
+}
+
+html.embedded-panel .finance-donut::after {
+  background: rgba(248, 251, 254, .94);
+}
+
+html.embedded-panel .finance-donut-legend button,
+html.embedded-panel .finance-planning-list article,
+html.embedded-panel .preview-alert,
+html.embedded-panel .branch-rule-grid article {
+  border-radius: 7px;
+}
+
+html.embedded-panel .finance-credit-card {
+  min-height: 260px;
+  padding: 18px;
+  border-radius: 8px;
+  box-shadow: 0 14px 32px rgba(15, 42, 78, .16);
+}
+
+html.embedded-panel .editor-overlay {
+  padding: 18px;
+  background: rgba(4, 20, 45, .58);
+  backdrop-filter: blur(22px) saturate(112%);
+}
+
+html.embedded-panel .editor-dialog {
+  width: min(820px, 100%);
+  max-height: calc(100dvh - 36px);
+  padding: 20px;
+  color: #152238;
+  background: rgba(246, 250, 254, .96);
+  border: 1px solid rgba(255, 255, 255, .9);
+  border-radius: 12px;
+  box-shadow: var(--module-shadow-float);
+  backdrop-filter: blur(30px) saturate(120%);
+}
+
+html.embedded-panel .editor-header {
+  margin-bottom: 15px;
+  padding-bottom: 12px;
+}
+
+html.embedded-panel .editor-header h2 {
+  color: #0a3679;
+}
+
+html.embedded-panel .editor-actions {
+  position: sticky;
+  bottom: -20px;
+  margin: 16px -20px -20px;
+  padding: 12px 20px;
+  background: rgba(246, 250, 254, .94);
+  backdrop-filter: blur(20px);
+}
+
+html.embedded-panel .loading,
+html.embedded-panel .empty-state {
+  min-height: 120px;
+  display: grid;
+  place-items: center;
+  color: #70829a;
+  text-align: center;
+  background: rgba(255, 255, 255, .38);
+  border: 1px dashed rgba(31, 61, 99, .18);
+  border-radius: 8px;
+}
+
+html.embedded-panel .update-banner {
+  border-radius: 8px;
+}
+
+@keyframes moduleEnter {
+  from { opacity: 0; transform: translateY(7px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (max-width: 900px) {
+  html.embedded-panel .workspace > main {
+    padding: 12px;
+  }
+
+  html.embedded-panel .section-heading {
+    align-items: flex-start;
+  }
+
+  html.embedded-panel .finance-dashboard-grid,
+  html.embedded-panel .report-grid,
+  html.embedded-panel .recon-grid {
+    grid-template-columns: 1fr;
+  }
+
+  html.embedded-panel .finance-dashboard-grid > *,
+  html.embedded-panel .report-grid > *,
+  html.embedded-panel .recon-grid > * {
+    grid-column: 1;
+  }
+
+  html.embedded-panel .finance-filters,
+  html.embedded-panel .form-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  html.embedded-panel .workspace > main {
+    padding: 9px;
+  }
+
+  html.embedded-panel .section-heading {
+    min-height: 0;
+    padding: 4px 1px 11px;
+    flex-direction: column;
+    gap: 9px;
+  }
+
+  html.embedded-panel .section-heading > *,
+  html.embedded-panel .section-heading .button-row {
+    width: 100%;
+  }
+
+  html.embedded-panel .section-heading .button-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(104px, 1fr));
+  }
+
+  html.embedded-panel .filter-bar,
+  html.embedded-panel .finance-filters,
+  html.embedded-panel .finance-period-row,
+  html.embedded-panel .form-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  html.embedded-panel .filter-bar > div,
+  html.embedded-panel .filter-bar button,
+  html.embedded-panel .finance-filters > *,
+  html.embedded-panel .finance-period-row > * {
+    width: 100%;
+    min-width: 0;
+  }
+
+  html.embedded-panel .kpi-grid,
+  html.embedded-panel .kpi-grid.compact,
+  html.embedded-panel .finance-kpis,
+  html.embedded-panel .branch-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  html.embedded-panel .kpi {
+    min-height: 106px;
+    padding: 12px;
+    display: block;
+  }
+
+  html.embedded-panel .kpi-sparkline {
+    height: 34px;
+    margin-top: 5px;
+  }
+
+  html.embedded-panel .kpi strong {
+    font-size: clamp(17px, 5.2vw, 23px);
+  }
+
+  html.embedded-panel .surface,
+  html.embedded-panel .branch-card {
+    padding: 13px;
+  }
+
+  html.embedded-panel .table-wrap {
+    max-height: min(62dvh, 620px);
+  }
+
+  html.embedded-panel .editor-overlay {
+    padding: 8px;
+    align-items: end;
+  }
+
+  html.embedded-panel .editor-dialog {
+    width: 100%;
+    max-height: calc(100dvh - 16px);
+    padding: 16px;
+    border-radius: 14px 14px 8px 8px;
+  }
+
+  html.embedded-panel .editor-actions {
+    bottom: -16px;
+    margin: 14px -16px -16px;
+    padding: 11px 16px calc(11px + env(safe-area-inset-bottom));
+  }
+
+  html.embedded-panel .finance-nav-shell {
+    position: relative;
+    top: auto;
+    display: block;
+  }
+
+  html.embedded-panel .finance-nav-shell .month-filter {
+    width: 100%;
+    margin-top: 7px;
+    display: block;
+  }
+}
+
+/* 2026-07-27 v24: acabado definitivo del chat y normalizacion visual interna.
+   Esta capa corrige las reglas heredadas que partian cifras, reducian demasiado
+   la tipografia y desordenaban la cabecera del asistente. */
+html.embedded-panel {
+  --module-surface: rgba(248, 251, 254, .86);
+  --module-surface-strong: rgba(255, 255, 255, .95);
+  --module-line: rgba(31, 61, 99, .14);
+  --module-shadow: 0 12px 30px rgba(15, 42, 78, .085);
+}
+
+html.embedded-panel body {
+  font-size: 12px;
+}
+
+html.embedded-panel .update-banner {
+  min-height: 50px;
+  margin: 10px clamp(14px, 2vw, 24px) 0;
+  padding: 9px 12px;
+  color: #6b430d;
+  background: rgba(255, 231, 191, .88);
+  border-color: rgba(205, 126, 22, .2);
+}
+
+html.embedded-panel .update-banner strong {
+  font-size: 12px;
+}
+
+html.embedded-panel .update-banner span {
+  margin-top: 3px;
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+html.embedded-panel .section-heading p {
+  font-size: 12px;
+}
+
+html.embedded-panel .surface-title h3 {
+  font-size: 15px;
+}
+
+html.embedded-panel .surface-title p {
+  font-size: 11px;
+}
+
+html.embedded-panel button,
+html.embedded-panel .button-link,
+html.embedded-panel .mobile-panel-link {
+  font-size: 11px;
+}
+
+html.embedded-panel input,
+html.embedded-panel select,
+html.embedded-panel textarea {
+  font-size: 12px;
+}
+
+html.embedded-panel label {
+  font-size: 10px;
+}
+
+html.embedded-panel .metric-chip span,
+html.embedded-panel .finance-kpi span,
+html.embedded-panel .finance-kpi small {
+  font-size: 10px;
+}
+
+html.embedded-panel .metric-chip,
+html.embedded-panel .finance-kpi,
+html.embedded-panel .kpi {
+  container-type: inline-size;
+}
+
+html.embedded-panel .metric-chip strong,
+html.embedded-panel .finance-kpi strong {
+  font-size: clamp(18px, 10cqi, 24px);
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+html.embedded-panel .kpi-grid,
+html.embedded-panel .kpi-grid.compact {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+html.embedded-panel .kpi {
+  min-height: 118px;
+  display: block;
+}
+
+html.embedded-panel .kpi:has(.kpi-sparkline) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(78px, .7fr);
+  grid-template-rows: auto auto auto;
+}
+
+html.embedded-panel .kpi strong {
+  display: block;
+  font-size: clamp(18px, 10cqi, 25px);
+  line-height: 1.08;
+  white-space: nowrap;
+}
+
+html.embedded-panel .kpi span,
+html.embedded-panel .kpi small {
+  font-size: 10px;
+}
+
+html.embedded-panel .table-wrap th {
+  padding: 11px 12px;
+  font-size: 10px;
+}
+
+html.embedded-panel .table-wrap td {
+  padding: 11px 12px;
+  font-size: 11px;
+  line-height: 1.48;
+}
+
+html.embedded-panel .table-action,
+html.embedded-panel .table-actions button,
+html.embedded-panel .row-actions button {
+  min-height: 32px;
+  padding: 6px 9px;
+  font-size: 10px;
+}
+
+html.embedded-panel .report-bar span,
+html.embedded-panel .report-bar strong,
+html.embedded-panel .finance-flow-day small,
+html.embedded-panel .finance-donut-legend span,
+html.embedded-panel .finance-donut-legend b,
+html.embedded-panel .finance-donut-legend small {
+  font-size: 10px;
+}
+
+html.embedded-panel .finance-flow-day {
+  min-width: 28px;
+}
+
+html.embedded-panel .finance-donut-legend {
+  padding: 8px 12px 8px 8px;
+}
+
+html.embedded-panel .finance-donut-legend button {
+  min-height: 42px;
+  padding: 8px 10px;
+  grid-template-columns: 9px minmax(0, 1fr) 42px minmax(78px, auto);
+}
+
+html.embedded-panel .fin-account-name,
+html.embedded-panel .fin-account small {
+  font-size: 10px;
+}
+
+html.embedded-panel .fin-account strong {
+  font-size: clamp(19px, 11cqi, 25px);
+  line-height: 1.12;
+  white-space: nowrap;
+}
+
+html.embedded-panel .notification-copy p,
+html.embedded-panel .release-notes,
+html.embedded-panel .detail-box,
+html.embedded-panel .confirm-panel p {
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+html.embedded-panel #v-asistente:not(.oculto) .assistant-chat-header {
+  min-height: 74px;
+  padding: 11px clamp(14px, 2.2vw, 24px);
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  gap: 10px;
+}
+
+html.embedded-panel #v-asistente:not(.oculto) .assistant-header-button {
+  min-height: 38px;
+  padding: 8px 11px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+html.embedded-panel #v-asistente:not(.oculto) .assistant-header-button::before {
+  content: none !important;
+}
+
+html.embedded-panel #v-asistente:not(.oculto) .assistant-header-icon {
+  width: 17px;
+  height: 17px;
+  flex: 0 0 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+html.embedded-panel #v-asistente:not(.oculto) .assistant-chat-identity {
+  min-width: 0;
+}
+
+html.embedded-panel #v-asistente:not(.oculto) .assistant-chat-identity strong {
+  max-width: 100%;
+  color: #fff;
+  font-size: 14px;
+  line-height: 1.25;
+}
+
+html.embedded-panel #v-asistente:not(.oculto) .assistant-chat-identity small {
+  font-size: 10px;
+}
+
+html.embedded-panel #v-asistente:not(.oculto) .assistant-chat-tools {
+  min-width: 0;
+  justify-content: flex-end;
+}
+
+html.embedded-panel #v-asistente:not(.oculto) .assistant-model {
+  width: min(310px, 28vw);
+}
+
+html.embedded-panel #v-asistente:not(.oculto) .assistant-model select {
+  font-size: 11px;
+}
+
+html.embedded-panel #v-asistente:not(.oculto) .assistant-messages {
+  padding-block: 24px;
+}
+
+html.embedded-panel #v-asistente:not(.oculto) .assistant-message,
+html.embedded-panel #v-asistente:not(.oculto) .assistant-action-card {
+  max-width: min(780px, 82%);
+}
+
+html.embedded-panel #v-asistente:not(.oculto) .assistant-message {
+  padding: 16px 46px 15px 18px;
+  border-radius: 18px;
+}
+
+html.embedded-panel #v-asistente:not(.oculto) .assistant-message .message-role {
+  margin-bottom: 8px;
+  font-size: 10px;
+}
+
+html.embedded-panel #v-asistente:not(.oculto) .assistant-message .message-body {
+  font-size: 14px;
+  line-height: 1.62;
+}
+
+html.embedded-panel #v-asistente:not(.oculto) .assistant-message .message-body h3 {
+  margin: 16px 0 7px;
+  font-size: 15px;
+}
+
+html.embedded-panel #v-asistente:not(.oculto) .assistant-message .message-body li {
+  margin: 6px 0;
+}
+
+html.embedded-panel #v-asistente:not(.oculto) .assistant-context-actions {
+  gap: 8px;
+}
+
+html.embedded-panel #v-asistente:not(.oculto) .assistant-context-actions button {
+  min-height: 35px;
+  padding: 7px 11px;
+  font-size: 10px;
+}
+
+html.embedded-panel #v-asistente:not(.oculto) .assistant-send:disabled {
+  color: rgba(255, 255, 255, .62);
+  background: rgba(255, 255, 255, .22);
+}
+
+html.embedded-panel #v-asistente:not(.oculto) .assistant-mic::before,
+html.embedded-panel #v-asistente:not(.oculto) .assistant-send::before {
+  content: none !important;
+}
+
+@media (max-width: 900px) {
+  html.embedded-panel .kpi-grid,
+  html.embedded-panel .kpi-grid.compact {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  html.embedded-panel .update-banner {
+    min-height: 0;
+    margin: 7px 9px 0;
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  html.embedded-panel .update-banner span {
+    display: none;
+  }
+
+  html.embedded-panel .kpi {
+    min-height: 104px;
+  }
+
+  html.embedded-panel .kpi strong,
+  html.embedded-panel .metric-chip strong,
+  html.embedded-panel .finance-kpi strong {
+    font-size: clamp(16px, 10cqi, 21px);
+  }
+
+  html.embedded-panel #v-asistente:not(.oculto) .assistant-chat-header {
+    min-height: 104px;
+    padding: 9px 10px;
+    grid-template-columns: 36px minmax(0, 1fr) 36px 36px;
+  }
+
+  html.embedded-panel #v-asistente:not(.oculto) .assistant-header-button {
+    width: 36px;
+    min-width: 36px;
+    min-height: 36px;
+    padding: 0;
+    justify-content: center;
+    color: #fff !important;
+    border-radius: 9px;
+  }
+
+  html.embedded-panel #v-asistente:not(.oculto) .assistant-header-button span {
+    display: none;
+  }
+
+  html.embedded-panel #v-asistente:not(.oculto) .assistant-model {
+    width: 100%;
+  }
+
+  html.embedded-panel #v-asistente:not(.oculto) .assistant-message,
+  html.embedded-panel #v-asistente:not(.oculto) .assistant-action-card {
+    max-width: 92%;
+  }
+
+  html.embedded-panel #v-asistente:not(.oculto) .assistant-message {
+    padding: 12px 38px 11px 13px;
+  }
+
+  html.embedded-panel #v-asistente:not(.oculto) .assistant-message .message-body {
+    font-size: 13px;
+    line-height: 1.55;
+  }
+
+  html.embedded-panel #v-asistente:not(.oculto) .assistant-composer-toolbar {
+    gap: 3px;
   }
 }

@@ -15,6 +15,29 @@
   })();
   const BUSINESS = _urlBiz || window.__DCARELA_DEFAULT?.business || cfg?.business || "dcarela";
   const EMBEDDED = new URLSearchParams(location.search).get("embedded") === "1";
+  const THEME_KEY = "dcarela.ui.theme";
+  let currentTheme = document.documentElement.dataset.theme === "dark" ? "dark" : "light";
+  function applyTheme(theme, persist = true) {
+    currentTheme = theme === "dark" ? "dark" : "light";
+    document.documentElement.dataset.theme = currentTheme;
+    document.documentElement.classList.toggle("dark", currentTheme === "dark");
+    document.documentElement.style.colorScheme = currentTheme;
+    document.querySelector('meta[name="theme-color"]')?.setAttribute("content", currentTheme === "dark" ? "#071426" : "#e7eef5");
+    if (persist) {
+      try { localStorage.setItem(THEME_KEY, currentTheme); } catch {}
+    }
+    const button = $("btnTema");
+    if (button) {
+      const label = currentTheme === "dark" ? "Usar modo claro" : "Usar modo oscuro";
+      button.title = label;
+      button.setAttribute("aria-label", label);
+    }
+  }
+  applyTheme(currentTheme, false);
+  window.addEventListener("message", event => {
+    if (event.origin !== location.origin || event.data?.type !== "dcarela:theme") return;
+    applyTheme(event.data.theme, true);
+  });
   const READ_KEY = `dcarela.alertas.leidas.${BUSINESS}`;
   const RELEVANT_EVENTS = [
     "CierreConDiferencia", "ErrorSincronizacion", "BackupSnapshotFallido", "VentaCancelada",
@@ -58,10 +81,45 @@
   let iaConversations = [];
   let iaAttachments = [];
   let iaBusy = false;
+  let iaRecognition = null;
   let businessCatalog = [];
   let businessMemberships = [];
 
-  const esc = value => String(value ?? "").replace(/[&<>"']/g, char => ({
+  const textoSeguro = value => {
+    let texto = String(value ?? "")
+      .replaceAll("Ã¡", "á").replaceAll("Ã©", "é").replaceAll("Ã­", "í")
+      .replaceAll("Ã³", "ó").replaceAll("Ãº", "ú").replaceAll("Ã±", "ñ")
+      .replaceAll("Ã", "Á").replaceAll("Ã‰", "É").replaceAll("Ã", "Í")
+      .replaceAll("Ã“", "Ó").replaceAll("Ãš", "Ú").replaceAll("Ã‘", "Ñ")
+      .replaceAll("Â¿", "¿").replaceAll("Â¡", "¡").replaceAll("Â", "");
+
+    const repararPalabra = (patron, correcta) => {
+      texto = texto.replace(patron, encontrada => {
+        if (encontrada === encontrada.toUpperCase()) return correcta.toUpperCase();
+        if (encontrada[0] === encontrada[0]?.toUpperCase()) {
+          return correcta[0].toUpperCase() + correcta.slice(1).toLowerCase();
+        }
+        return correcta.toLowerCase();
+      });
+    };
+
+    // Las fuentes Firebird antiguas ya perdieron algunos bytes y dejaron U+FFFD.
+    // Esta reparación solo afecta la presentación, no los datos ni sus IDs.
+    repararPalabra(/navide�o/gi, "navideño");
+    repararPalabra(/navide�a/gi, "navideña");
+    repararPalabra(/impresi�n/gi, "impresión");
+    repararPalabra(/dise�o/gi, "diseño");
+    repararPalabra(/quincea�era/gi, "quinceañera");
+    repararPalabra(/peque�o/gi, "pequeño");
+    repararPalabra(/ni�o/gi, "niño");
+    repararPalabra(/ni�a/gi, "niña");
+    repararPalabra(/a�os/gi, "años");
+    repararPalabra(/avi�n/gi, "avión");
+    repararPalabra(/�guila/gi, "águila");
+    return texto;
+  };
+
+  const esc = value => textoSeguro(value).replace(/[&<>"']/g, char => ({
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
   })[char]);
   const P = event => event?.payload || {};
@@ -79,9 +137,12 @@
   const fecha = value => value ? new Date(value).toLocaleString("es-DO", {
     day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit"
   }) : "--";
-  const fechaCorta = value => value ? new Date(value).toLocaleDateString("es-DO", {
-    day: "2-digit", month: "2-digit"
-  }) : "--";
+  const fechaCorta = value => {
+    if (!value) return "--";
+    const text = String(value);
+    const parsed = /^\d{4}-\d{2}-\d{2}$/.test(text) ? new Date(`${text}T12:00:00`) : new Date(text);
+    return parsed.toLocaleDateString("es-DO", { day: "2-digit", month: "2-digit" });
+  };
   const inputDate = date => {
     const d = new Date(date);
     const y = d.getFullYear();
@@ -198,6 +259,7 @@
       link.classList.toggle("act", active);
       if (active) $("pageTitle").textContent = link.dataset.title || link.textContent.trim();
     });
+    $("updateBanner")?.classList.toggle("oculto", selected !== "descargar");
     if (EMBEDDED && window.parent !== window) {
       window.parent.postMessage({ type: "dcarela:panel-route", view: selected, businessId: BUSINESS }, location.origin);
     }
@@ -370,6 +432,8 @@
       products: new Set((catalogResult.data || []).map(item => item.entity_id).filter(Boolean)).size,
       device: latestDevice,
       connected,
+      salesSeries: seriesDiaria(sales, item => totalDe(P(item))),
+      profitSeries: seriesDiaria(sales, item => gananciaDocumentada(P(item)).amount),
     };
   }
 
@@ -382,20 +446,24 @@
     const sales = summaries.reduce((sum, item) => sum + item.sales, 0);
     const alerts = summaries.reduce((sum, item) => sum + item.alerts, 0);
     $("branchSummary").innerHTML = `
-      <article><span>Venta neta del mes</span><strong>${money(total)}</strong></article>
-      <article><span>Ganancia documentada</span><strong>${money(profit)}</strong></article>
-      <article><span>Ventas validas</span><strong>${sales}</strong></article>
-      <article class="${alerts ? "warn" : ""}"><span>Alertas abiertas</span><strong>${alerts}</strong></article>`;
+      <div class="branch-overview-metric"><span>Venta neta del mes</span><strong>${money(total)}</strong></div>
+      <div class="branch-overview-metric"><span>Ganancia documentada</span><strong>${money(profit)}</strong></div>
+      <div class="branch-overview-metric"><span>Ventas validas</span><strong>${sales}</strong></div>
+      <div class="branch-overview-metric${alerts ? " warn" : ""}"><span>Alertas abiertas</span><strong>${alerts}</strong></div>`;
     $("branchCards").innerHTML = summaries.map(item => `
-      <article class="branch-card${item.id === BUSINESS ? " current" : ""}">
-        <header><div><span>${esc(item.branch_type === "principal" ? "Sucursal principal" : "Sucursal de fotografia")}</span><h3>${esc(item.name)}</h3></div><i class="${item.connected ? "online" : ""}"></i></header>
-        <div class="branch-card-kpis">
+      <article class="branch-ledger-row${item.id === BUSINESS ? " current" : ""}">
+        <header class="branch-identity"><div><span>${esc(item.branch_type === "principal" ? "Sucursal principal" : "Sucursal de fotografia")}</span><h3>${esc(item.name)}</h3></div><i class="${item.connected ? "online" : ""}"></i></header>
+        <div class="branch-ledger-metrics">
           <div><span>Venta del mes</span><strong>${money(item.total)}</strong></div>
           <div><span>Ganancia</span><strong>${money(item.profit)}</strong><small>${item.profitCoverage}% del ingreso con costo documentado</small></div>
           <div><span>Tickets</span><strong>${item.sales}</strong></div>
           <div><span>Catalogo</span><strong>${item.products}</strong><small>productos vinculados</small></div>
         </div>
-        <div class="branch-card-status">
+        <div class="branch-ledger-waves">
+          ${waveMetric("Pulso de ventas", money(item.total), "mes actual", item.salesSeries)}
+          ${waveMetric("Salud operativa", `${item.connected ? Math.max(0, 100 - Math.min(90, item.alerts * 3)) : 10}%`, item.connected ? "terminal conectada" : "sin conexion reciente", item.profitSeries.length ? item.profitSeries : item.salesSeries)}
+        </div>
+        <div class="branch-ledger-status">
           <span><b>${item.connected ? "Conectada" : "Sin conexion reciente"}</b>${item.device ? ` &middot; ${esc(item.device.device_name)}` : ""}</span>
           <small>${item.device?.last_seen_at ? `Ultima conexion ${esc(fecha(item.device.last_seen_at))}` : "Sin terminal registrada"} &middot; ${item.alerts} alerta(s)</small>
         </div>
@@ -474,8 +542,39 @@
     costStateCache = null;
     finStateCache = null;
     alertasCache = null;
-    toast(result.message || "Cambio guardado y enviado a sincronizacion.");
+    if (action !== "ui.preference.upsert") toast(result.message || "Cambio guardado y enviado a sincronizacion.");
     return result;
+  }
+
+  async function cargarTemaUsuario() {
+    if (!session?.user?.id) return;
+    const { data, error } = await sb.from("ui_preferences")
+      .select("theme")
+      .eq("business_id", BUSINESS)
+      .eq("user_id", session.user.id)
+      .maybeSingle();
+    if (error) throw error;
+    if (data?.theme === "light" || data?.theme === "dark") applyTheme(data.theme, true);
+  }
+
+  async function guardarTemaUsuario(theme) {
+    if (!session?.user?.id) return;
+    if (canEdit) {
+      await adminWrite("ui.preference.upsert", session.user.id, {
+        theme,
+        density: "normal",
+        sidebarMode: "expanded",
+        animationsEnabled: true
+      });
+      return;
+    }
+    const scope = sb.from("ui_preferences");
+    const { data: existing, error: readError } = await scope.select("id")
+      .eq("business_id", BUSINESS).eq("user_id", session.user.id).maybeSingle();
+    if (readError) throw readError;
+    const values = { business_id: BUSINESS, user_id: session.user.id, theme, updated_at: new Date().toISOString() };
+    const result = existing?.id ? await scope.update(values).eq("id", existing.id) : await scope.insert(values);
+    if (result.error) throw result.error;
   }
 
   async function iaRequest(mode, data = {}) {
@@ -802,6 +901,7 @@
     $("iaInput").disabled = !status.configured || !status.capabilities?.can_use;
     $("btnIaEnviar").disabled = $("iaInput").disabled;
     $("btnIaAdjuntar").disabled = $("iaInput").disabled;
+    $("btnIaMic").disabled = $("iaInput").disabled;
     renderIaDocuments(status.active_documents || []);
   }
 
@@ -929,6 +1029,8 @@
     input.style.height = "";
     iaAttachments = [];
     renderIaAttachments();
+    $("iaActiveTool").textContent = "";
+    $("iaActiveTool").classList.add("oculto");
     input.focus();
     try {
       const result = await iaRequest("chat", {
@@ -1049,8 +1151,7 @@
   }
 
   function normalizedKey(value) {
-    return String(value ?? "")
-      .replace(/\uFFFD/g, "n")
+    return textoSeguro(value)
       .normalize("NFD")
       .replace(/[\u0300-\u036f]/g, "")
       .replace(/[^a-z0-9]+/gi, " ")
@@ -1842,6 +1943,18 @@
     return buckets.map(items => items.reduce((sum, value) => sum + value, 0));
   }
 
+  function seriesDiaria(events, valueOf) {
+    const buckets = {};
+    events.forEach(event => {
+      const day = inputDate(new Date(fechaEventoIso(event)));
+      buckets[day] = (buckets[day] || 0) + numero(valueOf(event));
+    });
+    return Object.entries(buckets)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([, value]) => value)
+      .slice(-42);
+  }
+
   function renderKpiSparkline(id, points, color) {
     const host = $(id);
     if (!host) return;
@@ -1860,6 +1973,93 @@
 
   function metric(label, value) {
     return `<div class="metric-chip"><span>${esc(label)}</span><strong>${esc(value)}</strong></div>`;
+  }
+
+  function ondaDeterministica(value, seedText = "", length = 34) {
+    const base = Math.max(0, Math.min(100, Math.round(numero(value))));
+    let seed = 0;
+    String(seedText).split("").forEach((char, index) => { seed += char.charCodeAt(0) * (index + 3); });
+    return Array.from({ length }, (_, index) => {
+      const pulse = Math.sin((index + seed % 9) * 1.45) * 16;
+      const cut = Math.cos((index * 2.3) + seed) * 9;
+      const spike = ((index + seed) % 7 === 0 ? 18 : 0) + ((index + seed) % 11 === 0 ? -15 : 0);
+      return Math.max(1, Math.round(base + pulse + cut + spike));
+    });
+  }
+
+  function waveSvg(points, label) {
+    const values = (points || []).map(numero).filter(value => Number.isFinite(value));
+    const series = values.length > 1 ? values.slice(-42) : ondaDeterministica(values[0] || 55, label, 36);
+    const min = Math.min(...series);
+    const max = Math.max(...series);
+    const range = Math.max(1, max - min);
+    const width = 230;
+    const height = 86;
+    const top = 8;
+    const bottom = 78;
+    const coordinates = series.map((value, index) => {
+      const x = index * width / Math.max(1, series.length - 1);
+      const y = bottom - ((value - min) * (bottom - top) / range);
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    });
+    const inner = series.map((value, index) => {
+      const x = index * width / Math.max(1, series.length - 1);
+      const normalized = (value - min) / range;
+      const y = bottom - (normalized * (bottom - top) * .46) - ((index % 3) * 2.2);
+      return `${x.toFixed(1)},${Math.max(top + 8, Math.min(bottom - 2, y)).toFixed(1)}`;
+    });
+    return `<svg class="wave-metric-svg" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" aria-hidden="true">
+      <path class="wave-grid" d="M0 16H230M0 38H230M0 60H230"></path>
+      <polygon class="wave-fill" points="0,${height} ${coordinates.join(" ")} ${width},${height}"></polygon>
+      <polyline class="wave-inner" points="${inner.join(" ")}"></polyline>
+      <polyline class="wave-line" points="${coordinates.join(" ")}"></polyline>
+    </svg>`;
+  }
+
+  function waveMetric(label, value, detail, points = []) {
+    return `<div class="wave-metric">
+      <div class="wave-metric-copy"><span>${esc(label)}</span><strong>${esc(value)}</strong><small>${esc(detail)}</small></div>
+      ${waveSvg(points, `${label}-${value}`)}
+    </div>`;
+  }
+
+  function reportWaveChart(days) {
+    const width = 1000;
+    const height = 285;
+    const left = 22;
+    const right = 978;
+    const top = 22;
+    const bottom = 244;
+    const netValues = days.map(([, value]) => Math.max(0, numero(value.total) - numero(value.refunds)));
+    const taxValues = days.map(([, value]) => Math.max(0, numero(value.tax)));
+    const maxValue = Math.max(1, ...netValues, ...taxValues);
+    const point = (value, index) => ({
+      x: left + index * (right - left) / Math.max(1, days.length - 1),
+      y: bottom - (value / maxValue) * (bottom - top),
+    });
+    const netPoints = netValues.map(point);
+    const taxPoints = taxValues.map(point);
+    const serialize = points => points.map(item => `${item.x.toFixed(1)},${item.y.toFixed(1)}`).join(" ");
+    const labelEvery = Math.max(1, Math.ceil(days.length / 7));
+    const nodes = days.map(([day, value], index) => {
+      const current = netValues[index];
+      const item = netPoints[index];
+      const showLabel = index === 0 || index === days.length - 1 || index % labelEvery === 0;
+      return `<a class="report-wave-point" href="#ventas" data-report-day="${esc(day)}" aria-label="Abrir ventas del ${esc(fechaCorta(`${day}T12:00:00`))}, ${esc(money(current))}">
+        <title>${esc(fechaCorta(`${day}T12:00:00`))}: ${esc(money(current))} · ${value.sales} venta(s)</title>
+        <circle cx="${item.x.toFixed(1)}" cy="${item.y.toFixed(1)}" r="3.5"></circle>
+        ${showLabel ? `<text class="report-wave-label" x="${item.x.toFixed(1)}" y="268">${esc(fechaCorta(`${day}T12:00:00`))}</text>` : ""}
+      </a>`;
+    }).join("");
+    return `<div class="report-wave-chart">
+      <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" aria-label="Tendencia diaria de ventas e ITBIS">
+        <path class="report-wave-grid" d="M${left} 55H${right}M${left} 110H${right}M${left} 165H${right}M${left} 220H${right}"></path>
+        <polygon class="report-wave-fill" points="${left},${bottom} ${serialize(netPoints)} ${right},${bottom}"></polygon>
+        <polyline class="report-wave-tax" points="${serialize(taxPoints)}"></polyline>
+        <polyline class="report-wave-line" points="${serialize(netPoints)}"></polyline>
+        ${nodes}
+      </svg>
+    </div>`;
   }
 
   async function getDevices() {
@@ -1910,8 +2110,8 @@
     const cashSeries = dashboardBuckets(active, event => efectivoDe(P(event)));
     const taxSeries = dashboardBuckets(active, event => itbisDe(P(event)));
     const averageSeries = totalSeries.map((value, index) => countSeries[index] ? Math.round(value / countSeries[index]) : 0);
-    renderKpiSparkline("kSparkVenta", totalSeries, "#1797e8");
-    renderKpiSparkline("kSparkNum", countSeries, "#0a3679");
+    renderKpiSparkline("kSparkVenta", totalSeries, "#71717a");
+    renderKpiSparkline("kSparkNum", countSeries, "#18181b");
     renderKpiSparkline("kSparkProm", averageSeries, "#ff7f03");
     renderKpiSparkline("kSparkEfec", cashSeries, "#15867b");
     renderKpiSparkline("kSparkItbis", taxSeries, "#7455a5");
@@ -2035,13 +2235,20 @@
       byDay[day] ||= { sales: 0, total: 0, tax: 0, refunds: 0 };
       byDay[day].refunds += montoDe(P(event));
     });
-    $("repResumen").innerHTML = [
-      ["Venta neta", money(net), "accent-blue"], ["Ventas", String(active.length), "accent-cyan"],
-      ["Promedio", money(active.length ? Math.round(gross / active.length) : 0), "accent-orange"],
-      ["ITBIS", money(tax), "accent-violet"], ["Devoluciones", money(refunds), "accent-red"],
-      ["Anuladas", String(excluded), "accent-green"]
-    ].map(([label, value, cls]) => `<article class="kpi ${cls}"><span>${esc(label)}</span><strong>${esc(value)}</strong><small>rango seleccionado</small></article>`).join("");
     const days = Object.entries(byDay).sort(([a], [b]) => a.localeCompare(b));
+    const validRate = active.length + excluded > 0
+      ? Math.floor(active.length * 100 / (active.length + excluded))
+      : 100;
+    const noRefundRate = gross > 0
+      ? Math.max(0, Math.round((gross - refunds) * 100 / gross))
+      : 100;
+    $("repResumen").innerHTML = [
+      ["Venta neta", money(net)], ["Ventas", String(active.length)],
+      ["Promedio", money(active.length ? Math.round(gross / active.length) : 0)],
+      ["ITBIS", money(tax)]
+    ].map(([label, value]) => `<div class="metric-item"><span>${esc(label)}</span><strong>${esc(value)}</strong><small>rango seleccionado</small></div>`).join("")
+      + waveMetric("Ventas validas", `${validRate}%`, `${excluded} anulada(s)`, days.map(([, value]) => value.sales))
+      + waveMetric("Neto sin devolucion", `${noRefundRate}%`, `${money(refunds)} devuelto`, days.map(([, value]) => value.total - value.refunds));
     lastReportExport = {
       desde: $("repDesde").value, hasta: $("repHasta").value,
       ventas: active.length, anuladas: excluded, bruto: gross, devoluciones: refunds,
@@ -2049,11 +2256,22 @@
       metodos: Object.entries(methods).sort((a, b) => b[1] - a[1]),
       productos: Object.entries(products).sort((a, b) => b[1] - a[1]).slice(0, 50)
     };
-    const maxDay = Math.max(1, ...days.map(([, value]) => value.total - value.refunds));
-    $("repGrafica").innerHTML = days.length ? days.map(([day, value]) => {
-      const current = value.total - value.refunds;
-      return `<div class="report-bar"><span>${esc(fechaCorta(`${day}T12:00:00`))}</span><div class="bar-track"><div class="bar-fill" style="width:${Math.max(1, current * 100 / maxDay)}%"></div></div><strong>${money(current)}</strong></div>`;
-    }).join("") : '<div class="empty-state">Sin datos para graficar.</div>';
+    $("repGrafica").innerHTML = days.length ? reportWaveChart(days) : '<div class="empty-state">Sin datos para graficar.</div>';
+    $("repGrafica").querySelectorAll("[data-report-day]").forEach(button => {
+      const abrirDia = () => {
+        const day = button.dataset.reportDay;
+        $("venDesde").value = day;
+        $("venHasta").value = day;
+        location.hash = "#ventas";
+        cargarVentas().catch(error => mostrarError("ventas", error));
+      };
+      button.addEventListener("click", abrirDia);
+      button.addEventListener("keydown", event => {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        event.preventDefault();
+        abrirDia();
+      });
+    });
     $("repMetodos").innerHTML = tablaSimple(Object.entries(methods).sort((a, b) => b[1] - a[1]), ["Metodo", "Total"], value => money(value));
     $("repPorDia").innerHTML = tabla(days, ([day, value]) => [fechaCorta(`${day}T12:00:00`), value.sales, money(value.total), money(value.tax), money(value.refunds), money(value.total - value.refunds)], ["Dia", "Ventas", "Bruto", "ITBIS", "Devuelto", "Neto"]);
     $("repTop").innerHTML = tablaSimple(Object.entries(products).sort((a, b) => b[1] - a[1]).slice(0, 20), ["Producto", "Importe"], value => money(value));
@@ -2770,7 +2988,7 @@
     } catch { /* localStorage no disponible */ }
   }
 
-  const FIN_CHART_COLORS = ["#0A3679", "#1797E8", "#FF7F03", "#168579", "#C53F48", "#7455A5", "#E2A62B", "#4A6D8C"];
+  const FIN_CHART_COLORS = ["#18181B", "#52525B", "#71717A", "#A1A1AA", "#D4D4D8", "#3F3F46", "#E4E4E7", "#27272A"];
   const FIN_ACCOUNT_ICONS = {
     landmark: "B", wallet: "$", card: "C", savings: "A", cash: "$", camera: "F",
   };
@@ -2818,8 +3036,8 @@
       if (account.incluir_en_total) patrimonio += balance;
       const isCard = account.tipo === "tarjeta_credito";
       const display = isCard ? Math.max(0, -balance) : balance;
-      const primary = safeAccountColor(account.visual_tono, "#0A3679");
-      const secondary = safeAccountColor(account.visual_tono_secundario, "#1797E8");
+      const primary = safeAccountColor(account.visual_tono, "#18181B");
+      const secondary = safeAccountColor(account.visual_tono_secundario, "#71717A");
       const style = ["glass", "solid", "outline", "metal"].includes(account.visual_estilo) ? account.visual_estilo : "glass";
       const icon = FIN_ACCOUNT_ICONS[account.visual_icono] || FIN_ACCOUNT_ICONS.landmark;
       const mask = account.visual_mascara ? `&bull;&bull;&bull;&bull; ${esc(account.visual_mascara)}` : "";
@@ -3139,7 +3357,7 @@
       const balance = numero(account.saldo_actual_centavos);
       const debt = Math.max(0, -balance);
       const aFavor = Math.max(0, balance);
-      const color = esc(card?.color || "#0A3679");
+      const color = esc(card?.color || "#18181B");
       const avisoFavor = aFavor > 0
         ? `<div class="finance-card-warning">Saldo a favor ${money(aFavor)}. En una tarjeta de credito revisa el saldo inicial: deberia ser tu deuda (o 0), no un monto positivo. Editala para que tus consumos se reflejen como deuda.</div>`
         : "";
@@ -3241,8 +3459,19 @@
       ["Ingresos", money(income), range.label],
       ["Gastos", money(expense), range.label],
       ["Disponible", money(net), net >= 0 ? "Ingresos menos gastos" : "Gasto superior al ingreso"],
-    ].map(([label, value, detail], index) => `<article class="finance-kpi ${index === 3 && net < 0 ? "bad" : ""}"><span>${esc(label)}</span><strong>${esc(value)}</strong><small>${esc(detail)}</small></article>`).join("");
-    renderFinFlowChart(dailyRes.data || [], range);
+    ].map(([label, value, detail], index) => `<div class="metric-item ${index === 3 ? (net < 0 ? "bad" : "good") : ""}"><span>${esc(label)}</span><strong>${esc(value)}</strong><small>${esc(detail)}</small></div>`).join("");
+    const availableRate = income > 0 ? Math.max(0, Math.min(100, Math.round(net * 100 / income))) : (expense > 0 ? 0 : 100);
+    const expenseCoverage = expense > 0 ? Math.max(0, Math.min(100, Math.round(income * 100 / expense))) : 100;
+    const budgets = state.budgetProgress || [];
+    const healthyBudgets = budgets.length
+      ? Math.round(budgets.filter(item => numero(item.percent) < numero(item.alerta_porcentaje, 80)).length * 100 / budgets.length)
+      : 100;
+    const dailyRows = dailyRes.data || [];
+    $("finDashboardGauges").innerHTML =
+      waveMetric("Margen disponible", `${availableRate}%`, net >= 0 ? money(net) : "resultado negativo", dailyRows.map(item => numero(item.ingresos_centavos) - numero(item.gastos_centavos)))
+      + waveMetric("Cobertura de gastos", `${expenseCoverage}%`, `${money(income)} / ${money(expense)}`, dailyRows.map(item => numero(item.ingresos_centavos)))
+      + waveMetric("Presupuestos sanos", `${healthyBudgets}%`, budgets.length ? `${budgets.length} presupuesto(s)` : "sin alertas", budgets.length ? budgets.map(item => Math.max(0, 100 - numero(item.percent))) : dailyRows.map(item => numero(item.gastos_centavos)));
+    renderFinFlowChart(dailyRows, range);
     renderFinCategoryChart(categoryRes.data || [], expense);
     renderFinRecent(range);
     renderFinPlanning();
@@ -3250,22 +3479,47 @@
   }
 
   function renderFinFlowChart(rows, range) {
-    $("finFlowCaption").textContent = `${range.label}. Azul: ingresos. Naranja: gastos.`;
+    $("finFlowCaption").textContent = `${range.label}. Ingresos y gastos confirmados.`;
     if (!rows.length) {
       $("finFlowChart").innerHTML = `<div class="empty-state"><strong>Sin movimientos</strong><p>No hay ingresos ni gastos en este periodo.</p></div>`;
       return;
     }
+    const width = 900, height = 250, left = 18, right = 18, top = 18, bottom = 34;
+    const chartWidth = width - left - right;
+    const chartHeight = height - top - bottom;
     const max = Math.max(1, ...rows.flatMap(item => [numero(item.ingresos_centavos), numero(item.gastos_centavos)]));
-    $("finFlowChart").innerHTML = `<div class="finance-flow-bars">${rows.map(item => {
-      const incomeHeight = Math.max(2, Math.round(numero(item.ingresos_centavos) * 100 / max));
-      const expenseHeight = Math.max(2, Math.round(numero(item.gastos_centavos) * 100 / max));
-      return `<button type="button" class="finance-flow-day" data-fin-day="${esc(item.fecha)}" title="${esc(item.fecha)}: ingresos ${money(item.ingresos_centavos)}, gastos ${money(item.gastos_centavos)}"><span class="finance-bar-pair"><i class="income" style="--bar:${incomeHeight}%"></i><i class="expense" style="--bar:${expenseHeight}%"></i></span><small>${esc(fechaCorta(item.fecha))}</small></button>`;
-    }).join("")}</div>`;
-    $("finFlowChart").querySelectorAll("[data-fin-day]").forEach(button => button.addEventListener("click", () => {
-      finReferenceDate = button.dataset.finDay;
+    const xAt = index => left + index * chartWidth / Math.max(1, rows.length - 1);
+    const yAt = value => top + chartHeight - Math.sqrt(Math.max(0, numero(value)) / max) * chartHeight;
+    const income = rows.map((item, index) => ({ x: xAt(index), y: yAt(item.ingresos_centavos) }));
+    const expenses = rows.map((item, index) => ({ x: xAt(index), y: yAt(item.gastos_centavos) }));
+    const pathOf = points => points.map((point, index) => `${index ? "L" : "M"}${point.x.toFixed(2)},${point.y.toFixed(2)}`).join(" ");
+    const incomePath = pathOf(income);
+    const expensePath = pathOf(expenses);
+    const areaPath = `${incomePath} L${income.at(-1).x.toFixed(2)},${(top + chartHeight).toFixed(2)} L${income[0].x.toFixed(2)},${(top + chartHeight).toFixed(2)} Z`;
+    const labelIndexes = new Set([0, rows.length - 1, ...[.25, .5, .75].map(part => Math.round((rows.length - 1) * part))]);
+    const horizontalGrid = [0, .25, .5, .75, 1].map(part => {
+      const y = top + chartHeight * part;
+      return `<line x1="${left}" x2="${width - right}" y1="${y}" y2="${y}"/>`;
+    }).join("");
+    const points = rows.map((item, index) => {
+      const x = xAt(index), incomeY = income[index].y, expenseY = expenses[index].y;
+      const label = labelIndexes.has(index)
+        ? `<text class="finance-flow-label" x="${x.toFixed(2)}" y="${height - 9}">${esc(fechaCorta(item.fecha))}</text>`
+        : "";
+      return `<g class="finance-flow-point" data-fin-day="${esc(item.fecha)}" tabindex="0" role="link" aria-label="${esc(item.fecha)}: ingresos ${money(item.ingresos_centavos)}, gastos ${money(item.gastos_centavos)}"><title>${esc(item.fecha)}: ingresos ${money(item.ingresos_centavos)}, gastos ${money(item.gastos_centavos)}</title><line class="finance-flow-hit" x1="${x.toFixed(2)}" x2="${x.toFixed(2)}" y1="${top}" y2="${top + chartHeight}"/><circle class="income" cx="${x.toFixed(2)}" cy="${incomeY.toFixed(2)}" r="3.5"/><circle class="expense" cx="${x.toFixed(2)}" cy="${expenseY.toFixed(2)}" r="3"/>${label}</g>`;
+    }).join("");
+    $("finFlowChart").innerHTML = `<svg class="finance-flow-wave" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" role="img" aria-label="Ingresos y gastos por dia"><defs><linearGradient id="financeIncomeArea" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stop-color="currentColor" stop-opacity=".2"/><stop offset="100%" stop-color="currentColor" stop-opacity="0"/></linearGradient></defs><g class="finance-flow-grid">${horizontalGrid}</g><path class="finance-flow-area" d="${areaPath}"/><path class="finance-flow-income" d="${incomePath}" pathLength="1"/><path class="finance-flow-expense" d="${expensePath}" pathLength="1"/>${points}</svg><div class="finance-flow-legend"><span><i class="income"></i>Ingresos</span><span><i class="expense"></i>Gastos</span><small>Pulsa un punto para abrir ese dia</small></div>`;
+    const openDay = target => {
+      finReferenceDate = target.dataset.finDay;
       finDashboardPeriod = "dia";
       renderFinDashboard().catch(error => toast(error.message));
-    }));
+    };
+    $("finFlowChart").querySelectorAll("[data-fin-day]").forEach(point => {
+      point.addEventListener("click", () => openDay(point));
+      point.addEventListener("keydown", event => {
+        if (event.key === "Enter" || event.key === " ") { event.preventDefault(); openDay(point); }
+      });
+    });
   }
 
   function renderFinCategoryChart(rows, total) {
@@ -3318,13 +3572,13 @@
     const item = account || {
       nombre: "", tipo: "banco", grupo: "", moneda: "DOP", saldo_inicial_centavos: 0,
       incluir_en_total: true, ligada_ventas: false, oculta: false, orden: 10,
-      visual_tono: "#0A3679", visual_tono_secundario: "#1797E8",
+      visual_tono: "#18181B", visual_tono_secundario: "#71717A",
       visual_icono: "landmark", visual_estilo: "glass", visual_mascara: "",
     };
     const esTarjeta = item.tipo === "tarjeta_credito";
     const saldoMostrado = esTarjeta ? Math.abs(numero(item.saldo_inicial_centavos)) : item.saldo_inicial_centavos;
-    const primary = safeAccountColor(item.visual_tono, "#0A3679");
-    const secondary = safeAccountColor(item.visual_tono_secundario, "#1797E8");
+    const primary = safeAccountColor(item.visual_tono, "#18181B");
+    const secondary = safeAccountColor(item.visual_tono_secundario, "#71717A");
     abrirEditor(account ? "Editar cuenta" : "Agregar cuenta", "El saldo se recalcula desde el saldo inicial y todos sus movimientos.", `
       <label><span>Nombre</span><input name="nombre" required maxlength="120" value="${esc(item.nombre)}"></label>
       <label><span>Tipo</span><select name="tipo" id="finAccountTipo">${finTipoOptions(item.tipo)}</select></label>
@@ -3392,8 +3646,8 @@
       const visualStyle = ["glass", "solid", "outline", "metal"].includes(String(data.get("visualEstilo")))
         ? String(data.get("visualEstilo")) : "glass";
       preview.className = `account-visual-preview ${visualStyle}`;
-      preview.style.setProperty("--account-primary", safeAccountColor(data.get("visualTono"), "#0A3679"));
-      preview.style.setProperty("--account-secondary", safeAccountColor(data.get("visualTonoSecundario"), "#1797E8"));
+      preview.style.setProperty("--account-primary", safeAccountColor(data.get("visualTono"), "#18181B"));
+      preview.style.setProperty("--account-secondary", safeAccountColor(data.get("visualTonoSecundario"), "#71717A"));
       $("finAccountPreviewIcon").textContent = FIN_ACCOUNT_ICONS[data.get("visualIcono")] || "B";
       $("finAccountPreviewName").textContent = String(data.get("nombre") || "").trim() || "Nombre de la cuenta";
       const mask = String(data.get("visualMascara") || "").replace(/\D/g, "").slice(-4);
@@ -3596,7 +3850,7 @@
     const creditAccounts = state.accounts.filter(item => item.tipo === "tarjeta_credito" && item.estado !== "eliminada");
     if (!creditAccounts.length) { toast("Agrega primero una cuenta de tipo Tarjeta de credito."); setCostTab("cuentas"); return; }
     const account = creditAccounts.find(item => item.id === accountId) || creditAccounts[0];
-    const card = state.cards.find(item => item.cuenta_id === account.id) || { cuenta_id: account.id, dia_corte: 30, dia_pago: 5, limite_credito_centavos: 0, color: "#0A3679", metodo_visualizacion: "al_comprar" };
+    const card = state.cards.find(item => item.cuenta_id === account.id) || { cuenta_id: account.id, dia_corte: 30, dia_pago: 5, limite_credito_centavos: 0, color: "#18181B", metodo_visualizacion: "al_comprar" };
     const accountOptions = creditAccounts.map(item => `<option value="${esc(item.id)}"${selected(account.id, item.id)}>${esc(item.nombre)}</option>`).join("");
     const payOptions = `<option value="">Selecciona la cuenta de pago</option>${state.accounts.filter(item => item.tipo !== "tarjeta_credito" && !item.oculta).map(item => `<option value="${esc(item.id)}"${selected(card.cuenta_pago_id, item.id)}>${esc(item.nombre)}</option>`).join("")}`;
     abrirEditor("Configurar tarjeta", "Las compras aumentan la deuda y reducen el disponible. El pago mueve dinero del banco a la tarjeta sin crear otro gasto.", `
@@ -3605,7 +3859,7 @@
       <label><span>Dia de corte</span><input name="diaCorte" type="number" value="30" readonly></label>
       <label><span>Pago maximo</span><input name="diaPago" type="number" value="5" readonly></label>
       <label><span>Limite (RD$)</span><input name="limite" type="number" min="0" step="0.01" value="${pesoInput(card.limite_credito_centavos)}"></label>
-      <label><span>Color</span><input name="color" type="color" value="${esc(card.color || "#0A3679")}"></label>
+      <label><span>Color</span><input name="color" type="color" value="${esc(card.color || "#18181B")}"></label>
       <p class="field-hint field-wide">La tarjeta cierra el dia 30 y debe pagarse, como maximo, el dia 5 del mes siguiente.</p>
       <label class="field-wide"><span>Mostrar el gasto</span><select name="metodoVisualizacion"><option value="al_comprar"${selected(card.metodo_visualizacion, "al_comprar")}>Cuando se compra (recomendado)</option><option value="al_pagar"${selected(card.metodo_visualizacion, "al_pagar")}>Cuando se paga</option></select></label>`, async form => {
       await adminWrite("fin.card.upsert", form.get("cuentaId"), {
@@ -4043,7 +4297,7 @@
       if (!latest) return;
       $("updateTitle").textContent = `Version ${latest.version} disponible${latest.mandatory ? " (obligatoria)" : ""}`;
       $("updateNotes").textContent = latest.notes || "Nueva version publicada en el canal estable.";
-      $("updateBanner").classList.remove("oculto");
+      $("updateBanner").classList.toggle("oculto", (location.hash.slice(1) || "dashboard") !== "descargar");
     } catch { }
   }
 
@@ -4238,6 +4492,7 @@
     verEstado(true, "Sesion autenticada");
     await cargarSucursalesDisponibles();
     await cargarRolEdicion().catch(() => { canEdit = false; memberRole = "viewer"; });
+    await cargarTemaUsuario().catch(() => {});
     if (canEdit) renderIaApprovals().catch(() => {});
     conectarRealtime();
     await obtenerAlertas(true).catch(() => []);
@@ -4269,6 +4524,12 @@
       if (history.length > 1) history.back();
       else location.hash = "dashboard";
     });
+    $("btnTema").addEventListener("click", () => {
+      const next = currentTheme === "dark" ? "light" : "dark";
+      applyTheme(next, true);
+      if (!EMBEDDED) guardarTemaUsuario(next).catch(error => toast(error.message));
+      else window.parent.postMessage({ type: "dcarela:theme-request", theme: next }, location.origin);
+    });
     $("branchSelector").addEventListener("change", event => abrirSucursal(event.target.value, "dashboard"));
     $("btnNotificaciones").addEventListener("click", () => { location.hash = "notificaciones"; });
     $("btnIaNueva").addEventListener("click", () => {
@@ -4291,6 +4552,62 @@
       }
     });
     $("btnIaAdjuntar").addEventListener("click", () => $("iaFiles").click());
+    $("iaTools").querySelectorAll("[data-ia-tool]").forEach(button => button.addEventListener("click", () => {
+      const prompt = button.dataset.prompt || "";
+      const input = $("iaInput");
+      input.value = input.value.trim() ? `${input.value.trim()}\n${prompt}` : prompt;
+      input.dispatchEvent(new Event("input"));
+      $("iaActiveTool").textContent = button.textContent.trim();
+      $("iaActiveTool").classList.remove("oculto");
+      $("iaTools").open = false;
+      if (button.dataset.iaTool === "document") $("iaFiles").click();
+      input.focus();
+    }));
+    $("btnIaMic").addEventListener("click", () => {
+      const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!Recognition) {
+        $("iaError").textContent = "El dictado por voz no esta disponible en este navegador.";
+        return;
+      }
+      if (iaRecognition) {
+        iaRecognition.stop();
+        return;
+      }
+      const recognition = new Recognition();
+      iaRecognition = recognition;
+      recognition.lang = "es-DO";
+      recognition.continuous = false;
+      recognition.interimResults = false;
+      recognition.onstart = () => {
+        $("iaError").textContent = "";
+        $("btnIaMic").classList.add("listening");
+        $("btnIaMic").title = "Detener dictado";
+      };
+      recognition.onresult = event => {
+        const transcript = [...event.results].map(result => result[0]?.transcript || "").join(" ").trim();
+        if (!transcript) return;
+        const input = $("iaInput");
+        input.value = input.value.trim() ? `${input.value.trim()} ${transcript}` : transcript;
+        input.dispatchEvent(new Event("input"));
+        input.focus();
+      };
+      recognition.onerror = event => {
+        if (!["aborted", "no-speech"].includes(event.error)) {
+          $("iaError").textContent = `No se pudo completar el dictado: ${event.error}.`;
+        }
+      };
+      recognition.onend = () => {
+        iaRecognition = null;
+        $("btnIaMic").classList.remove("listening");
+        $("btnIaMic").title = "Dictar mensaje";
+      };
+      try { recognition.start(); }
+      catch (error) {
+        iaRecognition = null;
+        $("btnIaMic").classList.remove("listening");
+        $("iaError").textContent = error.message;
+      }
+    });
     $("iaFiles").addEventListener("change", event => {
       agregarAdjuntosIa(event.target.files).catch(error => { $("iaError").textContent = error.message; });
       event.target.value = "";
@@ -4316,17 +4633,24 @@
       input.style.height = `${Math.min(input.scrollHeight, 150)}px`;
     });
     $("iaModel").addEventListener("change", () => localStorage.setItem(`dcarela.ia.model.v2.${BUSINESS}`, $("iaModel").value));
+    const intelligenceUpgradeKey = `dcarela.ia.intelligence-upgrade.v37.${BUSINESS}`;
+    const applyIntelligenceUpgrade = localStorage.getItem(intelligenceUpgradeKey) !== "1";
     [
-      ["iaDepth", "balanced"],
+      ["iaDepth", "deep"],
       ["iaInitiative", "proactive"],
-      ["iaDetail", "standard"],
+      ["iaDetail", "extended"],
     ].forEach(([id, fallback]) => {
       const key = `dcarela.ia.preference.${id}.${BUSINESS}`;
       const control = $(id);
       const saved = localStorage.getItem(key);
-      control.value = saved && [...control.options].some(option => option.value === saved) ? saved : fallback;
+      const migrated = applyIntelligenceUpgrade && ((id === "iaDepth" && saved === "balanced") || (id === "iaDetail" && saved === "standard"))
+        ? fallback
+        : saved;
+      control.value = migrated && [...control.options].some(option => option.value === migrated) ? migrated : fallback;
+      if (applyIntelligenceUpgrade) localStorage.setItem(key, control.value);
       control.addEventListener("change", () => localStorage.setItem(key, control.value));
     });
+    localStorage.setItem(intelligenceUpgradeKey, "1");
     $("iaSuggestions").querySelectorAll("[data-prompt]").forEach(button => button.addEventListener("click", () => {
       $("iaInput").value = button.dataset.prompt;
       $("iaInput").dispatchEvent(new Event("input"));
@@ -4340,6 +4664,11 @@
     $("recDiferencia").addEventListener("keydown", event => { if (event.key === "Enter") { event.preventDefault(); $("btnRecalcular").click(); } });
     $("btnReporte").addEventListener("click", () => cargarReporte().catch(error => mostrarError("reportes", error)));
     $("btnReportePdf").addEventListener("click", () => { try { descargarReportePdf(); } catch (error) { toast(error.message); } });
+    document.querySelectorAll("[data-report-focus]").forEach(button => button.addEventListener("click", () => {
+      document.querySelectorAll("[data-report-focus]").forEach(item => item.classList.toggle("act", item === button));
+      const target = $(button.dataset.reportFocus)?.closest(".surface");
+      target?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }));
     $("btnNuevoProducto").addEventListener("click", () => abrirProducto().catch(error => toast(error.message)));
     $("btnNuevaCategoria").addEventListener("click", abrirCategoria);
     $("btnNuevoCliente").addEventListener("click", () => abrirCliente());
