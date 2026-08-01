@@ -25,8 +25,8 @@
   </script>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="dcarela-logo.png">
-  <link rel="stylesheet" href="panel.css?v=20260729-global-v39">
-  <link rel="stylesheet" href="panel-theme.css?v=20260729-global-v39">
+  <link rel="stylesheet" href="panel.css?v=20260801-caja-web-theme-v1">
+  <link rel="stylesheet" href="panel-theme.css?v=20260801-caja-web-theme-v1">
 </head>
 <body>
   <section id="access" class="access-shell">
@@ -164,7 +164,7 @@
         </section>
 
         <section id="v-ventas" class="vista oculto">
-          <div class="section-heading"><div><h2>Ventas</h2><p>Detalle fiscal y comercial, descontando anulaciones.</p></div></div>
+          <div class="section-heading"><div><h2>Ventas</h2><p>Registra ventas desde cualquier navegador y consulta el historial fiscal y comercial.</p></div><div class="button-row sale-heading-actions"><button id="btnNuevaVenta" class="primary admin-only">Nueva venta</button><button id="btnReanudarVenta" class="secondary admin-only">Pendiente</button></div></div>
           <div class="analytics-command-bar sales-command-bar">
             <div><label for="venDesde">Desde</label><input type="date" id="venDesde"></div>
             <div><label for="venHasta">Hasta</label><input type="date" id="venHasta"></div>
@@ -549,12 +549,73 @@
       <footer><span>D' Carela Compufoto</span><span id="footerClock"></span></footer>
     </div>
     <nav class="mobile-command-dock" aria-label="Accesos principales">
-      <a href="#dashboard"><i aria-hidden="true">⌂</i><span>Resumen</span></a>
+      <a href="#ventas"><i aria-hidden="true">+</i><span>Vender</span></a>
       <a href="#proveedores"><i aria-hidden="true">$</i><span>Finanzas</span></a>
       <a href="#inventario"><i aria-hidden="true">▦</i><span>Inventario</span></a>
       <a href="#asistente"><i aria-hidden="true">✦</i><span>IA</span></a>
       <a href="#notificaciones"><i aria-hidden="true">•</i><span>Alertas</span></a>
     </nav>
+  </div>
+
+  <div id="saleOverlay" class="sale-overlay oculto" aria-hidden="true">
+    <section class="sale-console" role="dialog" aria-modal="true" aria-labelledby="saleTitle">
+      <header class="sale-console-header">
+        <div><p class="eyebrow">Caja web segura</p><h2 id="saleTitle">Nueva venta</h2><p id="saleBranch">Sucursal</p></div>
+        <div class="sale-header-actions"><span id="saleShiftPill" class="status-pill">Consultando turno</span><button id="btnCerrarVenta" class="icon-button" type="button" aria-label="Cerrar">&#215;</button></div>
+      </header>
+
+      <div id="saleShiftGate" class="sale-shift-gate oculto">
+        <div><strong>Abre la caja web</strong><p>El fondo inicial, las ventas y el cierre quedaran separados de las cajas de Windows.</p></div>
+        <label><span>Fondo inicial</span><input id="saleOpening" inputmode="decimal" value="0.00"></label>
+        <button id="btnSaleOpenShift" class="primary">Abrir caja y comenzar</button>
+      </div>
+
+      <div id="saleWorkbench" class="sale-workbench oculto">
+        <section class="sale-products-pane">
+          <div class="sale-search-row"><input id="saleSearch" type="search" autocomplete="off" placeholder="Buscar producto o escanear codigo de barras"><button id="btnSaleCommon" class="secondary" type="button">Venta comun</button></div>
+          <div id="saleProductResults" class="sale-product-results"></div>
+        </section>
+
+        <section class="sale-cart-pane">
+          <div class="sale-cart-heading"><div><h3>Cuenta actual</h3><small id="saleCartCount">0 productos</small></div><div><button id="btnSalePark" class="secondary" type="button">Guardar pendiente</button><button id="btnSaleClear" class="secondary" type="button">Limpiar</button></div></div>
+          <div id="saleCart" class="sale-cart"></div>
+          <div class="sale-totals">
+            <span>Base sin ITBIS <strong id="saleBase">RD$0.00</strong></span>
+            <span>ITBIS <strong id="saleTax">RD$0.00</strong></span>
+            <span>Descuentos <strong id="saleDiscount">RD$0.00</strong></span>
+            <span class="sale-grand-total">Total <strong id="saleTotal">RD$0.00</strong></span>
+          </div>
+        </section>
+
+        <section class="sale-checkout-pane">
+          <div class="sale-checkout-grid">
+            <label><span>Cliente</span><select id="saleClient"><option value="">Consumidor final</option></select></label>
+            <label><span>Redondeo</span><select id="saleRounding"><option value="exacto">Total exacto</option><option value="abajo_5">Bajar a RD$5</option></select></label>
+            <label><span>Propina</span><input id="saleTip" inputmode="decimal" value="0.00"></label>
+            <label id="salePriceReasonField" class="field-wide oculto"><span>Motivo del precio especial</span><input id="salePriceReason" maxlength="500" placeholder="Obligatorio si cambias un precio"></label>
+            <label class="field-wide"><span>Nota del ticket</span><textarea id="saleNote" rows="2" maxlength="1200" placeholder="Opcional"></textarea></label>
+          </div>
+          <div class="sale-payment-builder">
+            <div class="sale-payment-fields">
+              <label><span>Metodo</span><select id="salePaymentMethod"><option value="efectivo">Efectivo</option><option value="tarjeta">Tarjeta</option><option value="transferencia">Transferencia</option><option value="cheque">Cheque</option><option value="credito">Credito</option></select></label>
+              <label><span>Monto</span><input id="salePaymentAmount" inputmode="decimal" value="0.00"></label>
+              <label id="saleReferenceField" class="oculto"><span>Referencia</span><input id="saleReference" maxlength="180"></label>
+              <label id="saleBankField" class="oculto"><span>Cuenta bancaria</span><select id="saleBankAccount"><option value="">Seleccionar</option></select></label>
+              <button id="btnSaleAddPayment" class="secondary" type="button">Agregar pago</button>
+            </div>
+            <div id="salePayments" class="sale-payments"></div>
+            <label id="saleCashReceivedField" class="sale-cash-received oculto"><span>Efectivo recibido</span><input id="saleCashReceived" inputmode="decimal" value="0.00"><small id="saleChange">Devuelta: RD$0.00</small></label>
+          </div>
+          <p id="saleError" class="error" role="alert"></p>
+          <div class="sale-final-actions"><button id="btnSaleQuote" class="secondary" type="button">Imprimir cotizacion</button><button id="btnSaleCloseShift" class="secondary" type="button">Cerrar caja</button><button id="btnSaleSubmit" class="primary" type="button">Cobrar y registrar</button></div>
+        </section>
+      </div>
+
+      <section id="saleReceipt" class="sale-receipt-view oculto">
+        <div id="saleReceiptContent"></div>
+        <div class="sale-final-actions"><button id="btnSalePrintReceipt" class="secondary" type="button">Imprimir comprobante</button><button id="btnSaleNext" class="primary" type="button">Siguiente venta</button></div>
+      </section>
+    </section>
   </div>
 
   <div id="editorOverlay" class="editor-overlay oculto" aria-hidden="true">
@@ -580,7 +641,7 @@
   <script src="supabase.min.js"></script>
   <script src="jspdf.umd.min.js"></script>
   <script src="jspdf.plugin.autotable.min.js"></script>
-<script src="panel.js?v=20260729-global-v39"></script>
+  <script src="panel.js?v=20260801-caja-web-theme-v1"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));

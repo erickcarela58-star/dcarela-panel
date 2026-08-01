@@ -40,7 +40,7 @@
   });
   const READ_KEY = `dcarela.alertas.leidas.${BUSINESS}`;
   const RELEVANT_EVENTS = [
-    "CierreConDiferencia", "ErrorSincronizacion", "BackupSnapshotFallido", "VentaCancelada",
+    "CierreConDiferencia", "ErrorSincronizacion", "BackupSnapshotFallido", "VentaCancelada", "VentaWebRegistrada",
     "DevolucionRegistrada", "InventarioBajo", "ProductoAgotado", "DispositivoBloqueado",
     "CajaAbierta", "CajaCerrada", "CompraCreditoProveedorRegistrada", "PagoProveedorRegistrado",
     "GastoRegistrado", "GastoEditado", "GastoEliminado", "CostoRecurrenteGuardado",
@@ -84,6 +84,13 @@
   let iaRecognition = null;
   let businessCatalog = [];
   let businessMemberships = [];
+  let saleShift = null;
+  let saleCart = [];
+  let salePayments = [];
+  let saleBankAccounts = [];
+  let saleLastReceipt = null;
+  let saleRequestId = null;
+  let saleSubmitting = false;
 
   const textoSeguro = value => {
     let texto = String(value ?? "")
@@ -2133,6 +2140,409 @@
     $("pillVivo").textContent = "en vivo";
   }
 
+  const salePendingKey = () => `dcarela.sale.pending.v1.${BUSINESS}`;
+  const saleUuid = () => crypto.randomUUID();
+
+  async function saleApi(action, data = {}, requestId = null) {
+    if (!canEdit) throw new Error("Solo administradores y propietarios pueden operar la caja web.");
+    const response = await fetch(`${cfg.url.replace(/\/$/, "")}/functions/v1/pos-web-sale`, {
+      method: "POST",
+      headers: await authenticatedHeaders(true),
+      body: JSON.stringify({ business_id: BUSINESS, action, request_id: requestId, data })
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok || !result.ok) {
+      const error = new Error(result.error || `La caja web no respondio (HTTP ${response.status}).`);
+      error.status = response.status;
+      throw error;
+    }
+    return result;
+  }
+
+  function saleExactTotals() {
+    let base = 0, tax = 0, discount = 0, exact = 0;
+    saleCart.forEach(line => {
+      const quantity = Math.round(numero(line.cantidad) * 1000);
+      const gross = Math.round(numero(line.precioUnitarioCentavos) * quantity / 1000);
+      const lineDiscount = Math.round(gross * numero(line.descuentoPct) / 100);
+      const final = Math.max(0, gross - lineDiscount);
+      const rate = numero(line.tasaItbis, .18);
+      const lineBase = rate > 0 ? Math.round(final / (1 + rate)) : final;
+      base += lineBase;
+      tax += final - lineBase;
+      discount += lineDiscount;
+      exact += final;
+    });
+    let total = exact;
+    if ($("saleRounding")?.value === "abajo_5" && exact >= 500) total = Math.floor(exact / 500) * 500;
+    return { base, tax, discount, exact, total, adjustment: total - exact };
+  }
+
+  function saleRemaining() {
+    return Math.max(0, saleExactTotals().total - salePayments.reduce((sum, payment) => sum + payment.montoCentavos, 0));
+  }
+
+  function syncSalePaymentDraft(force = false) {
+    const input = $("salePaymentAmount");
+    if (!input) return;
+    if (force || document.activeElement !== input) input.value = pesoInput(saleRemaining());
+    updateSaleCashChange();
+  }
+
+  function updateSaleCashChange() {
+    if (!$('saleCashReceivedField')) return;
+    const noAddedPayments = salePayments.length === 0;
+    const simpleCash = (noAddedPayments && $("salePaymentMethod").value === "efectivo")
+      || (salePayments.length === 1 && salePayments[0].metodo === "efectivo" && saleRemaining() === 0);
+    $("saleCashReceivedField").classList.toggle("oculto", !simpleCash);
+    if (!simpleCash) return;
+    const due = saleExactTotals().total + centavosInput($("saleTip").value || "0");
+    if (document.activeElement !== $("saleCashReceived") && centavosInput($("saleCashReceived").value || "0") < due) {
+      $("saleCashReceived").value = pesoInput(due);
+    }
+    const received = centavosInput($("saleCashReceived").value || "0");
+    const change = received - due;
+    $("saleChange").textContent = change >= 0 ? `Devuelta: ${money(change)}` : `Faltan: ${money(-change)}`;
+    $("saleChange").classList.toggle("error", change < 0);
+  }
+
+  function saleHasCustomPrices() {
+    return saleCart.some(line => numero(line.precioUnitarioCentavos) !== numero(line.mayoreo && line.precioMayoreoCentavos > 0
+      ? line.precioMayoreoCentavos : line.precioNormalCentavos));
+  }
+
+  function renderSaleCart() {
+    const totals = saleExactTotals();
+    $("saleCartCount").textContent = `${saleCart.length} ${saleCart.length === 1 ? "producto" : "productos"}`;
+    $("saleBase").textContent = money(totals.base);
+    $("saleTax").textContent = money(totals.tax);
+    $("saleDiscount").textContent = money(totals.discount);
+    $("saleTotal").textContent = money(totals.total);
+    $("salePriceReasonField").classList.toggle("oculto", !saleHasCustomPrices());
+    if (!saleCart.length) {
+      $("saleCart").innerHTML = '<div class="sale-cart-empty"><strong>Cuenta vacia</strong><span>Busca, escanea o agrega una venta comun.</span></div>';
+    } else {
+      $("saleCart").innerHTML = saleCart.map((line, index) => {
+        const quantity = numero(line.cantidad);
+        const gross = Math.round(numero(line.precioUnitarioCentavos) * quantity);
+        const final = Math.round(gross * (1 - numero(line.descuentoPct) / 100));
+        return `<article class="sale-line" data-sale-line="${index}">
+          <div class="sale-line-name"><strong>${esc(line.nombre)}</strong><small>${line.comun ? "Venta comun" : esc(line.codigoBarras || line.unidadMedida || "Producto")}</small></div>
+          <label><span>Cantidad</span><input data-sale-field="cantidad" inputmode="decimal" value="${esc(line.cantidad)}"></label>
+          <label><span>Precio</span><input data-sale-field="precio" inputmode="decimal" value="${esc(pesoInput(line.precioUnitarioCentavos))}"></label>
+          <label><span>Desc. %</span><input data-sale-field="descuento" inputmode="decimal" value="${esc(line.descuentoPct || 0)}"></label>
+          <button class="sale-line-remove" data-sale-remove="${index}" type="button" aria-label="Quitar">&#215;</button>
+          <div class="sale-line-options">${line.precioMayoreoCentavos > 0 ? `<label><input data-sale-wholesale="${index}" type="checkbox"${line.mayoreo ? " checked" : ""}> Precio mayoreo (${money(line.precioMayoreoCentavos)})</label>` : `<span>${line.usaInventario ? `Existencia base: ${esc(line.stock ?? "--")}` : "No controla existencia"}</span>`}<strong>${money(final)}</strong></div>
+        </article>`;
+      }).join("");
+    }
+    renderSalePayments();
+    syncSalePaymentDraft();
+  }
+
+  function renderSalePayments() {
+    $("salePayments").innerHTML = salePayments.length ? salePayments.map((payment, index) => `<div class="sale-payment-row"><span>${esc(payment.metodo)}${payment.cuentaFinancieraNombre ? ` · ${esc(payment.cuentaFinancieraNombre)}` : ""}${payment.referencia ? ` · ${esc(payment.referencia)}` : ""}</span><strong>${money(payment.montoCentavos)}</strong><button class="sale-payment-remove" type="button" data-sale-payment-remove="${index}">&#215;</button></div>`).join("") : '<div class="muted">Un solo pago puede cobrarse directamente. Para pago mixto agrega cada parte.</div>';
+    $("salePayments").querySelectorAll("[data-sale-payment-remove]").forEach(button => button.addEventListener("click", () => {
+      salePayments.splice(Number(button.dataset.salePaymentRemove), 1);
+      renderSalePayments();
+      syncSalePaymentDraft(true);
+    }));
+    updateSaleCashChange();
+  }
+
+  function renderSaleProducts(query = "") {
+    const term = query.trim().toLowerCase();
+    const products = (productCatalog || []).filter(product => product.activo !== false && numero(product.precioFinalCentavos) > 0)
+      .filter(product => !term || [product.nombre, product.codigoBarras, product.sku, product.categoriaNombre].some(value => String(value || "").toLowerCase().includes(term)))
+      .slice(0, term ? 80 : 36);
+    $("saleProductResults").innerHTML = products.length ? products.map(product => `<button type="button" class="sale-product-card" data-sale-product="${esc(product.id)}"><strong>${esc(product.nombre)}</strong><small>${esc(product.codigoBarras || product.tipo || "Producto")}${product.usaInventario === false ? " · sin inventario" : product.stock !== undefined ? ` · stock ${esc(product.stock)}` : ""}</small><span>${money(product.precioFinalCentavos)}</span></button>`).join("") : '<div class="empty-state">No hay productos que coincidan.</div>';
+    $("saleProductResults").querySelectorAll("[data-sale-product]").forEach(button => button.addEventListener("click", () => addSaleProduct(button.dataset.saleProduct)));
+  }
+
+  function addSaleProduct(productId) {
+    const product = (productCatalog || []).find(item => item.id === productId);
+    if (!product) return;
+    const current = saleCart.find(line => line.productoId === productId && !line.mayoreo && numero(line.precioUnitarioCentavos) === numero(product.precioFinalCentavos));
+    if (current) current.cantidad = String(numero(current.cantidad) + 1);
+    else saleCart.push({
+      localId: saleUuid(), productoId: product.id, nombre: product.nombre,
+      codigoBarras: product.codigoBarras || "", unidadMedida: product.unidadMedida || "unidad",
+      cantidad: "1", precioUnitarioCentavos: numero(product.precioFinalCentavos),
+      precioNormalCentavos: numero(product.precioFinalCentavos), precioMayoreoCentavos: numero(product.precioMayoreoCentavos),
+      descuentoPct: 0, mayoreo: false, tasaItbis: numero(product.tasaItbis, .18),
+      usaInventario: product.usaInventario !== false, stock: product.stock, comun: false
+    });
+    renderSaleCart();
+    $("saleSearch").focus();
+  }
+
+  async function loadSaleBankAccounts() {
+    const { data, error } = await sb.from("fin_cuentas").select("id,nombre,tipo,estado,oculta")
+      .eq("business_id", BUSINESS).eq("tipo", "banco").eq("estado", "activa").eq("oculta", false).order("nombre");
+    saleBankAccounts = error ? [] : (data || []);
+    $("saleBankAccount").innerHTML = '<option value="">Seleccionar</option>' + saleBankAccounts.map(account => `<option value="${esc(account.id)}">${esc(account.nombre)}</option>`).join("");
+  }
+
+  function renderSaleShift() {
+    const open = Boolean(saleShift?.id);
+    $("saleShiftGate").classList.toggle("oculto", open);
+    $("saleWorkbench").classList.toggle("oculto", !open);
+    $("saleShiftPill").textContent = open ? `Turno abierto · ${fecha(saleShift.abiertoEn || saleShift.openedAt)}` : "Caja cerrada";
+  }
+
+  async function refreshSaleShift() {
+    const status = await saleApi("status");
+    saleShift = status.shift || null;
+    renderSaleShift();
+  }
+
+  async function openSaleConsole(resume = false) {
+    if (!canEdit) { toast("Tu cuenta no tiene permiso para registrar ventas."); return; }
+    $("saleOverlay").classList.remove("oculto");
+    $("saleOverlay").setAttribute("aria-hidden", "false");
+    document.body.style.overflow = "hidden";
+    $("saleReceipt").classList.add("oculto");
+    $("saleWorkbench").classList.add("oculto");
+    $("saleShiftGate").classList.add("oculto");
+    $("saleShiftPill").textContent = "Consultando turno";
+    $("saleBranch").textContent = nombreSucursal(BUSINESS);
+    $("saleError").textContent = "";
+    try {
+      await Promise.all([cargarCatalogoCloud(), cargarClientesCloud(), loadSaleBankAccounts(), cargarNegocioCloud(), refreshSaleShift()]);
+      $("saleClient").innerHTML = '<option value="">Consumidor final</option>' + (clientCatalog || []).filter(client => client.activo !== false).map(client => `<option value="${esc(client.id)}">${esc(client.nombre)}${numero(client.saldoCentavos) ? ` · saldo ${money(client.saldoCentavos)}` : ""}</option>`).join("");
+      if (resume) restorePendingSale();
+      renderSaleProducts();
+      renderSaleCart();
+      setTimeout(() => (saleShift ? $("saleSearch") : $("saleOpening"))?.focus(), 0);
+    } catch (error) {
+      $("saleError").textContent = error.message;
+      renderSaleShift();
+    }
+  }
+
+  function closeSaleConsole() {
+    if (saleSubmitting) return;
+    $("saleOverlay").classList.add("oculto");
+    $("saleOverlay").setAttribute("aria-hidden", "true");
+    document.body.style.overflow = "";
+  }
+
+  function clearSale(resetReceipt = true) {
+    saleCart = [];
+    salePayments = [];
+    saleRequestId = null;
+    $("saleClient").value = "";
+    $("saleRounding").value = "exacto";
+    $("saleTip").value = "0.00";
+    $("saleNote").value = "";
+    $("salePriceReason").value = "";
+    $("salePaymentMethod").value = "efectivo";
+    $("saleReference").value = "";
+    $("saleBankAccount").value = "";
+    $("saleCashReceived").value = "0.00";
+    if (resetReceipt) $("saleReceipt").classList.add("oculto");
+    $("saleWorkbench").classList.toggle("oculto", !saleShift);
+    updateSalePaymentFields();
+    renderSaleCart();
+  }
+
+  function parkSale() {
+    if (!saleCart.length) { toast("No hay una cuenta para guardar."); return; }
+    localStorage.setItem(salePendingKey(), JSON.stringify({
+      savedAt: new Date().toISOString(), cart: saleCart, clientId: $("saleClient").value,
+      rounding: $("saleRounding").value, tip: $("saleTip").value, note: $("saleNote").value,
+      priceReason: $("salePriceReason").value, payments: salePayments
+    }));
+    clearSale();
+    toast("Venta pendiente guardada en este navegador.");
+  }
+
+  function restorePendingSale() {
+    const saved = JSON.parse(localStorage.getItem(salePendingKey()) || "null");
+    if (!saved?.cart?.length) { toast("No hay una venta pendiente guardada."); return; }
+    saleCart = saved.cart;
+    salePayments = Array.isArray(saved.payments) ? saved.payments : [];
+    $("saleClient").value = saved.clientId || "";
+    $("saleRounding").value = saved.rounding || "exacto";
+    $("saleTip").value = saved.tip || "0.00";
+    $("saleNote").value = saved.note || "";
+    $("salePriceReason").value = saved.priceReason || "";
+    localStorage.removeItem(salePendingKey());
+    renderSaleCart();
+    toast(`Venta pendiente recuperada (${fecha(saved.savedAt)}).`);
+  }
+
+  function updateSalePaymentFields() {
+    const method = $("salePaymentMethod").value;
+    $("saleReferenceField").classList.toggle("oculto", !["tarjeta", "transferencia", "cheque"].includes(method));
+    $("saleBankField").classList.toggle("oculto", method !== "transferencia");
+    updateSaleCashChange();
+  }
+
+  function draftSalePayment(amountOverride = null) {
+    const method = $("salePaymentMethod").value;
+    const amount = amountOverride ?? centavosInput($("salePaymentAmount").value);
+    if (amount <= 0) throw new Error("El pago debe ser mayor que cero.");
+    const payment = { metodo: method, montoCentavos: amount };
+    if (["tarjeta", "transferencia", "cheque"].includes(method)) payment.referencia = $("saleReference").value.trim() || null;
+    if (method === "transferencia") {
+      const account = saleBankAccounts.find(item => item.id === $("saleBankAccount").value);
+      if (!account) throw new Error("Selecciona la cuenta bancaria que recibio la transferencia.");
+      payment.cuentaFinancieraId = account.id;
+      payment.cuentaFinancieraNombre = account.nombre;
+    }
+    return payment;
+  }
+
+  function addSalePayment() {
+    const payment = draftSalePayment();
+    if (salePayments.reduce((sum, item) => sum + item.montoCentavos, 0) + payment.montoCentavos > saleExactTotals().total) {
+      throw new Error("Los pagos superan el total de la venta.");
+    }
+    salePayments.push(payment);
+    $("saleReference").value = "";
+    renderSalePayments();
+    syncSalePaymentDraft(true);
+  }
+
+  function collectSalePayments() {
+    const total = saleExactTotals().total;
+    let payments = salePayments.map(payment => ({ ...payment }));
+    const current = payments.reduce((sum, payment) => sum + payment.montoCentavos, 0);
+    if (current < total) payments.push(draftSalePayment(total - current));
+    const sum = payments.reduce((value, payment) => value + payment.montoCentavos, 0);
+    if (sum !== total) throw new Error("La suma de pagos debe coincidir exactamente con el total.");
+    if (payments.some(payment => payment.metodo === "credito") && !$("saleClient").value) throw new Error("Selecciona un cliente para vender a credito.");
+    return payments;
+  }
+
+  function salePayload(inventoryOverride = null) {
+    if (!saleCart.length) throw new Error("Agrega al menos un producto.");
+    const payments = collectSalePayments();
+    const tip = centavosInput($("saleTip").value || "0");
+    const cashOnly = payments.length === 1 && payments[0].metodo === "efectivo";
+    const data = {
+      clienteId: $("saleClient").value || null,
+      redondeo: $("saleRounding").value,
+      propinaCentavos: tip,
+      nota: $("saleNote").value.trim() || null,
+      motivoCambioPrecio: $("salePriceReason").value.trim() || null,
+      pagos: payments,
+      lineas: saleCart.map(line => ({
+        productoId: line.productoId, nombre: line.nombre, comun: line.comun,
+        cantidad: String(line.cantidad), precioUnitarioCentavos: numero(line.precioUnitarioCentavos),
+        descuentoPct: numero(line.descuentoPct), mayoreo: Boolean(line.mayoreo), tasaItbis: line.tasaItbis
+      }))
+    };
+    if (cashOnly) {
+      data.pagoConCentavos = centavosInput($("saleCashReceived").value || "0");
+      if (data.pagoConCentavos < saleExactTotals().total + tip) throw new Error("El efectivo recibido no cubre el total y la propina.");
+    }
+    if (inventoryOverride) {
+      data.forzarInventario = true;
+      data.motivoInventario = inventoryOverride;
+    }
+    if (saleHasCustomPrices() && !data.motivoCambioPrecio) throw new Error("Indica el motivo del precio especial.");
+    return data;
+  }
+
+  function saleReceiptMarkup(sale, quote = false) {
+    const business = businessConfig || {};
+    const lines = Array.isArray(sale.lineas) ? sale.lineas : saleCart.map(line => ({ ...line, importeFinalCentavos: Math.round(numero(line.precioUnitarioCentavos) * numero(line.cantidad) * (1 - numero(line.descuentoPct) / 100)) }));
+    const total = quote ? saleExactTotals().total : totalDe(sale);
+    return `<article class="sale-receipt"><h2>${esc(business.nombre || "D' Carela Compufoto")}</h2><p>${esc(business.rnc ? `RNC ${business.rnc}` : "")}</p><p>${esc(business.telefono || business.whatsapp || "")}</p><div class="sale-receipt-meta"><strong>${quote ? "COTIZACION" : `VENTA #${esc(sale.folio || "--")}`}</strong><br>${esc(fecha(sale.vendidaEn || new Date().toISOString()))}<br>${esc(sale.clienteNombre || $("saleClient").selectedOptions[0]?.textContent || "Consumidor final")}</div>${lines.map(line => `<div class="sale-receipt-line"><span>${esc(line.nombre)}<small>${esc(line.cantidad || 1)} x ${money(line.precioUnitarioCentavos)}</small></span><strong>${money(line.importeFinalCentavos ?? Math.round(numero(line.precioUnitarioCentavos) * numero(line.cantidad)))}</strong></div>`).join("")}<div class="sale-receipt-total"><span>Total</span><strong>${money(total)}</strong></div>${sale.itbisCentavos !== undefined ? `<div class="sale-receipt-line"><span>ITBIS incluido</span><strong>${money(sale.itbisCentavos)}</strong></div>` : ""}${sale.cambioCentavos !== null && sale.cambioCentavos !== undefined ? `<div class="sale-receipt-line"><span>Devuelta</span><strong>${money(sale.cambioCentavos)}</strong></div>` : ""}<p style="margin-top:16px">${esc(business.ticketPie || (quote ? "Cotizacion sujeta a disponibilidad." : "Gracias por su compra"))}</p></article>`;
+  }
+
+  function printSaleReceipt() {
+    document.body.classList.add("sale-printing");
+    window.print();
+    setTimeout(() => document.body.classList.remove("sale-printing"), 500);
+  }
+
+  async function submitSale(inventoryReason = null) {
+    if (saleSubmitting) return;
+    saleSubmitting = true;
+    $("saleError").textContent = "";
+    $("btnSaleSubmit").disabled = true;
+    $("btnSaleSubmit").textContent = "Registrando...";
+    saleRequestId ||= saleUuid();
+    try {
+      const result = await saleApi("sale.create", salePayload(inventoryReason), saleRequestId);
+      saleLastReceipt = result.sale;
+      localStorage.removeItem(salePendingKey());
+      $("saleReceiptContent").innerHTML = saleReceiptMarkup(result.sale);
+      $("saleWorkbench").classList.add("oculto");
+      $("saleReceipt").classList.remove("oculto");
+      cancelCache.at = 0;
+      toast(`Venta #${result.sale.folio} registrada y enviada a las cajas.`);
+      cargarVentas().catch(() => {});
+    } catch (error) {
+      if (error.status === 409 && /Inventario requiere confirmacion/i.test(error.message) && !inventoryReason) {
+        abrirEditor("Confirmar inventario", error.message, '<label class="field-wide"><span>Motivo para continuar</span><textarea name="motivo" rows="3" required maxlength="500" placeholder="Ej.: conteo pendiente en esta sucursal"></textarea></label>', async form => {
+          const reason = String(form.get("motivo") || "").trim();
+          if (!reason) throw new Error("El motivo es obligatorio.");
+          cerrarEditor();
+          saleSubmitting = false;
+          await submitSale(reason);
+        }, "Confirmar y registrar");
+      } else {
+        $("saleError").textContent = error.message;
+        toast(error.message);
+      }
+    } finally {
+      saleSubmitting = false;
+      $("btnSaleSubmit").disabled = false;
+      $("btnSaleSubmit").textContent = "Cobrar y registrar";
+    }
+  }
+
+  async function openSaleShift() {
+    const button = $("btnSaleOpenShift");
+    button.disabled = true;
+    try {
+      const result = await saleApi("shift.open", { montoAperturaCentavos: centavosInput($("saleOpening").value || "0") }, saleUuid());
+      saleShift = result.shift;
+      renderSaleShift();
+      toast("Caja web abierta. Ya puedes registrar ventas.");
+      setTimeout(() => $("saleSearch").focus(), 0);
+    } catch (error) { $("saleError").textContent = error.message; }
+    finally { button.disabled = false; }
+  }
+
+  function openSaleCloseShift() {
+    abrirEditor("Cerrar caja web", "Cuenta el efectivo fisico. El sistema comparara apertura, ventas, propinas, entradas y salidas.", '<label><span>Efectivo contado</span><input name="contado" inputmode="decimal" required></label><label class="field-wide"><span>Nota del cierre</span><textarea name="nota" rows="3" maxlength="1000"></textarea></label>', async form => {
+      const result = await saleApi("shift.close", { efectivoContadoCentavos: centavosInput(form.get("contado")), nota: String(form.get("nota") || "").trim() || null }, saleUuid());
+      cerrarEditor();
+      saleShift = null;
+      clearSale();
+      renderSaleShift();
+      toast(`Caja cerrada. Diferencia: ${money(result.summary.diferenciaCentavos)}.`);
+    }, "Cerrar y guardar arqueo");
+  }
+
+  function openCommonSale() {
+    abrirEditor("Venta comun", "Agrega un articulo o servicio puntual sin alterar el catalogo.", '<label class="field-wide"><span>Descripcion</span><input name="nombre" required maxlength="180"></label><label><span>Precio final</span><input name="precio" inputmode="decimal" required></label><label><span>ITBIS</span><select name="itbis"><option value="0.18">18%</option><option value="0">Exento</option></select></label>', async form => {
+      const name = String(form.get("nombre") || "").trim();
+      const price = centavosInput(form.get("precio"));
+      if (!name || price <= 0) throw new Error("Completa una descripcion y un precio mayor que cero.");
+      saleCart.push({ localId: saleUuid(), productoId: `comun-${saleUuid()}`, nombre: name, cantidad: "1", precioUnitarioCentavos: price, precioNormalCentavos: price, precioMayoreoCentavos: 0, descuentoPct: 0, mayoreo: false, tasaItbis: numero(form.get("itbis")), usaInventario: false, comun: true });
+      cerrarEditor();
+      renderSaleCart();
+    }, "Agregar a la cuenta");
+  }
+
+  function cancelSaleWeb(saleId, folio) {
+    abrirEditor(`Anular venta #${folio || "--"}`, "La venta se conservara en auditoria; inventario y credito se revertiran al sincronizar.", '<label class="field-wide"><span>Motivo de anulacion</span><textarea name="motivo" rows="3" required maxlength="500"></textarea></label>', async form => {
+      const reason = String(form.get("motivo") || "").trim();
+      if (!reason) throw new Error("El motivo es obligatorio.");
+      await saleApi("sale.cancel", { ventaId: saleId, motivo: reason }, saleUuid());
+      cerrarEditor();
+      cancelCache.at = 0;
+      toast(`Venta #${folio || "--"} anulada y enviada a sincronizacion.`);
+      await cargarVentas();
+    }, "Anular venta");
+  }
+
   async function cargarVentas() {
     if (!$("venDesde").value) {
       const today = inputDate(new Date());
@@ -2160,7 +2570,8 @@
       const cuentasTransferencia = cuentasTransferenciaDe(payload);
       const referenciaPago = payload.referencia || (Array.isArray(payload.pagos)
         ? payload.pagos.map(pago => pago?.referencia).find(Boolean) : null);
-      return `<tr><td>${esc(fecha(fechaEventoIso(event)))}</td><td>#${esc(payload.folio ?? "--")}</td><td>${esc(nombreCajero(payload, userCatalog))}</td><td><button class="turn-link" data-turno="${esc(turnoId)}">${esc(etiquetaTurno)}</button></td><td>${esc(metodoConCuentaDe(payload))}</td><td>${esc(payload.clienteNombre || "Consumidor final")}</td><td class="amount">${money(totalDe(payload))}</td><td><button class="secondary detail-toggle" data-detail="sale-${index}">Detalle</button></td></tr>
+      const saleId = event.entity_id || payload.ventaId || payload.venta_id;
+      return `<tr><td>${esc(fecha(fechaEventoIso(event)))}</td><td>#${esc(payload.folio ?? "--")}</td><td>${esc(nombreCajero(payload, userCatalog))}</td><td><button class="turn-link" data-turno="${esc(turnoId)}">${esc(etiquetaTurno)}</button></td><td>${esc(metodoConCuentaDe(payload))}</td><td>${esc(payload.clienteNombre || "Consumidor final")}</td><td class="amount">${money(totalDe(payload))}</td><td><div class="button-row"><button class="secondary detail-toggle" data-detail="sale-${index}">Detalle</button>${canEdit && saleId ? `<button class="secondary" data-cancel-sale="${esc(saleId)}" data-cancel-folio="${esc(payload.folio ?? "")}">Anular</button>` : ""}</div></td></tr>
         <tr id="sale-${index}" class="detail-row oculto"><td colspan="8"><div class="detail-box">${lines || "Sin lineas sincronizadas"}<br>Subtotal: ${money(payload.subtotalSinItbisCentavos)} | ITBIS: ${money(itbisDe(payload))} | Ajuste: ${money(payload.ajusteRedondeoCentavos)}${cuentasTransferencia.length ? `<br>Cuenta receptora: ${esc(cuentasTransferencia.join(" / "))}` : ""}${referenciaPago ? `<br>Referencia: ${esc(referenciaPago)}` : ""}${payload.nota ? `<br>Nota: ${esc(payload.nota)}` : ""}</div></td></tr>`;
     }).join("");
     $("ventasTabla").innerHTML = `<table><thead><tr><th>Fecha</th><th>Folio</th><th>Cajero</th><th>Turno</th><th>Metodo</th><th>Cliente</th><th class="amount">Total</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
@@ -2169,6 +2580,7 @@
       sessionStorage.setItem("dcarela.turno.focus", button.dataset.turno);
       location.hash = "turnos";
     }));
+    $("ventasTabla").querySelectorAll("[data-cancel-sale]").forEach(button => button.addEventListener("click", () => cancelSaleWeb(button.dataset.cancelSale, button.dataset.cancelFolio)));
   }
 
   async function cargarCaja() {
@@ -4656,6 +5068,73 @@
       $("iaInput").dispatchEvent(new Event("input"));
       $("iaInput").focus();
     }));
+    $("btnNuevaVenta").addEventListener("click", () => openSaleConsole(false));
+    $("btnReanudarVenta").addEventListener("click", () => openSaleConsole(true));
+    $("btnCerrarVenta").addEventListener("click", closeSaleConsole);
+    $("saleOverlay").addEventListener("click", event => { if (event.target === $("saleOverlay")) closeSaleConsole(); });
+    $("btnSaleOpenShift").addEventListener("click", openSaleShift);
+    $("btnSaleCloseShift").addEventListener("click", openSaleCloseShift);
+    $("btnSaleCommon").addEventListener("click", openCommonSale);
+    $("btnSaleClear").addEventListener("click", () => clearSale());
+    $("btnSalePark").addEventListener("click", parkSale);
+    $("saleSearch").addEventListener("input", event => renderSaleProducts(event.target.value));
+    $("saleSearch").addEventListener("keydown", event => {
+      if (event.key !== "Enter") return;
+      event.preventDefault();
+      const term = event.currentTarget.value.trim().toLowerCase();
+      const exact = (productCatalog || []).find(product => [product.codigoBarras, product.sku].some(value => String(value || "").trim().toLowerCase() === term));
+      if (exact) { addSaleProduct(exact.id); event.currentTarget.value = ""; renderSaleProducts(); return; }
+      $("saleProductResults").querySelector("[data-sale-product]")?.click();
+    });
+    $("saleCart").addEventListener("click", event => {
+      const button = event.target.closest("[data-sale-remove]");
+      if (!button) return;
+      saleCart.splice(Number(button.dataset.saleRemove), 1);
+      renderSaleCart();
+    });
+    $("saleCart").addEventListener("input", event => {
+      const field = event.target.dataset.saleField;
+      if (!field) return;
+      const index = Number(event.target.closest("[data-sale-line]")?.dataset.saleLine);
+      const line = saleCart[index];
+      if (!line) return;
+      try {
+        if (field === "cantidad") {
+          const value = String(event.target.value).trim().replace(",", ".");
+          if (!/^\d+(?:\.\d{0,3})?$/.test(value) || numero(value) <= 0) return;
+          line.cantidad = value;
+        }
+        if (field === "precio") line.precioUnitarioCentavos = centavosInput(event.target.value || "0");
+        if (field === "descuento") line.descuentoPct = Math.min(100, Math.max(0, numero(String(event.target.value).replace(",", "."))));
+        const totals = saleExactTotals();
+        $("saleBase").textContent = money(totals.base); $("saleTax").textContent = money(totals.tax); $("saleDiscount").textContent = money(totals.discount); $("saleTotal").textContent = money(totals.total);
+        $("salePriceReasonField").classList.toggle("oculto", !saleHasCustomPrices());
+        syncSalePaymentDraft();
+      } catch { /* conserva el ultimo valor valido mientras se escribe */ }
+    });
+    $("saleCart").addEventListener("change", event => {
+      if (!event.target.matches("[data-sale-wholesale]")) return;
+      const line = saleCart[Number(event.target.dataset.saleWholesale)];
+      if (!line) return;
+      line.mayoreo = event.target.checked;
+      line.precioUnitarioCentavos = line.mayoreo ? line.precioMayoreoCentavos : line.precioNormalCentavos;
+      renderSaleCart();
+    });
+    $("saleRounding").addEventListener("change", renderSaleCart);
+    $("saleTip").addEventListener("input", () => { try { updateSaleCashChange(); } catch {} });
+    $("salePaymentMethod").addEventListener("change", updateSalePaymentFields);
+    $("saleCashReceived").addEventListener("input", () => { try { updateSaleCashChange(); } catch {} });
+    $("btnSaleAddPayment").addEventListener("click", () => { try { addSalePayment(); } catch (error) { toast(error.message); } });
+    $("btnSaleSubmit").addEventListener("click", () => submitSale());
+    $("btnSaleQuote").addEventListener("click", () => {
+      if (!saleCart.length) { toast("Agrega productos antes de imprimir la cotizacion."); return; }
+      $("saleReceiptContent").innerHTML = saleReceiptMarkup({ lineas: saleCart, vendidaEn: new Date().toISOString() }, true);
+      $("saleWorkbench").classList.add("oculto"); $("saleReceipt").classList.remove("oculto");
+      printSaleReceipt();
+      setTimeout(() => { $("saleReceipt").classList.add("oculto"); $("saleWorkbench").classList.remove("oculto"); }, 600);
+    });
+    $("btnSalePrintReceipt").addEventListener("click", printSaleReceipt);
+    $("btnSaleNext").addEventListener("click", () => { clearSale(); $("saleSearch").focus(); });
     $("btnVentas").addEventListener("click", () => cargarVentas().catch(error => mostrarError("ventas", error)));
     $("btnTurnos").addEventListener("click", () => cargarTurnos().catch(error => mostrarError("turnos", error)));
     $("btnTurnosPdf").addEventListener("click", () => { try { descargarTurnosPdf(); } catch (error) { toast(error.message); } });
@@ -4747,7 +5226,11 @@
       catch (error) { $("editorError").textContent = error?.message || String(error); }
       finally { button.disabled = false; button.textContent = previous; }
     });
-    window.addEventListener("keydown", event => { if (event.key === "Escape" && !$("editorOverlay").classList.contains("oculto")) cerrarEditor(); });
+    window.addEventListener("keydown", event => {
+      if (event.key !== "Escape") return;
+      if (!$("editorOverlay").classList.contains("oculto")) cerrarEditor();
+      else if (!$("saleOverlay").classList.contains("oculto")) closeSaleConsole();
+    });
     $("alertFilter").addEventListener("change", () => cargarNotificaciones().catch(() => {}));
     $("btnLeerTodas").addEventListener("click", async () => {
       const alerts = await obtenerAlertas();
