@@ -16,13 +16,16 @@
   const BUSINESS = _urlBiz || window.__DCARELA_DEFAULT?.business || cfg?.business || "dcarela";
   const EMBEDDED = new URLSearchParams(location.search).get("embedded") === "1";
   const THEME_KEY = "dcarela.ui.theme";
+  const APP_BUILD = "2026.08.01.2";
   let currentTheme = document.documentElement.dataset.theme === "dark" ? "dark" : "light";
+  let installPrompt = null;
+  let updateReloading = false;
   function applyTheme(theme, persist = true) {
     currentTheme = theme === "dark" ? "dark" : "light";
     document.documentElement.dataset.theme = currentTheme;
     document.documentElement.classList.toggle("dark", currentTheme === "dark");
     document.documentElement.style.colorScheme = currentTheme;
-    document.querySelector('meta[name="theme-color"]')?.setAttribute("content", currentTheme === "dark" ? "#071426" : "#e7eef5");
+    document.querySelector('meta[name="theme-color"]')?.setAttribute("content", currentTheme === "dark" ? "#09090b" : "#fafafa");
     if (persist) {
       try { localStorage.setItem(THEME_KEY, currentTheme); } catch {}
     }
@@ -34,13 +37,32 @@
     }
   }
   applyTheme(currentTheme, false);
+  window.addEventListener("beforeinstallprompt", event => {
+    event.preventDefault();
+    installPrompt = event;
+    const button = $("btnInstallPwa");
+    if (button) {
+      button.disabled = false;
+      button.textContent = "Instalar como aplicación";
+    }
+  });
+  window.addEventListener("appinstalled", () => {
+    installPrompt = null;
+    const button = $("btnInstallPwa");
+    if (button) button.textContent = "Aplicación instalada";
+  });
+  navigator.serviceWorker?.addEventListener("controllerchange", () => {
+    if (updateReloading) return;
+    updateReloading = true;
+    location.reload();
+  });
   window.addEventListener("message", event => {
     if (event.origin !== location.origin || event.data?.type !== "dcarela:theme") return;
     applyTheme(event.data.theme, true);
   });
   const READ_KEY = `dcarela.alertas.leidas.${BUSINESS}`;
   const RELEVANT_EVENTS = [
-    "CierreConDiferencia", "ErrorSincronizacion", "BackupSnapshotFallido", "VentaCancelada", "VentaWebRegistrada",
+    "CierreConDiferencia", "ErrorSincronizacion", "BackupSnapshotFallido", "VentaCancelada",
     "DevolucionRegistrada", "InventarioBajo", "ProductoAgotado", "DispositivoBloqueado",
     "CajaAbierta", "CajaCerrada", "CompraCreditoProveedorRegistrada", "PagoProveedorRegistrado",
     "GastoRegistrado", "GastoEditado", "GastoEliminado", "CostoRecurrenteGuardado",
@@ -91,6 +113,7 @@
   let saleLastReceipt = null;
   let saleRequestId = null;
   let saleSubmitting = false;
+  let saleStage = "catalog";
 
   const textoSeguro = value => {
     let texto = String(value ?? "")
@@ -1099,6 +1122,7 @@
 
   function cerrarEditor() {
     $("editorOverlay").classList.add("oculto");
+    $("editorOverlay").classList.remove("editor-wide");
     $("editorOverlay").setAttribute("aria-hidden", "true");
     $("editorFields").innerHTML = "";
     $("editorError").textContent = "";
@@ -1106,7 +1130,7 @@
     editorSubmit = null;
   }
 
-  function abrirEditor(title, subtitle, fields, onSubmit, submitLabel = "Guardar y sincronizar") {
+  function abrirEditor(title, subtitle, fields, onSubmit, submitLabel = "Guardar y sincronizar", wide = false) {
     if (!canEdit) { toast("Tu cuenta no tiene permiso para editar."); return; }
     $("editorTitle").textContent = title;
     $("editorSubtitle").textContent = subtitle || "El cambio quedara auditado y se aplicara en las cajas conectadas.";
@@ -1114,6 +1138,7 @@
     $("editorError").textContent = "";
     $("btnGuardarEditor").textContent = submitLabel;
     editorSubmit = onSubmit;
+    $("editorOverlay").classList.toggle("editor-wide", wide);
     $("editorOverlay").classList.remove("oculto");
     $("editorOverlay").setAttribute("aria-hidden", "false");
     setTimeout(() => $("editorFields").querySelector("input:not([type=checkbox]), select, textarea")?.focus(), 0);
@@ -2140,8 +2165,9 @@
     $("pillVivo").textContent = "en vivo";
   }
 
-  const salePendingKey = () => `dcarela.sale.pending.v1.${BUSINESS}`;
-  const saleUuid = () => crypto.randomUUID();
+  const salePendingKey = () => `dcarela.sale.pending.v2.${BUSINESS}`;
+  const saleUuid = () => crypto.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  const saleStageNames = new Set(["catalog", "cart", "checkout"]);
 
   async function saleApi(action, data = {}, requestId = null) {
     if (!canEdit) throw new Error("Solo administradores y propietarios pueden operar la caja web.");
@@ -2157,6 +2183,43 @@
       throw error;
     }
     return result;
+  }
+
+  function setSaleStage(stage, focus = false) {
+    saleStage = saleStageNames.has(stage) ? stage : "catalog";
+    $("saleStageTabs")?.querySelectorAll("[data-sale-stage]").forEach(button => {
+      const active = button.dataset.saleStage === saleStage;
+      button.setAttribute("aria-selected", String(active));
+      button.tabIndex = active ? 0 : -1;
+    });
+    $("saleWorkbench")?.querySelectorAll("[data-sale-pane]").forEach(pane => {
+      pane.dataset.saleActive = String(pane.dataset.salePane === saleStage);
+    });
+    if (!focus) return;
+    const target = saleStage === "catalog" ? $("saleSearch")
+      : saleStage === "cart" ? $("saleCart")
+        : $("salePaymentAmount");
+    setTimeout(() => target?.focus(), 0);
+  }
+
+  function updateSalePendingButton() {
+    const button = $("btnReanudarVenta");
+    if (!button) return;
+    let pending = null;
+    try { pending = JSON.parse(localStorage.getItem(salePendingKey()) || "null"); } catch {}
+    const available = Boolean(pending?.cart?.length);
+    button.classList.toggle("has-pending", available);
+    button.textContent = available ? `Reanudar pendiente (${pending.cart.length})` : "Venta pendiente";
+    button.setAttribute("aria-label", available ? "Reanudar venta pendiente" : "No hay venta pendiente guardada");
+  }
+
+  function syncSaleMobileSummary() {
+    const summary = $("saleMobileSummary");
+    if (!summary) return;
+    const visible = Boolean(saleShift?.id)
+      && !$("saleWorkbench")?.classList.contains("oculto")
+      && $("saleReceipt")?.classList.contains("oculto");
+    summary.classList.toggle("oculto", !visible);
   }
 
   function saleExactTotals() {
@@ -2190,7 +2253,7 @@
   }
 
   function updateSaleCashChange() {
-    if (!$('saleCashReceivedField')) return;
+    if (!$("saleCashReceivedField")) return;
     const noAddedPayments = salePayments.length === 0;
     const simpleCash = (noAddedPayments && $("salePaymentMethod").value === "efectivo")
       || (salePayments.length === 1 && salePayments[0].metodo === "efectivo" && saleRemaining() === 0);
@@ -2213,7 +2276,12 @@
 
   function renderSaleCart() {
     const totals = saleExactTotals();
-    $("saleCartCount").textContent = `${saleCart.length} ${saleCart.length === 1 ? "producto" : "productos"}`;
+    const countText = `${saleCart.length} ${saleCart.length === 1 ? "producto" : "productos"}`;
+    $("saleCartCount").textContent = countText;
+    $("saleStageCartCount").textContent = String(saleCart.length);
+    $("saleStageCheckoutCount").textContent = saleCart.length ? money(totals.total) : "0";
+    $("saleMobileCount").textContent = countText;
+    $("saleMobileTotal").textContent = money(totals.total);
     $("saleBase").textContent = money(totals.base);
     $("saleTax").textContent = money(totals.tax);
     $("saleDiscount").textContent = money(totals.discount);
@@ -2238,10 +2306,11 @@
     }
     renderSalePayments();
     syncSalePaymentDraft();
+    syncSaleMobileSummary();
   }
 
   function renderSalePayments() {
-    $("salePayments").innerHTML = salePayments.length ? salePayments.map((payment, index) => `<div class="sale-payment-row"><span>${esc(payment.metodo)}${payment.cuentaFinancieraNombre ? ` · ${esc(payment.cuentaFinancieraNombre)}` : ""}${payment.referencia ? ` · ${esc(payment.referencia)}` : ""}</span><strong>${money(payment.montoCentavos)}</strong><button class="sale-payment-remove" type="button" data-sale-payment-remove="${index}">&#215;</button></div>`).join("") : '<div class="muted">Un solo pago puede cobrarse directamente. Para pago mixto agrega cada parte.</div>';
+    $("salePayments").innerHTML = salePayments.length ? salePayments.map((payment, index) => `<div class="sale-payment-row"><span>${esc(payment.metodo)}${payment.cuentaFinancieraNombre ? ` | ${esc(payment.cuentaFinancieraNombre)}` : ""}${payment.referencia ? ` | ${esc(payment.referencia)}` : ""}</span><strong>${money(payment.montoCentavos)}</strong><button class="sale-payment-remove" type="button" data-sale-payment-remove="${index}" aria-label="Quitar pago">&#215;</button></div>`).join("") : '<div class="muted">Un solo pago puede cobrarse directamente. Para pago mixto agrega cada parte.</div>';
     $("salePayments").querySelectorAll("[data-sale-payment-remove]").forEach(button => button.addEventListener("click", () => {
       salePayments.splice(Number(button.dataset.salePaymentRemove), 1);
       renderSalePayments();
@@ -2250,12 +2319,21 @@
     updateSaleCashChange();
   }
 
-  function renderSaleProducts(query = "") {
+  function saleProductsMatching(query = "", limit = 80) {
     const term = query.trim().toLowerCase();
-    const products = (productCatalog || []).filter(product => product.activo !== false && numero(product.precioFinalCentavos) > 0)
-      .filter(product => !term || [product.nombre, product.codigoBarras, product.sku, product.categoriaNombre].some(value => String(value || "").toLowerCase().includes(term)))
-      .slice(0, term ? 80 : 36);
-    $("saleProductResults").innerHTML = products.length ? products.map(product => `<button type="button" class="sale-product-card" data-sale-product="${esc(product.id)}"><strong>${esc(product.nombre)}</strong><small>${esc(product.codigoBarras || product.tipo || "Producto")}${product.usaInventario === false ? " · sin inventario" : product.stock !== undefined ? ` · stock ${esc(product.stock)}` : ""}</small><span>${money(product.precioFinalCentavos)}</span></button>`).join("") : '<div class="empty-state">No hay productos que coincidan.</div>';
+    return (productCatalog || [])
+      .filter(product => product.activo !== false && numero(product.precioFinalCentavos) > 0)
+      .filter(product => !term || [product.nombre, product.codigoBarras, product.sku, product.categoriaNombre]
+        .some(value => String(value || "").toLowerCase().includes(term)))
+      .slice(0, limit);
+  }
+
+  function renderSaleProducts(query = "") {
+    const products = saleProductsMatching(query, query.trim() ? 80 : 36);
+    $("saleProductResults").innerHTML = products.length ? products.map(product => `<button type="button" class="sale-product-card" data-sale-product="${esc(product.id)}">
+      <span class="sale-product-copy"><strong>${esc(product.nombre)}</strong><small>${esc(product.codigoBarras || product.sku || product.tipo || "Producto")}${product.usaInventario === false ? " | sin inventario" : product.stock !== undefined ? ` | stock ${esc(product.stock)}` : ""}</small></span>
+      <span class="sale-product-price">${money(product.precioFinalCentavos)}</span>
+    </button>`).join("") : '<div class="empty-state">No hay productos que coincidan.</div>';
     $("saleProductResults").querySelectorAll("[data-sale-product]").forEach(button => button.addEventListener("click", () => addSaleProduct(button.dataset.saleProduct)));
   }
 
@@ -2273,7 +2351,41 @@
       usaInventario: product.usaInventario !== false, stock: product.stock, comun: false
     });
     renderSaleCart();
+    $("saleSearch").value = "";
+    renderSaleProducts();
     $("saleSearch").focus();
+  }
+
+  function renderSalePriceVerifier(query = "") {
+    const results = saleProductsMatching(query, query.trim() ? 40 : 20);
+    $("salePriceResults").innerHTML = results.length ? results.map(product => {
+      const stock = product.usaInventario === false ? "Sin control de inventario" : `Existencia: ${esc(product.stock ?? "--")}`;
+      const tax = numero(product.tasaItbis, .18) > 0 ? `ITBIS ${Math.round(numero(product.tasaItbis, .18) * 100)}%` : "Exento";
+      return `<article class="sale-price-result">
+        <div><strong>${esc(product.nombre)}</strong><small>${esc(product.codigoBarras || product.sku || product.categoriaNombre || "Producto")} | ${stock} | ${tax}</small></div>
+        <div class="sale-price-values"><span>Precio <b>${money(product.precioFinalCentavos)}</b></span>${numero(product.precioMayoreoCentavos) > 0 ? `<span>Mayoreo <b>${money(product.precioMayoreoCentavos)}</b></span>` : ""}</div>
+        <button class="secondary" type="button" data-sale-price-add="${esc(product.id)}">Agregar</button>
+      </article>`;
+    }).join("") : '<div class="empty-state">No hay coincidencias para consultar.</div>';
+    $("salePriceResults").querySelectorAll("[data-sale-price-add]").forEach(button => button.addEventListener("click", () => {
+      addSaleProduct(button.dataset.salePriceAdd);
+      closeSalePriceVerifier();
+    }));
+  }
+
+  function openSalePriceVerifier() {
+    const verifier = $("salePriceVerifier");
+    verifier.classList.remove("oculto");
+    verifier.setAttribute("aria-hidden", "false");
+    $("salePriceSearch").value = $("saleSearch").value || "";
+    renderSalePriceVerifier($("salePriceSearch").value);
+    setTimeout(() => $("salePriceSearch").focus(), 0);
+  }
+
+  function closeSalePriceVerifier() {
+    $("salePriceVerifier").classList.add("oculto");
+    $("salePriceVerifier").setAttribute("aria-hidden", "true");
+    setTimeout(() => $("saleSearch")?.focus(), 0);
   }
 
   async function loadSaleBankAccounts() {
@@ -2287,7 +2399,9 @@
     const open = Boolean(saleShift?.id);
     $("saleShiftGate").classList.toggle("oculto", open);
     $("saleWorkbench").classList.toggle("oculto", !open);
-    $("saleShiftPill").textContent = open ? `Turno abierto · ${fecha(saleShift.abiertoEn || saleShift.openedAt)}` : "Caja cerrada";
+    $("saleCommandStrip")?.classList.toggle("sale-shift-closed", !open);
+    $("saleShiftPill").textContent = open ? `Turno abierto | ${fecha(saleShift.abiertoEn || saleShift.openedAt)}` : "Caja cerrada";
+    syncSaleMobileSummary();
   }
 
   async function refreshSaleShift() {
@@ -2300,20 +2414,24 @@
     if (!canEdit) { toast("Tu cuenta no tiene permiso para registrar ventas."); return; }
     $("saleOverlay").classList.remove("oculto");
     $("saleOverlay").setAttribute("aria-hidden", "false");
+    $("saleConsole").classList.remove("receipt-mode");
     document.body.style.overflow = "hidden";
     $("saleReceipt").classList.add("oculto");
     $("saleWorkbench").classList.add("oculto");
     $("saleShiftGate").classList.add("oculto");
+    $("saleMobileSummary").classList.add("oculto");
     $("saleShiftPill").textContent = "Consultando turno";
     $("saleBranch").textContent = nombreSucursal(BUSINESS);
     $("saleError").textContent = "";
+    setSaleStage("catalog");
     try {
       await Promise.all([cargarCatalogoCloud(), cargarClientesCloud(), loadSaleBankAccounts(), cargarNegocioCloud(), refreshSaleShift()]);
-      $("saleClient").innerHTML = '<option value="">Consumidor final</option>' + (clientCatalog || []).filter(client => client.activo !== false).map(client => `<option value="${esc(client.id)}">${esc(client.nombre)}${numero(client.saldoCentavos) ? ` · saldo ${money(client.saldoCentavos)}` : ""}</option>`).join("");
+      $("saleClient").innerHTML = '<option value="">Consumidor final</option>' + (clientCatalog || []).filter(client => client.activo !== false).map(client => `<option value="${esc(client.id)}">${esc(client.nombre)}${numero(client.saldoCentavos) ? ` | saldo ${money(client.saldoCentavos)}` : ""}</option>`).join("");
       if (resume) restorePendingSale();
       renderSaleProducts();
       renderSaleCart();
-      setTimeout(() => (saleShift ? $("saleSearch") : $("saleOpening"))?.focus(), 0);
+      if (resume && saleCart.length) setSaleStage("cart");
+      setTimeout(() => (saleShift ? (resume && saleCart.length ? $("saleCart") : $("saleSearch")) : $("saleOpening"))?.focus(), 0);
     } catch (error) {
       $("saleError").textContent = error.message;
       renderSaleShift();
@@ -2322,6 +2440,7 @@
 
   function closeSaleConsole() {
     if (saleSubmitting) return;
+    closeSalePriceVerifier();
     $("saleOverlay").classList.add("oculto");
     $("saleOverlay").setAttribute("aria-hidden", "true");
     document.body.style.overflow = "";
@@ -2340,10 +2459,16 @@
     $("saleReference").value = "";
     $("saleBankAccount").value = "";
     $("saleCashReceived").value = "0.00";
-    if (resetReceipt) $("saleReceipt").classList.add("oculto");
+    $("saleSearch").value = "";
+    if (resetReceipt) {
+      $("saleReceipt").classList.add("oculto");
+      $("saleConsole").classList.remove("receipt-mode");
+    }
     $("saleWorkbench").classList.toggle("oculto", !saleShift);
     updateSalePaymentFields();
+    renderSaleProducts();
     renderSaleCart();
+    setSaleStage("catalog");
   }
 
   function parkSale() {
@@ -2354,11 +2479,13 @@
       priceReason: $("salePriceReason").value, payments: salePayments
     }));
     clearSale();
+    updateSalePendingButton();
     toast("Venta pendiente guardada en este navegador.");
   }
 
   function restorePendingSale() {
-    const saved = JSON.parse(localStorage.getItem(salePendingKey()) || "null");
+    let saved = null;
+    try { saved = JSON.parse(localStorage.getItem(salePendingKey()) || "null"); } catch {}
     if (!saved?.cart?.length) { toast("No hay una venta pendiente guardada."); return; }
     saleCart = saved.cart;
     salePayments = Array.isArray(saved.payments) ? saved.payments : [];
@@ -2368,6 +2495,7 @@
     $("saleNote").value = saved.note || "";
     $("salePriceReason").value = saved.priceReason || "";
     localStorage.removeItem(salePendingKey());
+    updateSalePendingButton();
     renderSaleCart();
     toast(`Venta pendiente recuperada (${fecha(saved.savedAt)}).`);
   }
@@ -2407,7 +2535,7 @@
 
   function collectSalePayments() {
     const total = saleExactTotals().total;
-    let payments = salePayments.map(payment => ({ ...payment }));
+    const payments = salePayments.map(payment => ({ ...payment }));
     const current = payments.reduce((sum, payment) => sum + payment.montoCentavos, 0);
     if (current < total) payments.push(draftSalePayment(total - current));
     const sum = payments.reduce((value, payment) => value + payment.montoCentavos, 0);
@@ -2464,15 +2592,19 @@
     saleSubmitting = true;
     $("saleError").textContent = "";
     $("btnSaleSubmit").disabled = true;
+    $("btnSaleMobileCheckout").disabled = true;
     $("btnSaleSubmit").textContent = "Registrando...";
     saleRequestId ||= saleUuid();
     try {
       const result = await saleApi("sale.create", salePayload(inventoryReason), saleRequestId);
       saleLastReceipt = result.sale;
       localStorage.removeItem(salePendingKey());
+      updateSalePendingButton();
       $("saleReceiptContent").innerHTML = saleReceiptMarkup(result.sale);
       $("saleWorkbench").classList.add("oculto");
       $("saleReceipt").classList.remove("oculto");
+      $("saleConsole").classList.add("receipt-mode");
+      syncSaleMobileSummary();
       cancelCache.at = 0;
       toast(`Venta #${result.sale.folio} registrada y enviada a las cajas.`);
       cargarVentas().catch(() => {});
@@ -2492,7 +2624,8 @@
     } finally {
       saleSubmitting = false;
       $("btnSaleSubmit").disabled = false;
-      $("btnSaleSubmit").textContent = "Cobrar y registrar";
+      $("btnSaleMobileCheckout").disabled = false;
+      $("btnSaleSubmit").innerHTML = "<kbd>F12</kbd> Cobrar y registrar";
     }
   }
 
@@ -2503,21 +2636,76 @@
       const result = await saleApi("shift.open", { montoAperturaCentavos: centavosInput($("saleOpening").value || "0") }, saleUuid());
       saleShift = result.shift;
       renderSaleShift();
+      setSaleStage("catalog", true);
       toast("Caja web abierta. Ya puedes registrar ventas.");
-      setTimeout(() => $("saleSearch").focus(), 0);
     } catch (error) { $("saleError").textContent = error.message; }
     finally { button.disabled = false; }
   }
 
+  // Denominaciones RD$ (billetes y monedas). El conteo por denominacion es
+  // obligatorio: el servidor rechaza el cierre sin desglose (pos-web-sale).
+  const DENOMINACIONES = [2000, 1000, 500, 200, 100, 50, 25, 10, 5, 1];
+
   function openSaleCloseShift() {
-    abrirEditor("Cerrar caja web", "Cuenta el efectivo fisico. El sistema comparara apertura, ventas, propinas, entradas y salidas.", '<label><span>Efectivo contado</span><input name="contado" inputmode="decimal" required></label><label class="field-wide"><span>Nota del cierre</span><textarea name="nota" rows="3" maxlength="1000"></textarea></label>', async form => {
-      const result = await saleApi("shift.close", { efectivoContadoCentavos: centavosInput(form.get("contado")), nota: String(form.get("nota") || "").trim() || null }, saleUuid());
-      cerrarEditor();
-      saleShift = null;
-      clearSale();
-      renderSaleShift();
-      toast(`Caja cerrada. Diferencia: ${money(result.summary.diferenciaCentavos)}.`);
-    }, "Cerrar y guardar arqueo");
+    const filas = DENOMINACIONES.map(v => `
+      <label class="conteo-fila">
+        <span>RD$ ${v.toLocaleString("es-DO")}</span>
+        <input name="den_${v}" type="number" min="0" step="1" inputmode="numeric"
+               placeholder="0" data-den="${v}" class="conteo-cant">
+      </label>`).join("");
+
+    abrirEditor(
+      "Cerrar caja web",
+      "Cuenta el efectivo billete por billete. El total se calcula solo y debe cuadrar antes de cerrar.",
+      `<div class="conteo-grid">${filas}</div>
+       <div class="conteo-total" id="conteoResumen">
+         <div><span>Total contado</span><b id="conteoTotal">RD$ 0.00</b></div>
+         <div><span>Esperado por el sistema</span><b id="conteoEsperado">--</b></div>
+         <div id="conteoDif" class="conteo-dif"></div>
+       </div>
+       <label class="field-wide"><span>Motivo (obligatorio si hay diferencia)</span>
+         <textarea name="nota" rows="3" maxlength="1000"></textarea></label>`,
+      async form => {
+        const conteo = DENOMINACIONES
+          .map(v => ({ valorCentavos: v * 100, cantidad: Math.max(0, Math.trunc(numero(form.get(`den_${v}`)))) }))
+          .filter(d => d.cantidad > 0);
+        if (!conteo.length) throw new Error("Cuenta el efectivo por denominacion antes de cerrar.");
+        const contado = conteo.reduce((t, d) => t + d.valorCentavos * d.cantidad, 0);
+        const nota = String(form.get("nota") || "").trim();
+        const result = await saleApi("shift.close",
+          { efectivoContadoCentavos: contado, conteoDenominaciones: conteo, nota: nota || null },
+          saleUuid());
+        cerrarEditor();
+        saleShift = null;
+        clearSale();
+        renderSaleShift();
+        const dif = result.summary.diferenciaCentavos;
+        toast(dif === 0
+          ? "Caja cerrada. El conteo cuadro exacto."
+          : `Caja cerrada. Diferencia: ${money(dif)}.`);
+      },
+      "Cerrar y guardar arqueo");
+
+    // Total en vivo + aviso de diferencia mientras se cuenta.
+    const esperado = numero(saleShift?.efectivoEsperadoCentavos);
+    const elTotal = $("conteoTotal"), elEsp = $("conteoEsperado"), elDif = $("conteoDif");
+    if (elEsp) elEsp.textContent = esperado ? money(esperado) : "--";
+    function recalcular() {
+      let total = 0;
+      document.querySelectorAll(".conteo-cant").forEach(inp => {
+        total += numero(inp.dataset.den) * 100 * Math.max(0, Math.trunc(numero(inp.value)));
+      });
+      if (elTotal) elTotal.textContent = money(total);
+      if (!elDif) return;
+      if (!esperado) { elDif.textContent = ""; elDif.className = "conteo-dif"; return; }
+      const d = total - esperado;
+      elDif.textContent = d === 0
+        ? "Cuadra exacto"
+        : `${d > 0 ? "Sobra" : "Falta"} ${money(Math.abs(d))} — escribe el motivo`;
+      elDif.className = "conteo-dif " + (d === 0 ? "ok" : "alerta");
+    }
+    document.querySelectorAll(".conteo-cant").forEach(inp => inp.addEventListener("input", recalcular));
+    recalcular();
   }
 
   function openCommonSale() {
@@ -2528,6 +2716,7 @@
       saleCart.push({ localId: saleUuid(), productoId: `comun-${saleUuid()}`, nombre: name, cantidad: "1", precioUnitarioCentavos: price, precioNormalCentavos: price, precioMayoreoCentavos: 0, descuentoPct: 0, mayoreo: false, tasaItbis: numero(form.get("itbis")), usaInventario: false, comun: true });
       cerrarEditor();
       renderSaleCart();
+      setSaleStage("cart");
     }, "Agregar a la cuenta");
   }
 
@@ -2541,6 +2730,221 @@
       toast(`Venta #${folio || "--"} anulada y enviada a sincronizacion.`);
       await cargarVentas();
     }, "Anular venta");
+  }
+
+  function handleSaleShortcut(event) {
+    if ($("saleOverlay")?.classList.contains("oculto")) return;
+    if (!$("editorOverlay").classList.contains("oculto")) return;
+    if (event.key === "Escape") {
+      event.preventDefault();
+      if (!$("salePriceVerifier").classList.contains("oculto")) closeSalePriceVerifier();
+      else closeSaleConsole();
+      return;
+    }
+    if (event.key === "F9") {
+      event.preventDefault();
+      openSalePriceVerifier();
+      return;
+    }
+    if (event.key === "F10") {
+      event.preventDefault();
+      setSaleStage("catalog", true);
+      return;
+    }
+    if (event.key === "F6") {
+      event.preventDefault();
+      parkSale();
+      return;
+    }
+    if (event.key === "F12") {
+      event.preventDefault();
+      if (saleStage !== "checkout") setSaleStage("checkout", true);
+      else if (!event.repeat) submitSale();
+      return;
+    }
+    if (event.ctrlKey && event.key === "Enter") {
+      event.preventDefault();
+      setSaleStage("checkout");
+      submitSale();
+    }
+  }
+
+  function calcularLineaVentaWeb(product, quantity) {
+    const cantidad = Math.max(0, Number(quantity) || 0);
+    const precio = numero(product.precioFinalCentavos);
+    const tasa = Math.max(0, Math.min(1, Number(String(product.tasaItbis ?? "0").replace(",", ".")) || 0));
+    const incluye = product.precioIncluyeItbis !== false && product.precioIncluyeItbis !== "0" && product.precioIncluyeItbis !== 0;
+    let base = Math.round(precio * cantidad);
+    let itbis = tasa > 0 ? Math.round(base * tasa) : 0;
+    let total = base + itbis;
+    if (incluye) {
+      total = Math.round(precio * cantidad);
+      base = tasa > 0 ? Math.round(total / (1 + tasa)) : total;
+      itbis = total - base;
+    }
+    return { base, itbis, total };
+  }
+
+  async function cuentasCobroVentaWeb() {
+    const { data, error } = await sb.from("fin_cuentas")
+      .select("id,nombre,tipo,estado,oculta")
+      .eq("business_id", BUSINESS)
+      .eq("estado", "activa")
+      .eq("oculta", false)
+      .order("orden")
+      .order("nombre");
+    if (error) throw error;
+    return (data || []).filter(account => ["banco", "tarjeta_debito", "ahorro"].includes(account.tipo));
+  }
+
+  async function abrirVentaWeb() {
+    const [{ products }, clients, accounts] = await Promise.all([
+      cargarCatalogoCloud(),
+      cargarClientesCloud(),
+      cuentasCobroVentaWeb().catch(() => []),
+    ]);
+    const available = products.filter(product => product.activo && numero(product.precioFinalCentavos) > 0);
+    const byId = new Map(available.map(product => [product.id, product]));
+    const draft = new Map();
+    const optionClients = clients.filter(client => client.activo).map(client =>
+      `<option value="${esc(client.id)}">${esc(client.nombre)}${client.telefono ? ` | ${esc(client.telefono)}` : ""}</option>`
+    ).join("");
+    const optionAccounts = accounts.map(account => `<option value="${esc(account.id)}">${esc(account.nombre)}</option>`).join("");
+
+    abrirEditor("Nueva venta web", "Factura desde el panel con precios validados en la nube. Se replica en todas las terminales sin intervenir el turno fisico abierto.", `
+      <section class="web-sale-picker field-wide">
+        <label><span>Buscar producto, combo o codigo</span><input id="webSaleSearch" type="search" autocomplete="off" placeholder="Empieza a escribir..."></label>
+        <div id="webSaleResults" class="web-sale-results"></div>
+      </section>
+      <section class="web-sale-cart field-wide">
+        <div class="web-sale-cart-title"><div><strong>Detalle de la factura</strong><small id="webSaleLineCount">0 productos</small></div><strong id="webSaleTotal">RD$0.00</strong></div>
+        <div id="webSaleCart" class="web-sale-cart-body"><div class="empty-state">Busca un producto y agregalo a la factura.</div></div>
+      </section>
+      <label><span>Cliente</span><select name="clienteId"><option value="">Consumidor final</option>${optionClients}</select></label>
+      <label><span>Forma de pago</span><select id="webSaleMethod" name="metodo"><option value="efectivo">Efectivo</option><option value="transferencia">Transferencia</option><option value="tarjeta">Tarjeta</option><option value="cheque">Cheque</option><option value="credito">Credito</option><option value="mixto">Mixto</option></select></label>
+      <label id="webSaleAccountField" class="oculto"><span>Cuenta que recibe</span><select name="cuentaFinancieraId"><option value="">Selecciona la cuenta</option>${optionAccounts}</select></label>
+      <label id="webSaleCashField"><span>Efectivo recibido</span><input name="pagoCon" type="number" min="0" step="0.01" inputmode="decimal" placeholder="Monto entregado"></label>
+      <section id="webSaleMixed" class="web-sale-mixed field-wide oculto">
+        <div class="surface-title"><div><strong>Distribucion del pago</strong><p>La suma debe coincidir exactamente con la factura.</p></div><button id="webSaleFillCash" class="secondary" type="button">Completar en efectivo</button></div>
+        <div class="web-sale-mixed-grid">
+          <label><span>Efectivo</span><input data-web-payment="efectivo" type="number" min="0" step="0.01" value="0"></label>
+          <label><span>Transferencia</span><input data-web-payment="transferencia" type="number" min="0" step="0.01" value="0"></label>
+          <label><span>Tarjeta</span><input data-web-payment="tarjeta" type="number" min="0" step="0.01" value="0"></label>
+          <label><span>Credito</span><input data-web-payment="credito" type="number" min="0" step="0.01" value="0"></label>
+        </div>
+        <p id="webSalePaymentState" class="sync-note">Distribuido: RD$0.00</p>
+      </section>
+      <label class="field-wide"><span>Referencia de tarjeta, transferencia o cheque</span><input name="referencia" maxlength="180"></label>
+      <label class="field-wide"><span>Nota de la factura</span><textarea name="nota" rows="2" maxlength="1200"></textarea></label>`, async form => {
+      if (!draft.size) throw new Error("Agrega al menos un producto.");
+      const method = String(form.get("metodo") || "efectivo");
+      const total = [...draft.values()].reduce((sum, line) => sum + calcularLineaVentaWeb(line.product, line.quantity).total, 0);
+      let payments;
+      if (method === "mixto") {
+        payments = [...document.querySelectorAll("[data-web-payment]")].map(input => ({
+          metodo: input.dataset.webPayment,
+          montoCentavos: centavosInput(input.value || "0"),
+        })).filter(payment => payment.montoCentavos > 0);
+        if (payments.reduce((sum, payment) => sum + payment.montoCentavos, 0) !== total) {
+          throw new Error("La distribucion del pago no coincide con el total de la factura.");
+        }
+      } else payments = [{ metodo: method, montoCentavos: total }];
+      const cashAmount = payments.filter(payment => payment.metodo === "efectivo").reduce((sum, payment) => sum + payment.montoCentavos, 0);
+      const cashText = String(form.get("pagoCon") || "").trim();
+      const cashReceived = cashAmount > 0 ? (cashText ? centavosInput(cashText) : cashAmount) : null;
+      const result = await adminWrite("sale.create", null, {
+        lineas: [...draft.values()].map(line => ({ productoId: line.product.id, cantidad: String(line.quantity) })),
+        clienteId: form.get("clienteId") || null,
+        pagos: payments,
+        cuentaFinancieraId: form.get("cuentaFinancieraId") || null,
+        pagoConCentavos: cashReceived,
+        referencia: form.get("referencia"),
+        nota: form.get("nota"),
+      });
+      cerrarEditor();
+      const today = inputDate(new Date());
+      $("venDesde").value = today;
+      $("venHasta").value = today;
+      await cargarVentas();
+      toast(result.message || "Venta web registrada.");
+    }, "Cobrar y sincronizar", true);
+
+    const search = $("webSaleSearch");
+    const results = $("webSaleResults");
+    const cart = $("webSaleCart");
+    const totalLabel = $("webSaleTotal");
+    const lineCount = $("webSaleLineCount");
+    const methodSelect = $("webSaleMethod");
+    const mixed = $("webSaleMixed");
+    const accountField = $("webSaleAccountField");
+    const cashField = $("webSaleCashField");
+
+    const totalDraft = () => [...draft.values()].reduce((sum, line) => sum + calcularLineaVentaWeb(line.product, line.quantity).total, 0);
+    const renderPaymentState = () => {
+      const distributed = [...document.querySelectorAll("[data-web-payment]")]
+        .reduce((sum, input) => sum + centavosInput(input.value || "0"), 0);
+      const total = totalDraft();
+      $("webSalePaymentState").textContent = `Distribuido: ${money(distributed)} | pendiente: ${money(total - distributed)}`;
+      const transferAmount = centavosInput(document.querySelector('[data-web-payment="transferencia"]')?.value || "0");
+      accountField.classList.toggle("oculto", methodSelect.value !== "transferencia" && !(methodSelect.value === "mixto" && transferAmount > 0));
+    };
+    const updatePaymentMode = () => {
+      const isMixed = methodSelect.value === "mixto";
+      mixed.classList.toggle("oculto", !isMixed);
+      cashField.classList.toggle("oculto", !["efectivo", "mixto"].includes(methodSelect.value));
+      accountField.classList.toggle("oculto", methodSelect.value !== "transferencia");
+      if (isMixed) renderPaymentState();
+    };
+    const renderCart = () => {
+      const lines = [...draft.values()];
+      const total = totalDraft();
+      totalLabel.textContent = money(total);
+      lineCount.textContent = `${lines.length} producto${lines.length === 1 ? "" : "s"}`;
+      cart.innerHTML = lines.length ? lines.map(line => {
+        const amount = calcularLineaVentaWeb(line.product, line.quantity).total;
+        return `<div class="web-sale-cart-row"><div><strong>${esc(line.product.nombre)}</strong><small>${money(line.product.precioFinalCentavos)} por ${esc(line.product.unidadMedida || "unidad")}</small></div><input data-web-qty="${esc(line.product.id)}" type="number" min="0.001" step="0.001" value="${esc(line.quantity)}" aria-label="Cantidad de ${esc(line.product.nombre)}"><strong>${money(amount)}</strong><button class="icon-button" data-web-remove="${esc(line.product.id)}" type="button" aria-label="Quitar">&#215;</button></div>`;
+      }).join("") : '<div class="empty-state">Busca un producto y agregalo a la factura.</div>';
+      cart.querySelectorAll("[data-web-qty]").forEach(input => input.addEventListener("change", () => {
+        const line = draft.get(input.dataset.webQty);
+        const quantity = Number(String(input.value).replace(",", "."));
+        if (!line || !Number.isFinite(quantity) || quantity <= 0) return;
+        line.quantity = Math.round(quantity * 1000) / 1000;
+        renderCart();
+      }));
+      cart.querySelectorAll("[data-web-remove]").forEach(button => button.addEventListener("click", () => {
+        draft.delete(button.dataset.webRemove);
+        renderCart();
+      }));
+      if (methodSelect.value === "mixto") renderPaymentState();
+    };
+    const renderResults = () => {
+      const query = normalizedKey(search.value);
+      const matches = available.filter(product => !query || normalizedKey(`${product.nombre} ${product.codigoBarras || ""} ${product.tipo || ""}`).includes(query)).slice(0, 12);
+      results.innerHTML = matches.length ? matches.map(product => `<button type="button" data-web-add="${esc(product.id)}"><span><strong>${esc(product.nombre)}</strong><small>${esc(product.codigoBarras || product.tipo || "producto")}</small></span><b>${money(product.precioFinalCentavos)}</b></button>`).join("") : '<div class="empty-state">No hay coincidencias.</div>';
+      results.querySelectorAll("[data-web-add]").forEach(button => button.addEventListener("click", () => {
+        const product = byId.get(button.dataset.webAdd);
+        const existing = draft.get(product.id);
+        draft.set(product.id, { product, quantity: (existing?.quantity || 0) + 1 });
+        search.value = "";
+        renderCart();
+        renderResults();
+        search.focus();
+      }));
+    };
+
+    search.addEventListener("input", renderResults);
+    methodSelect.addEventListener("change", updatePaymentMode);
+    document.querySelectorAll("[data-web-payment]").forEach(input => input.addEventListener("input", renderPaymentState));
+    $("webSaleFillCash").addEventListener("click", () => {
+      const other = [...document.querySelectorAll("[data-web-payment]")]
+        .filter(input => input.dataset.webPayment !== "efectivo")
+        .reduce((sum, input) => sum + centavosInput(input.value || "0"), 0);
+      document.querySelector('[data-web-payment="efectivo"]').value = pesoInput(Math.max(0, totalDraft() - other));
+      renderPaymentState();
+    });
+    renderResults();
+    renderCart();
+    updatePaymentMode();
   }
 
   async function cargarVentas() {
@@ -4694,6 +5098,28 @@
     await cargarConfiguracion();
   }
 
+  async function cambiarClaveCuenta() {
+    const nueva = $("cfgNuevaClave").value;
+    const confirmacion = $("cfgConfirmarClave").value;
+    const estado = $("cfgClaveEstado");
+    if (!session?.user) throw new Error("La sesion vencio. Inicia sesion nuevamente.");
+    if (nueva.length < 10) {
+      $("cfgNuevaClave").focus();
+      throw new Error("La nueva contrasena debe tener al menos 10 caracteres.");
+    }
+    if (nueva !== confirmacion) {
+      $("cfgConfirmarClave").focus();
+      throw new Error("Las contrasenas no coinciden.");
+    }
+    estado.textContent = "Actualizando la contrasena...";
+    const { data, error } = await sb.auth.updateUser({ password: nueva });
+    if (error) throw error;
+    session = data?.session || session;
+    $("formCambiarClave").reset();
+    estado.textContent = "Contrasena actualizada. La sesion actual permanece protegida.";
+    toast("Contrasena actualizada correctamente.");
+  }
+
   async function consultarVersion() {
     const response = await fetch(`${cfg.url.replace(/\/$/, "")}/functions/v1/pos-installer-version?channel=stable`, {
       headers: await authenticatedHeaders()
@@ -4703,27 +5129,188 @@
     return body?.latest || body?.data || (body?.version ? body : null);
   }
 
+  async function consultarVersionAplicacion() {
+    const response = await fetch(`./app-version.json?check=${Date.now()}`, {
+      cache: "no-store",
+      headers: { Accept: "application/json" },
+    });
+    if (!response.ok) throw new Error(`No se pudo consultar la versión web (HTTP ${response.status}).`);
+    const body = await response.json();
+    if (!body?.web_version || !body?.pwa_version) throw new Error("El manifiesto de versiones está incompleto.");
+    return body;
+  }
+
+  function marcarEstadoActualizacion(id, text, tone = "") {
+    const target = $(id);
+    if (!target) return;
+    target.textContent = text;
+    target.className = `tag${tone ? ` ${tone}` : ""}`;
+  }
+
+  async function registroPwa(forzar = false) {
+    if (!("serviceWorker" in navigator)) return null;
+    const registration = await navigator.serviceWorker.getRegistration()
+      || await navigator.serviceWorker.register("./sw.js");
+    if (forzar) await registration.update();
+    return registration;
+  }
+
+  function pwaInstalada() {
+    return window.matchMedia?.("(display-mode: standalone)")?.matches
+      || window.navigator.standalone === true;
+  }
+
+  function renderOtrasHerramientas(apps) {
+    const target = $("updateSuiteApps");
+    if (!target) return;
+    const items = Array.isArray(apps) ? apps : [];
+    target.innerHTML = items.length ? items.map(app => {
+      const published = app.status === "published";
+      const action = app.url
+        ? `<a class="button-link" href="${esc(app.url)}" target="_blank" rel="noopener">Abrir herramienta</a>`
+        : '<span class="tag">Publicación pendiente</span>';
+      return `<article class="update-suite-app"><div><span class="update-suite-dot ${published ? "ok" : ""}" aria-hidden="true"></span><div><strong>${esc(app.name || app.id || "Herramienta")}</strong><small>${esc(app.platform || "")}</small></div></div><span class="tag ${published ? "ok" : "warn"}">${published ? "Publicada" : "En preparación"}</span><p>${esc(app.notes || "")}</p><div class="update-suite-version"><span>Versión</span><strong>${esc(app.version || "--")}</strong></div>${action}</article>`;
+    }).join("") : '<div class="empty-state">No hay otras herramientas registradas en el manifiesto común.</div>';
+  }
+
+  function renderVersionAplicacion(manifest, registration = null) {
+    const webPublished = String(manifest.web_version || manifest.build || "--");
+    const pwaPublished = String(manifest.pwa_version || webPublished);
+    const different = webPublished !== APP_BUILD;
+    $("webCurrentVersion").textContent = APP_BUILD;
+    $("webPublishedVersion").textContent = webPublished;
+    $("mobilePwaVersion").textContent = pwaPublished;
+    $("mobileIosVersion").textContent = manifest.ios_version || "No publicada";
+
+    if (different || registration?.waiting) {
+      marcarEstadoActualizacion("webUpdateState", "Nueva versión", "warn");
+      marcarEstadoActualizacion("mobileUpdateState", "Lista para actualizar", "warn");
+      $("webUpdateDetail").textContent = `La compilación ${webPublished} está disponible. Pulsa “Actualizar panel ahora” para aplicarla también al panel móvil.`;
+    } else {
+      marcarEstadoActualizacion("webUpdateState", "Al día", "ok");
+      marcarEstadoActualizacion("mobileUpdateState", "Al día", "ok");
+      $("webUpdateDetail").textContent = registration
+        ? `Compilación ${APP_BUILD}. Servicio sin conexión activo y actualización automática preparada.`
+        : `Compilación ${APP_BUILD}. Este navegador no admite instalación sin conexión.`;
+    }
+    $("mobileUpdateDetail").textContent = pwaInstalada()
+      ? `PWA ${pwaPublished} instalada. Usa “Actualizar panel ahora” para renovar web y móvil a la vez.`
+      : `PWA ${pwaPublished} disponible para Android, iPhone, iPad, macOS, Linux y otros sistemas.`;
+    $("mobileIosHelp").textContent = manifest.ios_version
+      ? `La aplicación iPhone publicada es ${manifest.ios_version}. La PWA ${pwaPublished} sigue siendo el canal recomendado porque se actualiza directamente desde este panel.`
+      : "Todavía no hay una IPA publicada; usa la PWA para recibir actualizaciones directas.";
+    renderOtrasHerramientas(manifest.apps);
+  }
+
+  function renderVersionEscritorio(latest) {
+    if (!latest) {
+      marcarEstadoActualizacion("desktopUpdateState", "Sin publicación", "warn");
+      $("dlInfo").innerHTML = '<div class="empty-state"><strong>No hay una versión de Windows publicada.</strong><br>La caja web y móvil continúan funcionando de forma independiente.</div>';
+      return;
+    }
+    marcarEstadoActualizacion("desktopUpdateState", `Estable ${latest.version}`, latest.mandatory ? "warn" : "ok");
+    $("dlInfo").innerHTML = `<div class="release-layout"><div><p class="eyebrow">Canal ${esc(latest.channel || "stable")}</p><div class="release-version">${esc(latest.version)}</div><p class="release-notes">${esc(latest.notes || "Versión estable del Punto de Venta para Windows.")}</p><div class="release-meta"><span class="tag ${latest.mandatory ? "warn" : "ok"}">${latest.mandatory ? "Actualización obligatoria" : "Publicación estable"}</span><span class="tag">Publicado ${esc(fecha(latest.created_at))}</span>${latest.sha256 ? `<span class="tag">SHA-256 ${esc(String(latest.sha256).slice(0, 14))}...</span>` : ""}</div></div>${latest.release_url ? `<a class="button-link" href="${esc(latest.release_url)}" target="_blank" rel="noopener">Descargar instalador Windows</a>` : '<span class="tag warn">URL de descarga pendiente</span>'}</div>`;
+  }
+
+  async function aplicarActualizacionWeb() {
+    const button = $("btnApplyWebUpdate");
+    const previous = button.textContent;
+    button.disabled = true;
+    button.textContent = "Preparando actualización...";
+    try {
+      const [manifest, registration] = await Promise.all([
+        consultarVersionAplicacion(),
+        registroPwa(true),
+      ]);
+      renderVersionAplicacion(manifest, registration);
+      const worker = registration?.waiting || registration?.installing;
+      worker?.postMessage?.({ type: "DCARELA_SKIP_WAITING" });
+      const target = new URL(location.href);
+      target.searchParams.set("build", String(manifest.web_version || Date.now()));
+      toast(manifest.web_version === APP_BUILD
+        ? "El panel ya está actualizado."
+        : "Actualización descargada. Recargando el panel y el acceso móvil...");
+      setTimeout(() => {
+        if (updateReloading) return;
+        updateReloading = true;
+        location.replace(target.toString());
+      }, manifest.web_version === APP_BUILD ? 300 : 900);
+    } catch (error) {
+      toast(error.message || String(error));
+      $("webUpdateDetail").textContent = `No se pudo actualizar todavía: ${error.message || error}`;
+      marcarEstadoActualizacion("webUpdateState", "Reintentar", "warn");
+    } finally {
+      button.disabled = false;
+      button.textContent = previous;
+    }
+  }
+
+  async function instalarPwa() {
+    if (pwaInstalada()) {
+      toast("El panel ya está instalado como aplicación en este dispositivo.");
+      return;
+    }
+    if (!installPrompt) {
+      $("mobileInstallHelp").classList.remove("oculto");
+      $("mobileInstallHelp").scrollIntoView({ behavior: "smooth", block: "start" });
+      toast("Sigue la guía de instalación para este navegador.");
+      return;
+    }
+    await installPrompt.prompt();
+    const choice = await installPrompt.userChoice;
+    if (choice.outcome === "accepted") installPrompt = null;
+  }
+
   async function comprobarVersion() {
     try {
-      const latest = await consultarVersion();
-      if (!latest) return;
-      $("updateTitle").textContent = `Version ${latest.version} disponible${latest.mandatory ? " (obligatoria)" : ""}`;
-      $("updateNotes").textContent = latest.notes || "Nueva version publicada en el canal estable.";
+      const [latest, manifest, registration] = await Promise.all([
+        consultarVersion().catch(() => null),
+        consultarVersionAplicacion().catch(() => null),
+        registroPwa().catch(() => null),
+      ]);
+      const webDifferent = manifest && String(manifest.web_version) !== APP_BUILD;
+      if (webDifferent || registration?.waiting) {
+        $("updateTitle").textContent = `Panel ${manifest?.web_version || "nuevo"} disponible`;
+        $("updateNotes").textContent = "La misma actualización se aplicará al panel web y al móvil.";
+      } else if (latest) {
+        $("updateTitle").textContent = `Caja Windows ${latest.version}`;
+        $("updateNotes").textContent = latest.notes || "Versión estable disponible para Windows.";
+      } else return;
       $("updateBanner").classList.toggle("oculto", (location.hash.slice(1) || "dashboard") !== "descargar");
     } catch { }
   }
 
-  async function cargarDescargar() {
-    try {
-      const latest = await consultarVersion();
-      if (!latest) {
-        $("dlInfo").innerHTML = '<div class="empty-state"><strong>No hay una version publicada en installer_versions.</strong><br>El instalador local puede generarse, pero la descarga publica requiere registrar el release.</div>';
-        return;
-      }
-      $("dlInfo").innerHTML = `<div class="release-layout"><div><p class="eyebrow">Canal ${esc(latest.channel || "stable")}</p><div class="release-version">${esc(latest.version)}</div><p class="release-notes">${esc(latest.notes || "Version estable del Punto de Venta.")}</p><div class="release-meta"><span class="tag ${latest.mandatory ? "warn" : "ok"}">${latest.mandatory ? "Actualizacion obligatoria" : "Actualizacion disponible"}</span><span class="tag">Publicado ${esc(fecha(latest.created_at))}</span>${latest.sha256 ? `<span class="tag">SHA-256 ${esc(String(latest.sha256).slice(0, 14))}...</span>` : ""}</div></div>${latest.release_url ? `<a class="button-link" href="${esc(latest.release_url)}" target="_blank" rel="noopener">Descargar instalador</a>` : '<span class="tag warn">URL de descarga pendiente</span>'}</div>`;
-    } catch (error) {
-      $("dlInfo").innerHTML = `<p class="error">${esc(error.message)}</p>`;
+  async function cargarDescargar(forzar = false) {
+    $("dlInfo").innerHTML = '<div class="loading">Consultando el instalador estable...</div>';
+    marcarEstadoActualizacion("desktopUpdateState", "Consultando");
+    marcarEstadoActualizacion("webUpdateState", "Comprobando");
+    marcarEstadoActualizacion("mobileUpdateState", "Comprobando");
+    const [desktop, application, registration] = await Promise.allSettled([
+      consultarVersion(),
+      consultarVersionAplicacion(),
+      registroPwa(forzar),
+    ]);
+    if (desktop.status === "fulfilled") renderVersionEscritorio(desktop.value);
+    else {
+      marcarEstadoActualizacion("desktopUpdateState", "Sin conexión", "warn");
+      $("dlInfo").innerHTML = `<p class="error">${esc(desktop.reason?.message || desktop.reason)}</p>`;
     }
+    if (application.status === "fulfilled") {
+      renderVersionAplicacion(
+        application.value,
+        registration.status === "fulfilled" ? registration.value : null,
+      );
+    } else {
+      marcarEstadoActualizacion("webUpdateState", "Sin conexión", "warn");
+      marcarEstadoActualizacion("mobileUpdateState", "Sin conexión", "warn");
+      $("webCurrentVersion").textContent = APP_BUILD;
+      $("webPublishedVersion").textContent = "--";
+      $("mobilePwaVersion").textContent = "--";
+      $("mobileIosVersion").textContent = "--";
+      $("updateSuiteApps").innerHTML = '<div class="empty-state">No se pudo consultar el manifiesto común.</div>';
+      $("webUpdateDetail").textContent = application.reason?.message || String(application.reason);
+    }
+    if (forzar) toast("Versiones de Windows, web y móvil comprobadas.");
   }
 
   function tabla(items, row, headers) {
@@ -5068,14 +5655,30 @@
       $("iaInput").dispatchEvent(new Event("input"));
       $("iaInput").focus();
     }));
-    $("btnNuevaVenta").addEventListener("click", () => openSaleConsole(false));
-    $("btnReanudarVenta").addEventListener("click", () => openSaleConsole(true));
+    $("btnNuevaVentaWeb").addEventListener("click", () => openSaleConsole(false).catch(error => toast(error.message)));
+    $("btnReanudarVenta").addEventListener("click", () => openSaleConsole(true).catch(error => toast(error.message)));
     $("btnCerrarVenta").addEventListener("click", closeSaleConsole);
     $("saleOverlay").addEventListener("click", event => { if (event.target === $("saleOverlay")) closeSaleConsole(); });
+    $("saleStageTabs").querySelectorAll("[data-sale-stage]").forEach(button => button.addEventListener("click", () => setSaleStage(button.dataset.saleStage, true)));
+    $("saleWorkbench").addEventListener("focusin", event => {
+      const pane = event.target.closest("[data-sale-pane]");
+      if (pane) setSaleStage(pane.dataset.salePane);
+    });
     $("btnSaleOpenShift").addEventListener("click", openSaleShift);
     $("btnSaleCloseShift").addEventListener("click", openSaleCloseShift);
+    $("btnSaleVerifyPrice").addEventListener("click", openSalePriceVerifier);
+    $("btnSaleFocusSearch").addEventListener("click", () => setSaleStage("catalog", true));
+    $("btnClosePriceVerifier").addEventListener("click", closeSalePriceVerifier);
+    $("salePriceVerifier").addEventListener("click", event => { if (event.target === $("salePriceVerifier")) closeSalePriceVerifier(); });
+    $("salePriceSearch").addEventListener("input", event => renderSalePriceVerifier(event.target.value));
+    $("salePriceSearch").addEventListener("keydown", event => {
+      if (event.key !== "Enter") return;
+      event.preventDefault();
+      $("salePriceResults").querySelector("[data-sale-price-add]")?.click();
+    });
     $("btnSaleCommon").addEventListener("click", openCommonSale);
     $("btnSaleClear").addEventListener("click", () => clearSale());
+    $("btnSaleCartClear").addEventListener("click", () => clearSale());
     $("btnSalePark").addEventListener("click", parkSale);
     $("saleSearch").addEventListener("input", event => renderSaleProducts(event.target.value));
     $("saleSearch").addEventListener("keydown", event => {
@@ -5083,7 +5686,7 @@
       event.preventDefault();
       const term = event.currentTarget.value.trim().toLowerCase();
       const exact = (productCatalog || []).find(product => [product.codigoBarras, product.sku].some(value => String(value || "").trim().toLowerCase() === term));
-      if (exact) { addSaleProduct(exact.id); event.currentTarget.value = ""; renderSaleProducts(); return; }
+      if (exact) { addSaleProduct(exact.id); return; }
       $("saleProductResults").querySelector("[data-sale-product]")?.click();
     });
     $("saleCart").addEventListener("click", event => {
@@ -5107,7 +5710,12 @@
         if (field === "precio") line.precioUnitarioCentavos = centavosInput(event.target.value || "0");
         if (field === "descuento") line.descuentoPct = Math.min(100, Math.max(0, numero(String(event.target.value).replace(",", "."))));
         const totals = saleExactTotals();
-        $("saleBase").textContent = money(totals.base); $("saleTax").textContent = money(totals.tax); $("saleDiscount").textContent = money(totals.discount); $("saleTotal").textContent = money(totals.total);
+        $("saleBase").textContent = money(totals.base);
+        $("saleTax").textContent = money(totals.tax);
+        $("saleDiscount").textContent = money(totals.discount);
+        $("saleTotal").textContent = money(totals.total);
+        $("saleStageCheckoutCount").textContent = saleCart.length ? money(totals.total) : "0";
+        $("saleMobileTotal").textContent = money(totals.total);
         $("salePriceReasonField").classList.toggle("oculto", !saleHasCustomPrices());
         syncSalePaymentDraft();
       } catch { /* conserva el ultimo valor valido mientras se escribe */ }
@@ -5129,12 +5737,30 @@
     $("btnSaleQuote").addEventListener("click", () => {
       if (!saleCart.length) { toast("Agrega productos antes de imprimir la cotizacion."); return; }
       $("saleReceiptContent").innerHTML = saleReceiptMarkup({ lineas: saleCart, vendidaEn: new Date().toISOString() }, true);
-      $("saleWorkbench").classList.add("oculto"); $("saleReceipt").classList.remove("oculto");
+      $("saleWorkbench").classList.add("oculto");
+      $("saleReceipt").classList.remove("oculto");
+      $("saleConsole").classList.add("receipt-mode");
+      syncSaleMobileSummary();
       printSaleReceipt();
-      setTimeout(() => { $("saleReceipt").classList.add("oculto"); $("saleWorkbench").classList.remove("oculto"); }, 600);
+      setTimeout(() => {
+        $("saleReceipt").classList.add("oculto");
+        $("saleWorkbench").classList.remove("oculto");
+        $("saleConsole").classList.remove("receipt-mode");
+        syncSaleMobileSummary();
+      }, 600);
     });
     $("btnSalePrintReceipt").addEventListener("click", printSaleReceipt);
-    $("btnSaleNext").addEventListener("click", () => { clearSale(); $("saleSearch").focus(); });
+    $("btnSaleNext").addEventListener("click", () => {
+      clearSale();
+      setSaleStage("catalog", true);
+    });
+    $("btnSaleMobileCart").addEventListener("click", () => setSaleStage("cart", true));
+    $("btnSaleMobileCheckout").addEventListener("click", () => {
+      if (saleStage !== "checkout") setSaleStage("checkout", true);
+      else submitSale();
+    });
+    window.addEventListener("keydown", handleSaleShortcut);
+    updateSalePendingButton();
     $("btnVentas").addEventListener("click", () => cargarVentas().catch(error => mostrarError("ventas", error)));
     $("btnTurnos").addEventListener("click", () => cargarTurnos().catch(error => mostrarError("turnos", error)));
     $("btnTurnosPdf").addEventListener("click", () => { try { descargarTurnosPdf(); } catch (error) { toast(error.message); } });
@@ -5210,7 +5836,24 @@
     $("btnCliBuscar").addEventListener("click", () => cargarClientes().catch(error => mostrarError("clientes", error)));
     $("invBuscar").addEventListener("keydown", event => { if (event.key === "Enter") { event.preventDefault(); $("btnInvBuscar").click(); } });
     $("cliBuscar").addEventListener("keydown", event => { if (event.key === "Enter") { event.preventDefault(); $("btnCliBuscar").click(); } });
+    $("btnCheckAllUpdates").addEventListener("click", () => cargarDescargar(true));
+    $("btnApplyWebUpdate").addEventListener("click", aplicarActualizacionWeb);
+    $("btnInstallPwa").addEventListener("click", () => instalarPwa().catch(error => toast(error.message)));
+    $("btnMobileInstallHelp").addEventListener("click", () => {
+      $("mobileInstallHelp").classList.remove("oculto");
+      $("mobileInstallHelp").scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+    $("btnCloseMobileHelp").addEventListener("click", () => $("mobileInstallHelp").classList.add("oculto"));
     $("btnGuardarNegocio").addEventListener("click", () => guardarNegocio().catch(error => toast(error.message)));
+    $("btnCambiarClave").addEventListener("click", async () => {
+      const button = $("btnCambiarClave");
+      const previous = button.textContent;
+      button.disabled = true;
+      button.textContent = "Actualizando...";
+      try { await cambiarClaveCuenta(); }
+      catch (error) { $("cfgClaveEstado").textContent = error.message; toast(error.message); }
+      finally { button.disabled = false; button.textContent = previous; }
+    });
     $("btnCerrarEditor").addEventListener("click", cerrarEditor);
     $("btnCancelarEditor").addEventListener("click", cerrarEditor);
     $("editorOverlay").addEventListener("click", event => { if (event.target === $("editorOverlay")) cerrarEditor(); });
@@ -5226,11 +5869,7 @@
       catch (error) { $("editorError").textContent = error?.message || String(error); }
       finally { button.disabled = false; button.textContent = previous; }
     });
-    window.addEventListener("keydown", event => {
-      if (event.key !== "Escape") return;
-      if (!$("editorOverlay").classList.contains("oculto")) cerrarEditor();
-      else if (!$("saleOverlay").classList.contains("oculto")) closeSaleConsole();
-    });
+    window.addEventListener("keydown", event => { if (event.key === "Escape" && !$("editorOverlay").classList.contains("oculto")) cerrarEditor(); });
     $("alertFilter").addEventListener("change", () => cargarNotificaciones().catch(() => {}));
     $("btnLeerTodas").addEventListener("click", async () => {
       const alerts = await obtenerAlertas();
