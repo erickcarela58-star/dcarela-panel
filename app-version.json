@@ -1,0 +1,32 @@
+{
+  "schema": 1,
+  "build": "2026.08.01.2",
+  "web_version": "2026.08.01.2",
+  "pwa_version": "2026.08.01.2",
+  "desktop_version": "1.0.29",
+  "ios_version": "1.2.0",
+  "ios_release_url": "https://github.com/erickcarela58-star/dcarela-pos-private/releases/tag/ios-1.2.0",
+  "published_at": "2026-08-01T18:00:00-04:00",
+  "channel": "stable",
+  "notes": "Caja web reconciliada con el sistema local, tema claro y oscuro coherente, actualización común para web y móvil.",
+  "apps": [
+    {
+      "id": "crm",
+      "name": "CRM multicaja",
+      "version": "2026.08.01.2",
+      "platform": "Web y móvil",
+      "status": "published",
+      "url": "https://erickcarela58-star.github.io/dcarela-fotos-panel/",
+      "notes": "Panel de prospección, planificación y WhatsApp Web independiente."
+    },
+    {
+      "id": "brujula",
+      "name": "Brújula",
+      "version": "0.9.0-preview",
+      "platform": "iPhone",
+      "status": "development",
+      "url": null,
+      "notes": "Proyecto nativo preparado; compilación física y publicación todavía pendientes."
+    }
+  ]
+}

@@ -472,6 +472,13 @@ tbody tr:hover { background: rgba(23,151,232,.045); }
 .assistant-model { width: min(260px,26vw); color: var(--muted); font-size: 8px; font-weight: 800; }
 .assistant-model span { display: block; margin-bottom: 3px; }
 .assistant-model select { min-height: 36px; padding-block: 6px; font-size: 10px; }
+/* Motivo por el que un proveedor de IA desaparecio del selector. Solo se ve
+   cuando de verdad hay uno caido; el resto del tiempo lleva .oculto. */
+.assistant-provider-down {
+  align-self: center; max-width: min(320px, 34vw);
+  color: var(--warn, #b45309); font-size: 9px; font-weight: 700; line-height: 1.35;
+  overflow-wrap: anywhere;
+}
 .assistant-messages { min-height: 0; padding: 22px max(20px,calc((100% - 1000px)/2)); overflow-y: auto; overscroll-behavior: contain; scroll-behavior: smooth; scrollbar-gutter: stable; }
 .assistant-empty { max-width: 480px; margin: 14vh auto 0; color: var(--muted); text-align: center; }
 .assistant-empty strong { color: var(--navy); font-size: 17px; }

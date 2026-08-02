@@ -25,8 +25,8 @@
   </script>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="dcarela-logo.png">
-  <link rel="stylesheet" href="panel.css?v=20260801-caja-web-theme-v1">
-  <link rel="stylesheet" href="panel-theme.css?v=20260801-caja-web-theme-v1">
+  <link rel="stylesheet" href="panel.css?v=2026.08.01.2">
+  <link rel="stylesheet" href="panel-theme.css?v=2026.08.01.2">
 </head>
 <body>
   <section id="access" class="access-shell">
@@ -164,7 +164,13 @@
         </section>
 
         <section id="v-ventas" class="vista oculto">
-          <div class="section-heading"><div><h2>Ventas</h2><p>Registra ventas desde cualquier navegador y consulta el historial fiscal y comercial.</p></div><div class="button-row sale-heading-actions"><button id="btnNuevaVenta" class="primary admin-only">Nueva venta</button><button id="btnReanudarVenta" class="secondary admin-only">Pendiente</button></div></div>
+          <div class="section-heading">
+            <div><h2>Ventas</h2><p>Registra ventas desde cualquier sistema operativo y consulta el detalle fiscal y comercial.</p></div>
+            <div class="button-row sale-heading-actions admin-only oculto">
+              <button id="btnReanudarVenta" class="secondary" type="button">Venta pendiente</button>
+              <button id="btnNuevaVentaWeb" class="primary" type="button">Nueva venta</button>
+            </div>
+          </div>
           <div class="analytics-command-bar sales-command-bar">
             <div><label for="venDesde">Desde</label><input type="date" id="venDesde"></div>
             <div><label for="venHasta">Hasta</label><input type="date" id="venHasta"></div>
@@ -428,6 +434,7 @@
                 <div class="assistant-chat-identity"><strong id="iaConversationTitle">Nueva conversacion</strong><small id="iaModelEffective">Datos del POS disponibles segun tu rol</small></div>
                 <div class="assistant-chat-tools">
                   <label class="assistant-model"><span>Modelo</span><select id="iaModel"></select></label>
+                  <small id="iaProviderDown" class="assistant-provider-down oculto" role="status"></small>
                   <button id="btnIaControl" class="secondary assistant-header-button" type="button" aria-controls="iaControlPanel" aria-expanded="false">
                     <svg class="assistant-header-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10"/><path d="M18 7h2"/><path d="M4 17h2"/><path d="M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg>
                     <span>Control</span>
@@ -515,12 +522,53 @@
         </section>
 
         <section id="v-descargar" class="vista oculto">
-          <div class="section-heading"><div><h2>Instalador y versiones</h2><p>Canal estable, notas, integridad y descarga del programa.</p></div></div>
+          <div class="section-heading"><div><h2>Centro de actualizaciones</h2><p>Una sola vista para la caja de Windows, el panel web y la aplicación móvil.</p></div><button id="btnCheckAllUpdates" class="secondary" type="button">Buscar actualizaciones</button></div>
           <div id="updateBanner" class="update-banner oculto">
             <div><strong id="updateTitle">Actualizacion disponible</strong><span id="updateNotes"></span></div>
             <a id="updateLink" class="button-link" href="#descargar">Revisar</a>
           </div>
-          <section class="surface release-card"><div id="dlInfo" class="loading">Consultando la version publicada...</div></section>
+          <div id="updateEcosystem" class="update-ecosystem" aria-live="polite">
+            <section class="surface update-platform-card" data-update-platform="desktop">
+              <header><span class="update-platform-icon" aria-hidden="true">▣</span><div><p class="eyebrow">Caja local</p><h3>Windows</h3></div><span id="desktopUpdateState" class="tag">Consultando</span></header>
+              <div id="dlInfo" class="loading">Consultando el instalador estable...</div>
+            </section>
+            <section class="surface update-platform-card" data-update-platform="web">
+              <header><span class="update-platform-icon" aria-hidden="true">◎</span><div><p class="eyebrow">Panel multiplataforma</p><h3>Web y PWA</h3></div><span id="webUpdateState" class="tag">Comprobando</span></header>
+              <div class="update-platform-body">
+                <div><span>Versión abierta</span><strong id="webCurrentVersion">--</strong></div>
+                <div><span>Versión publicada</span><strong id="webPublishedVersion">--</strong></div>
+                <p id="webUpdateDetail">Comprobando la versión y el servicio sin conexión...</p>
+              </div>
+              <div class="button-row update-platform-actions">
+                <button id="btnApplyWebUpdate" class="primary" type="button">Actualizar panel ahora</button>
+                <button id="btnInstallPwa" class="secondary" type="button">Instalar como aplicación</button>
+              </div>
+            </section>
+            <section class="surface update-platform-card" data-update-platform="mobile">
+              <header><span class="update-platform-icon" aria-hidden="true">▯</span><div><p class="eyebrow">Panel móvil</p><h3>Teléfono y tablet</h3></div><span id="mobileUpdateState" class="tag">Comprobando</span></header>
+              <div class="update-platform-body">
+                <div><span>PWA móvil</span><strong id="mobilePwaVersion">--</strong></div>
+                <div><span>Aplicación iPhone</span><strong id="mobileIosVersion">--</strong></div>
+                <p id="mobileUpdateDetail">El panel móvil comparte datos, tema y actualizaciones con el panel web.</p>
+              </div>
+              <div class="button-row update-platform-actions">
+                <a class="button-link" href="./mobile/" target="_blank" rel="noopener">Abrir panel móvil</a>
+                <button id="btnMobileInstallHelp" class="secondary" type="button">Cómo instalar o actualizar</button>
+              </div>
+            </section>
+          </div>
+          <section class="surface update-suite">
+            <div class="surface-title"><div><h3>Mis otras herramientas</h3><p>Estado común para que el mismo panel móvil muestre qué está publicado y qué sigue en preparación.</p></div></div>
+            <div id="updateSuiteApps" class="update-suite-apps"><div class="loading">Consultando CRM y Brújula...</div></div>
+          </section>
+          <section id="mobileInstallHelp" class="surface update-help oculto">
+            <div class="surface-title"><div><h3>Instalar o actualizar en el teléfono</h3><p>No requiere Windows. Usa la misma cuenta y la misma información de la caja.</p></div><button id="btnCloseMobileHelp" class="icon-button" type="button" aria-label="Cerrar ayuda">×</button></div>
+            <div class="update-help-grid">
+              <article><strong>Android / Chrome</strong><p>Abre el panel móvil, toca el menú del navegador y elige <b>Instalar aplicación</b>. Para actualizar, vuelve aquí y pulsa <b>Actualizar panel ahora</b>.</p></article>
+              <article><strong>iPhone / Safari</strong><p>Abre el panel móvil en Safari, toca <b>Compartir</b> y después <b>Agregar a inicio</b>. La PWA se renueva desde este centro sin depender del programa de Windows.</p></article>
+              <article><strong>Aplicación iPhone</strong><p id="mobileIosHelp">La versión nativa se publica como IPA cuando corresponde; el estado exacto aparece arriba.</p></article>
+            </div>
+          </section>
         </section>
 
         <section id="v-configuracion" class="vista oculto">
@@ -542,6 +590,14 @@
           </section>
           <div class="config-grid">
             <section class="surface"><div id="cfgInfo"></div><div class="button-row"><button class="secondary" id="btnSalir">Cerrar sesion</button><button class="secondary" id="btnReset">Cambiar conexion</button></div></section>
+            <section class="surface">
+              <div class="surface-title"><div><h3>Seguridad de la cuenta</h3><p>Cambia la contrasena del usuario que tiene la sesion abierta.</p></div><button id="btnCambiarClave" class="primary" type="button">Actualizar contrasena</button></div>
+              <form id="formCambiarClave" class="form-grid" autocomplete="off">
+                <label><span>Nueva contrasena</span><input id="cfgNuevaClave" type="password" autocomplete="new-password" minlength="10" required></label>
+                <label><span>Confirmar contrasena</span><input id="cfgConfirmarClave" type="password" autocomplete="new-password" minlength="10" required></label>
+                <p id="cfgClaveEstado" class="field-wide sync-note" role="status">Minimo 10 caracteres. La clave no se guarda en el panel.</p>
+              </form>
+            </section>
             <section class="surface"><div class="surface-title"><div><h3>Cambios recientes</h3></div></div><div id="cfgEventos" class="table-wrap"></div></section>
           </div>
         </section>
@@ -549,35 +605,75 @@
       <footer><span>D' Carela Compufoto</span><span id="footerClock"></span></footer>
     </div>
     <nav class="mobile-command-dock" aria-label="Accesos principales">
-      <a href="#ventas"><i aria-hidden="true">+</i><span>Vender</span></a>
+      <a href="#dashboard"><i aria-hidden="true">⌂</i><span>Resumen</span></a>
       <a href="#proveedores"><i aria-hidden="true">$</i><span>Finanzas</span></a>
       <a href="#inventario"><i aria-hidden="true">▦</i><span>Inventario</span></a>
       <a href="#asistente"><i aria-hidden="true">✦</i><span>IA</span></a>
       <a href="#notificaciones"><i aria-hidden="true">•</i><span>Alertas</span></a>
+      <a href="#descargar"><i aria-hidden="true">↻</i><span>Actualizar</span></a>
     </nav>
   </div>
 
   <div id="saleOverlay" class="sale-overlay oculto" aria-hidden="true">
-    <section class="sale-console" role="dialog" aria-modal="true" aria-labelledby="saleTitle">
+    <section id="saleConsole" class="sale-console" role="dialog" aria-modal="true" aria-labelledby="saleTitle">
       <header class="sale-console-header">
-        <div><p class="eyebrow">Caja web segura</p><h2 id="saleTitle">Nueva venta</h2><p id="saleBranch">Sucursal</p></div>
-        <div class="sale-header-actions"><span id="saleShiftPill" class="status-pill">Consultando turno</span><button id="btnCerrarVenta" class="icon-button" type="button" aria-label="Cerrar">&#215;</button></div>
+        <div class="sale-console-identity">
+          <p class="eyebrow">Caja web segura</p>
+          <h2 id="saleTitle">Nueva venta</h2>
+          <p id="saleBranch">Sucursal</p>
+        </div>
+        <div class="sale-header-actions">
+          <div class="sale-shortcut-hints" aria-label="Atajos de teclado">
+            <span><kbd>F9</kbd> Precio</span>
+            <span><kbd>F10</kbd> Buscar</span>
+            <span><kbd>F12</kbd> Cobrar</span>
+          </div>
+          <span id="saleShiftPill" class="status-pill">Consultando turno</span>
+          <button id="btnCerrarVenta" class="icon-button" type="button" aria-label="Cerrar caja web">&#215;</button>
+        </div>
       </header>
 
+      <nav id="saleStageTabs" class="sale-stage-tabs" aria-label="Etapas de la venta" role="tablist">
+        <button id="saleStageCatalog" type="button" role="tab" aria-selected="true" aria-controls="salePaneCatalog" data-sale-stage="catalog">
+          <span>1</span><strong>Catalogo</strong>
+        </button>
+        <button id="saleStageCart" type="button" role="tab" aria-selected="false" aria-controls="salePaneCart" data-sale-stage="cart">
+          <span id="saleStageCartCount">0</span><strong>Cuenta</strong>
+        </button>
+        <button id="saleStageCheckout" type="button" role="tab" aria-selected="false" aria-controls="salePaneCheckout" data-sale-stage="checkout">
+          <span id="saleStageCheckoutCount">0</span><strong>Cobro</strong>
+        </button>
+      </nav>
+
+      <div id="saleCommandStrip" class="sale-command-strip" aria-label="Herramientas de venta">
+        <button id="btnSaleVerifyPrice" class="secondary" type="button"><kbd>F9</kbd> Verificar precio</button>
+        <button id="btnSaleFocusSearch" class="secondary" type="button"><kbd>F10</kbd> Buscar</button>
+        <button id="btnSaleCommon" class="secondary" type="button">Venta comun</button>
+        <button id="btnSalePark" class="secondary" type="button">Guardar pendiente</button>
+        <button id="btnSaleClear" class="secondary" type="button">Limpiar</button>
+      </div>
+
       <div id="saleShiftGate" class="sale-shift-gate oculto">
-        <div><strong>Abre la caja web</strong><p>El fondo inicial, las ventas y el cierre quedaran separados de las cajas de Windows.</p></div>
+        <div><strong>Abre la caja web</strong><p>El fondo inicial, las ventas y el cierre quedan separados de las cajas de Windows.</p></div>
         <label><span>Fondo inicial</span><input id="saleOpening" inputmode="decimal" value="0.00"></label>
-        <button id="btnSaleOpenShift" class="primary">Abrir caja y comenzar</button>
+        <button id="btnSaleOpenShift" class="primary" type="button">Abrir caja y comenzar</button>
       </div>
 
       <div id="saleWorkbench" class="sale-workbench oculto">
-        <section class="sale-products-pane">
-          <div class="sale-search-row"><input id="saleSearch" type="search" autocomplete="off" placeholder="Buscar producto o escanear codigo de barras"><button id="btnSaleCommon" class="secondary" type="button">Venta comun</button></div>
-          <div id="saleProductResults" class="sale-product-results"></div>
+        <section id="salePaneCatalog" class="sale-products-pane sale-pane" data-sale-pane="catalog" data-sale-active="true" role="tabpanel" aria-labelledby="saleStageCatalog">
+          <div class="sale-pane-heading"><div><p class="eyebrow">Catalogo</p><h3>Productos</h3></div><small>Busca por nombre, SKU o codigo</small></div>
+          <div class="sale-search-row">
+            <label for="saleSearch" class="sale-search-field"><span class="sr-only">Buscar producto</span><input id="saleSearch" type="search" autocomplete="off" placeholder="Buscar producto o escanear codigo de barras"></label>
+            <span class="sale-search-key"><kbd>F10</kbd></span>
+          </div>
+          <div id="saleProductResults" class="sale-product-results" aria-live="polite"></div>
         </section>
 
-        <section class="sale-cart-pane">
-          <div class="sale-cart-heading"><div><h3>Cuenta actual</h3><small id="saleCartCount">0 productos</small></div><div><button id="btnSalePark" class="secondary" type="button">Guardar pendiente</button><button id="btnSaleClear" class="secondary" type="button">Limpiar</button></div></div>
+        <section id="salePaneCart" class="sale-cart-pane sale-pane" data-sale-pane="cart" data-sale-active="false" role="tabpanel" aria-labelledby="saleStageCart">
+          <div class="sale-cart-heading">
+            <div><p class="eyebrow">Cuenta</p><h3>Cuenta actual</h3><small id="saleCartCount">0 productos</small></div>
+            <button id="btnSaleCartClear" class="secondary" type="button">Limpiar</button>
+          </div>
           <div id="saleCart" class="sale-cart"></div>
           <div class="sale-totals">
             <span>Base sin ITBIS <strong id="saleBase">RD$0.00</strong></span>
@@ -587,7 +683,8 @@
           </div>
         </section>
 
-        <section class="sale-checkout-pane">
+        <section id="salePaneCheckout" class="sale-checkout-pane sale-pane" data-sale-pane="checkout" data-sale-active="false" role="tabpanel" aria-labelledby="saleStageCheckout">
+          <div class="sale-pane-heading"><div><p class="eyebrow">Cobro</p><h3>Finalizar venta</h3></div><small>Cliente, pago y comprobante</small></div>
           <div class="sale-checkout-grid">
             <label><span>Cliente</span><select id="saleClient"><option value="">Consumidor final</option></select></label>
             <label><span>Redondeo</span><select id="saleRounding"><option value="exacto">Total exacto</option><option value="abajo_5">Bajar a RD$5</option></select></label>
@@ -607,7 +704,11 @@
             <label id="saleCashReceivedField" class="sale-cash-received oculto"><span>Efectivo recibido</span><input id="saleCashReceived" inputmode="decimal" value="0.00"><small id="saleChange">Devuelta: RD$0.00</small></label>
           </div>
           <p id="saleError" class="error" role="alert"></p>
-          <div class="sale-final-actions"><button id="btnSaleQuote" class="secondary" type="button">Imprimir cotizacion</button><button id="btnSaleCloseShift" class="secondary" type="button">Cerrar caja</button><button id="btnSaleSubmit" class="primary" type="button">Cobrar y registrar</button></div>
+          <div class="sale-final-actions">
+            <button id="btnSaleQuote" class="secondary" type="button">Imprimir cotizacion</button>
+            <button id="btnSaleCloseShift" class="secondary" type="button">Cerrar caja</button>
+            <button id="btnSaleSubmit" class="primary" type="button"><kbd>F12</kbd> Cobrar y registrar</button>
+          </div>
         </section>
       </div>
 
@@ -615,6 +716,19 @@
         <div id="saleReceiptContent"></div>
         <div class="sale-final-actions"><button id="btnSalePrintReceipt" class="secondary" type="button">Imprimir comprobante</button><button id="btnSaleNext" class="primary" type="button">Siguiente venta</button></div>
       </section>
+
+      <div id="saleMobileSummary" class="sale-mobile-summary oculto">
+        <button id="btnSaleMobileCart" class="sale-mobile-total" type="button"><span id="saleMobileCount">0 productos</span><strong id="saleMobileTotal">RD$0.00</strong></button>
+        <button id="btnSaleMobileCheckout" class="primary" type="button">Cobrar <span aria-hidden="true">&#8594;</span></button>
+      </div>
+
+      <aside id="salePriceVerifier" class="sale-price-verifier oculto" aria-hidden="true" aria-labelledby="salePriceTitle">
+        <div class="sale-price-panel">
+          <header><div><p class="eyebrow">Consulta rapida</p><h3 id="salePriceTitle">Verificador de precio</h3></div><button id="btnClosePriceVerifier" class="icon-button" type="button" aria-label="Cerrar verificador">&#215;</button></header>
+          <label class="sale-price-search"><span>Producto, SKU o codigo</span><input id="salePriceSearch" type="search" autocomplete="off" placeholder="Escribe o escanea para consultar"></label>
+          <div id="salePriceResults" class="sale-price-results" aria-live="polite"></div>
+        </div>
+      </aside>
     </section>
   </div>
 
@@ -641,7 +755,7 @@
   <script src="supabase.min.js"></script>
   <script src="jspdf.umd.min.js"></script>
   <script src="jspdf.plugin.autotable.min.js"></script>
-  <script src="panel.js?v=20260801-caja-web-theme-v1"></script>
+<script src="panel.js?v=2026.08.01.2"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));

@@ -928,6 +928,18 @@
     $("iaModel").innerHTML = (status.models || []).map(model => `<option value="${esc(model.id)}">${esc(model.label)} · ${esc(model.level)}</option>`).join("");
     const preferred = localStorage.getItem(`dcarela.ia.model.v2.${BUSINESS}`) || current || status.models?.[0]?.id;
     if (preferred && [...$("iaModel").options].some(option => option.value === preferred)) $("iaModel").value = preferred;
+    else if ($("iaModel").options.length) $("iaModel").selectedIndex = 0;
+    // El servidor ya no ofrece modelos de un proveedor caido. Si desaparecio
+    // alguno, decir por que: antes el modelo muerto seguia en la lista y el
+    // usuario no tenia forma de enterarse desde la interfaz.
+    const caidos = Object.entries(status.providers_down || {});
+    const avisoIa = $("iaProviderDown");
+    if (avisoIa) {
+      avisoIa.classList.toggle("oculto", caidos.length === 0);
+      avisoIa.textContent = caidos.length
+        ? caidos.map(([proveedor, motivo]) => `${proveedor}: ${motivo}`).join(" · ")
+        : "";
+    }
     $("iaInput").disabled = !status.configured || !status.capabilities?.can_use;
     $("btnIaEnviar").disabled = $("iaInput").disabled;
     $("btnIaAdjuntar").disabled = $("iaInput").disabled;

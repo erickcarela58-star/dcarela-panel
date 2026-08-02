@@ -1,13 +1,15 @@
-const CACHE = "dcarela-pos-shell-20260801-caja-web-theme-v1";
+const APP_BUILD = "2026.08.01.2";
+const CACHE = `dcarela-pos-shell-${APP_BUILD}`;
 const SHELL = [
-  "./panel.css?v=20260801-caja-web-theme-v1",
-  "./panel-theme.css?v=20260801-caja-web-theme-v1",
-  "./panel.js?v=20260801-caja-web-theme-v1",
+  `./panel.css?v=${APP_BUILD}`,
+  `./panel-theme.css?v=${APP_BUILD}`,
+  `./panel.js?v=${APP_BUILD}`,
   "./supabase.min.js",
   "./jspdf.umd.min.js",
   "./jspdf.plugin.autotable.min.js",
   "./dcarela-logo.png",
-  "./manifest.webmanifest"
+  "./manifest.webmanifest",
+  "./app-version.json"
 ];
 
 self.addEventListener("install", event => {
@@ -29,11 +31,22 @@ self.addEventListener("activate", event => {
   self.clients.claim();
 });
 
+self.addEventListener("message", event => {
+  if (event.data?.type === "DCARELA_SKIP_WAITING") self.skipWaiting();
+  if (event.data?.type === "DCARELA_VERSION") {
+    event.source?.postMessage({ type: "DCARELA_VERSION", build: APP_BUILD });
+  }
+});
+
 self.addEventListener("fetch", event => {
   const request = event.request;
   if (request.method !== "GET") return;
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
+  if (url.pathname.endsWith("/app-version.json")) {
+    event.respondWith(fetch(request, { cache: "no-store" }).catch(() => caches.match("./app-version.json")));
+    return;
+  }
   event.respondWith(fetch(request).then(response => {
     const copy = response.clone();
     if (response.ok) caches.open(CACHE).then(cache => cache.put(request, copy));
