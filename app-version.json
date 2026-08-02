@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "build": "2026.08.01.2",
-  "web_version": "2026.08.01.2",
-  "pwa_version": "2026.08.01.2",
+  "build": "2026.08.02.1",
+  "web_version": "2026.08.02.1",
+  "pwa_version": "2026.08.02.1",
   "desktop_version": "1.0.29",
   "ios_version": "1.2.0",
   "ios_release_url": "https://github.com/erickcarela58-star/dcarela-pos-private/releases/tag/ios-1.2.0",
@@ -13,7 +13,7 @@
     {
       "id": "crm",
       "name": "CRM multicaja",
-      "version": "2026.08.01.2",
+      "version": "2026.08.02.1",
       "platform": "Web y móvil",
       "status": "published",
       "url": "https://erickcarela58-star.github.io/dcarela-fotos-panel/",

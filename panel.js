@@ -16,7 +16,7 @@
   const BUSINESS = _urlBiz || window.__DCARELA_DEFAULT?.business || cfg?.business || "dcarela";
   const EMBEDDED = new URLSearchParams(location.search).get("embedded") === "1";
   const THEME_KEY = "dcarela.ui.theme";
-  const APP_BUILD = "2026.08.01.2";
+  const APP_BUILD = "2026.08.02.1";
   let currentTheme = document.documentElement.dataset.theme === "dark" ? "dark" : "light";
   let installPrompt = null;
   let updateReloading = false;
@@ -5511,8 +5511,30 @@
     mostrarVista(location.hash.slice(1) || "dashboard");
   }
 
+  // Elementos que arrancar() esperaba y no estaban en el HTML. Se acumulan para
+  // avisar una sola vez al final en vez de matar el arranque en el primero.
+  const elementosFaltantes = [];
+
+  /**
+   * Enlaza un evento tolerando que el elemento no exista.
+   *
+   * arrancar() ata mas de 100 elementos. Antes lo hacia con
+   * $("x").addEventListener(...) directo: si el panel.html servido no traia UNO
+   * solo, el arranque entero reventaba con "Cannot read properties of null" y la
+   * pantalla quedaba muerta. Paso de verdad en produccion: el panel.html
+   * publicado era viejo y le faltaban 22 elementos que panel.js ya ataba
+   * (consola de venta web, PWA, actualizaciones). Ahora falta un boton, no el
+   * panel.
+   */
+  function on(id, evento, manejador, opciones) {
+    const elemento = $(id);
+    if (!elemento) { elementosFaltantes.push(id); return null; }
+    elemento.addEventListener(evento, manejador, opciones);
+    return elemento;
+  }
+
   async function arrancar() {
-    $("btnGuardarCfg").addEventListener("click", () => {
+    on("btnGuardarCfg", "click", () => {
       const url = $("cfgUrl").value.trim();
       const anon = $("cfgAnon").value.trim();
       if (!url || !anon) { $("cfgErr").textContent = "Completa la URL y la clave publica."; return; }
@@ -5520,30 +5542,30 @@
       location.reload();
     });
     const resetConnection = () => { localStorage.removeItem("dcarela.cfg"); location.reload(); };
-    $("btnCambiarCfg").addEventListener("click", resetConnection);
-    $("btnReset").addEventListener("click", resetConnection);
-    $("btnEntrar").addEventListener("click", async () => {
+    on("btnCambiarCfg", "click", resetConnection);
+    on("btnReset", "click", resetConnection);
+    on("btnEntrar", "click", async () => {
       $("loginErr").textContent = "";
       const result = await sb.auth.signInWithPassword({ email: $("email").value.trim(), password: $("pass").value });
       if (result.error) { $("loginErr").textContent = result.error.message; return; }
       session = result.data.session;
       iniciar();
     });
-    $("pass").addEventListener("keydown", event => { if (event.key === "Enter") $("btnEntrar").click(); });
-    $("btnSalir").addEventListener("click", async () => { await sb.auth.signOut(); location.reload(); });
-    $("btnVolver").addEventListener("click", () => {
+    on("pass", "keydown", event => { if (event.key === "Enter") $("btnEntrar").click(); });
+    on("btnSalir", "click", async () => { await sb.auth.signOut(); location.reload(); });
+    on("btnVolver", "click", () => {
       if (history.length > 1) history.back();
       else location.hash = "dashboard";
     });
-    $("btnTema").addEventListener("click", () => {
+    on("btnTema", "click", () => {
       const next = currentTheme === "dark" ? "light" : "dark";
       applyTheme(next, true);
       if (!EMBEDDED) guardarTemaUsuario(next).catch(error => toast(error.message));
       else window.parent.postMessage({ type: "dcarela:theme-request", theme: next }, location.origin);
     });
-    $("branchSelector").addEventListener("change", event => abrirSucursal(event.target.value, "dashboard"));
-    $("btnNotificaciones").addEventListener("click", () => { location.hash = "notificaciones"; });
-    $("btnIaNueva").addEventListener("click", () => {
+    on("branchSelector", "change", event => abrirSucursal(event.target.value, "dashboard"));
+    on("btnNotificaciones", "click", () => { location.hash = "notificaciones"; });
+    on("btnIaNueva", "click", () => {
       iaConversationId = null;
       renderIaConversations();
       $("iaConversationTitle").textContent = "Nueva conversacion";
@@ -5551,18 +5573,18 @@
       setIaDrawer("history", false);
       $("iaInput").focus();
     });
-    $("btnIaHistorial").addEventListener("click", () => setIaDrawer("history", !$("iaLayout").classList.contains("history-open")));
-    $("btnIaControl").addEventListener("click", () => setIaDrawer("control", !$("iaLayout").classList.contains("control-open")));
-    $("btnIaCerrarHistorial").addEventListener("click", () => setIaDrawer("history", false));
-    $("btnIaCerrarControl").addEventListener("click", () => setIaDrawer("control", false));
-    $("iaDrawerScrim").addEventListener("click", () => setIaDrawer("", false));
-    $("iaConversationSearch").addEventListener("input", renderIaConversations);
+    on("btnIaHistorial", "click", () => setIaDrawer("history", !$("iaLayout").classList.contains("history-open")));
+    on("btnIaControl", "click", () => setIaDrawer("control", !$("iaLayout").classList.contains("control-open")));
+    on("btnIaCerrarHistorial", "click", () => setIaDrawer("history", false));
+    on("btnIaCerrarControl", "click", () => setIaDrawer("control", false));
+    on("iaDrawerScrim", "click", () => setIaDrawer("", false));
+    on("iaConversationSearch", "input", renderIaConversations);
     document.addEventListener("keydown", event => {
       if (event.key === "Escape" && ($("iaLayout").classList.contains("history-open") || $("iaLayout").classList.contains("control-open"))) {
         setIaDrawer("", false);
       }
     });
-    $("btnIaAdjuntar").addEventListener("click", () => $("iaFiles").click());
+    on("btnIaAdjuntar", "click", () => $("iaFiles").click());
     $("iaTools").querySelectorAll("[data-ia-tool]").forEach(button => button.addEventListener("click", () => {
       const prompt = button.dataset.prompt || "";
       const input = $("iaInput");
@@ -5574,7 +5596,7 @@
       if (button.dataset.iaTool === "document") $("iaFiles").click();
       input.focus();
     }));
-    $("btnIaMic").addEventListener("click", () => {
+    on("btnIaMic", "click", () => {
       const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
       if (!Recognition) {
         $("iaError").textContent = "El dictado por voz no esta disponible en este navegador.";
@@ -5619,31 +5641,31 @@
         $("iaError").textContent = error.message;
       }
     });
-    $("iaFiles").addEventListener("change", event => {
+    on("iaFiles", "change", event => {
       agregarAdjuntosIa(event.target.files).catch(error => { $("iaError").textContent = error.message; });
       event.target.value = "";
     });
-    $("iaComposer").addEventListener("dragover", event => { event.preventDefault(); $("iaComposer").classList.add("dragging"); });
-    $("iaComposer").addEventListener("dragleave", () => $("iaComposer").classList.remove("dragging"));
-    $("iaComposer").addEventListener("drop", event => {
+    on("iaComposer", "dragover", event => { event.preventDefault(); $("iaComposer").classList.add("dragging"); });
+    on("iaComposer", "dragleave", () => $("iaComposer").classList.remove("dragging"));
+    on("iaComposer", "drop", event => {
       event.preventDefault();
       $("iaComposer").classList.remove("dragging");
       agregarAdjuntosIa(event.dataTransfer?.files || []).catch(error => { $("iaError").textContent = error.message; });
     });
-    $("iaInput").addEventListener("paste", event => {
+    on("iaInput", "paste", event => {
       const files = [...(event.clipboardData?.files || [])];
       if (files.length) agregarAdjuntosIa(files).catch(error => { $("iaError").textContent = error.message; });
     });
-    $("iaComposer").addEventListener("submit", event => { event.preventDefault(); enviarMensajeIa(); });
-    $("iaInput").addEventListener("keydown", event => {
+    on("iaComposer", "submit", event => { event.preventDefault(); enviarMensajeIa(); });
+    on("iaInput", "keydown", event => {
       if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); enviarMensajeIa(); }
     });
-    $("iaInput").addEventListener("input", () => {
+    on("iaInput", "input", () => {
       const input = $("iaInput");
       input.style.height = "auto";
       input.style.height = `${Math.min(input.scrollHeight, 150)}px`;
     });
-    $("iaModel").addEventListener("change", () => localStorage.setItem(`dcarela.ia.model.v2.${BUSINESS}`, $("iaModel").value));
+    on("iaModel", "change", () => localStorage.setItem(`dcarela.ia.model.v2.${BUSINESS}`, $("iaModel").value));
     const intelligenceUpgradeKey = `dcarela.ia.intelligence-upgrade.v37.${BUSINESS}`;
     const applyIntelligenceUpgrade = localStorage.getItem(intelligenceUpgradeKey) !== "1";
     [
@@ -5667,33 +5689,33 @@
       $("iaInput").dispatchEvent(new Event("input"));
       $("iaInput").focus();
     }));
-    $("btnNuevaVentaWeb").addEventListener("click", () => openSaleConsole(false).catch(error => toast(error.message)));
-    $("btnReanudarVenta").addEventListener("click", () => openSaleConsole(true).catch(error => toast(error.message)));
-    $("btnCerrarVenta").addEventListener("click", closeSaleConsole);
-    $("saleOverlay").addEventListener("click", event => { if (event.target === $("saleOverlay")) closeSaleConsole(); });
+    on("btnNuevaVentaWeb", "click", () => openSaleConsole(false).catch(error => toast(error.message)));
+    on("btnReanudarVenta", "click", () => openSaleConsole(true).catch(error => toast(error.message)));
+    on("btnCerrarVenta", "click", closeSaleConsole);
+    on("saleOverlay", "click", event => { if (event.target === $("saleOverlay")) closeSaleConsole(); });
     $("saleStageTabs").querySelectorAll("[data-sale-stage]").forEach(button => button.addEventListener("click", () => setSaleStage(button.dataset.saleStage, true)));
-    $("saleWorkbench").addEventListener("focusin", event => {
+    on("saleWorkbench", "focusin", event => {
       const pane = event.target.closest("[data-sale-pane]");
       if (pane) setSaleStage(pane.dataset.salePane);
     });
-    $("btnSaleOpenShift").addEventListener("click", openSaleShift);
-    $("btnSaleCloseShift").addEventListener("click", openSaleCloseShift);
-    $("btnSaleVerifyPrice").addEventListener("click", openSalePriceVerifier);
-    $("btnSaleFocusSearch").addEventListener("click", () => setSaleStage("catalog", true));
-    $("btnClosePriceVerifier").addEventListener("click", closeSalePriceVerifier);
-    $("salePriceVerifier").addEventListener("click", event => { if (event.target === $("salePriceVerifier")) closeSalePriceVerifier(); });
-    $("salePriceSearch").addEventListener("input", event => renderSalePriceVerifier(event.target.value));
-    $("salePriceSearch").addEventListener("keydown", event => {
+    on("btnSaleOpenShift", "click", openSaleShift);
+    on("btnSaleCloseShift", "click", openSaleCloseShift);
+    on("btnSaleVerifyPrice", "click", openSalePriceVerifier);
+    on("btnSaleFocusSearch", "click", () => setSaleStage("catalog", true));
+    on("btnClosePriceVerifier", "click", closeSalePriceVerifier);
+    on("salePriceVerifier", "click", event => { if (event.target === $("salePriceVerifier")) closeSalePriceVerifier(); });
+    on("salePriceSearch", "input", event => renderSalePriceVerifier(event.target.value));
+    on("salePriceSearch", "keydown", event => {
       if (event.key !== "Enter") return;
       event.preventDefault();
       $("salePriceResults").querySelector("[data-sale-price-add]")?.click();
     });
-    $("btnSaleCommon").addEventListener("click", openCommonSale);
-    $("btnSaleClear").addEventListener("click", () => clearSale());
-    $("btnSaleCartClear").addEventListener("click", () => clearSale());
-    $("btnSalePark").addEventListener("click", parkSale);
-    $("saleSearch").addEventListener("input", event => renderSaleProducts(event.target.value));
-    $("saleSearch").addEventListener("keydown", event => {
+    on("btnSaleCommon", "click", openCommonSale);
+    on("btnSaleClear", "click", () => clearSale());
+    on("btnSaleCartClear", "click", () => clearSale());
+    on("btnSalePark", "click", parkSale);
+    on("saleSearch", "input", event => renderSaleProducts(event.target.value));
+    on("saleSearch", "keydown", event => {
       if (event.key !== "Enter") return;
       event.preventDefault();
       const term = event.currentTarget.value.trim().toLowerCase();
@@ -5701,13 +5723,13 @@
       if (exact) { addSaleProduct(exact.id); return; }
       $("saleProductResults").querySelector("[data-sale-product]")?.click();
     });
-    $("saleCart").addEventListener("click", event => {
+    on("saleCart", "click", event => {
       const button = event.target.closest("[data-sale-remove]");
       if (!button) return;
       saleCart.splice(Number(button.dataset.saleRemove), 1);
       renderSaleCart();
     });
-    $("saleCart").addEventListener("input", event => {
+    on("saleCart", "input", event => {
       const field = event.target.dataset.saleField;
       if (!field) return;
       const index = Number(event.target.closest("[data-sale-line]")?.dataset.saleLine);
@@ -5732,7 +5754,7 @@
         syncSalePaymentDraft();
       } catch { /* conserva el ultimo valor valido mientras se escribe */ }
     });
-    $("saleCart").addEventListener("change", event => {
+    on("saleCart", "change", event => {
       if (!event.target.matches("[data-sale-wholesale]")) return;
       const line = saleCart[Number(event.target.dataset.saleWholesale)];
       if (!line) return;
@@ -5740,13 +5762,13 @@
       line.precioUnitarioCentavos = line.mayoreo ? line.precioMayoreoCentavos : line.precioNormalCentavos;
       renderSaleCart();
     });
-    $("saleRounding").addEventListener("change", renderSaleCart);
-    $("saleTip").addEventListener("input", () => { try { updateSaleCashChange(); } catch {} });
-    $("salePaymentMethod").addEventListener("change", updateSalePaymentFields);
-    $("saleCashReceived").addEventListener("input", () => { try { updateSaleCashChange(); } catch {} });
-    $("btnSaleAddPayment").addEventListener("click", () => { try { addSalePayment(); } catch (error) { toast(error.message); } });
-    $("btnSaleSubmit").addEventListener("click", () => submitSale());
-    $("btnSaleQuote").addEventListener("click", () => {
+    on("saleRounding", "change", renderSaleCart);
+    on("saleTip", "input", () => { try { updateSaleCashChange(); } catch {} });
+    on("salePaymentMethod", "change", updateSalePaymentFields);
+    on("saleCashReceived", "input", () => { try { updateSaleCashChange(); } catch {} });
+    on("btnSaleAddPayment", "click", () => { try { addSalePayment(); } catch (error) { toast(error.message); } });
+    on("btnSaleSubmit", "click", () => submitSale());
+    on("btnSaleQuote", "click", () => {
       if (!saleCart.length) { toast("Agrega productos antes de imprimir la cotizacion."); return; }
       $("saleReceiptContent").innerHTML = saleReceiptMarkup({ lineas: saleCart, vendidaEn: new Date().toISOString() }, true);
       $("saleWorkbench").classList.add("oculto");
@@ -5761,42 +5783,42 @@
         syncSaleMobileSummary();
       }, 600);
     });
-    $("btnSalePrintReceipt").addEventListener("click", printSaleReceipt);
-    $("btnSaleNext").addEventListener("click", () => {
+    on("btnSalePrintReceipt", "click", printSaleReceipt);
+    on("btnSaleNext", "click", () => {
       clearSale();
       setSaleStage("catalog", true);
     });
-    $("btnSaleMobileCart").addEventListener("click", () => setSaleStage("cart", true));
-    $("btnSaleMobileCheckout").addEventListener("click", () => {
+    on("btnSaleMobileCart", "click", () => setSaleStage("cart", true));
+    on("btnSaleMobileCheckout", "click", () => {
       if (saleStage !== "checkout") setSaleStage("checkout", true);
       else submitSale();
     });
     window.addEventListener("keydown", handleSaleShortcut);
     updateSalePendingButton();
-    $("btnVentas").addEventListener("click", () => cargarVentas().catch(error => mostrarError("ventas", error)));
-    $("btnTurnos").addEventListener("click", () => cargarTurnos().catch(error => mostrarError("turnos", error)));
-    $("btnTurnosPdf").addEventListener("click", () => { try { descargarTurnosPdf(); } catch (error) { toast(error.message); } });
-    $("btnRecalcular").addEventListener("click", () => cargarRecalculador().catch(error => mostrarError("recalcular", error)));
-    $("btnRecalcularPdf").addEventListener("click", () => { try { descargarRecalculoPdf(); } catch (error) { toast(error.message); } });
-    $("recDiferencia").addEventListener("keydown", event => { if (event.key === "Enter") { event.preventDefault(); $("btnRecalcular").click(); } });
-    $("btnReporte").addEventListener("click", () => cargarReporte().catch(error => mostrarError("reportes", error)));
-    $("btnReportePdf").addEventListener("click", () => { try { descargarReportePdf(); } catch (error) { toast(error.message); } });
+    on("btnVentas", "click", () => cargarVentas().catch(error => mostrarError("ventas", error)));
+    on("btnTurnos", "click", () => cargarTurnos().catch(error => mostrarError("turnos", error)));
+    on("btnTurnosPdf", "click", () => { try { descargarTurnosPdf(); } catch (error) { toast(error.message); } });
+    on("btnRecalcular", "click", () => cargarRecalculador().catch(error => mostrarError("recalcular", error)));
+    on("btnRecalcularPdf", "click", () => { try { descargarRecalculoPdf(); } catch (error) { toast(error.message); } });
+    on("recDiferencia", "keydown", event => { if (event.key === "Enter") { event.preventDefault(); $("btnRecalcular").click(); } });
+    on("btnReporte", "click", () => cargarReporte().catch(error => mostrarError("reportes", error)));
+    on("btnReportePdf", "click", () => { try { descargarReportePdf(); } catch (error) { toast(error.message); } });
     document.querySelectorAll("[data-report-focus]").forEach(button => button.addEventListener("click", () => {
       document.querySelectorAll("[data-report-focus]").forEach(item => item.classList.toggle("act", item === button));
       const target = $(button.dataset.reportFocus)?.closest(".surface");
       target?.scrollIntoView({ behavior: "smooth", block: "start" });
     }));
-    $("btnNuevoProducto").addEventListener("click", () => abrirProducto().catch(error => toast(error.message)));
-    $("btnNuevaCategoria").addEventListener("click", abrirCategoria);
-    $("btnNuevoCliente").addEventListener("click", () => abrirCliente());
-    $("btnNuevaCategoriaGasto").addEventListener("click", () => abrirCategoriaFin());
-    $("btnNuevoGasto").addEventListener("click", () => abrirMovimientoFin("gasto"));
-    $("btnNuevoRecurrente").addEventListener("click", () => cargarCostosCloud().then(state => abrirRecurrente(state)).catch(error => toast(error.message)));
-    $("btnNuevaObligacion").addEventListener("click", () => cargarCostosCloud().then(state => abrirObligacion(state)).catch(error => toast(error.message)));
-    $("btnNuevoRecibo").addEventListener("click", () => cargarCostosCloud().then(state => abrirReciboPago(state)).catch(error => toast(error.message)));
-    $("btnGenerarObligaciones").addEventListener("click", () => generarObligacionesWeb().catch(error => toast(error.message)));
-    $("btnNuevaCuentaFin").addEventListener("click", () => abrirCuentaFin());
-    $("btnNuevaTransferencia").addEventListener("click", async () => {
+    on("btnNuevoProducto", "click", () => abrirProducto().catch(error => toast(error.message)));
+    on("btnNuevaCategoria", "click", abrirCategoria);
+    on("btnNuevoCliente", "click", () => abrirCliente());
+    on("btnNuevaCategoriaGasto", "click", () => abrirCategoriaFin());
+    on("btnNuevoGasto", "click", () => abrirMovimientoFin("gasto"));
+    on("btnNuevoRecurrente", "click", () => cargarCostosCloud().then(state => abrirRecurrente(state)).catch(error => toast(error.message)));
+    on("btnNuevaObligacion", "click", () => cargarCostosCloud().then(state => abrirObligacion(state)).catch(error => toast(error.message)));
+    on("btnNuevoRecibo", "click", () => cargarCostosCloud().then(state => abrirReciboPago(state)).catch(error => toast(error.message)));
+    on("btnGenerarObligaciones", "click", () => generarObligacionesWeb().catch(error => toast(error.message)));
+    on("btnNuevaCuentaFin", "click", () => abrirCuentaFin());
+    on("btnNuevaTransferencia", "click", async () => {
       try {
         if (!finStateCache) await cargarCuentasFin($("provMes").value || inputDate(new Date()).slice(0, 7));
         abrirTransferenciaFin();
@@ -5808,19 +5830,19 @@
         abrirTransferenciaFin();
       } catch (error) { toast(error.message); }
     };
-    $("btnFinTransferTop").addEventListener("click", openTransfer);
-    $("btnFinQuick").addEventListener("click", () => abrirMovimientoFin("gasto"));
-    $("btnFinQuickMov").addEventListener("click", () => abrirMovimientoFin("gasto"));
-    $("btnVerMovimientosFin").addEventListener("click", () => setCostTab("movimientos"));
-    $("btnFinNuevoPresupuesto").addEventListener("click", () => abrirPresupuestoFin());
-    $("btnFinNuevaTarjeta").addEventListener("click", () => abrirTarjetaFin());
-    $("btnFinNuevoCompromiso").addEventListener("click", () => abrirCompromisoFin());
-    $("btnFinNuevaDivisa").addEventListener("click", () => abrirDivisaFin());
+    on("btnFinTransferTop", "click", openTransfer);
+    on("btnFinQuick", "click", () => abrirMovimientoFin("gasto"));
+    on("btnFinQuickMov", "click", () => abrirMovimientoFin("gasto"));
+    on("btnVerMovimientosFin", "click", () => setCostTab("movimientos"));
+    on("btnFinNuevoPresupuesto", "click", () => abrirPresupuestoFin());
+    on("btnFinNuevaTarjeta", "click", () => abrirTarjetaFin());
+    on("btnFinNuevoCompromiso", "click", () => abrirCompromisoFin());
+    on("btnFinNuevaDivisa", "click", () => abrirDivisaFin());
     $("finPeriodTabs").querySelectorAll("[data-fin-period]").forEach(button => button.addEventListener("click", () => {
       finDashboardPeriod = button.dataset.finPeriod;
       renderFinDashboard().catch(error => toast(error.message));
     }));
-    $("finFechaReferencia").addEventListener("change", event => {
+    on("finFechaReferencia", "change", event => {
       finReferenceDate = event.target.value || inputDate(new Date());
       const month = finReferenceDate.slice(0, 7);
       if (month !== $("provMes").value) {
@@ -5829,35 +5851,35 @@
       } else renderFinDashboard().catch(error => toast(error.message));
     });
     ["finMovementType", "finMovementAccount", "finMovementCategory"].forEach(id => $(id).addEventListener("change", renderFinMovements));
-    $("finMovementSearch").addEventListener("input", renderFinMovements);
-    $("btnFinExportCsv").addEventListener("click", () => { try { exportarFinCsv(); } catch (error) { toast(error.message); } });
-    $("btnFinExportPdf").addEventListener("click", () => { try { exportarFinPdf(); } catch (error) { toast(error.message); } });
+    on("finMovementSearch", "input", renderFinMovements);
+    on("btnFinExportCsv", "click", () => { try { exportarFinCsv(); } catch (error) { toast(error.message); } });
+    on("btnFinExportPdf", "click", () => { try { exportarFinPdf(); } catch (error) { toast(error.message); } });
     ["btnFinBackupTop", "btnFinBackup", "btnFinBackupSettings"].forEach(id => $(id).addEventListener("click", () => backupFinanzas().catch(error => toast(error.message))));
-    $("btnFinRestorePreview").addEventListener("click", () => $("finRestoreFile").click());
-    $("finRestoreFile").addEventListener("change", event => validarBackupFinanzas(event.target.files?.[0]).catch(error => toast(error.message)));
-    $("finSettingsForm").addEventListener("submit", event => {
+    on("btnFinRestorePreview", "click", () => $("finRestoreFile").click());
+    on("finRestoreFile", "change", event => validarBackupFinanzas(event.target.files?.[0]).catch(error => toast(error.message)));
+    on("finSettingsForm", "submit", event => {
       event.preventDefault();
       guardarPreferenciasFin(event.currentTarget).catch(error => toast(error.message));
     });
     $("provTabs").querySelectorAll("[data-cost-tab]").forEach(button => button.addEventListener("click", () => setCostTab(button.dataset.costTab)));
-    $("provMes").addEventListener("change", () => {
+    on("provMes", "change", () => {
       if (!finReferenceDate.startsWith($("provMes").value)) finReferenceDate = `${$("provMes").value}-01`;
       cargarProveedores().catch(error => mostrarError("proveedores", error));
     });
-    $("btnInvBuscar").addEventListener("click", () => cargarInventario().catch(error => mostrarError("inventario", error)));
-    $("btnCliBuscar").addEventListener("click", () => cargarClientes().catch(error => mostrarError("clientes", error)));
-    $("invBuscar").addEventListener("keydown", event => { if (event.key === "Enter") { event.preventDefault(); $("btnInvBuscar").click(); } });
-    $("cliBuscar").addEventListener("keydown", event => { if (event.key === "Enter") { event.preventDefault(); $("btnCliBuscar").click(); } });
-    $("btnCheckAllUpdates").addEventListener("click", () => cargarDescargar(true));
-    $("btnApplyWebUpdate").addEventListener("click", aplicarActualizacionWeb);
-    $("btnInstallPwa").addEventListener("click", () => instalarPwa().catch(error => toast(error.message)));
-    $("btnMobileInstallHelp").addEventListener("click", () => {
+    on("btnInvBuscar", "click", () => cargarInventario().catch(error => mostrarError("inventario", error)));
+    on("btnCliBuscar", "click", () => cargarClientes().catch(error => mostrarError("clientes", error)));
+    on("invBuscar", "keydown", event => { if (event.key === "Enter") { event.preventDefault(); $("btnInvBuscar").click(); } });
+    on("cliBuscar", "keydown", event => { if (event.key === "Enter") { event.preventDefault(); $("btnCliBuscar").click(); } });
+    on("btnCheckAllUpdates", "click", () => cargarDescargar(true));
+    on("btnApplyWebUpdate", "click", aplicarActualizacionWeb);
+    on("btnInstallPwa", "click", () => instalarPwa().catch(error => toast(error.message)));
+    on("btnMobileInstallHelp", "click", () => {
       $("mobileInstallHelp").classList.remove("oculto");
       $("mobileInstallHelp").scrollIntoView({ behavior: "smooth", block: "start" });
     });
-    $("btnCloseMobileHelp").addEventListener("click", () => $("mobileInstallHelp").classList.add("oculto"));
-    $("btnGuardarNegocio").addEventListener("click", () => guardarNegocio().catch(error => toast(error.message)));
-    $("btnCambiarClave").addEventListener("click", async () => {
+    on("btnCloseMobileHelp", "click", () => $("mobileInstallHelp").classList.add("oculto"));
+    on("btnGuardarNegocio", "click", () => guardarNegocio().catch(error => toast(error.message)));
+    on("btnCambiarClave", "click", async () => {
       const button = $("btnCambiarClave");
       const previous = button.textContent;
       button.disabled = true;
@@ -5866,10 +5888,10 @@
       catch (error) { $("cfgClaveEstado").textContent = error.message; toast(error.message); }
       finally { button.disabled = false; button.textContent = previous; }
     });
-    $("btnCerrarEditor").addEventListener("click", cerrarEditor);
-    $("btnCancelarEditor").addEventListener("click", cerrarEditor);
-    $("editorOverlay").addEventListener("click", event => { if (event.target === $("editorOverlay")) cerrarEditor(); });
-    $("editorForm").addEventListener("submit", async event => {
+    on("btnCerrarEditor", "click", cerrarEditor);
+    on("btnCancelarEditor", "click", cerrarEditor);
+    on("editorOverlay", "click", event => { if (event.target === $("editorOverlay")) cerrarEditor(); });
+    on("editorForm", "submit", async event => {
       event.preventDefault();
       if (!editorSubmit) return;
       const button = $("btnGuardarEditor");
@@ -5882,8 +5904,8 @@
       finally { button.disabled = false; button.textContent = previous; }
     });
     window.addEventListener("keydown", event => { if (event.key === "Escape" && !$("editorOverlay").classList.contains("oculto")) cerrarEditor(); });
-    $("alertFilter").addEventListener("change", () => cargarNotificaciones().catch(() => {}));
-    $("btnLeerTodas").addEventListener("click", async () => {
+    on("alertFilter", "change", () => cargarNotificaciones().catch(() => {}));
+    on("btnLeerTodas", "click", async () => {
       const alerts = await obtenerAlertas();
       const read = readSet();
       alerts.forEach(alert => { read.add(alert.key); alert.read = true; });
@@ -5911,6 +5933,17 @@
 
   arrancar().then(() => {
     document.documentElement.dataset.panelModule = "ready";
+    // Si el HTML servido no trae algun elemento, el panel funciona igual pero
+    // queda constancia de que control quedo sin enlazar. Sin esto, un desajuste
+    // entre panel.html y panel.js solo se notaba como un boton que no responde.
+    if (elementosFaltantes.length) {
+      document.documentElement.dataset.panelFaltantes = String(elementosFaltantes.length);
+      console.warn(
+        `[panel] ${elementosFaltantes.length} elemento(s) del HTML no existen y quedaron sin enlazar. ` +
+        "Suele significar que panel.html esta desactualizado respecto a panel.js (revisa la cache o vuelve a publicar): " +
+        elementosFaltantes.join(", ")
+      );
+    }
   }).catch(error => {
     document.documentElement.dataset.panelModule = "error";
     mostrarAcceso(cfg ? "v-login" : "v-config");
