@@ -479,6 +479,18 @@ tbody tr:hover { background: rgba(23,151,232,.045); }
   color: var(--warn, #b45309); font-size: 9px; font-weight: 700; line-height: 1.35;
   overflow-wrap: anywhere;
 }
+/* Claves de IA: se cambian desde el panel, sin entrar a Supabase. La clave nunca
+   se muestra; solo se indica de donde sale cada una. */
+.assistant-keys { display: grid; gap: 10px; }
+.assistant-key { padding: 10px; border: 1px solid var(--line2, rgba(127,127,127,.24)); border-radius: 12px; }
+.assistant-key-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 7px; }
+.assistant-key-head strong { font-size: 11px; }
+.assistant-key-head b { font-size: 9px; font-weight: 800; color: var(--ok, #15867b); text-transform: uppercase; letter-spacing: .03em; }
+.assistant-key-head b.off { color: var(--mut, #6b7280); }
+.assistant-key-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.assistant-key-row input { flex: 1 1 160px; min-width: 0; min-height: 34px; font-size: 11px; }
+.assistant-key-row button { min-height: 34px; padding-inline: 12px; font-size: 11px; white-space: nowrap; }
+.assistant-key-nota { margin-top: 2px; color: var(--mut, #6b7280); font-size: 9px; line-height: 1.4; }
 .assistant-messages { min-height: 0; padding: 22px max(20px,calc((100% - 1000px)/2)); overflow-y: auto; overscroll-behavior: contain; scroll-behavior: smooth; scrollbar-gutter: stable; }
 .assistant-empty { max-width: 480px; margin: 14vh auto 0; color: var(--muted); text-align: center; }
 .assistant-empty strong { color: var(--navy); font-size: 17px; }

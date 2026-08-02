@@ -16,7 +16,7 @@
   const BUSINESS = _urlBiz || window.__DCARELA_DEFAULT?.business || cfg?.business || "dcarela";
   const EMBEDDED = new URLSearchParams(location.search).get("embedded") === "1";
   const THEME_KEY = "dcarela.ui.theme";
-  const APP_BUILD = "2026.08.02.1";
+  const APP_BUILD = "2026.08.02.2";
   let currentTheme = document.documentElement.dataset.theme === "dark" ? "dark" : "light";
   let installPrompt = null;
   let updateReloading = false;
@@ -924,6 +924,7 @@
       const enabled = Boolean(status.capabilities?.[key]);
       return `<div class="assistant-capability"><span>${esc(label)}</span><b class="${enabled ? "" : "off"}">${enabled ? "Si" : "No"}</b></div>`;
     }).join("");
+    renderIaClaves(status);
     const current = $("iaModel").value;
     $("iaModel").innerHTML = (status.models || []).map(model => `<option value="${esc(model.id)}">${esc(model.label)} · ${esc(model.level)}</option>`).join("");
     const preferred = localStorage.getItem(`dcarela.ia.model.v2.${BUSINESS}`) || current || status.models?.[0]?.id;
@@ -945,6 +946,79 @@
     $("btnIaAdjuntar").disabled = $("iaInput").disabled;
     $("btnIaMic").disabled = $("iaInput").disabled;
     renderIaDocuments(status.active_documents || []);
+  }
+
+  /** Refresca solo el estado de la IA (proveedores, modelos, claves). */
+  async function cargarEstadoIa() {
+    const status = await iaRequest("status");
+    renderIaStatus(status);
+    return status;
+  }
+
+  const IA_PROVEEDORES = [
+    { id: "openrouter", nombre: "OpenRouter (DeepSeek y otros)", donde: "openrouter.ai/keys" },
+    { id: "openai", nombre: "OpenAI", donde: "platform.openai.com/api-keys" },
+    { id: "google", nombre: "Google AI (Gemini)", donde: "aistudio.google.com/apikey" },
+    { id: "anthropic", nombre: "Anthropic (Claude)", donde: "console.anthropic.com" },
+  ];
+
+  /**
+   * Claves de IA: cambiarlas desde aqui, sin entrar a Supabase ni redesplegar.
+   *
+   * Antes vivian solo en los Secrets del proyecto. Cuando Google denego la cuenta
+   * por facturacion, el asistente se quedo sin IA y no habia forma de apuntarlo a
+   * otro proveedor desde la aplicacion. La clave nunca se muestra: el servidor
+   * solo devuelve de donde sale cada una.
+   */
+  function renderIaClaves(status) {
+    const caja = $("iaClaves");
+    if (!caja) return;
+    if (!status.full_admin_access) { caja.innerHTML = ""; caja.classList.add("oculto"); return; }
+    caja.classList.remove("oculto");
+    const origen = status.claves || {};
+    const etiqueta = { panel: "puesta desde aqui", entorno: "en Supabase", "sin clave": "sin clave" };
+    caja.innerHTML = IA_PROVEEDORES.map(p => {
+      const estado = origen[p.id] || "sin clave";
+      return `<div class="assistant-key" data-proveedor="${esc(p.id)}">
+        <div class="assistant-key-head">
+          <strong>${esc(p.nombre)}</strong>
+          <b class="${estado === "sin clave" ? "off" : ""}">${esc(etiqueta[estado] || estado)}</b>
+        </div>
+        <div class="assistant-key-row">
+          <input type="password" placeholder="Pega la clave de ${esc(p.donde)}" autocomplete="off" spellcheck="false">
+          <button class="primary" type="button" data-guardar="${esc(p.id)}">Guardar</button>
+          ${estado === "panel" ? `<button class="secondary" type="button" data-borrar="${esc(p.id)}">Quitar</button>` : ""}
+        </div>
+      </div>`;
+    }).join("") + `<p class="assistant-key-nota">La clave se prueba contra el proveedor antes de guardarse. Nunca se vuelve a mostrar.</p>`;
+
+    caja.querySelectorAll("[data-guardar]").forEach(boton => boton.addEventListener("click", async () => {
+      const fila = boton.closest(".assistant-key");
+      const campo = fila.querySelector("input");
+      const clave = (campo.value || "").trim();
+      if (!clave) { toast("Pega la clave primero."); return; }
+      boton.disabled = true; boton.textContent = "Probando…";
+      try {
+        const r = await iaRequest("set_api_key", { provider: boton.dataset.guardar, api_key: clave });
+        campo.value = "";
+        toast(r.mensaje || "Clave guardada.");
+        await cargarEstadoIa();
+      } catch (error) {
+        toast(error.message || "No se pudo guardar la clave.");
+      } finally { boton.disabled = false; boton.textContent = "Guardar"; }
+    }));
+
+    caja.querySelectorAll("[data-borrar]").forEach(boton => boton.addEventListener("click", async () => {
+      if (!confirm("¿Quitar esta clave del panel? Se volverá a usar la de Supabase si existe.")) return;
+      boton.disabled = true;
+      try {
+        const r = await iaRequest("set_api_key", { provider: boton.dataset.borrar, api_key: "" });
+        toast(r.mensaje || "Clave quitada.");
+        await cargarEstadoIa();
+      } catch (error) {
+        toast(error.message || "No se pudo quitar la clave.");
+      } finally { boton.disabled = false; }
+    }));
   }
 
   async function renderIaApprovals() {
