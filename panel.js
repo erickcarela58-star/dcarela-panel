@@ -114,6 +114,20 @@
   let saleRequestId = null;
   let saleSubmitting = false;
   let saleStage = "catalog";
+  let saleAccess = {
+    role: "viewer",
+    canUse: false,
+    canOpenShift: false,
+    canCreateSale: false,
+    canCloseShift: false,
+    canCancelSale: false,
+    canOverridePrice: false,
+    canForceInventory: false,
+    canOpenCommonSale: false,
+    canParkSale: false,
+    canVerifyPrice: false,
+    loaded: false,
+  };
 
   const textoSeguro = value => {
     let texto = String(value ?? "")
@@ -321,6 +335,7 @@
 
   async function cargarSucursalesDisponibles() {
     if (!session?.user?.id) return;
+    await dcWaitForAuthenticatedSession(sb);
     const { data: memberships, error: membershipError } = await sb.from("pos_business_members")
       .select("business_id,role,active")
       .eq("user_id", session.user.id)
@@ -532,6 +547,7 @@
   }
 
   async function cargarRolEdicion() {
+    await dcWaitForAuthenticatedSession(sb);
     const { data, error } = await sb.from("pos_business_members")
       .select("role,active")
       .eq("business_id", BUSINESS)
@@ -2251,12 +2267,78 @@
     $("pillVivo").textContent = "en vivo";
   }
 
-  const salePendingKey = () => `dcarela.sale.pending.v2.${BUSINESS}`;
+  const salePendingStore = window.DcarelaSalePending || null;
   const saleUuid = () => crypto.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
   const saleStageNames = new Set(["catalog", "cart", "checkout"]);
+  const salePendingList = () => {
+    if (!salePendingStore) return [];
+    try { return salePendingStore.list(localStorage, BUSINESS); }
+    catch { return []; }
+  };
+  const salePendingCount = () => salePendingList().length;
+
+  const defaultSaleAccess = () => ({
+    role: "viewer",
+    canUse: false,
+    canOpenShift: false,
+    canCreateSale: false,
+    canCloseShift: false,
+    canCancelSale: false,
+    canOverridePrice: false,
+    canForceInventory: false,
+    canOpenCommonSale: false,
+    canParkSale: false,
+    canVerifyPrice: false,
+    loaded: false,
+  });
+
+  function setSaleAccess(access = null) {
+    saleAccess = { ...defaultSaleAccess(), ...(access && typeof access === "object" ? access : {}) };
+    saleAccess.canUse = Boolean(saleAccess.canUse || saleAccess.canOpenShift || saleAccess.canCreateSale || saleAccess.canVerifyPrice);
+    syncSalePermissionUi();
+    return saleAccess;
+  }
+
+  function setSaleButtonState(id, allowed, blockedMessage, hide = false) {
+    const button = $(id);
+    if (!button) return;
+    button.disabled = !allowed;
+    if (hide) button.classList.toggle("oculto", !allowed);
+    if (!allowed && blockedMessage) button.title = blockedMessage;
+    else button.removeAttribute("title");
+  }
+
+  function syncSalePermissionUi() {
+    const pendingCount = salePendingCount();
+    document.querySelectorAll(".sale-web-access").forEach(element => element.classList.toggle("oculto", !saleAccess.canUse));
+    setSaleButtonState("btnReanudarVenta", saleAccess.canUse && pendingCount > 0, saleAccess.canUse ? "No hay cuentas en espera guardadas." : "Tu cuenta no tiene permiso para usar la caja web.");
+    setSaleButtonState("btnNuevaVentaWeb", saleAccess.canUse, "Tu cuenta no tiene permiso para usar la caja web.");
+    setSaleButtonState("btnSaleOpenShift", saleAccess.canOpenShift, "Tu cuenta no puede abrir la caja web.");
+    setSaleButtonState("btnSaleVerifyPrice", saleAccess.canVerifyPrice, "Tu cuenta no puede verificar precios en la caja web.");
+    setSaleButtonState("btnSaleFocusSearch", saleAccess.canUse, "Tu cuenta no puede usar la caja web.");
+    setSaleButtonState("btnSaleCommon", saleAccess.canOpenCommonSale, "Tu cuenta no puede registrar ventas comunes.");
+    setSaleButtonState("btnSalePark", saleAccess.canParkSale, "Tu cuenta no puede guardar ventas pendientes.");
+    setSaleButtonState("btnSaleClear", saleAccess.canCreateSale, "Tu cuenta no puede modificar la cuenta actual.");
+    setSaleButtonState("btnSaleCartClear", saleAccess.canCreateSale, "Tu cuenta no puede modificar la cuenta actual.");
+    setSaleButtonState("btnSaleAddPayment", saleAccess.canCreateSale, "Tu cuenta no puede agregar pagos.");
+    setSaleButtonState("btnSaleQuote", saleAccess.canCreateSale, "Tu cuenta no puede preparar cotizaciones desde la caja web.");
+    setSaleButtonState("btnSaleSubmit", saleAccess.canCreateSale, "Tu cuenta no puede registrar ventas en la caja web.");
+    setSaleButtonState("btnSaleMobileCheckout", saleAccess.canCreateSale, "Tu cuenta no puede registrar ventas en la caja web.");
+    setSaleButtonState("btnSaleCloseShift", saleAccess.canCloseShift, "Tu cuenta no puede cerrar la caja web.", true);
+    $("salePriceReasonField")?.classList.toggle("oculto", !saleAccess.canOverridePrice || !saleHasCustomPrices());
+  }
+
+  async function cargarPermisosCajaWeb(force = false) {
+    if (!force && saleAccess.loaded) return saleAccess;
+    if (!sb || !session?.user) return saleAccess;
+    const status = await saleApi("status");
+    setSaleAccess({ role: status.role || memberRole, ...(status.permissions || {}), loaded: true });
+    saleShift = status.shift || null;
+    renderSaleShift();
+    return saleAccess;
+  }
 
   async function saleApi(action, data = {}, requestId = null) {
-    if (!canEdit) throw new Error("Solo administradores y propietarios pueden operar la caja web.");
     const response = await fetch(`${cfg.url.replace(/\/$/, "")}/functions/v1/pos-web-sale`, {
       method: "POST",
       headers: await authenticatedHeaders(true),
@@ -2289,14 +2371,18 @@
   }
 
   function updateSalePendingButton() {
+    const accounts = salePendingList();
+    const count = accounts.length;
+    const title = count
+      ? `Cuentas en espera: ${accounts.map(item => item.name).join(", ")}`
+      : "No hay cuentas en espera guardadas";
+    const label = count ? `Cuentas en espera (${count})` : "Cuentas en espera";
     const button = $("btnReanudarVenta");
     if (!button) return;
-    let pending = null;
-    try { pending = JSON.parse(localStorage.getItem(salePendingKey()) || "null"); } catch {}
-    const available = Boolean(pending?.cart?.length);
-    button.classList.toggle("has-pending", available);
-    button.textContent = available ? `Reanudar pendiente (${pending.cart.length})` : "Venta pendiente";
-    button.setAttribute("aria-label", available ? "Reanudar venta pendiente" : "No hay venta pendiente guardada");
+    button.classList.toggle("has-pending", count > 0);
+    button.textContent = label;
+    button.setAttribute("aria-label", label);
+    button.title = title;
   }
 
   function syncSaleMobileSummary() {
@@ -2360,6 +2446,18 @@
       ? line.precioMayoreoCentavos : line.precioNormalCentavos));
   }
 
+  function saleHasDraft() {
+    const tipText = String($("saleTip")?.value || "").trim();
+    let tip = 0;
+    try { tip = centavosInput(tipText || "0"); } catch {}
+    return saleCart.length > 0
+      || salePayments.length > 0
+      || Boolean($("saleClient")?.value)
+      || tip !== 0
+      || Boolean(String($("saleNote")?.value || "").trim())
+      || Boolean(String($("salePriceReason")?.value || "").trim());
+  }
+
   function renderSaleCart() {
     const totals = saleExactTotals();
     const countText = `${saleCart.length} ${saleCart.length === 1 ? "producto" : "productos"}`;
@@ -2372,7 +2470,7 @@
     $("saleTax").textContent = money(totals.tax);
     $("saleDiscount").textContent = money(totals.discount);
     $("saleTotal").textContent = money(totals.total);
-    $("salePriceReasonField").classList.toggle("oculto", !saleHasCustomPrices());
+    $("salePriceReasonField").classList.toggle("oculto", !saleAccess.canOverridePrice || !saleHasCustomPrices());
     if (!saleCart.length) {
       $("saleCart").innerHTML = '<div class="sale-cart-empty"><strong>Cuenta vacia</strong><span>Busca, escanea o agrega una venta comun.</span></div>';
     } else {
@@ -2382,21 +2480,22 @@
         const final = Math.round(gross * (1 - numero(line.descuentoPct) / 100));
         return `<article class="sale-line" data-sale-line="${index}">
           <div class="sale-line-name"><strong>${esc(line.nombre)}</strong><small>${line.comun ? "Venta comun" : esc(line.codigoBarras || line.unidadMedida || "Producto")}</small></div>
-          <label><span>Cantidad</span><input data-sale-field="cantidad" inputmode="decimal" value="${esc(line.cantidad)}"></label>
-          <label><span>Precio</span><input data-sale-field="precio" inputmode="decimal" value="${esc(pesoInput(line.precioUnitarioCentavos))}"></label>
-          <label><span>Desc. %</span><input data-sale-field="descuento" inputmode="decimal" value="${esc(line.descuentoPct || 0)}"></label>
-          <button class="sale-line-remove" data-sale-remove="${index}" type="button" aria-label="Quitar">&#215;</button>
-          <div class="sale-line-options">${line.precioMayoreoCentavos > 0 ? `<label><input data-sale-wholesale="${index}" type="checkbox"${line.mayoreo ? " checked" : ""}> Precio mayoreo (${money(line.precioMayoreoCentavos)})</label>` : `<span>${line.usaInventario ? `Existencia base: ${esc(line.stock ?? "--")}` : "No controla existencia"}</span>`}<strong>${money(final)}</strong></div>
+          <label><span>Cantidad</span><input data-sale-field="cantidad" inputmode="decimal" value="${esc(line.cantidad)}"${saleAccess.canCreateSale ? "" : " disabled"}></label>
+          <label><span>Precio</span><input data-sale-field="precio" inputmode="decimal" value="${esc(pesoInput(line.precioUnitarioCentavos))}"${saleAccess.canOverridePrice ? "" : " disabled"}></label>
+          <label><span>Desc. %</span><input data-sale-field="descuento" inputmode="decimal" value="${esc(line.descuentoPct || 0)}"${saleAccess.canOverridePrice ? "" : " disabled"}></label>
+          <button class="sale-line-remove" data-sale-remove="${index}" type="button" aria-label="Quitar"${saleAccess.canCreateSale ? "" : " disabled"}>&#215;</button>
+          <div class="sale-line-options">${line.precioMayoreoCentavos > 0 ? `<label><input data-sale-wholesale="${index}" type="checkbox"${line.mayoreo ? " checked" : ""}${saleAccess.canCreateSale ? "" : " disabled"}> Precio mayoreo (${money(line.precioMayoreoCentavos)})</label>` : `<span>${line.usaInventario ? `Existencia base: ${esc(line.stock ?? "--")}` : "No controla existencia"}</span>`}<strong>${money(final)}</strong></div>
         </article>`;
       }).join("");
     }
     renderSalePayments();
     syncSalePaymentDraft();
     syncSaleMobileSummary();
+    syncSalePermissionUi();
   }
 
   function renderSalePayments() {
-    $("salePayments").innerHTML = salePayments.length ? salePayments.map((payment, index) => `<div class="sale-payment-row"><span>${esc(payment.metodo)}${payment.cuentaFinancieraNombre ? ` | ${esc(payment.cuentaFinancieraNombre)}` : ""}${payment.referencia ? ` | ${esc(payment.referencia)}` : ""}</span><strong>${money(payment.montoCentavos)}</strong><button class="sale-payment-remove" type="button" data-sale-payment-remove="${index}" aria-label="Quitar pago">&#215;</button></div>`).join("") : '<div class="muted">Un solo pago puede cobrarse directamente. Para pago mixto agrega cada parte.</div>';
+    $("salePayments").innerHTML = salePayments.length ? salePayments.map((payment, index) => `<div class="sale-payment-row"><span>${esc(payment.metodo)}${payment.cuentaFinancieraNombre ? ` | ${esc(payment.cuentaFinancieraNombre)}` : ""}${payment.referencia ? ` | ${esc(payment.referencia)}` : ""}</span><strong>${money(payment.montoCentavos)}</strong><button class="sale-payment-remove" type="button" data-sale-payment-remove="${index}" aria-label="Quitar pago"${saleAccess.canCreateSale ? "" : " disabled"}>&#215;</button></div>`).join("") : '<div class="muted">Un solo pago puede cobrarse directamente. Para pago mixto agrega cada parte.</div>';
     $("salePayments").querySelectorAll("[data-sale-payment-remove]").forEach(button => button.addEventListener("click", () => {
       salePayments.splice(Number(button.dataset.salePaymentRemove), 1);
       renderSalePayments();
@@ -2460,6 +2559,7 @@
   }
 
   function openSalePriceVerifier() {
+    if (!saleAccess.canVerifyPrice) { toast("Tu cuenta no puede verificar precios en la caja web."); return; }
     const verifier = $("salePriceVerifier");
     verifier.classList.remove("oculto");
     verifier.setAttribute("aria-hidden", "false");
@@ -2492,12 +2592,17 @@
 
   async function refreshSaleShift() {
     const status = await saleApi("status");
+    setSaleAccess({ role: status.role || saleAccess.role, ...(status.permissions || {}), loaded: true });
     saleShift = status.shift || null;
     renderSaleShift();
   }
 
   async function openSaleConsole(resume = false) {
-    if (!canEdit) { toast("Tu cuenta no tiene permiso para registrar ventas."); return; }
+    if (!saleAccess.loaded) {
+      try { await cargarPermisosCajaWeb(); }
+      catch { setSaleAccess({ loaded: true }); }
+    }
+    if (!saleAccess.canUse) { toast("Tu cuenta no tiene permiso para usar la caja web."); return; }
     $("saleOverlay").classList.remove("oculto");
     $("saleOverlay").setAttribute("aria-hidden", "false");
     $("saleConsole").classList.remove("receipt-mode");
@@ -2513,11 +2618,10 @@
     try {
       await Promise.all([cargarCatalogoCloud(), cargarClientesCloud(), loadSaleBankAccounts(), cargarNegocioCloud(), refreshSaleShift()]);
       $("saleClient").innerHTML = '<option value="">Consumidor final</option>' + (clientCatalog || []).filter(client => client.activo !== false).map(client => `<option value="${esc(client.id)}">${esc(client.nombre)}${numero(client.saldoCentavos) ? ` | saldo ${money(client.saldoCentavos)}` : ""}</option>`).join("");
-      if (resume) restorePendingSale();
       renderSaleProducts();
       renderSaleCart();
-      if (resume && saleCart.length) setSaleStage("cart");
-      setTimeout(() => (saleShift ? (resume && saleCart.length ? $("saleCart") : $("saleSearch")) : $("saleOpening"))?.focus(), 0);
+      if (saleCart.length) setSaleStage("cart");
+      setTimeout(() => (saleShift ? (saleCart.length ? $("saleCart") : $("saleSearch")) : $("saleOpening"))?.focus(), 0);
     } catch (error) {
       $("saleError").textContent = error.message;
       renderSaleShift();
@@ -2557,34 +2661,113 @@
     setSaleStage("catalog");
   }
 
-  function parkSale() {
-    if (!saleCart.length) { toast("No hay una cuenta para guardar."); return; }
-    localStorage.setItem(salePendingKey(), JSON.stringify({
-      savedAt: new Date().toISOString(), cart: saleCart, clientId: $("saleClient").value,
-      rounding: $("saleRounding").value, tip: $("saleTip").value, note: $("saleNote").value,
-      priceReason: $("salePriceReason").value, payments: salePayments
-    }));
-    clearSale();
-    updateSalePendingButton();
-    toast("Venta pendiente guardada en este navegador.");
+  function salePendingRecord(name) {
+    return {
+      id: saleUuid(),
+      name,
+      cart: saleCart.map(line => ({ ...line })),
+      clientId: $("saleClient").value,
+      rounding: $("saleRounding").value,
+      tip: $("saleTip").value,
+      note: $("saleNote").value,
+      priceReason: $("salePriceReason").value,
+      payments: salePayments.map(payment => ({ ...payment })),
+      totalCentavos: saleExactTotals().total,
+      savedAt: new Date().toISOString(),
+    };
   }
 
-  function restorePendingSale() {
-    let saved = null;
-    try { saved = JSON.parse(localStorage.getItem(salePendingKey()) || "null"); } catch {}
-    if (!saved?.cart?.length) { toast("No hay una venta pendiente guardada."); return; }
-    saleCart = saved.cart;
-    salePayments = Array.isArray(saved.payments) ? saved.payments : [];
+  function salePendingMetaText(account) {
+    const count = Number(account?.lineCount || account?.cart?.length || 0);
+    return `${count} ${count === 1 ? "producto" : "productos"} · ${money(account?.totalCentavos)} · ${fecha(account?.savedAt)}`;
+  }
+
+  function salePendingOptionHtml(account, checked = false) {
+    return `<div class="confirm-panel field-wide"><label class="check-row"><input type="radio" name="pendingSaleId" value="${esc(account.id)}"${checked ? " checked" : ""}><span><strong>${esc(account.name)}</strong><small>${esc(salePendingMetaText(account))}</small></span></label><div class="button-row"><button class="secondary" type="button" data-pending-delete="${esc(account.id)}">Eliminar</button></div></div>`;
+  }
+
+  function parkSale() {
+    if (!saleAccess.canParkSale) { toast("Tu cuenta no puede guardar ventas pendientes."); return; }
+    if (!salePendingStore) { toast("No se pudo cargar el manejador de cuentas en espera."); return; }
+    if (!saleCart.length) { toast("No hay una cuenta para guardar."); return; }
+    const existingNames = salePendingList().map(item => item.name);
+    abrirEditor("Guardar cuenta en espera", "Ponle un nombre unico para recuperarla despues sin confundirla con otra.", `
+      <label class="field-wide"><span>Nombre de la cuenta</span><input name="nombre" required maxlength="80" placeholder="Ej.: Mesa 2, Pedido Ana o Marcos" autocomplete="off"></label>
+      ${existingNames.length ? `<p class="field-hint field-wide">Ya guardadas: ${esc(existingNames.join(", "))}</p>` : ""}`, async form => {
+      const name = String(form.get("nombre") || "").trim();
+      const result = salePendingStore.upsert(localStorage, BUSINESS, salePendingRecord(name));
+      clearSale();
+      cerrarEditor();
+      updateSalePendingButton();
+      syncSalePermissionUi();
+      toast(`Cuenta "${result.account.name}" guardada en espera.`);
+    }, "Guardar cuenta");
+  }
+
+  function restorePendingSale(pendingId) {
+    if (!salePendingStore) { toast("No se pudo cargar el manejador de cuentas en espera."); return false; }
+    const saved = salePendingStore.take(localStorage, BUSINESS, pendingId);
+    if (!saved?.cart?.length) {
+      updateSalePendingButton();
+      syncSalePermissionUi();
+      toast("La cuenta en espera ya no existe.");
+      return false;
+    }
+    saleCart = saved.cart.map(line => ({ ...line, localId: line.localId || saleUuid() }));
+    salePayments = Array.isArray(saved.payments) ? saved.payments.map(payment => ({ ...payment })) : [];
     $("saleClient").value = saved.clientId || "";
     $("saleRounding").value = saved.rounding || "exacto";
     $("saleTip").value = saved.tip || "0.00";
     $("saleNote").value = saved.note || "";
     $("salePriceReason").value = saved.priceReason || "";
-    localStorage.removeItem(salePendingKey());
     updateSalePendingButton();
+    syncSalePermissionUi();
+    renderSaleProducts();
     renderSaleCart();
-    toast(`Venta pendiente recuperada (${fecha(saved.savedAt)}).`);
+    setSaleStage(saleCart.length ? "cart" : "catalog");
+    toast(`Cuenta "${saved.name}" recuperada (${fecha(saved.savedAt)}).`);
+    return true;
   }
+
+  function bindPendingSalesEditor() {
+    $("editorFields").querySelectorAll("[data-pending-delete]").forEach(button => button.addEventListener("click", event => {
+      event.preventDefault();
+      event.stopPropagation();
+      const accounts = salePendingList();
+      const account = accounts.find(item => item.id === button.dataset.pendingDelete);
+      if (!account) { openPendingSales(); return; }
+      if (!confirm(`¿Eliminar la cuenta en espera "${account.name}"?`)) return;
+      salePendingStore.remove(localStorage, BUSINESS, account.id);
+      updateSalePendingButton();
+      syncSalePermissionUi();
+      const refreshed = salePendingList();
+      if (!refreshed.length) {
+        cerrarEditor();
+        toast("La ultima cuenta en espera fue eliminada.");
+        return;
+      }
+      const selected = $("editorForm")?.elements?.pendingSaleId?.value || refreshed[0].id;
+      $("editorFields").innerHTML = refreshed.map((entry, index) =>
+        salePendingOptionHtml(entry, entry.id === selected || (!selected && index === 0))).join("");
+      bindPendingSalesEditor();
+    }));
+  }
+
+  function openPendingSales() {
+    if (!salePendingStore) { toast("No se pudo cargar el manejador de cuentas en espera."); return; }
+    const accounts = salePendingList();
+    if (!accounts.length) { toast("No hay cuentas en espera guardadas."); return; }
+    abrirEditor("Cuentas en espera", "Cada cuenta conserva su nombre, productos, cliente y pagos parciales hasta que la recuperes.", accounts.map((account, index) => salePendingOptionHtml(account, index === 0)).join(""), async form => {
+      const pendingId = String(form.get("pendingSaleId") || "").trim();
+      if (!pendingId) throw new Error("Selecciona una cuenta en espera.");
+      if (saleCart.length && !confirm("La cuenta actual se reemplazara por la cuenta en espera seleccionada. Guarda la actual en espera si deseas conservarla.")) return;
+      if (!restorePendingSale(pendingId)) throw new Error("No se pudo recuperar la cuenta seleccionada.");
+      cerrarEditor();
+      setTimeout(() => $("saleCart")?.focus(), 0);
+    }, "Recuperar cuenta");
+    bindPendingSalesEditor();
+  }
+
 
   function updateSalePaymentFields() {
     const method = $("salePaymentMethod").value;
@@ -2660,20 +2843,110 @@
     return data;
   }
 
+  const saleCentavosSeguro = value => {
+    try { return centavosInput(value); }
+    catch { return 0; }
+  };
+
+  function saleClienteLabel(sale = null) {
+    return sale?.clienteNombre
+      || sale?.cliente_nombre
+      || $("saleClient")?.selectedOptions?.[0]?.textContent
+      || "Consumidor final";
+  }
+
+  function saleCajeroLabel(sale = null) {
+    return sale?.cajeroNombre
+      || sale?.usuarioNombre
+      || sale?.usuario_nombre
+      || session?.user?.email
+      || "Caja web";
+  }
+
+  function saleLineasRenderizables(sale = null) {
+    if (Array.isArray(sale?.lineas) && sale.lineas.length) return sale.lineas;
+    return saleCart.map(line => {
+      const quantity = numero(line.cantidad);
+      const gross = Math.round(numero(line.precioUnitarioCentavos) * quantity);
+      const discount = Math.round(gross * numero(line.descuentoPct) / 100);
+      return {
+        nombre: line.nombre,
+        cantidad: quantity,
+        precioUnitarioCentavos: numero(line.precioUnitarioCentavos),
+        importeFinalCentavos: Math.max(0, gross - discount)
+      };
+    });
+  }
+
+  function saleReceiptRender(sale, quote = false) {
+    const helper = window.DcarelaThermalTicket;
+    const totals = saleExactTotals();
+    const tip = saleCentavosSeguro($("saleTip")?.value || "0");
+    const fallbackTotal = totals.total + tip;
+    const efectivoRecibido = saleCentavosSeguro($("saleCashReceived")?.value || "0");
+    const lines = saleLineasRenderizables(sale);
+    const normalizedSale = {
+      ...sale,
+      vendidaEn: sale?.vendidaEn || new Date().toISOString(),
+      clienteNombre: saleClienteLabel(sale),
+      lineas: lines,
+      subtotalSinItbisCentavos: sale?.subtotalSinItbisCentavos ?? sale?.subtotal_sin_itbis_centavos ?? totals.base,
+      itbisCentavos: sale?.itbisCentavos ?? sale?.itbis_centavos ?? totals.tax,
+      descuentoCentavos: sale?.descuentoCentavos ?? sale?.descuento_centavos ?? totals.discount,
+      propinaCentavos: sale?.propinaCentavos ?? sale?.propina_centavos ?? tip,
+      ajusteRedondeoCentavos: sale?.ajusteRedondeoCentavos ?? sale?.ajuste_redondeo_centavos ?? totals.adjustment,
+      totalCobradoCentavos: totalDe(sale) || fallbackTotal,
+      pagos: Array.isArray(sale?.pagos) && sale.pagos.length ? sale.pagos : salePayments,
+      pagoConCentavos: sale?.pagoConCentavos ?? sale?.pago_con_centavos ?? (efectivoRecibido || null),
+      cambioCentavos: sale?.cambioCentavos ?? sale?.cambio_centavos
+        ?? (efectivoRecibido > fallbackTotal ? efectivoRecibido - fallbackTotal : 0),
+      nota: sale?.nota || $("saleNote")?.value || null,
+    };
+    if (helper?.render) {
+      return helper.render({
+        business: businessConfig || {},
+        sale: normalizedSale,
+        branchName: nombreSucursal(BUSINESS),
+        cashierName: saleCajeroLabel(sale),
+        customerName: saleClienteLabel(sale),
+        quote,
+      });
+    }
+    return null;
+  }
+
   function saleReceiptMarkup(sale, quote = false) {
+    const rendered = saleReceiptRender(sale, quote);
+    if (rendered?.html) return rendered.html;
     const business = businessConfig || {};
-    const lines = Array.isArray(sale.lineas) ? sale.lineas : saleCart.map(line => ({ ...line, importeFinalCentavos: Math.round(numero(line.precioUnitarioCentavos) * numero(line.cantidad) * (1 - numero(line.descuentoPct) / 100)) }));
+    const lines = saleLineasRenderizables(sale);
     const total = quote ? saleExactTotals().total : totalDe(sale);
-    return `<article class="sale-receipt"><h2>${esc(business.nombre || "D' Carela Compufoto")}</h2><p>${esc(business.rnc ? `RNC ${business.rnc}` : "")}</p><p>${esc(business.telefono || business.whatsapp || "")}</p><div class="sale-receipt-meta"><strong>${quote ? "COTIZACION" : `VENTA #${esc(sale.folio || "--")}`}</strong><br>${esc(fecha(sale.vendidaEn || new Date().toISOString()))}<br>${esc(sale.clienteNombre || $("saleClient").selectedOptions[0]?.textContent || "Consumidor final")}</div>${lines.map(line => `<div class="sale-receipt-line"><span>${esc(line.nombre)}<small>${esc(line.cantidad || 1)} x ${money(line.precioUnitarioCentavos)}</small></span><strong>${money(line.importeFinalCentavos ?? Math.round(numero(line.precioUnitarioCentavos) * numero(line.cantidad)))}</strong></div>`).join("")}<div class="sale-receipt-total"><span>Total</span><strong>${money(total)}</strong></div>${sale.itbisCentavos !== undefined ? `<div class="sale-receipt-line"><span>ITBIS incluido</span><strong>${money(sale.itbisCentavos)}</strong></div>` : ""}${sale.cambioCentavos !== null && sale.cambioCentavos !== undefined ? `<div class="sale-receipt-line"><span>Devuelta</span><strong>${money(sale.cambioCentavos)}</strong></div>` : ""}<p style="margin-top:16px">${esc(business.ticketPie || (quote ? "Cotizacion sujeta a disponibilidad." : "Gracias por su compra"))}</p></article>`;
+    return `<article class="sale-receipt"><h2>${esc(business.nombre || "D' Carela Compufoto")}</h2><p>${esc(business.rnc ? `RNC ${business.rnc}` : "")}</p><p>${esc(business.telefono || business.whatsapp || "")}</p><div class="sale-receipt-meta"><strong>${quote ? "COTIZACION" : `VENTA #${esc(sale.folio || "--")}`}</strong><br>${esc(fecha(sale.vendidaEn || new Date().toISOString()))}<br>${esc(saleClienteLabel(sale))}</div>${lines.map(line => `<div class="sale-receipt-line"><span>${esc(line.nombre)}<small>${esc(line.cantidad || 1)} x ${money(line.precioUnitarioCentavos)}</small></span><strong>${money(line.importeFinalCentavos ?? Math.round(numero(line.precioUnitarioCentavos) * numero(line.cantidad)))}</strong></div>`).join("")}<div class="sale-receipt-total"><span>Total</span><strong>${money(total)}</strong></div>${sale.itbisCentavos !== undefined ? `<div class="sale-receipt-line"><span>ITBIS incluido</span><strong>${money(sale.itbisCentavos)}</strong></div>` : ""}${sale.cambioCentavos !== null && sale.cambioCentavos !== undefined ? `<div class="sale-receipt-line"><span>Devuelta</span><strong>${money(sale.cambioCentavos)}</strong></div>` : ""}<p style="margin-top:16px">${esc(business.ticketPie || (quote ? "Cotizacion sujeta a disponibilidad." : "Gracias por su compra"))}</p></article>`;
+  }
+
+  function validarTicketTermicoActual() {
+    const helper = window.DcarelaThermalTicket;
+    const mount = $("saleReceiptContent");
+    if (!helper?.validateElement || !mount) return { ok: true, errors: [], warnings: [] };
+    return helper.validateElement(mount);
   }
 
   function printSaleReceipt() {
+    const validation = validarTicketTermicoActual();
+    if (!validation.ok) {
+      toast(validation.errors[0] || "El ticket termico no paso la validacion local.");
+      return;
+    }
+    if (validation.warnings.length) {
+      console.warn("[ticket-termico]", validation.warnings.join(" | "));
+    }
     document.body.classList.add("sale-printing");
     window.print();
     setTimeout(() => document.body.classList.remove("sale-printing"), 500);
   }
 
   async function submitSale(inventoryReason = null) {
+    if (!saleAccess.canCreateSale) { toast("Tu cuenta no puede registrar ventas en la caja web."); return; }
     if (saleSubmitting) return;
     saleSubmitting = true;
     $("saleError").textContent = "";
@@ -2684,8 +2957,8 @@
     try {
       const result = await saleApi("sale.create", salePayload(inventoryReason), saleRequestId);
       saleLastReceipt = result.sale;
-      localStorage.removeItem(salePendingKey());
       updateSalePendingButton();
+      syncSalePermissionUi();
       $("saleReceiptContent").innerHTML = saleReceiptMarkup(result.sale);
       $("saleWorkbench").classList.add("oculto");
       $("saleReceipt").classList.remove("oculto");
@@ -2695,7 +2968,7 @@
       toast(`Venta #${result.sale.folio} registrada y enviada a las cajas.`);
       cargarVentas().catch(() => {});
     } catch (error) {
-      if (error.status === 409 && /Inventario requiere confirmacion/i.test(error.message) && !inventoryReason) {
+      if (error.status === 409 && /Inventario requiere confirmacion/i.test(error.message) && !inventoryReason && saleAccess.canForceInventory) {
         abrirEditor("Confirmar inventario", error.message, '<label class="field-wide"><span>Motivo para continuar</span><textarea name="motivo" rows="3" required maxlength="500" placeholder="Ej.: conteo pendiente en esta sucursal"></textarea></label>', async form => {
           const reason = String(form.get("motivo") || "").trim();
           if (!reason) throw new Error("El motivo es obligatorio.");
@@ -2716,6 +2989,7 @@
   }
 
   async function openSaleShift() {
+    if (!saleAccess.canOpenShift) { $("saleError").textContent = "Tu cuenta no puede abrir la caja web."; return; }
     const button = $("btnSaleOpenShift");
     button.disabled = true;
     try {
@@ -2733,6 +3007,7 @@
   const DENOMINACIONES = [2000, 1000, 500, 200, 100, 50, 25, 10, 5, 1];
 
   function openSaleCloseShift() {
+    if (!saleAccess.canCloseShift) { toast("Tu cuenta no puede cerrar la caja web."); return; }
     const filas = DENOMINACIONES.map(v => `
       <label class="conteo-fila">
         <span>RD$ ${v.toLocaleString("es-DO")}</span>
@@ -2795,6 +3070,7 @@
   }
 
   function openCommonSale() {
+    if (!saleAccess.canOpenCommonSale) { toast("Tu cuenta no puede registrar ventas comunes."); return; }
     abrirEditor("Venta comun", "Agrega un articulo o servicio puntual sin alterar el catalogo.", '<label class="field-wide"><span>Descripcion</span><input name="nombre" required maxlength="180"></label><label><span>Precio final</span><input name="precio" inputmode="decimal" required></label><label><span>ITBIS</span><select name="itbis"><option value="0.18">18%</option><option value="0">Exento</option></select></label>', async form => {
       const name = String(form.get("nombre") || "").trim();
       const price = centavosInput(form.get("precio"));
@@ -2807,6 +3083,7 @@
   }
 
   function cancelSaleWeb(saleId, folio) {
+    if (!saleAccess.canCancelSale) { toast("Tu cuenta no puede anular ventas desde la caja web."); return; }
     abrirEditor(`Anular venta #${folio || "--"}`, "La venta se conservara en auditoria; inventario y credito se revertiran al sincronizar.", '<label class="field-wide"><span>Motivo de anulacion</span><textarea name="motivo" rows="3" required maxlength="500"></textarea></label>', async form => {
       const reason = String(form.get("motivo") || "").trim();
       if (!reason) throw new Error("El motivo es obligatorio.");
@@ -2818,41 +3095,234 @@
     }, "Anular venta");
   }
 
+  const SALE_SHORTCUT_ACTIONS = Object.freeze({
+    BLOCKED_MODAL: "blocked-modal",
+    NEW_SALE: "new-sale",
+    PARK_SALE: "park-sale",
+    RESUME_SALE: "resume-sale",
+    COMMON_SALE: "common-sale",
+    VERIFY_PRICE: "verify-price",
+    STAGE_CATALOG: "stage-catalog",
+    STAGE_CART: "stage-cart",
+    SUBMIT_SALE: "submit-sale",
+    CLOSE_CONSOLE: "close-console",
+    CLOSE_PRICE_VERIFIER: "close-price-verifier",
+  });
+
+  function saleShortcutEditableTarget(target) {
+    const element = target && typeof target.closest === "function" ? target : null;
+    if (!element) return false;
+    return Boolean(element.closest("input, textarea, select, [contenteditable]:not([contenteditable='false'])"));
+  }
+
+  function saleShortcutContext(source = {}) {
+    return {
+      overlayOpen: Boolean(source.overlayOpen),
+      editorOpen: Boolean(source.editorOpen),
+      priceVerifierOpen: Boolean(source.priceVerifierOpen),
+      receiptVisible: Boolean(source.receiptVisible),
+      shiftOpen: Boolean(source.shiftOpen),
+      stage: saleStageNames.has(source.stage) ? source.stage : "catalog",
+      hasCartLines: Boolean(source.hasCartLines),
+      hasPendingSales: Boolean(source.hasPendingSales),
+      canParkSale: Boolean(source.canParkSale),
+      canOpenCommonSale: Boolean(source.canOpenCommonSale),
+      canVerifyPrice: Boolean(source.canVerifyPrice),
+      canCreateSale: Boolean(source.canCreateSale),
+      hasEditableTarget: Boolean(source.hasEditableTarget),
+    };
+  }
+
+  function resolveSaleShortcut(event, rawContext = {}) {
+    const key = String(event?.key || "");
+    const ctrlEnter = key === "Enter" && event?.ctrlKey && !event?.altKey && !event?.metaKey;
+    const context = saleShortcutContext({
+      ...rawContext,
+      hasEditableTarget: rawContext.hasEditableTarget ?? saleShortcutEditableTarget(event?.target),
+    });
+    if (!context.overlayOpen) return null;
+    if (!ctrlEnter && (event?.ctrlKey || event?.altKey || event?.metaKey)) return null;
+    const functionKey = /^F(?:[5-9]|1[0-2])$/.test(key);
+    if (context.editorOpen || event?.isComposing) {
+      if (context.editorOpen && (functionKey || ctrlEnter)) {
+        return { action: SALE_SHORTCUT_ACTIONS.BLOCKED_MODAL, key: ctrlEnter ? "Ctrl+Enter" : key };
+      }
+      return null;
+    }
+    if (key === "Escape") {
+      return {
+        action: context.priceVerifierOpen ? SALE_SHORTCUT_ACTIONS.CLOSE_PRICE_VERIFIER : SALE_SHORTCUT_ACTIONS.CLOSE_CONSOLE,
+        key,
+      };
+    }
+    if (ctrlEnter) {
+      return {
+        action: SALE_SHORTCUT_ACTIONS.SUBMIT_SALE,
+        key: "Ctrl+Enter",
+        repeat: Boolean(event?.repeat),
+      };
+    }
+    if (!functionKey) return null;
+    if (key === "F5") return { action: SALE_SHORTCUT_ACTIONS.NEW_SALE, key };
+    if (key === "F6") return { action: SALE_SHORTCUT_ACTIONS.PARK_SALE, key, allowed: context.canParkSale };
+    if (key === "F7") return { action: SALE_SHORTCUT_ACTIONS.RESUME_SALE, key, allowed: context.hasPendingSales };
+    if (key === "F8") return { action: SALE_SHORTCUT_ACTIONS.COMMON_SALE, key, allowed: context.canOpenCommonSale };
+    if (key === "F9") return { action: SALE_SHORTCUT_ACTIONS.VERIFY_PRICE, key, allowed: context.canVerifyPrice };
+    if (key === "F10") return { action: SALE_SHORTCUT_ACTIONS.STAGE_CATALOG, key };
+    if (key === "F11") return { action: SALE_SHORTCUT_ACTIONS.STAGE_CART, key };
+    return {
+      action: SALE_SHORTCUT_ACTIONS.SUBMIT_SALE,
+      key,
+      repeat: Boolean(event?.repeat),
+      allowed: context.canCreateSale,
+    };
+  }
+
+  function saleShortcutRuntimeContext() {
+    return {
+      overlayOpen: !$("saleOverlay")?.classList.contains("oculto"),
+      editorOpen: !$("editorOverlay")?.classList.contains("oculto"),
+      priceVerifierOpen: !$("salePriceVerifier")?.classList.contains("oculto"),
+      receiptVisible: !$("saleReceipt")?.classList.contains("oculto"),
+      shiftOpen: Boolean(saleShift?.id),
+      stage: saleStage,
+      hasCartLines: saleCart.length > 0,
+      hasPendingSales: salePendingCount() > 0,
+      canParkSale: saleAccess.canParkSale,
+      canOpenCommonSale: saleAccess.canOpenCommonSale,
+      canVerifyPrice: saleAccess.canVerifyPrice,
+      canCreateSale: saleAccess.canCreateSale,
+    };
+  }
+
+  function showSaleWorkbenchFromShortcut(stage, focus = true) {
+    $("saleReceipt").classList.add("oculto");
+    $("saleConsole").classList.remove("receipt-mode");
+    renderSaleShift();
+    if (!saleShift?.id) {
+      setTimeout(() => $("saleOpening")?.focus(), 0);
+      return false;
+    }
+    setSaleStage(stage, focus);
+    return true;
+  }
+
+  function executeSaleShortcut(shortcut) {
+    const receiptVisible = !$("saleReceipt")?.classList.contains("oculto");
+    if (receiptVisible && ![
+      SALE_SHORTCUT_ACTIONS.NEW_SALE,
+      SALE_SHORTCUT_ACTIONS.CLOSE_CONSOLE,
+      SALE_SHORTCUT_ACTIONS.CLOSE_PRICE_VERIFIER,
+    ].includes(shortcut.action)) {
+      toast("La venta ya fue registrada. Pulsa F5 para preparar la siguiente.");
+      return true;
+    }
+    switch (shortcut.action) {
+      case SALE_SHORTCUT_ACTIONS.BLOCKED_MODAL:
+        return true;
+      case SALE_SHORTCUT_ACTIONS.CLOSE_PRICE_VERIFIER:
+        closeSalePriceVerifier();
+        return true;
+      case SALE_SHORTCUT_ACTIONS.CLOSE_CONSOLE:
+        closeSaleConsole();
+        return true;
+      case SALE_SHORTCUT_ACTIONS.NEW_SALE:
+        if (!receiptVisible && saleHasDraft()
+            && !confirm("La cuenta actual se borrara. ¿Preparar una nueva venta?")) return true;
+        if (!$("salePriceVerifier").classList.contains("oculto")) closeSalePriceVerifier();
+        clearSale();
+        showSaleWorkbenchFromShortcut("catalog");
+        return true;
+      case SALE_SHORTCUT_ACTIONS.PARK_SALE:
+        if (!saleAccess.canParkSale) {
+          toast("Tu cuenta no puede guardar ventas pendientes.");
+          return true;
+        }
+        if (!saleCart.length) {
+          toast("No hay una cuenta para guardar.");
+          return true;
+        }
+        parkSale();
+        return true;
+      case SALE_SHORTCUT_ACTIONS.RESUME_SALE:
+        if (!salePendingCount()) {
+          toast("No hay cuentas en espera guardadas.");
+          return true;
+        }
+        openPendingSales();
+        return true;
+      case SALE_SHORTCUT_ACTIONS.COMMON_SALE:
+        if (!saleAccess.canOpenCommonSale) {
+          toast("Tu cuenta no puede registrar ventas comunes.");
+          return true;
+        }
+        openCommonSale();
+        return true;
+      case SALE_SHORTCUT_ACTIONS.VERIFY_PRICE:
+        if (!saleAccess.canVerifyPrice) {
+          toast("Tu cuenta no puede verificar precios en la caja web.");
+          return true;
+        }
+        if (!$("salePriceVerifier").classList.contains("oculto")) closeSalePriceVerifier();
+        else openSalePriceVerifier();
+        return true;
+      case SALE_SHORTCUT_ACTIONS.STAGE_CATALOG:
+        if (!$("salePriceVerifier").classList.contains("oculto")) closeSalePriceVerifier();
+        showSaleWorkbenchFromShortcut("catalog");
+        return true;
+      case SALE_SHORTCUT_ACTIONS.STAGE_CART:
+        if (!saleShift?.id) {
+          showSaleWorkbenchFromShortcut("catalog");
+          return true;
+        }
+        if (!saleCart.length) {
+          setSaleStage("catalog", true);
+          toast("Agrega productos antes de revisar la cuenta.");
+          return true;
+        }
+        if (!$("salePriceVerifier").classList.contains("oculto")) closeSalePriceVerifier();
+        showSaleWorkbenchFromShortcut("cart");
+        return true;
+      case SALE_SHORTCUT_ACTIONS.SUBMIT_SALE:
+        if (!saleShift?.id) {
+          showSaleWorkbenchFromShortcut("catalog");
+          toast("Abre la caja web antes de cobrar.");
+          return true;
+        }
+        if (!saleAccess.canCreateSale) {
+          toast("Tu cuenta no puede registrar ventas en la caja web.");
+          return true;
+        }
+        if (!saleCart.length) {
+          setSaleStage("catalog", true);
+          toast("Agrega productos antes de cobrar.");
+          return true;
+        }
+        if (!$("salePriceVerifier").classList.contains("oculto")) closeSalePriceVerifier();
+        if (saleStage !== "checkout") {
+          showSaleWorkbenchFromShortcut("checkout");
+          return true;
+        }
+        if (!shortcut.repeat) submitSale();
+        return true;
+      default:
+        return false;
+    }
+  }
+
+  window.__DCARELA_SALE_SHORTCUTS__ = Object.freeze({
+    actions: SALE_SHORTCUT_ACTIONS,
+    keys: Object.freeze(["F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12", "Ctrl+Enter", "Escape"]),
+    isEditableTarget: saleShortcutEditableTarget,
+    resolve: resolveSaleShortcut,
+  });
+
   function handleSaleShortcut(event) {
-    if ($("saleOverlay")?.classList.contains("oculto")) return;
-    if (!$("editorOverlay").classList.contains("oculto")) return;
-    if (event.key === "Escape") {
-      event.preventDefault();
-      if (!$("salePriceVerifier").classList.contains("oculto")) closeSalePriceVerifier();
-      else closeSaleConsole();
-      return;
-    }
-    if (event.key === "F9") {
-      event.preventDefault();
-      openSalePriceVerifier();
-      return;
-    }
-    if (event.key === "F10") {
-      event.preventDefault();
-      setSaleStage("catalog", true);
-      return;
-    }
-    if (event.key === "F6") {
-      event.preventDefault();
-      parkSale();
-      return;
-    }
-    if (event.key === "F12") {
-      event.preventDefault();
-      if (saleStage !== "checkout") setSaleStage("checkout", true);
-      else if (!event.repeat) submitSale();
-      return;
-    }
-    if (event.ctrlKey && event.key === "Enter") {
-      event.preventDefault();
-      setSaleStage("checkout");
-      submitSale();
-    }
+    const shortcut = resolveSaleShortcut(event, saleShortcutRuntimeContext());
+    if (!shortcut) return;
+    event.preventDefault();
+    event.stopPropagation();
+    executeSaleShortcut(shortcut);
   }
 
   function calcularLineaVentaWeb(product, quantity) {
@@ -3061,7 +3531,7 @@
       const referenciaPago = payload.referencia || (Array.isArray(payload.pagos)
         ? payload.pagos.map(pago => pago?.referencia).find(Boolean) : null);
       const saleId = event.entity_id || payload.ventaId || payload.venta_id;
-      return `<tr><td>${esc(fecha(fechaEventoIso(event)))}</td><td>#${esc(payload.folio ?? "--")}</td><td>${esc(nombreCajero(payload, userCatalog))}</td><td><button class="turn-link" data-turno="${esc(turnoId)}">${esc(etiquetaTurno)}</button></td><td>${esc(metodoConCuentaDe(payload))}</td><td>${esc(payload.clienteNombre || "Consumidor final")}</td><td class="amount">${money(totalDe(payload))}</td><td><div class="button-row"><button class="secondary detail-toggle" data-detail="sale-${index}">Detalle</button>${canEdit && saleId ? `<button class="secondary" data-cancel-sale="${esc(saleId)}" data-cancel-folio="${esc(payload.folio ?? "")}">Anular</button>` : ""}</div></td></tr>
+      return `<tr><td>${esc(fecha(fechaEventoIso(event)))}</td><td>#${esc(payload.folio ?? "--")}</td><td>${esc(nombreCajero(payload, userCatalog))}</td><td><button class="turn-link" data-turno="${esc(turnoId)}">${esc(etiquetaTurno)}</button></td><td>${esc(metodoConCuentaDe(payload))}</td><td>${esc(payload.clienteNombre || "Consumidor final")}</td><td class="amount">${money(totalDe(payload))}</td><td><div class="button-row"><button class="secondary detail-toggle" data-detail="sale-${index}">Detalle</button>${saleAccess.canCancelSale && saleId ? `<button class="secondary" data-cancel-sale="${esc(saleId)}" data-cancel-folio="${esc(payload.folio ?? "")}">Anular</button>` : ""}</div></td></tr>
         <tr id="sale-${index}" class="detail-row oculto"><td colspan="8"><div class="detail-box">${lines || "Sin lineas sincronizadas"}<br>Subtotal: ${money(payload.subtotalSinItbisCentavos)} | ITBIS: ${money(itbisDe(payload))} | Ajuste: ${money(payload.ajusteRedondeoCentavos)}${cuentasTransferencia.length ? `<br>Cuenta receptora: ${esc(cuentasTransferencia.join(" / "))}` : ""}${referenciaPago ? `<br>Referencia: ${esc(referenciaPago)}` : ""}${payload.nota ? `<br>Nota: ${esc(payload.nota)}` : ""}</div></td></tr>`;
     }).join("");
     $("ventasTabla").innerHTML = `<table><thead><tr><th>Fecha</th><th>Folio</th><th>Cajero</th><th>Turno</th><th>Metodo</th><th>Cliente</th><th class="amount">Total</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
@@ -5578,6 +6048,7 @@
     await cargarSucursalesDisponibles();
     await cargarRolEdicion().catch(() => { canEdit = false; memberRole = "viewer"; });
     await cargarTemaUsuario().catch(() => {});
+    await cargarPermisosCajaWeb().catch(() => setSaleAccess({ loaded: true }));
     if (canEdit) renderIaApprovals().catch(() => {});
     conectarRealtime();
     await obtenerAlertas(true).catch(() => []);
@@ -5764,7 +6235,12 @@
       $("iaInput").focus();
     }));
     on("btnNuevaVentaWeb", "click", () => openSaleConsole(false).catch(error => toast(error.message)));
-    on("btnReanudarVenta", "click", () => openSaleConsole(true).catch(error => toast(error.message)));
+    on("btnReanudarVenta", "click", async () => {
+      try {
+        await openSaleConsole(false);
+        openPendingSales();
+      } catch (error) { toast(error.message); }
+    });
     on("btnCerrarVenta", "click", closeSaleConsole);
     on("saleOverlay", "click", event => { if (event.target === $("saleOverlay")) closeSaleConsole(); });
     $("saleStageTabs").querySelectorAll("[data-sale-stage]").forEach(button => button.addEventListener("click", () => setSaleStage(button.dataset.saleStage, true)));
@@ -6005,6 +6481,11 @@
     if (session) await iniciar(); else mostrarAcceso("v-login");
   }
 
+  if (window.__DCARELA_TEST_PANEL_SHORTCUTS__ === true) {
+    document.documentElement.dataset.panelModule = "test-ready";
+    return;
+  }
+
   arrancar().then(() => {
     document.documentElement.dataset.panelModule = "ready";
     // Si el HTML servido no trae algun elemento, el panel funciona igual pero
@@ -6025,3 +6506,29 @@
     if (target) target.textContent = `No se pudo iniciar el panel: ${error?.message || error}`;
   });
 })();
+
+
+// DCARELA_SESSION_GUARD_FINAL_1_0_30
+async function dcWaitForAuthenticatedSession(client, timeoutMs = 10000) {
+  if (!client?.auth?.getSession) {
+    return null;
+  }
+
+  const startedAt = Date.now();
+
+  while (Date.now() - startedAt < timeoutMs) {
+    const { data, error } = await client.auth.getSession();
+
+    if (error) {
+      throw error;
+    }
+
+    if (data?.session) {
+      return data.session;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+
+  return null;
+}

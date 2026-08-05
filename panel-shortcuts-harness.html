@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>Arnés de atajos F5-F12 - Caja web</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    :root {
+      color-scheme: light dark;
+      font-family: system-ui, sans-serif;
+    }
+    body {
+      margin: 0;
+      background: #0f172a;
+      color: #e2e8f0;
+    }
+    main {
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+    h1 { margin: 0 0 8px; }
+    p { color: #cbd5e1; }
+    .summary {
+      margin: 18px 0;
+      padding: 14px 16px;
+      border-radius: 12px;
+      background: #1e293b;
+      border: 1px solid #334155;
+      font-weight: 700;
+    }
+    .summary.ok {
+      background: #052e16;
+      border-color: #166534;
+      color: #dcfce7;
+    }
+    .summary.bad {
+      background: #450a0a;
+      border-color: #991b1b;
+      color: #fee2e2;
+    }
+    ol {
+      margin: 0;
+      padding-left: 22px;
+      display: grid;
+      gap: 10px;
+    }
+    li {
+      padding: 12px 14px;
+      border-radius: 12px;
+      background: #111827;
+      border: 1px solid #1f2937;
+    }
+    li.ok {
+      border-color: #166534;
+      background: #052e16;
+    }
+    li.bad {
+      border-color: #991b1b;
+      background: #450a0a;
+    }
+    code {
+      padding: 2px 6px;
+      border-radius: 8px;
+      background: rgba(148, 163, 184, .18);
+    }
+    small {
+      display: block;
+      margin-top: 6px;
+      color: #cbd5e1;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Arnés de atajos críticos F5-F12</h1>
+    <p>Este archivo carga <code>panel.js</code> en modo de prueba y valida el mapeo puro de la caja web sin iniciar Supabase ni el panel completo.</p>
+    <div id="summary" class="summary">Ejecutando validaciones...</div>
+    <ol id="results"></ol>
+  </main>
+
+  <script>
+    window.__DCARELA_TEST_PANEL_SHORTCUTS__ = true;
+  </script>
+  <script src="./panel.js"></script>
+  <script>
+    (() => {
+      const summary = document.getElementById("summary");
+      const resultsHost = document.getElementById("results");
+      const api = window.__DCARELA_SALE_SHORTCUTS__;
+      const results = [];
+
+      const record = (name, ok, detail = "") => results.push({ name, ok, detail });
+      const expect = (name, condition, detail = "") => record(name, Boolean(condition), detail);
+      const expectEqual = (name, actual, expected) =>
+        record(name, actual === expected, `esperado: ${expected} | recibido: ${actual}`);
+
+      const fakeEvent = (key, extra = {}) => ({
+        key,
+        ctrlKey: false,
+        altKey: false,
+        metaKey: false,
+        shiftKey: false,
+        repeat: false,
+        isComposing: false,
+        target: document.body,
+        ...extra,
+      });
+
+      const baseContext = {
+        overlayOpen: true,
+        editorOpen: false,
+        priceVerifierOpen: false,
+        receiptVisible: false,
+        shiftOpen: true,
+        stage: "catalog",
+        hasCartLines: true,
+        hasPendingSales: true,
+        canParkSale: true,
+        canOpenCommonSale: true,
+        canVerifyPrice: true,
+        canCreateSale: true,
+      };
+
+      expect("La API de atajos quedó expuesta", Boolean(api), "window.__DCARELA_SALE_SHORTCUTS__ no existe.");
+      if (!api) {
+        summary.className = "summary bad";
+        summary.textContent = "No se pudo cargar la API de atajos.";
+        return;
+      }
+
+      expect("La lista de teclas incluye F5-F12", ["F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12"].every(key => api.keys.includes(key)));
+      expect("La lista de teclas incluye Escape", api.keys.includes("Escape"));
+      expect("La lista de teclas incluye Ctrl+Enter", api.keys.includes("Ctrl+Enter"));
+
+      const input = document.createElement("input");
+      const textarea = document.createElement("textarea");
+      const contentEditable = document.createElement("div");
+      contentEditable.setAttribute("contenteditable", "true");
+      const button = document.createElement("button");
+
+      expect("input se reconoce como destino editable", api.isEditableTarget(input));
+      expect("textarea se reconoce como destino editable", api.isEditableTarget(textarea));
+      expect("contenteditable se reconoce como destino editable", api.isEditableTarget(contentEditable));
+      expect("button no se trata como destino editable", !api.isEditableTarget(button));
+
+      const expectedMap = {
+        F5: api.actions.NEW_SALE,
+        F6: api.actions.PARK_SALE,
+        F7: api.actions.RESUME_SALE,
+        F8: api.actions.COMMON_SALE,
+        F9: api.actions.VERIFY_PRICE,
+        F10: api.actions.STAGE_CATALOG,
+        F11: api.actions.STAGE_CART,
+        F12: api.actions.SUBMIT_SALE,
+      };
+
+      Object.entries(expectedMap).forEach(([key, action]) => {
+        const resolved = api.resolve(fakeEvent(key), baseContext);
+        expectEqual(`Mapeo ${key}`, resolved?.action, action);
+      });
+
+      expectEqual(
+        "Ctrl+Enter envía la venta",
+        api.resolve(fakeEvent("Enter", { ctrlKey: true }), baseContext)?.action,
+        api.actions.SUBMIT_SALE
+      );
+
+      expectEqual(
+        "Escape cierra el verificador de precios si está abierto",
+        api.resolve(fakeEvent("Escape"), { ...baseContext, priceVerifierOpen: true })?.action,
+        api.actions.CLOSE_PRICE_VERIFIER
+      );
+
+      expectEqual(
+        "Escape cierra la consola cuando no hay verificador abierto",
+        api.resolve(fakeEvent("Escape"), baseContext)?.action,
+        api.actions.CLOSE_CONSOLE
+      );
+
+      expectEqual(
+        "Con el editor modal abierto los F5-F12 no ejecutan acciones de venta",
+        api.resolve(fakeEvent("F5"), { ...baseContext, editorOpen: true })?.action,
+        api.actions.BLOCKED_MODAL
+      );
+
+      expect(
+        "Sin overlay abierto no se activa ningún atajo",
+        api.resolve(fakeEvent("F5"), { ...baseContext, overlayOpen: false }) === null
+      );
+
+      expect(
+        "Ctrl+F5 no se captura",
+        api.resolve(fakeEvent("F5", { ctrlKey: true }), baseContext) === null
+      );
+
+      expect(
+        "Alt+F9 no se captura",
+        api.resolve(fakeEvent("F9", { altKey: true }), baseContext) === null
+      );
+
+      expect(
+        "Una tecla normal no se trata como atajo",
+        api.resolve(fakeEvent("a"), baseContext) === null
+      );
+
+      const failures = results.filter(item => !item.ok);
+      summary.className = `summary ${failures.length ? "bad" : "ok"}`;
+      summary.textContent = failures.length
+        ? `${failures.length} validación(es) fallaron de ${results.length}.`
+        : `${results.length} validación(es) completadas sin diferencias.`;
+
+      resultsHost.innerHTML = results.map(item => `
+        <li class="${item.ok ? "ok" : "bad"}">
+          <strong>${item.ok ? "OK" : "FALLO"}:</strong> ${item.name}
+          ${item.detail ? `<small>${item.detail}</small>` : ""}
+        </li>`).join("");
+    })();
+  </script>
+</body>
+</html>

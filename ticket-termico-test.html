@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Validacion local | Ticket termico caja web</title>
+  <link rel="stylesheet" href="panel.css?v=2026.08.04.1">
+</head>
+<body class="thermal-validation-page">
+  <section class="thermal-validation-shell">
+    <section class="thermal-validation-card">
+      <h1>Validacion local del ticket termico</h1>
+      <p>Esta vista no depende de Supabase ni de produccion. Renderiza un comprobante termico de ejemplo, valida la salida y permite abrir la impresion del navegador.</p>
+      <div class="thermal-validation-toolbar">
+        <button id="btnSampleStandard" type="button">Ejemplo normal</button>
+        <button id="btnSampleLong" type="button">Ejemplo largo</button>
+        <button id="btnRender" class="primary" type="button">Renderizar</button>
+        <button id="btnValidate" type="button">Validar</button>
+        <button id="btnPrint" type="button">Imprimir</button>
+      </div>
+      <div id="validationStatus" class="thermal-validation-status">
+        <strong>Sin validar</strong>
+        <span>Renderiza un ejemplo para revisar el ticket.</span>
+      </div>
+      <h2 style="margin-top:16px">JSON de entrada</h2>
+      <textarea id="ticketJson" class="thermal-validation-json" spellcheck="false"></textarea>
+    </section>
+
+    <section class="thermal-validation-card thermal-validation-print">
+      <h2>Vista previa</h2>
+      <p class="thermal-validation-print-note">La impresión usa el mismo render térmico que la caja web del panel.</p>
+      <div id="ticketPreview" class="thermal-validation-preview"></div>
+      <h3 style="margin-top:14px">Salida plana</h3>
+      <pre id="ticketText" class="thermal-validation-plain"></pre>
+    </section>
+  </section>
+
+  <script src="ticket-termico.js?v=2026.08.04.1"></script>
+  <script>
+    (() => {
+      "use strict";
+
+      const $ = id => document.getElementById(id);
+      const api = window.DcarelaThermalTicket;
+      let currentRender = null;
+
+      function setStatus(ok, lines) {
+        const box = $("validationStatus");
+        box.className = `thermal-validation-status ${ok ? "ok" : "bad"}`;
+        box.innerHTML = `<strong>${ok ? "Validacion lista" : "Validacion con errores"}</strong><span>${lines.join(" | ")}</span>`;
+      }
+
+      function currentPayload() {
+        return JSON.parse($("ticketJson").value);
+      }
+
+      function runValidation() {
+        if (!currentRender) {
+          setStatus(false, ["Todavia no hay un ticket renderizado."]);
+          return { ok: false, errors: ["Sin render"], warnings: [] };
+        }
+        const domValidation = api.validateElement($("ticketPreview"));
+        const issues = [
+          ...currentRender.validation.errors,
+          ...domValidation.errors,
+        ];
+        const warnings = [
+          ...currentRender.validation.warnings,
+          ...domValidation.warnings,
+        ];
+        setStatus(
+          issues.length === 0,
+          issues.length ? issues : (warnings.length ? warnings : ["El render incluye encabezado, productos, totales y metadatos operativos."])
+        );
+        return { ok: issues.length === 0, errors: issues, warnings };
+      }
+
+      function render() {
+        try {
+          currentRender = api.render(currentPayload());
+          $("ticketPreview").innerHTML = currentRender.html;
+          $("ticketText").textContent = currentRender.text;
+          runValidation();
+        } catch (error) {
+          currentRender = null;
+          $("ticketPreview").innerHTML = "";
+          $("ticketText").textContent = "";
+          setStatus(false, [error.message || String(error)]);
+        }
+      }
+
+      function loadSample(kind) {
+        $("ticketJson").value = JSON.stringify(api.sample(kind), null, 2);
+        render();
+      }
+
+      $("btnSampleStandard").addEventListener("click", () => loadSample("standard"));
+      $("btnSampleLong").addEventListener("click", () => loadSample("long"));
+      $("btnRender").addEventListener("click", render);
+      $("btnValidate").addEventListener("click", runValidation);
+      $("btnPrint").addEventListener("click", () => {
+        const result = runValidation();
+        if (!result.ok) return;
+        window.print();
+      });
+
+      loadSample("standard");
+    })();
+  </script>
+</body>
+</html>

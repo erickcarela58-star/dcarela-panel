@@ -3,11 +3,12 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#09090b">
+  <meta name="theme-color" content="#0a3679">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <meta name="apple-mobile-web-app-title" content="D' Carela POS">
-  <title>D' Carela Compufoto | Panel POS</title>
+  <meta name="apple-mobile-web-app-title" content="D' Carela Punto de Venta 1.0.30">
+  <meta name="description" content="Panel web POS 1.0.30 de D' Carela Compufoto con operación responsive, tema claro/oscuro y módulos administrativos del punto de venta.">
+  <title>D' Carela Compufoto | Panel POS 1.0.30</title>
   <script>
     (() => {
       const params = new URLSearchParams(location.search);
@@ -25,8 +26,8 @@
   </script>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="dcarela-logo.png">
-  <link rel="stylesheet" href="panel.css?v=2026.08.01.2">
-  <link rel="stylesheet" href="panel-theme.css?v=2026.08.01.2">
+  <link rel="stylesheet" href="panel.css?v=1.0.30">
+  <link rel="stylesheet" href="panel-theme.css?v=1.0.30">
 </head>
 <body>
   <section id="access" class="access-shell">
@@ -62,7 +63,7 @@
     <aside class="sidebar">
       <div class="brand">
         <img src="dcarela-logo.png" alt="" class="brand-logo">
-        <div><strong>D' Carela Compufoto</strong><span>Punto de Venta</span></div>
+        <div><strong>D' Carela Compufoto</strong><span>Punto de Venta 1.0.30</span></div>
       </div>
       <nav id="menu" aria-label="Navegacion principal">
         <a href="#dashboard" data-title="Resumen operativo">Resumen</a>
@@ -91,7 +92,7 @@
     <div class="workspace">
       <header class="topbar">
         <button id="btnVolver" class="topbar-back" type="button" title="Volver" aria-label="Volver">&#8592;</button>
-        <div class="topbar-title"><p class="eyebrow" id="branchEyebrow">D' Carela POS</p><h1 id="pageTitle">Resumen operativo</h1></div>
+        <div class="topbar-title"><p class="eyebrow" id="branchEyebrow">D' Carela POS 1.0.30</p><h1 id="pageTitle">Resumen operativo</h1></div>
         <div class="top-actions">
           <label class="branch-switcher" for="branchSelector">
             <span>Sucursal</span>
@@ -166,8 +167,8 @@
         <section id="v-ventas" class="vista oculto">
           <div class="section-heading">
             <div><h2>Ventas</h2><p>Registra ventas desde cualquier sistema operativo y consulta el detalle fiscal y comercial.</p></div>
-            <div class="button-row sale-heading-actions admin-only oculto">
-              <button id="btnReanudarVenta" class="secondary" type="button">Venta pendiente</button>
+            <div class="button-row sale-heading-actions sale-web-access oculto">
+              <button id="btnReanudarVenta" class="secondary" type="button">Cuentas en espera</button>
               <button id="btnNuevaVentaWeb" class="primary" type="button">Nueva venta</button>
             </div>
           </div>
@@ -457,9 +458,9 @@
                 <input id="iaFiles" class="visually-hidden" type="file" multiple accept="image/*,application/pdf,text/plain,text/csv,application/json,.txt,.md,.csv,.json">
                 <textarea id="iaInput" rows="2" maxlength="8000" placeholder="Escribe una pregunta u orden para el POS..."></textarea>
                 <div class="assistant-composer-toolbar">
-                  <button id="btnIaAdjuntar" class="icon-button assistant-attach" type="button" title="Adjuntar imagen o documento" aria-label="Adjuntar imagen o documento"><svg class="assistant-toolbar-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m16 6-8.4 8.6a2 2 0 0 0 2.8 2.8l8.4-8.6a4 4 0 1 0-5.6-5.6l-8.4 8.5a6 6 0 1 0 8.5 8.5l8.4-8.5"/></svg></button>
+                  <button id="btnIaAdjuntar" class="icon-button assistant-attach" type="button" title="Adjuntar imagen o documento" aria-label="Adjuntar imagen o documento"><svg class="assistant-toolbar-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m16 6-8.4 8.6a2 2 0 0 0 2.8 2.8l8.4-8.6a4 4 0 1 0-5.6-5.6l-8.4 8.5"/></svg></button>
                   <details id="iaTools" class="assistant-tools">
-                    <summary aria-label="Abrir herramientas"><svg class="assistant-toolbar-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 4h-7"/><path d="M10 4H3"/><path d="M21 12h-9"/><path d="M8 12H3"/><path d="M21 20h-5"/><path d="M12 20H3"/><path d="M14 2v4"/><path d="M8 10v4"/><path d="M16 18v4"/></svg><span>Herramientas</span></summary>
+                    <summary aria-label="Abrir herramientas"><svg class="assistant-toolbar-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10"/><path d="M18 7h2"/><path d="M4 17h2"/><path d="M10 17h10"/><path d="M14 2v4"/><path d="M8 10v4"/><path d="M16 18v4"/></svg><span>Herramientas</span></summary>
                     <div class="assistant-tools-menu">
                       <button type="button" data-ia-tool="document" data-prompt="Analiza el documento adjunto, extrae sus datos y proponme el registro correcto antes de aplicar cambios.">Analizar imagen o factura</button>
                       <button type="button" data-ia-tool="records" data-prompt="Busca en los datos reales del POS lo siguiente: ">Buscar en los datos del POS</button>
@@ -591,7 +592,7 @@
             </form>
           </section>
           <div class="config-grid">
-            <section class="surface"><div id="cfgInfo"></div><div class="button-row"><button class="secondary" id="btnSalir">Cerrar sesion</button><button class="secondary" id="btnReset">Cambiar conexion</button></div></section>
+            <section class="surface"><div id="cfgInfo"></div><div class="button-row"><a class="secondary button-link" href="./ticket-termico-test.html" target="_blank" rel="noopener">Validar ticket termico</a><button class="secondary" id="btnSalir">Cerrar sesion</button><button class="secondary" id="btnReset">Cambiar conexion</button></div></section>
             <section class="surface">
               <div class="surface-title"><div><h3>Seguridad de la cuenta</h3><p>Cambia la contrasena del usuario que tiene la sesion abierta.</p></div><button id="btnCambiarClave" class="primary" type="button">Actualizar contrasena</button></div>
               <form id="formCambiarClave" class="form-grid" autocomplete="off">
@@ -626,8 +627,13 @@
         </div>
         <div class="sale-header-actions">
           <div class="sale-shortcut-hints" aria-label="Atajos de teclado">
+            <span><kbd>F5</kbd> Nueva</span>
+            <span><kbd>F6</kbd> Espera</span>
+            <span><kbd>F7</kbd> Reanudar</span>
+            <span><kbd>F8</kbd> Comun</span>
             <span><kbd>F9</kbd> Precio</span>
             <span><kbd>F10</kbd> Buscar</span>
+            <span><kbd>F11</kbd> Cuenta</span>
             <span><kbd>F12</kbd> Cobrar</span>
           </div>
           <span id="saleShiftPill" class="status-pill">Consultando turno</span>
@@ -650,8 +656,8 @@
       <div id="saleCommandStrip" class="sale-command-strip" aria-label="Herramientas de venta">
         <button id="btnSaleVerifyPrice" class="secondary" type="button"><kbd>F9</kbd> Verificar precio</button>
         <button id="btnSaleFocusSearch" class="secondary" type="button"><kbd>F10</kbd> Buscar</button>
-        <button id="btnSaleCommon" class="secondary" type="button">Venta comun</button>
-        <button id="btnSalePark" class="secondary" type="button">Guardar pendiente</button>
+        <button id="btnSalePark" class="secondary" type="button"><kbd>F6</kbd> En espera</button>
+        <button id="btnSaleCommon" class="secondary" type="button"><kbd>F8</kbd> Venta comun</button>
         <button id="btnSaleClear" class="secondary" type="button">Limpiar</button>
       </div>
 
@@ -716,7 +722,7 @@
 
       <section id="saleReceipt" class="sale-receipt-view oculto">
         <div id="saleReceiptContent"></div>
-        <div class="sale-final-actions"><button id="btnSalePrintReceipt" class="secondary" type="button">Imprimir comprobante</button><button id="btnSaleNext" class="primary" type="button">Siguiente venta</button></div>
+        <div class="sale-final-actions"><button id="btnSalePrintReceipt" class="secondary" type="button">Imprimir ticket termico</button><button id="btnSaleNext" class="primary" type="button">Siguiente venta</button></div>
       </section>
 
       <div id="saleMobileSummary" class="sale-mobile-summary oculto">
@@ -757,7 +763,9 @@
   <script src="supabase.min.js"></script>
   <script src="jspdf.umd.min.js"></script>
   <script src="jspdf.plugin.autotable.min.js"></script>
-<script src="panel.js?v=2026.08.01.2"></script>
+  <script src="ticket-termico.js?v=1.0.30"></script>
+  <script src="panel-sale-pending.js?v=1.0.30"></script>
+  <script src="panel.js?v=1.0.30"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));

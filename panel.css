@@ -3167,3 +3167,307 @@ html.embedded-panel #v-asistente:not(.oculto) .assistant-send::before {
 :root[data-theme="dark"] .conteo-dif.ok{color:#6ee7b7}
 :root[data-theme="dark"] .conteo-dif.alerta{color:#fca5a5}
 @media(max-width:520px){.conteo-grid{grid-template-columns:repeat(2,1fr)}}
+
+/* Ticket termico para caja web y validacion local */
+.thermal-ticket {
+  width: min(100%, 320px);
+  margin: 0 auto;
+  padding: 16px 14px 14px;
+  color: #0f172a;
+  background: #fff;
+  border: 1px dashed rgba(15, 23, 42, .28);
+  border-radius: 12px;
+  box-shadow: 0 16px 36px rgba(15, 23, 42, .12);
+  font-family: "Cascadia Mono", Consolas, "Courier New", monospace;
+}
+.thermal-ticket--invalid { border-color: rgba(197, 63, 72, .52); box-shadow: 0 16px 36px rgba(197, 63, 72, .12); }
+.thermal-ticket__status {
+  margin-bottom: 10px;
+  padding: 6px 8px;
+  color: #8b1e2d;
+  background: rgba(197, 63, 72, .08);
+  border: 1px solid rgba(197, 63, 72, .18);
+  border-radius: 8px;
+  font-size: 10px;
+  line-height: 1.45;
+}
+.thermal-ticket__status strong,
+.thermal-ticket__status span { display: block; }
+.thermal-ticket__header { text-align: center; }
+.thermal-ticket__brand {
+  color: #0a3679;
+  font-size: 18px;
+  font-weight: 900;
+  line-height: 1.18;
+  text-transform: uppercase;
+}
+.thermal-ticket__identity,
+.thermal-ticket__contact {
+  margin-top: 4px;
+  color: #334155;
+  font-size: 11px;
+  line-height: 1.45;
+}
+.thermal-ticket__mode {
+  margin-top: 10px;
+  color: #0a3679;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.thermal-ticket__meta,
+.thermal-ticket__items,
+.thermal-ticket__summary,
+.thermal-ticket__payments,
+.thermal-ticket__footer {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed rgba(15, 23, 42, .26);
+}
+.thermal-ticket__meta { display: grid; gap: 4px; }
+.thermal-ticket__meta-row,
+.thermal-ticket__summary-row,
+.thermal-ticket__payment-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: flex-start;
+}
+.thermal-ticket__meta-row span:first-child,
+.thermal-ticket__summary-row span:first-child,
+.thermal-ticket__payment-row span:first-child { color: #475569; }
+.thermal-ticket__meta-row span:last-child,
+.thermal-ticket__summary-row span:last-child,
+.thermal-ticket__payment-row span:last-child {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.thermal-ticket__items { display: grid; gap: 10px; }
+.thermal-ticket__item { display: grid; gap: 4px; }
+.thermal-ticket__name {
+  color: #0f172a;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.35;
+  word-break: break-word;
+}
+.thermal-ticket__calc {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  color: #475569;
+  font-size: 11px;
+  line-height: 1.4;
+}
+.thermal-ticket__summary { display: grid; gap: 5px; }
+.thermal-ticket__summary-row.total {
+  margin-top: 2px;
+  padding-top: 8px;
+  color: #0a3679;
+  border-top: 1px dashed rgba(15, 23, 42, .26);
+  font-size: 13px;
+  font-weight: 900;
+}
+.thermal-ticket__payments { display: grid; gap: 5px; }
+.thermal-ticket__payments h4,
+.thermal-ticket__footer h4 {
+  margin: 0 0 6px;
+  color: #0a3679;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+.thermal-ticket__payment-row small,
+.thermal-ticket__footer p {
+  display: block;
+  margin-top: 2px;
+  color: #475569;
+  font-size: 10px;
+  line-height: 1.45;
+}
+.thermal-ticket__footer {
+  color: #334155;
+  text-align: center;
+  font-size: 10px;
+  line-height: 1.5;
+}
+.thermal-ticket__footer p { margin: 0; }
+.sale-receipt-view .thermal-ticket { width: min(100%, 360px); }
+
+.thermal-validation-page {
+  min-height: 100vh;
+  margin: 0;
+  padding: 22px;
+  color: #152238;
+  font-family: "Segoe UI", Inter, Arial, sans-serif;
+  background:
+    linear-gradient(rgba(237,244,250,.82), rgba(226,236,246,.9)),
+    repeating-linear-gradient(90deg, transparent 0, transparent 79px, rgba(10,54,121,.03) 80px);
+}
+.thermal-validation-shell {
+  display: grid;
+  grid-template-columns: minmax(320px, 430px) minmax(0, 1fr);
+  gap: 16px;
+}
+.thermal-validation-card {
+  padding: 16px;
+  background: rgba(255,255,255,.7);
+  border: 1px solid rgba(255,255,255,.86);
+  border-radius: 14px;
+  box-shadow: 0 18px 42px rgba(15,42,78,.1);
+  backdrop-filter: blur(22px) saturate(125%);
+}
+.thermal-validation-card h1,
+.thermal-validation-card h2,
+.thermal-validation-card h3 { margin: 0; color: #0a3679; }
+.thermal-validation-card p { color: #62738c; line-height: 1.5; }
+.thermal-validation-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+.thermal-validation-toolbar button {
+  min-height: 38px;
+  padding: 8px 12px;
+  color: #0a3679;
+  background: rgba(255,255,255,.74);
+  border: 1px solid rgba(31,61,99,.16);
+  border-radius: 9px;
+  font-weight: 800;
+}
+.thermal-validation-toolbar button.primary {
+  color: #fff;
+  background: #0a3679;
+  border-color: #0a3679;
+}
+.thermal-validation-json,
+.thermal-validation-plain {
+  width: 100%;
+  min-height: 280px;
+  padding: 12px;
+  color: #0f172a;
+  background: rgba(255,255,255,.88);
+  border: 1px solid rgba(31,61,99,.16);
+  border-radius: 10px;
+  font: 12px/1.55 "Cascadia Mono", Consolas, "Courier New", monospace;
+}
+.thermal-validation-plain {
+  min-height: 220px;
+  white-space: pre-wrap;
+  overflow: auto;
+}
+.thermal-validation-status {
+  margin-top: 12px;
+  padding: 11px 12px;
+  border-radius: 10px;
+  background: rgba(255,255,255,.84);
+  border: 1px solid rgba(31,61,99,.12);
+}
+.thermal-validation-status.ok {
+  color: #075d51;
+  background: rgba(22,133,121,.1);
+  border-color: rgba(22,133,121,.18);
+}
+.thermal-validation-status.bad {
+  color: #87232c;
+  background: rgba(197,63,72,.08);
+  border-color: rgba(197,63,72,.18);
+}
+.thermal-validation-status strong,
+.thermal-validation-status span {
+  display: block;
+}
+.thermal-validation-preview {
+  min-height: 440px;
+  display: grid;
+  place-items: start center;
+  align-content: start;
+  gap: 14px;
+}
+.thermal-validation-print-note {
+  color: #62738c;
+  font-size: 11px;
+  text-align: center;
+}
+body.sale-printing > :not(#saleOverlay) { display: none !important; }
+body.sale-printing #saleOverlay {
+  position: static !important;
+  inset: auto !important;
+  display: block !important;
+  background: #fff !important;
+}
+body.sale-printing #saleConsole {
+  width: auto !important;
+  max-width: none !important;
+  min-height: auto !important;
+  padding: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+body.sale-printing .sale-console-header,
+body.sale-printing #saleStageTabs,
+body.sale-printing #saleCommandStrip,
+body.sale-printing #saleShiftGate,
+body.sale-printing #saleWorkbench,
+body.sale-printing #saleMobileSummary,
+body.sale-printing #salePriceVerifier,
+body.sale-printing .sale-final-actions {
+  display: none !important;
+}
+body.sale-printing #saleReceipt {
+  display: block !important;
+  padding: 0 !important;
+}
+body.sale-printing .thermal-ticket {
+  width: 72mm !important;
+  max-width: 72mm !important;
+  margin: 0 auto !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+@media print {
+  @page { size: 80mm auto; margin: 4mm; }
+  .thermal-validation-page {
+    padding: 0;
+    background: #fff;
+  }
+  .thermal-validation-shell {
+    display: block;
+  }
+  .thermal-validation-shell > :not(.thermal-validation-print) {
+    display: none !important;
+  }
+  .thermal-validation-card {
+    padding: 0;
+    background: #fff;
+    border: 0;
+    box-shadow: none;
+  }
+  .thermal-ticket {
+    width: 72mm;
+    max-width: 72mm;
+    margin: 0 auto;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+}
+@media (max-width: 920px) {
+  .thermal-validation-page { padding: 14px; }
+  .thermal-validation-shell { grid-template-columns: 1fr; }
+}
+@media (max-width: 640px) {
+  .thermal-ticket { width: 100%; }
+  .thermal-validation-toolbar { display: grid; grid-template-columns: 1fr 1fr; }
+  .thermal-validation-toolbar button { width: 100%; }
+  .thermal-validation-json,
+  .thermal-validation-plain { min-height: 220px; }
+}

@@ -1,4 +1,4 @@
-const APP_BUILD = "2026.08.02.2";
+const APP_BUILD = "1.0.30";
 const CACHE = `dcarela-pos-shell-${APP_BUILD}`;
 const SHELL = [
   `./panel.css?v=${APP_BUILD}`,
