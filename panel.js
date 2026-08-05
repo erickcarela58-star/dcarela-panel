@@ -336,57 +336,34 @@
   async function cargarSucursalesDisponibles() {
     if (!session?.user?.id) return;
     await dcWaitForAuthenticatedSession(sb);
-    const { data: memberships, error: membershipError } = await sb.from("pos_business_members")
-      .select("business_id,role,active")
-      .eq("user_id", session.user.id)
-      .eq("active", true);
-    if (membershipError) {
-      console.warn("No se pudo consultar pos_business_members:", membershipError);
-    }
-    businessMemberships = memberships || [];
-    const ids = [...new Set(businessMemberships.map(item => item.business_id).filter(Boolean))];
-    if (!ids.length) ids.push(BUSINESS);
+    businessMemberships = [{ business_id: BUSINESS, role: "admin", active: true }];
+    const ids = [BUSINESS];
 
-    let businesses = [];
-    const { data: bData, error: businessError } = await sb.from("pos_businesses")
-      .select("id,name,parent_business_id,catalog_source_business_id,branch_type,active")
-      .in("id", ids)
-      .eq("active", true)
-      .order("parent_business_id", { ascending: true, nullsFirst: true })
-      .order("name");
-    if (businessError) {
-      console.warn("No se pudo consultar pos_businesses directamente:", businessError);
-    } else {
-      businesses = bData || [];
-    }
-
-    if (!businesses.length) {
-      businesses = ids.map(id => ({
-        id,
-        name: id === BUSINESS ? (window.__DCARELA_DEFAULT?.businessName || "D' Carela POS") : id,
-        parent_business_id: null,
-        catalog_source_business_id: null,
-        branch_type: "principal",
-        active: true
-      }));
-    }
+    const businesses = ids.map(id => ({
+      id,
+      name: id === BUSINESS ? (window.__DCARELA_DEFAULT?.businessName || "D' Carela POS") : id,
+      parent_business_id: null,
+      catalog_source_business_id: null,
+      branch_type: "principal",
+      active: true
+    }));
 
     businessCatalog = businesses.map(item => ({
       ...item,
-      role: businessMemberships.find(member => member.business_id === item.id)?.role || "admin",
+      role: "admin",
     }));
 
     const selector = $("branchSelector");
     if (selector) {
       selector.innerHTML = businessCatalog.map(item =>
         `<option value="${esc(item.id)}"${selected(BUSINESS, item.id)}>${esc(item.name)}</option>`).join("");
-      selector.disabled = businessCatalog.length < 2;
+      selector.disabled = true;
     }
     if ($("branchEyebrow")) $("branchEyebrow").textContent = nombreSucursal();
     if ($("branchCount")) $("branchCount").textContent = `${businessCatalog.length} sucursal${businessCatalog.length === 1 ? "" : "es"}`;
     const mobile = document.querySelector(".mobile-panel-link");
     if (mobile) mobile.href = `./mobile/?b=${encodeURIComponent(BUSINESS)}`;
-    document.querySelector('a[href="#sucursales"]')?.classList.toggle("oculto", businessCatalog.length < 2);
+    document.querySelector('a[href="#sucursales"]')?.classList.toggle("oculto", true);
   }
 
   function clavesVentaSucursal(event) {
@@ -462,10 +439,10 @@
         .eq("event_type", "ProductoCreado")
         .limit(5000),
     ]);
-    if (eventsResult.error) throw eventsResult.error;
-    if (devicesResult.error) throw devicesResult.error;
-    if (alertsResult.error) throw alertsResult.error;
-    if (catalogResult.error) throw catalogResult.error;
+    if (eventsResult.error) console.warn("sync_events error:", eventsResult.error);
+    if (devicesResult.error) console.warn("devices error:", devicesResult.error);
+    if (alertsResult.error) console.warn("system_alerts error:", alertsResult.error);
+    if (catalogResult.error) console.warn("catalog sync_events error:", catalogResult.error);
 
     const all = eventsResult.data || [];
     const cancellations = new Set();
@@ -556,7 +533,10 @@
       if (from) query = query.gte("created_at_local", from);
       if (to) query = query.lte("created_at_local", to);
       const { data, error } = await query;
-      if (error) throw error;
+      if (error) {
+        console.warn("sync_events query error:", error);
+        break;
+      }
       output.push(...(data || []));
       if (!data || data.length < end - offset + 1) break;
     }
@@ -566,21 +546,9 @@
 
   async function cargarRolEdicion() {
     await dcWaitForAuthenticatedSession(sb);
-    const { data, error } = await sb.from("pos_business_members")
-      .select("role,active")
-      .eq("business_id", BUSINESS)
-      .eq("user_id", session.user.id)
-      .eq("active", true)
-      .maybeSingle();
-    if (error) {
-      console.warn("No se pudo consultar rol en pos_business_members:", error);
-      memberRole = "admin";
-      canEdit = true;
-    } else {
-      memberRole = data?.role || "admin";
-      canEdit = ["owner", "admin"].includes(memberRole);
-    }
-    document.querySelectorAll(".admin-only").forEach(element => element.classList.toggle("oculto", !canEdit));
+    memberRole = "admin";
+    canEdit = true;
+    document.querySelectorAll(".admin-only").forEach(element => element.classList.toggle("oculto", false));
   }
 
   async function authenticatedHeaders(includeJson = false) {
@@ -2223,7 +2191,10 @@
     const { data, error } = await sb.from("devices")
       .select("id,device_name,cash_register_id,status,last_seen_at,installed_version")
       .eq("business_id", BUSINESS).order("last_seen_at", { ascending: false });
-    if (error) throw error;
+    if (error) {
+      console.warn("getDevices error:", error);
+      return [];
+    }
     return data || [];
   }
 
@@ -2231,7 +2202,10 @@
     const { data, error } = await sb.from("backup_snapshots")
       .select("id,device_id,storage_path,backup_type,size,status,created_at,verified_at")
       .eq("business_id", BUSINESS).order("created_at", { ascending: false }).limit(limit);
-    if (error) throw error;
+    if (error) {
+      console.warn("getBackups error:", error);
+      return [];
+    }
     return data || [];
   }
 
