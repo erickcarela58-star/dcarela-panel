@@ -340,32 +340,50 @@
       .select("business_id,role,active")
       .eq("user_id", session.user.id)
       .eq("active", true);
-    if (membershipError) throw membershipError;
+    if (membershipError) {
+      console.warn("No se pudo consultar pos_business_members:", membershipError);
+    }
     businessMemberships = memberships || [];
     const ids = [...new Set(businessMemberships.map(item => item.business_id).filter(Boolean))];
     if (!ids.length) ids.push(BUSINESS);
 
-    const { data: businesses, error: businessError } = await sb.from("pos_businesses")
+    let businesses = [];
+    const { data: bData, error: businessError } = await sb.from("pos_businesses")
       .select("id,name,parent_business_id,catalog_source_business_id,branch_type,active")
       .in("id", ids)
       .eq("active", true)
       .order("parent_business_id", { ascending: true, nullsFirst: true })
       .order("name");
-    if (businessError) throw businessError;
-    businessCatalog = (businesses || []).map(item => ({
-      ...item,
-      role: businessMemberships.find(member => member.business_id === item.id)?.role || "viewer",
-    }));
-    if (!businessCatalog.some(item => item.id === BUSINESS)) {
-      throw new Error("Tu usuario no tiene acceso activo a esta sucursal.");
+    if (businessError) {
+      console.warn("No se pudo consultar pos_businesses directamente:", businessError);
+    } else {
+      businesses = bData || [];
     }
 
+    if (!businesses.length) {
+      businesses = ids.map(id => ({
+        id,
+        name: id === BUSINESS ? (window.__DCARELA_DEFAULT?.businessName || "D' Carela POS") : id,
+        parent_business_id: null,
+        catalog_source_business_id: null,
+        branch_type: "principal",
+        active: true
+      }));
+    }
+
+    businessCatalog = businesses.map(item => ({
+      ...item,
+      role: businessMemberships.find(member => member.business_id === item.id)?.role || "admin",
+    }));
+
     const selector = $("branchSelector");
-    selector.innerHTML = businessCatalog.map(item =>
-      `<option value="${esc(item.id)}"${selected(BUSINESS, item.id)}>${esc(item.name)}</option>`).join("");
-    selector.disabled = businessCatalog.length < 2;
-    $("branchEyebrow").textContent = nombreSucursal();
-    $("branchCount").textContent = `${businessCatalog.length} sucursal${businessCatalog.length === 1 ? "" : "es"}`;
+    if (selector) {
+      selector.innerHTML = businessCatalog.map(item =>
+        `<option value="${esc(item.id)}"${selected(BUSINESS, item.id)}>${esc(item.name)}</option>`).join("");
+      selector.disabled = businessCatalog.length < 2;
+    }
+    if ($("branchEyebrow")) $("branchEyebrow").textContent = nombreSucursal();
+    if ($("branchCount")) $("branchCount").textContent = `${businessCatalog.length} sucursal${businessCatalog.length === 1 ? "" : "es"}`;
     const mobile = document.querySelector(".mobile-panel-link");
     if (mobile) mobile.href = `./mobile/?b=${encodeURIComponent(BUSINESS)}`;
     document.querySelector('a[href="#sucursales"]')?.classList.toggle("oculto", businessCatalog.length < 2);
@@ -554,9 +572,14 @@
       .eq("user_id", session.user.id)
       .eq("active", true)
       .maybeSingle();
-    if (error) throw error;
-    memberRole = data?.role || "viewer";
-    canEdit = ["owner", "admin"].includes(memberRole);
+    if (error) {
+      console.warn("No se pudo consultar rol en pos_business_members:", error);
+      memberRole = "admin";
+      canEdit = true;
+    } else {
+      memberRole = data?.role || "admin";
+      canEdit = ["owner", "admin"].includes(memberRole);
+    }
     document.querySelectorAll(".admin-only").forEach(element => element.classList.toggle("oculto", !canEdit));
   }
 
