@@ -590,7 +590,7 @@
       .eq("business_id", BUSINESS)
       .eq("user_id", session.user.id)
       .maybeSingle();
-    if (error) throw error;
+    if (error) return console.warn("ui_preferences:", error);
     if (data?.theme === "light" || data?.theme === "dark") applyTheme(data.theme, true);
   }
 
@@ -3346,7 +3346,10 @@
       .eq("oculta", false)
       .order("orden")
       .order("nombre");
-    if (error) throw error;
+    if (error) {
+      console.warn("cuentasCobroVentaWeb fin_cuentas:", error);
+      return [];
+    }
     return (data || []).filter(account => ["banco", "tarjeta_debito", "ahorro"].includes(account.tipo));
   }
 
@@ -4285,7 +4288,10 @@
         .eq("business_id", BUSINESS).eq("estado", "registrado")
         .gte("fecha", from).lt("fecha", to)
         .order("fecha", { ascending: false }).range(offset, offset + 999);
-      if (error) throw error;
+      if (error) {
+        console.warn("fin_movimientos error:", error);
+        break;
+      }
       rows.push(...(data || []));
       if (!data || data.length < 1000) return rows;
     }
@@ -4309,15 +4315,15 @@
       sb.from("fin_compromiso_pagos").select("*").eq("business_id", BUSINESS)
         .order("fecha", { ascending: false }).limit(500),
     ]);
-    if (cuentasRes.error) throw cuentasRes.error;
-    if (accountVisualsRes.error) throw accountVisualsRes.error;
-    if (catsRes.error) throw catsRes.error;
-    if (cardsRes.error) throw cardsRes.error;
-    if (budgetsRes.error) throw budgetsRes.error;
-    if (preferencesRes.error) throw preferencesRes.error;
-    if (currenciesRes.error) throw currenciesRes.error;
-    if (commitmentsRes.error) throw commitmentsRes.error;
-    if (commitmentPaymentsRes.error) throw commitmentPaymentsRes.error;
+    if (cuentasRes.error) console.warn("fin_cuentas:", cuentasRes.error);
+    if (accountVisualsRes.error) console.warn("fin_cuentas visuals:", accountVisualsRes.error);
+    if (catsRes.error) console.warn("fin_categorias:", catsRes.error);
+    if (cardsRes.error) console.warn("fin_tarjetas:", cardsRes.error);
+    if (budgetsRes.error) console.warn("fin_presupuestos:", budgetsRes.error);
+    if (preferencesRes.error) console.warn("fin_preferencias:", preferencesRes.error);
+    if (currenciesRes.error) console.warn("fin_divisas:", currenciesRes.error);
+    if (commitmentsRes.error) console.warn("fin_compromisos:", commitmentsRes.error);
+    if (commitmentPaymentsRes.error) console.warn("fin_compromiso_pagos:", commitmentPaymentsRes.error);
     const visuals = new Map((accountVisualsRes.data || []).map(item => [item.id, item]));
     const cuentas = (cuentasRes.data || []).map(item => ({ ...item, ...(visuals.get(item.id) || {}) }));
     const catsRows = catsRes.data || [];
@@ -5337,7 +5343,10 @@
     const rows = [];
     for (let offset = 0; ; offset += 1000) {
       const { data, error } = await sb.from("fin_movimientos").select("*").eq("business_id", BUSINESS).order("fecha", { ascending: true }).range(offset, offset + 999);
-      if (error) throw error;
+      if (error) {
+        console.warn("todosMovimientosFin fin_movimientos:", error);
+        break;
+      }
       rows.push(...(data || []));
       if (!data || data.length < 1000) return rows;
     }
