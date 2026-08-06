@@ -14,6 +14,8 @@ test('el iframe embebido conserva el tema del shell', () => {
 
 test('el asistente define superficies claras y texto visible del modelo', () => {
   assert.match(themeCss, /html\[data-theme="light"\]\.embedded-panel[\s\S]*assistant-layout/);
+  assert.match(themeCss, /background-color: #f4f4f5 !important/);
+  assert.match(themeCss, /assistant-messages[\s\S]*background: #f4f4f5 !important/);
   assert.match(themeCss, /assistant-model select option[\s\S]*color: var\(--ui-text\)/);
   assert.match(themeCss, /-webkit-text-fill-color: currentColor/);
 });

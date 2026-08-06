@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "build": "2026.08.06.1.0.31.1",
-  "web_version": "2026.08.06.1.0.31.1",
-  "pwa_version": "2026.08.06.1.0.31.1",
+  "build": "2026.08.06.1.0.31.2",
+  "web_version": "2026.08.06.1.0.31.2",
+  "pwa_version": "2026.08.06.1.0.31.2",
   "desktop_version": "1.0.31",
   "ios_version": "1.2.1",
   "ios_release_url": "https://github.com/erickcarela58-star/dcarela-pos-private/releases/tag/ios-1.2.1",
