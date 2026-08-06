@@ -4,9 +4,9 @@
   "web_version": "1.0.33.1",
   "pwa_version": "1.0.33.1",
   "desktop_version": "1.0.33",
-  "ios_version": "1.2.1",
-  "ios_release_url": "https://github.com/erickcarela58-star/dcarela-pos-private/releases/tag/ios-1.2.1",
-  "published_at": "2026-08-06T05:32:00-04:00",
+  "ios_version": "1.2.2",
+  "ios_release_url": "https://github.com/erickcarela58-star/dcarela-pos-private/releases/tag/ios-1.2.2",
+  "published_at": "2026-08-06T05:46:00-04:00",
   "channel": "stable",
   "notes": "POS 1.0.33 build web 1: tema claro/oscuro del asistente validado en PWA y panel embebido, con caché renovada.",
   "apps": [
