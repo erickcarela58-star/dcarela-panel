@@ -1,12 +1,12 @@
 {
   "schema": 1,
-  "build": "2026.08.06.1.0.31.0",
-  "web_version": "1.0.31.0",
-  "pwa_version": "1.0.31.0",
+  "build": "2026.08.06.1.0.31.1",
+  "web_version": "2026.08.06.1.0.31.1",
+  "pwa_version": "2026.08.06.1.0.31.1",
   "desktop_version": "1.0.31",
   "ios_version": "1.2.1",
   "ios_release_url": "https://github.com/erickcarela58-star/dcarela-pos-private/releases/tag/ios-1.2.1",
-  "published_at": "2026-08-05T22:15:00-04:00",
+  "published_at": "2026-08-06T00:49:00-04:00",
   "channel": "stable",
   "notes": "POS 1.0.31: sesión real del panel, arranque local reparado, diagnóstico correlacionado, órdenes múltiples idempotentes y sincronización oficial validada.",
   "apps": [

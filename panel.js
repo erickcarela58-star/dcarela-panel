@@ -16,7 +16,7 @@
   const BUSINESS = _urlBiz || window.__DCARELA_DEFAULT?.business || cfg?.business || "dcarela";
   const EMBEDDED = new URLSearchParams(location.search).get("embedded") === "1";
   const THEME_KEY = "dcarela.ui.theme";
-  const APP_BUILD = "2026.08.06.1.0.31.0";
+  const APP_BUILD = "2026.08.06.1.0.31.1";
   let currentTheme = document.documentElement.dataset.theme === "dark" ? "dark" : "light";
   let installPrompt = null;
   let updateReloading = false;
@@ -6060,7 +6060,11 @@
     await cargarSucursalesDisponibles();
     if (session?.user?.id !== expectedUserId) return;
     await cargarRolEdicion();
-    await cargarTemaUsuario().catch(() => {});
+    // En modo embebido el shell es la fuente de verdad y publica el tema por
+    // postMessage en cada carga/cambio. Volver a leer la preferencia remota
+    // aquí introducía una carrera: el iframe podía regresar a oscuro justo
+    // después de que el usuario seleccionara claro en el shell.
+    if (!EMBEDDED) await cargarTemaUsuario().catch(() => {});
     await cargarPermisosCajaWeb().catch(() => setSaleAccess({ loaded: true }));
     if (generation !== authGeneration || session?.user?.id !== expectedUserId) return false;
     sesionOk = true;
