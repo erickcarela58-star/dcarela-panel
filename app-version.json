@@ -1,14 +1,14 @@
 {
   "schema": 1,
-  "build": "2026.08.06.1.0.31.3",
-  "web_version": "2026.08.06.1.0.31.3",
-  "pwa_version": "2026.08.06.1.0.31.3",
-  "desktop_version": "1.0.31",
+  "build": "2026.08.06.1.0.33.0",
+  "web_version": "1.0.33.0",
+  "pwa_version": "1.0.33.0",
+  "desktop_version": "1.0.33",
   "ios_version": "1.2.1",
   "ios_release_url": "https://github.com/erickcarela58-star/dcarela-pos-private/releases/tag/ios-1.2.1",
-  "published_at": "2026-08-06T00:49:00-04:00",
+  "published_at": "2026-08-06T04:40:00-04:00",
   "channel": "stable",
-  "notes": "POS 1.0.31: sesión real del panel, arranque local reparado, diagnóstico correlacionado, órdenes múltiples idempotentes y sincronización oficial validada.",
+  "notes": "POS 1.0.33: fuente web reconciliada, tema embebido estable, asistente verificado, órdenes idempotentes y sincronización device-only asegurada.",
   "apps": [
     {
       "id": "crm",
