@@ -3270,127 +3270,127 @@ html[data-theme].embedded-panel .update-platform-card:last-child {
   }
 }
 
-/* Assistant theme contract v40.
-   The embedded assistant must inherit the shell theme instead of forcing the
-   legacy dark glass skin. Keep native select text explicit because Chromium
+/* Assistant theme contract v41.
+   The assistant must honor the selected theme both in the standalone PWA and
+   inside the desktop shell. Keep native select text explicit because Chromium
    can otherwise paint the selected option with the popup palette. */
-html.embedded-panel #v-asistente:not(.oculto) .assistant-model select {
+html #v-asistente:not(.oculto) .assistant-model select {
   opacity: 1;
   -webkit-text-fill-color: currentColor;
 }
 
-html[data-theme="dark"].embedded-panel #v-asistente:not(.oculto) .assistant-model select,
-html[data-theme="dark"].embedded-panel #v-asistente:not(.oculto) .assistant-model select option {
+html[data-theme="dark"] #v-asistente:not(.oculto) .assistant-model select,
+html[data-theme="dark"] #v-asistente:not(.oculto) .assistant-model select option {
   color: #fafafa;
   background: #18181b;
 }
 
-html[data-theme="light"].embedded-panel #v-asistente:not(.oculto) > .assistant-layout {
+html[data-theme="light"] #v-asistente:not(.oculto) > .assistant-layout {
   color: var(--ui-text) !important;
   background-color: #f4f4f5 !important;
   background-image: linear-gradient(120deg, rgba(255,255,255,.92), rgba(228,228,231,.38)) !important;
 }
 
-html[data-theme="light"].embedded-panel #v-asistente:not(.oculto) .assistant-chat-panel {
+html[data-theme="light"] #v-asistente:not(.oculto) .assistant-chat-panel {
   color: var(--ui-text) !important;
   background: rgba(250, 250, 250, .82) !important;
 }
 
-html[data-theme="light"].embedded-panel #v-asistente:not(.oculto) .assistant-messages {
+html[data-theme="light"] #v-asistente:not(.oculto) .assistant-messages {
   background: #f4f4f5 !important;
 }
 
-html[data-theme="light"].embedded-panel #v-asistente:not(.oculto) .assistant-chat-header,
-html[data-theme="light"].embedded-panel #v-asistente:not(.oculto) .assistant-history-panel,
-html[data-theme="light"].embedded-panel #v-asistente:not(.oculto) .assistant-control-panel {
+html[data-theme="light"] #v-asistente:not(.oculto) .assistant-chat-header,
+html[data-theme="light"] #v-asistente:not(.oculto) .assistant-history-panel,
+html[data-theme="light"] #v-asistente:not(.oculto) .assistant-control-panel {
   color: var(--ui-text) !important;
   background: rgba(255, 255, 255, .94) !important;
   border-color: var(--ui-line) !important;
   box-shadow: var(--ui-shadow-float) !important;
 }
 
-html[data-theme="light"].embedded-panel #v-asistente:not(.oculto) .assistant-chat-header small,
-html[data-theme="light"].embedded-panel #v-asistente:not(.oculto) .assistant-status-line,
-html[data-theme="light"].embedded-panel #v-asistente:not(.oculto) .assistant-model,
-html[data-theme="light"].embedded-panel #v-asistente:not(.oculto) .assistant-model span,
-html[data-theme="light"].embedded-panel #v-asistente:not(.oculto) .assistant-empty,
-html[data-theme="light"].embedded-panel #v-asistente:not(.oculto) .assistant-conversation small,
-html[data-theme="light"].embedded-panel #v-asistente:not(.oculto) .assistant-panel-title small {
+html[data-theme="light"] #v-asistente:not(.oculto) .assistant-chat-header small,
+html[data-theme="light"] #v-asistente:not(.oculto) .assistant-status-line,
+html[data-theme="light"] #v-asistente:not(.oculto) .assistant-model,
+html[data-theme="light"] #v-asistente:not(.oculto) .assistant-model span,
+html[data-theme="light"] #v-asistente:not(.oculto) .assistant-empty,
+html[data-theme="light"] #v-asistente:not(.oculto) .assistant-conversation small,
+html[data-theme="light"] #v-asistente:not(.oculto) .assistant-panel-title small {
   color: var(--ui-muted) !important;
 }
 
-html[data-theme="light"].embedded-panel #v-asistente:not(.oculto) .assistant-chat-header button,
-html[data-theme="light"].embedded-panel #v-asistente:not(.oculto) .assistant-mobile-back,
-html[data-theme="light"].embedded-panel #v-asistente:not(.oculto) .assistant-model select,
-html[data-theme="light"].embedded-panel #v-asistente:not(.oculto) .assistant-model select option {
+html[data-theme="light"] #v-asistente:not(.oculto) .assistant-chat-header button,
+html[data-theme="light"] #v-asistente:not(.oculto) .assistant-mobile-back,
+html[data-theme="light"] #v-asistente:not(.oculto) .assistant-model select,
+html[data-theme="light"] #v-asistente:not(.oculto) .assistant-model select option {
   color: var(--ui-text) !important;
   background: #ffffff !important;
   border-color: var(--ui-line) !important;
   -webkit-text-fill-color: var(--ui-text);
 }
 
-html[data-theme="light"].embedded-panel #v-asistente:not(.oculto) .assistant-header-button,
-html[data-theme="light"].embedded-panel #v-asistente:not(.oculto) .assistant-empty strong,
-html[data-theme="light"].embedded-panel #v-asistente:not(.oculto) .assistant-drawer-header strong,
-html[data-theme="light"].embedded-panel #v-asistente:not(.oculto) .assistant-panel-title strong,
-html[data-theme="light"].embedded-panel #v-asistente:not(.oculto) .assistant-action-card strong {
+html[data-theme="light"] #v-asistente:not(.oculto) .assistant-header-button,
+html[data-theme="light"] #v-asistente:not(.oculto) .assistant-empty strong,
+html[data-theme="light"] #v-asistente:not(.oculto) .assistant-drawer-header strong,
+html[data-theme="light"] #v-asistente:not(.oculto) .assistant-panel-title strong,
+html[data-theme="light"] #v-asistente:not(.oculto) .assistant-action-card strong {
   color: var(--ui-text) !important;
 }
 
-html[data-theme="light"].embedded-panel #v-asistente:not(.oculto) .assistant-message.user {
+html[data-theme="light"] #v-asistente:not(.oculto) .assistant-message.user {
   color: #ffffff !important;
   background: #18181b !important;
   border-color: #18181b !important;
 }
 
-html[data-theme="light"].embedded-panel #v-asistente:not(.oculto) .assistant-message.assistant,
-html[data-theme="light"].embedded-panel #v-asistente:not(.oculto) .assistant-thinking,
-html[data-theme="light"].embedded-panel #v-asistente:not(.oculto) .assistant-action-card,
-html[data-theme="light"].embedded-panel #v-asistente:not(.oculto) .assistant-conversation,
-html[data-theme="light"].embedded-panel #v-asistente:not(.oculto) .assistant-capability,
-html[data-theme="light"].embedded-panel #v-asistente:not(.oculto) .assistant-approval {
+html[data-theme="light"] #v-asistente:not(.oculto) .assistant-message.assistant,
+html[data-theme="light"] #v-asistente:not(.oculto) .assistant-thinking,
+html[data-theme="light"] #v-asistente:not(.oculto) .assistant-action-card,
+html[data-theme="light"] #v-asistente:not(.oculto) .assistant-conversation,
+html[data-theme="light"] #v-asistente:not(.oculto) .assistant-capability,
+html[data-theme="light"] #v-asistente:not(.oculto) .assistant-approval {
   color: var(--ui-text) !important;
   background: rgba(255, 255, 255, .92) !important;
   border-color: var(--ui-line) !important;
 }
 
-html[data-theme="light"].embedded-panel #v-asistente:not(.oculto) .assistant-suggestions {
+html[data-theme="light"] #v-asistente:not(.oculto) .assistant-suggestions {
   background: rgba(244, 244, 245, .82) !important;
   border-color: var(--ui-line) !important;
 }
 
-html[data-theme="light"].embedded-panel #v-asistente:not(.oculto) .assistant-suggestions button,
-html[data-theme="light"].embedded-panel #v-asistente:not(.oculto) .assistant-active-tool {
+html[data-theme="light"] #v-asistente:not(.oculto) .assistant-suggestions button,
+html[data-theme="light"] #v-asistente:not(.oculto) .assistant-active-tool {
   color: var(--ui-text) !important;
   background: rgba(255, 255, 255, .92) !important;
   border-color: var(--ui-line) !important;
 }
 
-html[data-theme="light"].embedded-panel #v-asistente:not(.oculto) .assistant-composer {
+html[data-theme="light"] #v-asistente:not(.oculto) .assistant-composer {
   color: var(--ui-text) !important;
   background: rgba(255, 255, 255, .96) !important;
   border-color: var(--ui-line) !important;
   box-shadow: var(--ui-shadow-float) !important;
 }
 
-html[data-theme="light"].embedded-panel #v-asistente:not(.oculto) .assistant-composer textarea {
+html[data-theme="light"] #v-asistente:not(.oculto) .assistant-composer textarea {
   color: var(--ui-text) !important;
   background: transparent !important;
   -webkit-text-fill-color: var(--ui-text);
 }
 
-html[data-theme="light"].embedded-panel #v-asistente:not(.oculto) .assistant-composer textarea::placeholder {
+html[data-theme="light"] #v-asistente:not(.oculto) .assistant-composer textarea::placeholder {
   color: var(--ui-muted) !important;
   -webkit-text-fill-color: var(--ui-muted);
 }
 
-html[data-theme="light"].embedded-panel #v-asistente:not(.oculto) .assistant-composer-toolbar button,
-html[data-theme="light"].embedded-panel #v-asistente:not(.oculto) .assistant-attach,
-html[data-theme="light"].embedded-panel #v-asistente:not(.oculto) .assistant-mic {
+html[data-theme="light"] #v-asistente:not(.oculto) .assistant-composer-toolbar button,
+html[data-theme="light"] #v-asistente:not(.oculto) .assistant-attach,
+html[data-theme="light"] #v-asistente:not(.oculto) .assistant-mic {
   color: var(--ui-text) !important;
 }
 
-html[data-theme="light"].embedded-panel #v-asistente:not(.oculto) .assistant-send {
+html[data-theme="light"] #v-asistente:not(.oculto) .assistant-send {
   color: #ffffff !important;
   background: #18181b !important;
   border-color: #18181b !important;
