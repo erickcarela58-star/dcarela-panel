@@ -2,7 +2,7 @@
   "use strict";
 
   const DEFAULT_COLUMNS = 32;
-  const VERSION = "1.0.30";
+  const VERSION = "1.0.31";
   const BRAND_NAME = "D' Carela Punto de Venta";
   const BRAND_COLORS = {
     primary: "#0A3679",
