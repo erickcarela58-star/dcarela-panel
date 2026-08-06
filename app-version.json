@@ -1,12 +1,12 @@
 {
   "schema": 1,
-  "build": "2026.08.05.1.0.30.3",
-  "web_version": "1.0.30.3",
-  "pwa_version": "1.0.30.3",
+  "build": "2026.08.05.1.0.30.4",
+  "web_version": "1.0.30.4",
+  "pwa_version": "1.0.30.4",
   "desktop_version": "1.0.30",
   "ios_version": "1.2.0",
   "ios_release_url": "https://github.com/erickcarela58-star/dcarela-pos-private/releases/tag/ios-1.2.0",
-  "published_at": "2026-08-05T04:54:41-04:00",
+  "published_at": "2026-08-05T21:10:00-04:00",
   "channel": "stable",
   "notes": "Panel web POS 1.0.30 con identidad visual unificada D' Carela, soporte responsive reforzado, tema claro/oscuro coherente y centro de actualización común para web y móvil.",
   "apps": [

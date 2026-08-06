@@ -26,11 +26,19 @@
   </script>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="dcarela-logo.png">
-  <link rel="stylesheet" href="panel.css?v=1.0.30.3">
-  <link rel="stylesheet" href="panel-theme.css?v=1.0.30.3">
+  <link rel="stylesheet" href="panel.css?v=1.0.30.4">
+  <link rel="stylesheet" href="panel-theme.css?v=1.0.30.4">
 </head>
 <body>
   <section id="access" class="access-shell">
+    <div id="v-restoring" class="auth-panel">
+      <img src="dcarela-logo.png" alt="D' Carela Compufoto" class="auth-logo">
+      <p class="eyebrow">Panel administrativo</p>
+      <h1>Restaurando sesion</h1>
+      <p class="muted">Validando tu acceso y las sucursales autorizadas...</p>
+      <div class="loading" role="status" aria-live="polite">Conectando de forma segura</div>
+    </div>
+
     <div id="v-config" class="auth-panel oculto">
       <img src="dcarela-logo.png" alt="D' Carela Compufoto" class="auth-logo">
       <p class="eyebrow">Panel administrativo</p>
@@ -763,9 +771,9 @@
   <script src="supabase.min.js"></script>
   <script src="jspdf.umd.min.js"></script>
   <script src="jspdf.plugin.autotable.min.js"></script>
-  <script src="ticket-termico.js?v=1.0.30.3"></script>
-  <script src="panel-sale-pending.js?v=1.0.30.3"></script>
-  <script src="panel.js?v=1.0.30.3"></script>
+  <script src="ticket-termico.js?v=1.0.30.4"></script>
+  <script src="panel-sale-pending.js?v=1.0.30.4"></script>
+  <script src="panel.js?v=1.0.30.4"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));

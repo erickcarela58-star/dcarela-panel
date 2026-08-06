@@ -16,7 +16,7 @@
   const BUSINESS = _urlBiz || window.__DCARELA_DEFAULT?.business || cfg?.business || "dcarela";
   const EMBEDDED = new URLSearchParams(location.search).get("embedded") === "1";
   const THEME_KEY = "dcarela.ui.theme";
-  const APP_BUILD = "2026.08.02.2";
+  const APP_BUILD = "2026.08.05.1.0.30.4";
   let currentTheme = document.documentElement.dataset.theme === "dark" ? "dark" : "light";
   let installPrompt = null;
   let updateReloading = false;
@@ -74,6 +74,10 @@
   let sb = null;
   let session = null;
   let sesionOk = false;
+  let authGeneration = 0;
+  let activeUserId = "";
+  let startupPromise = null;
+  let liveChannel = null;
   let cancelCache = { at: 0, ids: new Set() };
   let alertasCache = null;
   let toastTimer = null;
@@ -272,7 +276,17 @@
   function mostrarAcceso(view) {
     $("access").classList.remove("oculto");
     $("app").classList.add("oculto");
-    ["v-config", "v-login"].forEach(id => $(id).classList.toggle("oculto", id !== view));
+    ["v-restoring", "v-config", "v-login"].forEach(id => $(id).classList.toggle("oculto", id !== view));
+  }
+
+  function mensajeAutenticacion(error, fallback = "No se pudo validar la sesion.") {
+    const message = String(error?.message || error || "").toLowerCase();
+    if (message.includes("timeout") || message.includes("tiempo")) return "La nube tardÃ³ demasiado. Revisa internet e intenta de nuevo.";
+    if (message.includes("jwt") || message.includes("token") || message.includes("session")) return "Tu sesion expiro. Inicia sesion nuevamente.";
+    if (message.includes("permission") || message.includes("policy") || message.includes("row-level") || message.includes("rls")) return "Tu cuenta esta autenticada, pero no tiene permiso para consultar esta sucursal.";
+    if (message.includes("membres") || message.includes("acceso activo")) return "Tu cuenta no tiene una membresia activa para esta sucursal.";
+    if (message.includes("fetch") || message.includes("network")) return "No se pudo contactar la nube. Revisa la conexion e intenta de nuevo.";
+    return fallback;
   }
 
   const loaders = {
@@ -336,34 +350,39 @@
   async function cargarSucursalesDisponibles() {
     if (!session?.user?.id) return;
     await dcWaitForAuthenticatedSession(sb);
-    businessMemberships = [{ business_id: BUSINESS, role: "admin", active: true }];
-    const ids = [BUSINESS];
+    const { data: memberships, error: membershipError } = await sb.from("pos_business_members")
+      .select("business_id,role,active")
+      .eq("user_id", session.user.id)
+      .eq("active", true);
+    if (membershipError) throw membershipError;
+    businessMemberships = memberships || [];
+    const ids = [...new Set(businessMemberships.map(item => item.business_id).filter(Boolean))];
+    if (!ids.length) throw new Error("Tu usuario no tiene acceso activo a ninguna sucursal.");
 
-    const businesses = ids.map(id => ({
-      id,
-      name: id === BUSINESS ? (window.__DCARELA_DEFAULT?.businessName || "D' Carela POS") : id,
-      parent_business_id: null,
-      catalog_source_business_id: null,
-      branch_type: "principal",
-      active: true
-    }));
-
-    businessCatalog = businesses.map(item => ({
+    const { data: businesses, error: businessError } = await sb.from("pos_businesses")
+      .select("id,name,parent_business_id,catalog_source_business_id,branch_type,active")
+      .in("id", ids)
+      .eq("active", true)
+      .order("parent_business_id", { ascending: true, nullsFirst: true })
+      .order("name");
+    if (businessError) throw businessError;
+    businessCatalog = (businesses || []).map(item => ({
       ...item,
-      role: "admin",
+      role: businessMemberships.find(member => member.business_id === item.id)?.role || "viewer",
     }));
+    if (!businessCatalog.some(item => item.id === BUSINESS)) {
+      throw new Error("Tu usuario no tiene acceso activo a esta sucursal.");
+    }
 
     const selector = $("branchSelector");
-    if (selector) {
-      selector.innerHTML = businessCatalog.map(item =>
-        `<option value="${esc(item.id)}"${selected(BUSINESS, item.id)}>${esc(item.name)}</option>`).join("");
-      selector.disabled = true;
-    }
-    if ($("branchEyebrow")) $("branchEyebrow").textContent = nombreSucursal();
-    if ($("branchCount")) $("branchCount").textContent = `${businessCatalog.length} sucursal${businessCatalog.length === 1 ? "" : "es"}`;
+    selector.innerHTML = businessCatalog.map(item =>
+      `<option value="${esc(item.id)}"${selected(BUSINESS, item.id)}>${esc(item.name)}</option>`).join("");
+    selector.disabled = businessCatalog.length < 2;
+    $("branchEyebrow").textContent = nombreSucursal();
+    $("branchCount").textContent = `${businessCatalog.length} sucursal${businessCatalog.length === 1 ? "" : "es"}`;
     const mobile = document.querySelector(".mobile-panel-link");
     if (mobile) mobile.href = `./mobile/?b=${encodeURIComponent(BUSINESS)}`;
-    document.querySelector('a[href="#sucursales"]')?.classList.toggle("oculto", true);
+    document.querySelector('a[href="#sucursales"]')?.classList.toggle("oculto", businessCatalog.length < 2);
   }
 
   function clavesVentaSucursal(event) {
@@ -439,10 +458,10 @@
         .eq("event_type", "ProductoCreado")
         .limit(5000),
     ]);
-    if (eventsResult.error) console.warn("sync_events error:", eventsResult.error);
-    if (devicesResult.error) console.warn("devices error:", devicesResult.error);
-    if (alertsResult.error) console.warn("system_alerts error:", alertsResult.error);
-    if (catalogResult.error) console.warn("catalog sync_events error:", catalogResult.error);
+    if (eventsResult.error) throw eventsResult.error;
+    if (devicesResult.error) throw devicesResult.error;
+    if (alertsResult.error) throw alertsResult.error;
+    if (catalogResult.error) throw catalogResult.error;
 
     const all = eventsResult.data || [];
     const cancellations = new Set();
@@ -533,10 +552,7 @@
       if (from) query = query.gte("created_at_local", from);
       if (to) query = query.lte("created_at_local", to);
       const { data, error } = await query;
-      if (error) {
-        console.warn("sync_events query error:", error);
-        break;
-      }
+      if (error) throw error;
       output.push(...(data || []));
       if (!data || data.length < end - offset + 1) break;
     }
@@ -546,9 +562,16 @@
 
   async function cargarRolEdicion() {
     await dcWaitForAuthenticatedSession(sb);
-    memberRole = "admin";
-    canEdit = true;
-    document.querySelectorAll(".admin-only").forEach(element => element.classList.toggle("oculto", false));
+    const { data, error } = await sb.from("pos_business_members")
+      .select("role,active")
+      .eq("business_id", BUSINESS)
+      .eq("user_id", session.user.id)
+      .eq("active", true)
+      .maybeSingle();
+    if (error) throw error;
+    memberRole = data?.role || "viewer";
+    canEdit = ["owner", "admin"].includes(memberRole);
+    document.querySelectorAll(".admin-only").forEach(element => element.classList.toggle("oculto", !canEdit));
   }
 
   async function authenticatedHeaders(includeJson = false) {
@@ -590,7 +613,7 @@
       .eq("business_id", BUSINESS)
       .eq("user_id", session.user.id)
       .maybeSingle();
-    if (error) return console.warn("ui_preferences:", error);
+    if (error) throw error;
     if (data?.theme === "light" || data?.theme === "dark") applyTheme(data.theme, true);
   }
 
@@ -2191,10 +2214,7 @@
     const { data, error } = await sb.from("devices")
       .select("id,device_name,cash_register_id,status,last_seen_at,installed_version")
       .eq("business_id", BUSINESS).order("last_seen_at", { ascending: false });
-    if (error) {
-      console.warn("getDevices error:", error);
-      return [];
-    }
+    if (error) throw error;
     return data || [];
   }
 
@@ -2202,10 +2222,7 @@
     const { data, error } = await sb.from("backup_snapshots")
       .select("id,device_id,storage_path,backup_type,size,status,created_at,verified_at")
       .eq("business_id", BUSINESS).order("created_at", { ascending: false }).limit(limit);
-    if (error) {
-      console.warn("getBackups error:", error);
-      return [];
-    }
+    if (error) throw error;
     return data || [];
   }
 
@@ -3346,10 +3363,7 @@
       .eq("oculta", false)
       .order("orden")
       .order("nombre");
-    if (error) {
-      console.warn("cuentasCobroVentaWeb fin_cuentas:", error);
-      return [];
-    }
+    if (error) throw error;
     return (data || []).filter(account => ["banco", "tarjeta_debito", "ahorro"].includes(account.tipo));
   }
 
@@ -4288,10 +4302,7 @@
         .eq("business_id", BUSINESS).eq("estado", "registrado")
         .gte("fecha", from).lt("fecha", to)
         .order("fecha", { ascending: false }).range(offset, offset + 999);
-      if (error) {
-        console.warn("fin_movimientos error:", error);
-        break;
-      }
+      if (error) throw error;
       rows.push(...(data || []));
       if (!data || data.length < 1000) return rows;
     }
@@ -4315,15 +4326,15 @@
       sb.from("fin_compromiso_pagos").select("*").eq("business_id", BUSINESS)
         .order("fecha", { ascending: false }).limit(500),
     ]);
-    if (cuentasRes.error) console.warn("fin_cuentas:", cuentasRes.error);
-    if (accountVisualsRes.error) console.warn("fin_cuentas visuals:", accountVisualsRes.error);
-    if (catsRes.error) console.warn("fin_categorias:", catsRes.error);
-    if (cardsRes.error) console.warn("fin_tarjetas:", cardsRes.error);
-    if (budgetsRes.error) console.warn("fin_presupuestos:", budgetsRes.error);
-    if (preferencesRes.error) console.warn("fin_preferencias:", preferencesRes.error);
-    if (currenciesRes.error) console.warn("fin_divisas:", currenciesRes.error);
-    if (commitmentsRes.error) console.warn("fin_compromisos:", commitmentsRes.error);
-    if (commitmentPaymentsRes.error) console.warn("fin_compromiso_pagos:", commitmentPaymentsRes.error);
+    if (cuentasRes.error) throw cuentasRes.error;
+    if (accountVisualsRes.error) throw accountVisualsRes.error;
+    if (catsRes.error) throw catsRes.error;
+    if (cardsRes.error) throw cardsRes.error;
+    if (budgetsRes.error) throw budgetsRes.error;
+    if (preferencesRes.error) throw preferencesRes.error;
+    if (currenciesRes.error) throw currenciesRes.error;
+    if (commitmentsRes.error) throw commitmentsRes.error;
+    if (commitmentPaymentsRes.error) throw commitmentPaymentsRes.error;
     const visuals = new Map((accountVisualsRes.data || []).map(item => [item.id, item]));
     const cuentas = (cuentasRes.data || []).map(item => ({ ...item, ...(visuals.get(item.id) || {}) }));
     const catsRows = catsRes.data || [];
@@ -5343,10 +5354,7 @@
     const rows = [];
     for (let offset = 0; ; offset += 1000) {
       const { data, error } = await sb.from("fin_movimientos").select("*").eq("business_id", BUSINESS).order("fecha", { ascending: true }).range(offset, offset + 999);
-      if (error) {
-        console.warn("todosMovimientosFin fin_movimientos:", error);
-        break;
-      }
+      if (error) throw error;
       rows.push(...(data || []));
       if (!data || data.length < 1000) return rows;
     }
@@ -6013,7 +6021,8 @@
   }
 
   function conectarRealtime() {
-    sb.channel("dcarela-pos-live")
+    if (liveChannel) sb.removeChannel(liveChannel).catch(() => {});
+    liveChannel = sb.channel("dcarela-pos-live")
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "sync_events", filter: `business_id=eq.${BUSINESS}` }, change => {
         if (change.new?.event_type === "VentaCancelada") cancelCache.at = 0;
         if (COST_EVENTS.includes(change.new?.event_type)) costStateCache = null;
@@ -6045,21 +6054,101 @@
       });
   }
 
-  async function iniciar() {
+  async function iniciar(generation = authGeneration) {
+    const expectedUserId = session?.user?.id || "";
+    if (!expectedUserId) throw new Error("Sesion invalida");
+    await cargarSucursalesDisponibles();
+    if (session?.user?.id !== expectedUserId) return;
+    await cargarRolEdicion();
+    await cargarTemaUsuario().catch(() => {});
+    await cargarPermisosCajaWeb().catch(() => setSaleAccess({ loaded: true }));
+    if (generation !== authGeneration || session?.user?.id !== expectedUserId) return false;
     sesionOk = true;
+    activeUserId = expectedUserId;
     $("access").classList.add("oculto");
     $("app").classList.remove("oculto");
     $("sessionEmail").textContent = session?.user?.email || "Administrador";
     verEstado(true, "Sesion autenticada");
-    await cargarSucursalesDisponibles();
-    await cargarRolEdicion().catch(() => { canEdit = false; memberRole = "viewer"; });
-    await cargarTemaUsuario().catch(() => {});
-    await cargarPermisosCajaWeb().catch(() => setSaleAccess({ loaded: true }));
     if (canEdit) renderIaApprovals().catch(() => {});
     conectarRealtime();
     await obtenerAlertas(true).catch(() => []);
     comprobarVersion();
     mostrarVista(location.hash.slice(1) || "dashboard");
+    return true;
+  }
+
+  async function iniciarConSesion(nextSession, generation = authGeneration) {
+    if (!nextSession?.user?.id) {
+      session = null;
+      sesionOk = false;
+      activeUserId = "";
+      mostrarAcceso("v-login");
+      return;
+    }
+    if (sesionOk && activeUserId === nextSession.user.id) {
+      session = nextSession;
+      return;
+    }
+    if (startupPromise) return startupPromise;
+
+    startupPromise = (async () => {
+      mostrarAcceso("v-restoring");
+      session = nextSession;
+      try {
+        const started = await iniciar(generation);
+        if (!started) return;
+        if (generation !== authGeneration) return;
+      } catch (error) {
+        if (generation !== authGeneration) return;
+        sesionOk = false;
+        activeUserId = "";
+        mostrarAcceso("v-login");
+        $("loginErr").textContent = mensajeAutenticacion(error);
+        throw error;
+      }
+    })();
+    try {
+      await startupPromise;
+    } finally {
+      startupPromise = null;
+    }
+  }
+
+  async function restaurarSesion() {
+    const generation = ++authGeneration;
+    mostrarAcceso("v-restoring");
+    const nextSession = await dcWaitForAuthenticatedSession(sb, 10000, true);
+    if (generation !== authGeneration) return;
+    if (!nextSession) {
+      session = null;
+      sesionOk = false;
+      activeUserId = "";
+      mostrarAcceso("v-login");
+      return;
+    }
+    await iniciarConSesion(nextSession, generation);
+  }
+
+  function manejarCambioAuth(event, nextSession) {
+    if (event === "SIGNED_OUT") {
+      authGeneration++;
+      session = null;
+      sesionOk = false;
+      activeUserId = "";
+      if (liveChannel) sb.removeChannel(liveChannel).catch(() => {});
+      liveChannel = null;
+      mostrarAcceso("v-login");
+      $("loginErr").textContent = "La sesion termino. Inicia sesion nuevamente.";
+      return;
+    }
+    if (event === "TOKEN_REFRESHED") {
+      session = nextSession;
+      if (nextSession && !sesionOk) setTimeout(() => iniciarConSesion(nextSession).catch(() => {}), 0);
+      return;
+    }
+    if (event === "SIGNED_IN" && nextSession?.user?.id && nextSession.user.id !== activeUserId) {
+      setTimeout(() => iniciarConSesion(nextSession).catch(() => {}), 0);
+    }
   }
 
   // Elementos que arrancar() esperaba y no estaban en el HTML. Se acumulan para
@@ -6097,10 +6186,19 @@
     on("btnReset", "click", resetConnection);
     on("btnEntrar", "click", async () => {
       $("loginErr").textContent = "";
-      const result = await sb.auth.signInWithPassword({ email: $("email").value.trim(), password: $("pass").value });
-      if (result.error) { $("loginErr").textContent = result.error.message; return; }
-      session = result.data.session;
-      iniciar();
+      const button = $("btnEntrar");
+      button.disabled = true;
+      button.textContent = "Validando...";
+      try {
+        const result = await sb.auth.signInWithPassword({ email: $("email").value.trim(), password: $("pass").value });
+        if (result.error) { $("loginErr").textContent = mensajeAutenticacion(result.error, "Correo o contrasena incorrectos."); return; }
+        await iniciarConSesion(result.data.session);
+      } catch (error) {
+        $("loginErr").textContent = mensajeAutenticacion(error);
+      } finally {
+        button.disabled = false;
+        button.textContent = "Entrar";
+      }
     });
     on("pass", "keydown", event => { if (event.key === "Enter") $("btnEntrar").click(); });
     on("btnSalir", "click", async () => { await sb.auth.signOut(); location.reload(); });
@@ -6481,10 +6579,8 @@
       return;
     }
     sb = window.supabase.createClient(cfg.url, cfg.anon);
-    const result = await sb.auth.getSession();
-    if (result.error) { mostrarAcceso("v-login"); $("loginErr").textContent = result.error.message; return; }
-    session = result.data.session;
-    if (session) await iniciar(); else mostrarAcceso("v-login");
+    sb.auth.onAuthStateChange((event, nextSession) => manejarCambioAuth(event, nextSession));
+    await restaurarSesion();
   }
 
   if (window.__DCARELA_TEST_PANEL_SHORTCUTS__ === true) {
@@ -6515,7 +6611,7 @@
 
 
 // DCARELA_SESSION_GUARD_FINAL_1_0_30
-async function dcWaitForAuthenticatedSession(client, timeoutMs = 10000) {
+async function dcWaitForAuthenticatedSession(client, timeoutMs = 10000, allowNoSession = false) {
   if (!client?.auth?.getSession) {
     return null;
   }
@@ -6530,8 +6626,16 @@ async function dcWaitForAuthenticatedSession(client, timeoutMs = 10000) {
     }
 
     if (data?.session) {
+      const expiresAt = Number(data.session.expires_at || 0) * 1000;
+      if (expiresAt && expiresAt <= Date.now() + 60000 && client.auth.refreshSession) {
+        const refreshed = await client.auth.refreshSession();
+        if (refreshed.error) throw refreshed.error;
+        if (refreshed.data?.session) return refreshed.data.session;
+      }
       return data.session;
     }
+
+    if (allowNoSession) return null;
 
     await new Promise((resolve) => setTimeout(resolve, 250));
   }
