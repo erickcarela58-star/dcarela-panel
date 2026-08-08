@@ -20,8 +20,15 @@
 </head>
 <body>
   <iframe
+    id="responsivePanel"
     title="Panel oficial responsive 430x844"
     src="./?e2e=responsive-430x844#resumen"
   ></iframe>
+  <script>
+    const route = new URLSearchParams(location.search).get("route") || "resumen";
+    if (/^[a-z0-9-]+$/.test(route) && route !== "resumen") {
+      document.getElementById("responsivePanel").src = `./?e2e=responsive-430x844#${route}`;
+    }
+  </script>
 </body>
 </html>
