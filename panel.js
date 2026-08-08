@@ -16,7 +16,7 @@
   const BUSINESS = _urlBiz || window.__DCARELA_DEFAULT?.business || cfg?.business || "dcarela";
   const EMBEDDED = new URLSearchParams(location.search).get("embedded") === "1";
   const THEME_KEY = "dcarela.ui.theme";
-  const APP_BUILD = "2026.08.08.1.0.34.1";
+  const APP_BUILD = "2026.08.08.1.0.34.2";
   let currentTheme = document.documentElement.dataset.theme === "dark" ? "dark" : "light";
   let installPrompt = null;
   let updateReloading = false;
@@ -5747,6 +5747,59 @@
     }).join("") : '<div class="empty-state">No hay otras herramientas registradas en el manifiesto común.</div>';
   }
 
+  function tamanoArchivo(bytes) {
+    const value = Number(bytes || 0);
+    if (!Number.isFinite(value) || value <= 0) return "Tamaño no informado";
+    const units = ["B", "KB", "MB", "GB"];
+    const exponent = Math.min(Math.floor(Math.log(value) / Math.log(1024)), units.length - 1);
+    const amount = value / (1024 ** exponent);
+    return `${amount.toLocaleString("es-DO", { maximumFractionDigits: exponent > 1 ? 1 : 0 })} ${units[exponent]}`;
+  }
+
+  function renderDescargasAplicacion(downloads, releasePageUrl = "") {
+    const target = $("updateDownloads");
+    if (!target) return;
+    const files = Array.isArray(downloads) ? downloads.filter(file => file?.url) : [];
+    const releaseLink = $("downloadReleasePage");
+    if (releaseLink) {
+      releaseLink.classList.toggle("oculto", !releasePageUrl);
+      if (releasePageUrl) releaseLink.href = releasePageUrl;
+    }
+    if (!files.length) {
+      target.innerHTML = '<div class="empty-state">Todavía no hay archivos instalables publicados para descarga.</div>';
+      return;
+    }
+    target.innerHTML = files.map(file => {
+      const extension = String(file.extension || file.name?.split(".").pop() || "FILE").toUpperCase();
+      const publisherSigned = file.publisher_signature === "signed";
+      const signatureKnown = file.publisher_signature === "signed" || file.publisher_signature === "not_signed";
+      const signatureLabel = publisherSigned
+        ? "Firma de editor válida"
+        : signatureKnown ? "Sin certificado de editor" : "Firma no informada";
+      const integrityLabel = file.sha256 ? "SHA-256 publicado" : "Sin huella publicada";
+      const action = file.action || `Descargar .${extension}`;
+      return `<article class="update-download-item">
+        <header>
+          <span class="update-file-type" aria-hidden="true">${esc(extension)}</span>
+          <div><p class="eyebrow">${esc(file.product || "D' Carela")}</p><h4>${esc(file.label || file.name || "Archivo")}</h4><small>${esc(file.name || "")}</small></div>
+          <span class="tag ${publisherSigned ? "ok" : "warn"}">${esc(signatureLabel)}</span>
+        </header>
+        <div class="update-download-meta">
+          <div><span>Versión</span><strong>${esc(file.version || "--")}</strong></div>
+          <div><span>Build</span><strong>${esc(file.build || "--")}</strong></div>
+          <div><span>Plataforma</span><strong>${esc(file.platform || "--")}</strong></div>
+          <div><span>Canal</span><strong>${esc(file.channel || "stable")}</strong></div>
+          <div><span>Publicado</span><strong>${esc(fecha(file.published_at))}</strong></div>
+          <div><span>Tamaño</span><strong>${esc(tamanoArchivo(file.size_bytes))}</strong></div>
+        </div>
+        <p class="update-download-notes">${esc(file.notes || "Archivo oficial publicado para esta versión.")}</p>
+        <div class="update-download-integrity"><span class="tag ${file.sha256 ? "ok" : "warn"}">${esc(integrityLabel)}</span>${file.sha256 ? `<code title="SHA-256 completo">${esc(file.sha256)}</code>` : ""}</div>
+        <p class="update-install-method"><strong>Instalación:</strong> ${esc(file.installation_method || "Descarga el archivo y sigue las instrucciones del sistema.")}</p>
+        <div class="button-row update-download-actions"><a class="button-link primary" href="${esc(file.url)}" target="_blank" rel="noopener">${esc(action)}</a>${file.checksums_url ? `<a class="secondary button-link" href="${esc(file.checksums_url)}" target="_blank" rel="noopener">Ver sumas SHA-256</a>` : ""}</div>
+      </article>`;
+    }).join("");
+  }
+
   function renderVersionAplicacion(manifest, registration = null) {
     const webPublished = String(manifest.web_version || manifest.build || "--");
     const pwaPublished = String(manifest.pwa_version || webPublished);
@@ -5773,6 +5826,7 @@
     $("mobileIosHelp").textContent = manifest.ios_version
       ? `La aplicación iPhone publicada es ${manifest.ios_version}. La PWA ${pwaPublished} sigue siendo el canal recomendado porque se actualiza directamente desde este panel.`
       : "Todavía no hay una IPA publicada; usa la PWA para recibir actualizaciones directas.";
+    renderDescargasAplicacion(manifest.downloads, manifest.release_page_url);
     renderOtrasHerramientas(manifest.apps);
   }
 
@@ -5837,11 +5891,12 @@
 
   async function comprobarVersion() {
     try {
-      const [latest, manifest, registration] = await Promise.all([
+      const [remoteLatest, manifest, registration] = await Promise.all([
         consultarVersion().catch(() => null),
         consultarVersionAplicacion().catch(() => null),
         registroPwa().catch(() => null),
       ]);
+      const latest = manifest?.desktop_release || remoteLatest;
       const webDifferent = manifest && String(manifest.web_version) !== APP_BUILD;
       if (webDifferent || registration?.waiting) {
         $("updateTitle").textContent = `Panel ${manifest?.web_version || "nuevo"} disponible`;
@@ -5864,7 +5919,8 @@
       consultarVersionAplicacion(),
       registroPwa(forzar),
     ]);
-    if (desktop.status === "fulfilled") renderVersionEscritorio(desktop.value);
+    const manifestDesktop = application.status === "fulfilled" ? application.value?.desktop_release : null;
+    if (manifestDesktop || desktop.status === "fulfilled") renderVersionEscritorio(manifestDesktop || desktop.value);
     else {
       marcarEstadoActualizacion("desktopUpdateState", "Sin conexión", "warn");
       $("dlInfo").innerHTML = `<p class="error">${esc(desktop.reason?.message || desktop.reason)}</p>`;
@@ -5881,6 +5937,7 @@
       $("webPublishedVersion").textContent = "--";
       $("mobilePwaVersion").textContent = "--";
       $("mobileIosVersion").textContent = "--";
+      $("updateDownloads").innerHTML = '<div class="empty-state">No se pudo consultar la lista de archivos descargables.</div>';
       $("updateSuiteApps").innerHTML = '<div class="empty-state">No se pudo consultar el manifiesto común.</div>';
       $("webUpdateDetail").textContent = application.reason?.message || String(application.reason);
     }

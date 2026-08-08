@@ -1,9 +1,11 @@
-const APP_BUILD = "2026.08.08.current-only.3";
+const APP_BUILD = "2026.08.08.current-only.4";
 const CACHE = `dcarela-pos-shell-${APP_BUILD}`;
 const SHELL = [
   `./panel.css?v=${APP_BUILD}`,
   `./panel-theme.css?v=${APP_BUILD}`,
   `./panel.js?v=${APP_BUILD}`,
+  `./updates-downloads-current.css?v=${APP_BUILD}`,
+  `./updates-downloads-current.js?v=${APP_BUILD}`,
   "./supabase.min.js",
   "./jspdf.umd.min.js",
   "./jspdf.plugin.autotable.min.js",

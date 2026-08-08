@@ -36,7 +36,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="dcarela-logo.png">
   <link rel="stylesheet" href="panel.css?v=1.0.34">
-  <link rel="stylesheet" href="panel-theme.css?v=1.0.34">
+  <link rel="stylesheet" href="panel-theme.css?v=1.0.34.2">
   <link rel="stylesheet" href="visual-fidelity.css?v=1.0.34">
 </head>
 <body>
@@ -98,7 +98,7 @@
         <a href="#notificaciones" data-title="Notificaciones">Notificaciones <span id="navAlertas" class="nav-count oculto">0</span></a>
         <a href="#dispositivos" data-title="Dispositivos">Dispositivos</a>
         <a href="#respaldos" data-title="Respaldos">Respaldos</a>
-        <a href="#descargar" data-title="Instalador y versiones">Instalador</a>
+        <a href="#descargar" data-title="Actualizaciones y descargas">Actualizaciones</a>
         <a href="#configuracion" data-title="Configuracion">Configuracion</a>
       </nav>
       <div class="connection-card">
@@ -543,7 +543,7 @@
         </section>
 
         <section id="v-descargar" class="vista oculto">
-          <div class="section-heading"><div><h2>Centro de actualizaciones</h2><p>Una sola vista para la caja de Windows, el panel web y la aplicación móvil.</p></div><button id="btnCheckAllUpdates" class="secondary" type="button">Buscar actualizaciones</button></div>
+          <div class="section-heading"><div><h2>Actualizaciones y descargas</h2><p>Versiones, archivos instalables e integridad del ecosistema D' Carela.</p></div><button id="btnCheckAllUpdates" class="secondary" type="button">Buscar actualizaciones</button></div>
           <div id="updateBanner" class="update-banner oculto">
             <div><strong id="updateTitle">Actualizacion disponible</strong><span id="updateNotes"></span></div>
             <a id="updateLink" class="button-link" href="#descargar">Revisar</a>
@@ -578,6 +578,13 @@
               </div>
             </section>
           </div>
+          <section class="surface update-downloads" aria-labelledby="updateDownloadsTitle">
+            <div class="surface-title">
+              <div><p class="eyebrow">Archivos publicados</p><h3 id="updateDownloadsTitle">Descargas disponibles</h3><p>Instaladores y paquetes oficiales con versión, tamaño, firma e instrucciones de instalación.</p></div>
+              <a id="downloadReleasePage" class="secondary button-link oculto" href="#descargar" target="_blank" rel="noopener">Ver publicación</a>
+            </div>
+            <div id="updateDownloads" class="update-download-list"><div class="loading">Consultando archivos descargables...</div></div>
+          </section>
           <section class="surface update-suite">
             <div class="surface-title"><div><h3>Mis otras herramientas</h3><p>Estado común para que el mismo panel móvil muestre qué está publicado y qué sigue en preparación.</p></div></div>
             <div id="updateSuiteApps" class="update-suite-apps"><div class="loading">Consultando CRM y Brújula...</div></div>
@@ -781,9 +788,9 @@
   <script src="supabase.min.js"></script>
   <script src="jspdf.umd.min.js"></script>
   <script src="jspdf.plugin.autotable.min.js"></script>
-  <script src="ticket-termico.js?v=1.0.34.1"></script>
-  <script src="panel-sale-pending.js?v=1.0.34.1"></script>
-<script src="panel.js?v=1.0.34"></script>
+  <script src="ticket-termico.js?v=1.0.34.2"></script>
+  <script src="panel-sale-pending.js?v=1.0.34.2"></script>
+<script src="panel.js?v=1.0.34.2"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));
