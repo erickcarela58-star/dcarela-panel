@@ -2156,9 +2156,12 @@
       const y = bottom - (normalized * (bottom - top) * .46) - ((index % 3) * 2.2);
       return `${x.toFixed(1)},${Math.max(top + 8, Math.min(bottom - 2, y)).toFixed(1)}`;
     });
+    const gradientHash = String(label).split("").reduce((hash, char) => ((hash * 31) + char.charCodeAt(0)) >>> 0, 2166136261);
+    const gradientId = `waveArea${gradientHash}`;
     return `<svg class="wave-metric-svg" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" aria-hidden="true">
+      <defs><linearGradient id="${gradientId}" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stop-color="var(--ui-text)" stop-opacity=".42"></stop><stop offset="58%" stop-color="var(--ui-text)" stop-opacity=".20"></stop><stop offset="100%" stop-color="var(--ui-text)" stop-opacity=".035"></stop></linearGradient></defs>
       <path class="wave-grid" d="M0 16H230M0 38H230M0 60H230"></path>
-      <polygon class="wave-fill" points="0,${height} ${coordinates.join(" ")} ${width},${height}"></polygon>
+      <polygon class="wave-fill" style="--wave-fill:url(#${gradientId})" points="0,${height} ${coordinates.join(" ")} ${width},${height}"></polygon>
       <polyline class="wave-inner" points="${inner.join(" ")}"></polyline>
       <polyline class="wave-line" points="${coordinates.join(" ")}"></polyline>
     </svg>`;
@@ -2201,8 +2204,9 @@
     }).join("");
     return `<div class="report-wave-chart">
       <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" aria-label="Tendencia diaria de ventas e ITBIS">
+        <defs><linearGradient id="reportNetArea" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stop-color="var(--ui-text)" stop-opacity=".36"></stop><stop offset="62%" stop-color="var(--ui-text)" stop-opacity=".16"></stop><stop offset="100%" stop-color="var(--ui-text)" stop-opacity=".025"></stop></linearGradient></defs>
         <path class="report-wave-grid" d="M${left} 55H${right}M${left} 110H${right}M${left} 165H${right}M${left} 220H${right}"></path>
-        <polygon class="report-wave-fill" points="${left},${bottom} ${serialize(netPoints)} ${right},${bottom}"></polygon>
+        <polygon class="report-wave-fill" style="--report-wave-fill:url(#reportNetArea)" points="${left},${bottom} ${serialize(netPoints)} ${right},${bottom}"></polygon>
         <polyline class="report-wave-tax" points="${serialize(taxPoints)}"></polyline>
         <polyline class="report-wave-line" points="${serialize(netPoints)}"></polyline>
         ${nodes}

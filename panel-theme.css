@@ -1047,8 +1047,8 @@ html[data-theme].embedded-panel .report-wave-grid {
   vector-effect: non-scaling-stroke;
 }
 html[data-theme].embedded-panel .report-wave-fill {
-  fill: var(--ui-text);
-  opacity: .18;
+  fill: var(--report-wave-fill, var(--ui-text));
+  opacity: 1;
   transform-origin: bottom;
   animation: wave-rise .8s cubic-bezier(.2,.72,.22,1) both;
 }
@@ -1335,8 +1335,8 @@ html[data-theme].embedded-panel .wave-grid {
   opacity: .58;
 }
 html[data-theme].embedded-panel .wave-fill {
-  fill: var(--ui-text);
-  opacity: .24;
+  fill: var(--wave-fill, var(--ui-text));
+  opacity: 1;
   transform-origin: bottom;
   animation: wave-rise .75s cubic-bezier(.2,.72,.22,1) both;
 }
