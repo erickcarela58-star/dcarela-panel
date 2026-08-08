@@ -1,32 +1,32 @@
 {
   "schema": 1,
-  "build": "2026.08.06.1.0.33.1",
-  "web_version": "1.0.33.1",
-  "pwa_version": "1.0.33.1",
-  "desktop_version": "1.0.33",
-  "ios_version": "1.2.2",
-  "ios_release_url": "https://github.com/erickcarela58-star/dcarela-pos-private/releases/tag/ios-1.2.2",
-  "published_at": "2026-08-06T05:46:00-04:00",
+  "build": "2026.08.08.1.0.34.1",
+  "web_version": "1.0.34.1",
+  "pwa_version": "1.0.34.1",
+  "desktop_version": "1.0.34",
+  "ios_version": "1.2.0",
+  "ios_release_url": null,
+  "published_at": "2026-08-08T08:08:00-04:00",
   "channel": "stable",
-  "notes": "POS 1.0.33 build web 1: tema claro/oscuro del asistente validado en PWA y panel embebido, con caché renovada.",
+  "notes": "POS 1.0.34 build web 1: métricas con degradado, guía blanca y animaciones CURRENT; descarga pública verificable.",
   "apps": [
     {
       "id": "crm",
       "name": "CRM multicaja",
       "version": "2026.08.02.2",
       "platform": "Web y móvil",
-      "status": "published",
-      "url": "https://erickcarela58-star.github.io/dcarela-fotos-panel/",
-      "notes": "Panel de prospección, planificación y WhatsApp Web independiente."
+      "status": "blocked_external",
+      "url": null,
+      "notes": "Panel preparado; el dominio crm.dcarelacompufoto.com sigue bloqueado por DNS autoritativo."
     },
     {
       "id": "brujula",
       "name": "Brújula",
-      "version": "0.9.0-preview",
+      "version": "0.1.0",
       "platform": "iPhone",
-      "status": "development",
+      "status": "blocked_external",
       "url": null,
-      "notes": "Proyecto nativo preparado; compilación física y publicación todavía pendientes."
+      "notes": "Proyecto nativo validado; compilación, firma y distribución Apple pendientes."
     }
   ]
 }
