@@ -5740,10 +5740,13 @@
     const items = Array.isArray(apps) ? apps : [];
     target.innerHTML = items.length ? items.map(app => {
       const published = app.status === "published";
+      const beta = app.status === "beta_unsigned";
+      const available = Boolean(app.url) && (published || beta);
+      const statusLabel = published ? "Publicada" : beta ? "Beta manual" : "En preparación";
       const action = app.url
-        ? `<a class="button-link" href="${esc(app.url)}" target="_blank" rel="noopener">Abrir herramienta</a>`
+        ? `<a class="button-link" href="${esc(app.url)}" target="_blank" rel="noopener">${esc(app.action || (published ? "Abrir herramienta" : "Descargar beta"))}</a>`
         : '<span class="tag">Publicación pendiente</span>';
-      return `<article class="update-suite-app"><div><span class="update-suite-dot ${published ? "ok" : ""}" aria-hidden="true"></span><div><strong>${esc(app.name || app.id || "Herramienta")}</strong><small>${esc(app.platform || "")}</small></div></div><span class="tag ${published ? "ok" : "warn"}">${published ? "Publicada" : "En preparación"}</span><p>${esc(app.notes || "")}</p><div class="update-suite-version"><span>Versión</span><strong>${esc(app.version || "--")}</strong></div>${action}</article>`;
+      return `<article class="update-suite-app"><div><span class="update-suite-dot ${published ? "ok" : ""}" aria-hidden="true"></span><div><strong>${esc(app.name || app.id || "Herramienta")}</strong><small>${esc(app.platform || "")}</small></div></div><span class="tag ${published ? "ok" : "warn"}">${esc(statusLabel)}</span><p>${esc(app.notes || "")}</p><div class="update-suite-version"><span>Versión</span><strong>${esc(app.version || "--")}</strong></div>${available ? action : app.url ? action : '<span class="tag">Publicación pendiente</span>'}</article>`;
     }).join("") : '<div class="empty-state">No hay otras herramientas registradas en el manifiesto común.</div>';
   }
 
@@ -5773,9 +5776,9 @@
       const extension = String(file.extension || file.name?.split(".").pop() || "FILE").toUpperCase();
       const publisherSigned = file.publisher_signature === "signed";
       const signatureKnown = file.publisher_signature === "signed" || file.publisher_signature === "not_signed";
-      const signatureLabel = publisherSigned
+      const signatureLabel = file.signature_label || (publisherSigned
         ? "Firma de editor válida"
-        : signatureKnown ? "Sin certificado de editor" : "Firma no informada";
+        : signatureKnown ? "Sin certificado de editor" : "Firma no informada");
       const integrityLabel = file.sha256 ? "SHA-256 publicado" : "Sin huella publicada";
       const action = file.action || `Descargar .${extension}`;
       return `<article class="update-download-item">

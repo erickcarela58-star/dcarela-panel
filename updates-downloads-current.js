@@ -42,7 +42,8 @@
   function downloadCard(file) {
     const extension = String(file.extension || file.name?.split(".").pop() || "FILE").toUpperCase();
     const publisherSigned = file.publisher_signature === "signed";
-    const signature = publisherSigned ? "Firma de editor válida" : "Sin certificado de editor";
+    const signature = file.signature_label
+      || (publisherSigned ? "Firma de editor válida" : "Sin certificado de editor");
     const action = file.action || `Descargar .${extension}`;
     return `<article class="current-download-card">
       <header class="current-download-card-head">
@@ -69,9 +70,14 @@
   }
 
   function suiteStatus(app) {
-    const ready = app.status === "published" && app.url;
-    const label = ready ? "Descarga publicada" : app.status === "unsigned_artifact" ? "Artefacto sin firma" : "Publicación pendiente";
-    return `<article><div><strong>${escapeHtml(app.name || app.id || "Aplicación")}</strong><small>${escapeHtml(app.platform || "")}</small></div><span class="${ready ? "is-ok" : "is-warn"}">${escapeHtml(label)}</span><p>${escapeHtml(app.notes || "")}</p><b>Versión ${escapeHtml(app.version || "--")}</b>${ready ? `<a href="${escapeHtml(app.url)}" target="_blank" rel="noopener">Descargar</a>` : ""}</article>`;
+    const published = app.status === "published" && app.url;
+    const beta = app.status === "beta_unsigned" && app.url;
+    const available = published || beta;
+    const label = published
+      ? "Aplicación disponible"
+      : beta ? "Beta para instalación manual" : "Compilación pendiente";
+    const action = app.action || (published ? "Abrir aplicación" : "Descargar beta");
+    return `<article><div><strong>${escapeHtml(app.name || app.id || "Aplicación")}</strong><small>${escapeHtml(app.platform || "")}</small></div><span class="${published ? "is-ok" : "is-warn"}">${escapeHtml(label)}</span><p>${escapeHtml(app.notes || "")}</p><b>Versión ${escapeHtml(app.version || "--")}</b>${available ? `<a href="${escapeHtml(app.url)}" target="_blank" rel="noopener">${escapeHtml(action)}</a>` : ""}</article>`;
   }
 
   function renderManifest(root, manifest) {

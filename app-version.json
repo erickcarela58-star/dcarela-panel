@@ -1,15 +1,15 @@
 {
   "schema": 1,
-  "build": "2026.08.08.1.0.34.2",
-  "web_version": "1.0.34.2",
-  "pwa_version": "1.0.34.2",
+  "build": "2026.08.08.1.0.34.3",
+  "web_version": "1.0.34.3",
+  "pwa_version": "1.0.34.3",
   "desktop_version": "1.0.34",
-  "ios_version": "1.2.0",
-  "ios_release_url": null,
-  "published_at": "2026-08-08T12:13:39-04:00",
+  "ios_version": "1.2.2",
+  "ios_release_url": "https://github.com/erickcarela58-star/dcarela-panel/releases/download/finanzas-ios-1.2.2-beta/DCarelaFinanzas.ipa",
+  "published_at": "2026-08-08T12:39:55-04:00",
   "channel": "stable",
-  "notes": "POS 1.0.34 build web 2: actualizaciones y archivos descargables restaurados con metadatos de integridad.",
-  "release_page_url": "https://github.com/erickcarela58-star/dcarela-panel/releases/tag/pos-v1.0.34",
+  "notes": "POS 1.0.34 build web 3: canal estable corregido, Finanzas iOS beta publicada y CRM disponible por URL de contingencia.",
+  "release_page_url": "https://github.com/erickcarela58-star/dcarela-panel/releases",
   "desktop_release": {
     "version": "1.0.34",
     "channel": "stable",
@@ -57,6 +57,26 @@
       "action": "Descargar paquete .ZIP",
       "notes": "Copia portátil completa con la aplicación, herramientas de diagnóstico y documentación de uso.",
       "installation_method": "Descargar, verificar la huella SHA-256, extraer en una carpeta nueva y abrir INICIAR_POS.bat. No reemplaza automáticamente una instalación existente."
+    },
+    {
+      "product": "D' Carela Finanzas",
+      "label": "Beta para iPhone y iPad",
+      "name": "DCarelaFinanzas.ipa",
+      "extension": "IPA",
+      "version": "1.2.2",
+      "build": "5",
+      "platform": "iOS / iPadOS 16.4+",
+      "channel": "beta",
+      "publisher_signature": "not_signed",
+      "signature_label": "Sin firma de distribución Apple",
+      "published_at": "2026-08-08T16:39:55Z",
+      "size_bytes": 383878,
+      "sha256": "14664c8db1e12a64f56dd2108b7eab8df0c1e411c3ba9aac6a208652150f23a5",
+      "url": "https://github.com/erickcarela58-star/dcarela-panel/releases/download/finanzas-ios-1.2.2-beta/DCarelaFinanzas.ipa",
+      "checksums_url": "https://github.com/erickcarela58-star/dcarela-panel/releases/download/finanzas-ios-1.2.2-beta/DCarelaFinanzas.ipa.sha256",
+      "action": "Descargar beta .IPA",
+      "notes": "Beta técnica con descarga real de CSV/PDF. No es una publicación de App Store ni TestFlight.",
+      "installation_method": "Instalar con AltStore o Sideloadly usando tu propia cuenta Apple. La firma generada por ese servicio puede vencer y requerir renovación."
     }
   ],
   "apps": [
@@ -65,27 +85,29 @@
       "name": "D' Carela Finanzas",
       "version": "1.2.2",
       "platform": "iPhone / iPad",
-      "status": "unsigned_artifact",
-      "url": null,
-      "notes": "La IPA técnica existe, pero no tiene firma de distribución Apple; no se ofrece como descarga de producción."
+      "status": "beta_unsigned",
+      "url": "https://github.com/erickcarela58-star/dcarela-panel/releases/download/finanzas-ios-1.2.2-beta/DCarelaFinanzas.ipa",
+      "action": "Descargar beta .IPA",
+      "notes": "Beta verificable para AltStore/Sideloadly. No tiene firma de distribución Apple y no se presenta como App Store."
     },
     {
       "id": "crm",
       "name": "CRM multicaja",
       "version": "2026.08.02.2",
       "platform": "Web y móvil",
-      "status": "blocked_external",
-      "url": null,
-      "notes": "Panel preparado; el dominio crm.dcarelacompufoto.com sigue bloqueado por DNS autoritativo."
+      "status": "published",
+      "url": "https://erickcarela58-star.github.io/dcarela-crm-panel/",
+      "action": "Abrir CRM",
+      "notes": "Panel web publicado por la URL de contingencia mientras se corrige el DNS del dominio personalizado."
     },
     {
       "id": "brujula",
       "name": "Brújula",
       "version": "0.1.0",
       "platform": "iPhone",
-      "status": "blocked_external",
+      "status": "build_pending",
       "url": null,
-      "notes": "Proyecto nativo validado; compilación, firma y distribución Apple pendientes."
+      "notes": "Proyecto nativo localizado y validado estructuralmente. El IPA requiere compilar en macOS/Xcode y resolver los entitlements de Family Controls antes de publicarlo."
     }
   ]
 }

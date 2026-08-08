@@ -19,19 +19,19 @@ test("Actualizaciones contiene un bloque visible de archivos descargables", () =
 });
 
 test("la vista CURRENT muestra las descargas sin abrir el panel anterior", () => {
-  assert.match(shellHtml, /updates-downloads-current\.js\?v=1\.0\.34\.2/);
-  assert.match(shellHtml, /updates-downloads-current\.css\?v=1\.0\.34\.2/);
+  assert.match(shellHtml, /updates-downloads-current\.js\?v=1\.0\.34\.3/);
+  assert.match(shellHtml, /updates-downloads-current\.css\?v=1\.0\.34\.3/);
   assert.match(currentDownloadsJs, /id = "current-downloads"|ROOT_ID = "current-downloads"/);
   assert.match(currentDownloadsJs, /Abrir centro web completo/);
   assert.match(currentDownloadsJs, /current-legacy-download-link/);
   assert.match(currentDownloadsJs, /Descargas disponibles/);
 });
 
-test("el manifiesto publica EXE y ZIP con integridad verificable", () => {
-  assert.equal(manifest.web_version, "1.0.34.2");
+test("el manifiesto publica EXE, ZIP e IPA con integridad verificable", () => {
+  assert.equal(manifest.web_version, "1.0.34.3");
   assert.equal(manifest.desktop_release.version, "1.0.34");
-  assert.equal(manifest.downloads.length, 2);
-  assert.deepEqual(manifest.downloads.map(file => file.extension), ["EXE", "ZIP"]);
+  assert.equal(manifest.downloads.length, 3);
+  assert.deepEqual(manifest.downloads.map(file => file.extension), ["EXE", "ZIP", "IPA"]);
   for (const file of manifest.downloads) {
     assert.match(file.url, /^https:\/\/github\.com\/erickcarela58-star\/dcarela-panel\/releases\/download\//);
     assert.doesNotMatch(file.url, /dcarela-pos-private/);
@@ -42,9 +42,18 @@ test("el manifiesto publica EXE y ZIP con integridad verificable", () => {
   }
 });
 
-test("las apps sin distribución firmada no ofrecen una descarga engañosa", () => {
+test("Finanzas se ofrece solo como beta manual y el CRM tiene URL operativa", () => {
   const finance = manifest.apps.find(app => app.id === "finanzas-ios");
+  const crm = manifest.apps.find(app => app.id === "crm");
   assert.ok(finance);
-  assert.equal(finance.status, "unsigned_artifact");
-  assert.equal(finance.url, null);
+  assert.equal(finance.status, "beta_unsigned");
+  assert.match(finance.url, /finanzas-ios-1\.2\.2-beta\/DCarelaFinanzas\.ipa$/);
+  assert.equal(crm.status, "published");
+  assert.equal(crm.url, "https://erickcarela58-star.github.io/dcarela-crm-panel/");
+});
+
+test("Brújula no se presenta como instalada antes de compilar y firmar", () => {
+  const brujula = manifest.apps.find(app => app.id === "brujula");
+  assert.equal(brujula.status, "build_pending");
+  assert.equal(brujula.url, null);
 });
