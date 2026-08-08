@@ -16,7 +16,7 @@
   const BUSINESS = _urlBiz || window.__DCARELA_DEFAULT?.business || cfg?.business || "dcarela";
   const EMBEDDED = new URLSearchParams(location.search).get("embedded") === "1";
   const THEME_KEY = "dcarela.ui.theme";
-  const APP_BUILD = "2026.08.08.1.0.34.2";
+  const APP_BUILD = "1.0.35.1";
   let currentTheme = document.documentElement.dataset.theme === "dark" ? "dark" : "light";
   let installPrompt = null;
   let updateReloading = false;

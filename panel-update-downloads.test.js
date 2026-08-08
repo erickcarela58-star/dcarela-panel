@@ -19,8 +19,8 @@ test("Actualizaciones contiene un bloque visible de archivos descargables", () =
 });
 
 test("la vista CURRENT muestra las descargas sin abrir el panel anterior", () => {
-  assert.match(shellHtml, /updates-downloads-current\.js\?v=1\.0\.34\.3/);
-  assert.match(shellHtml, /updates-downloads-current\.css\?v=1\.0\.34\.3/);
+  assert.match(shellHtml, /updates-downloads-current\.js\?v=1\.0\.35\.1/);
+  assert.match(shellHtml, /updates-downloads-current\.css\?v=1\.0\.35\.1/);
   assert.match(currentDownloadsJs, /id = "current-downloads"|ROOT_ID = "current-downloads"/);
   assert.match(currentDownloadsJs, /Abrir centro web completo/);
   assert.match(currentDownloadsJs, /current-legacy-download-link/);
@@ -28,8 +28,8 @@ test("la vista CURRENT muestra las descargas sin abrir el panel anterior", () =>
 });
 
 test("el manifiesto publica EXE, ZIP e IPA con integridad verificable", () => {
-  assert.equal(manifest.web_version, "1.0.34.3");
-  assert.equal(manifest.desktop_release.version, "1.0.34");
+  assert.equal(manifest.web_version, "1.0.35.1");
+  assert.equal(manifest.desktop_release.version, "1.0.35");
   assert.equal(manifest.downloads.length, 3);
   assert.deepEqual(manifest.downloads.map(file => file.extension), ["EXE", "ZIP", "IPA"]);
   for (const file of manifest.downloads) {
