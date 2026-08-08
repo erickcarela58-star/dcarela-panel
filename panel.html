@@ -12,6 +12,17 @@
   <script>
     (() => {
       const params = new URLSearchParams(location.search);
+      let sameOriginParent = false;
+      try {
+        sameOriginParent = window.self !== window.top && new URL(document.referrer).origin === location.origin;
+      } catch {}
+      if (params.get("embedded") !== "1" || !sameOriginParent) {
+        const current = new URL("./", location.href);
+        current.hash = location.hash;
+        document.documentElement.hidden = true;
+        location.replace(current.href);
+        return;
+      }
       const requested = params.get("theme");
       let saved = "light";
       try { saved = localStorage.getItem("dcarela.ui.theme") || "light"; } catch {}
@@ -20,9 +31,7 @@
       document.documentElement.classList.toggle("dark", theme === "dark");
       document.documentElement.style.colorScheme = theme;
     })();
-    if (new URLSearchParams(location.search).get("embedded") === "1") {
-      document.documentElement.classList.add("embedded-panel");
-    }
+    document.documentElement.classList.add("embedded-panel");
   </script>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="dcarela-logo.png">

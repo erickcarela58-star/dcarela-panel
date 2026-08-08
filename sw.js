@@ -1,4 +1,4 @@
-const APP_BUILD = "2026.08.06.1.0.33.1";
+const APP_BUILD = "2026.08.08.current-only.2";
 const CACHE = `dcarela-pos-shell-${APP_BUILD}`;
 const SHELL = [
   `./panel.css?v=${APP_BUILD}`,
@@ -17,7 +17,6 @@ self.addEventListener("install", event => {
     await cache.addAll(SHELL);
     await Promise.all([
       cache.add("./index.html").catch(() => null),
-      cache.add("./panel.html").catch(() => null),
       cache.add("./mobile/index.html").catch(() => null)
     ]);
   }));
@@ -47,10 +46,14 @@ self.addEventListener("fetch", event => {
     event.respondWith(fetch(request, { cache: "no-store" }).catch(() => caches.match("./app-version.json")));
     return;
   }
+  if (url.pathname.endsWith("/panel.html")) {
+    event.respondWith(fetch(request, { cache: "no-store" }).catch(() => Response.redirect("./", 302)));
+    return;
+  }
   event.respondWith(fetch(request).then(response => {
     const copy = response.clone();
     if (response.ok) caches.open(CACHE).then(cache => cache.put(request, copy));
     return response;
   }).catch(() => caches.match(request).then(async cached =>
-    cached || await caches.match("./panel.html") || await caches.match("./index.html"))));
+    cached || await caches.match("./index.html"))));
 });

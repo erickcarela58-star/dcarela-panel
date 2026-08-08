@@ -8,11 +8,12 @@ La raiz usa el shell global React `EfferdDashboard2`: sidebar responsive,
 topbar, selector de sucursal, alertas y resumen ejecutivo. Ventas, caja,
 reportes, inventario, clientes, Finanzas, asistente IA, notificaciones,
 dispositivos, respaldos y configuracion se cargan dentro del mismo marco desde
-`panel.html?embedded=1`, sin duplicar navegacion.
+`panel.html?embedded=1`, sin duplicar navegacion. Esa ruta solo se habilita dentro
+del iframe same-origin de CURRENT; abierta directamente redirige a la aplicacion actual.
 
 Los datos proceden de Supabase y se actualizan por Realtime y refrescos
-controlados. `panel.html` permanece disponible como ruta de recuperacion si el
-shell React no pudiera cargar.
+controlados. `panel.html` ya no es una ruta publica de recuperacion ni se guarda
+en la cache offline; el unico fallback publico es `index.html`.
 
 ## Edicion administrativa
 
