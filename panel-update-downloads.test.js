@@ -19,19 +19,19 @@ test("Actualizaciones contiene un bloque visible de archivos descargables", () =
 });
 
 test("la vista CURRENT muestra las descargas sin abrir el panel anterior", () => {
-  assert.match(shellHtml, /updates-downloads-current\.js\?v=1\.0\.35\.1/);
-  assert.match(shellHtml, /updates-downloads-current\.css\?v=1\.0\.35\.1/);
+  assert.match(shellHtml, /updates-downloads-current\.js\?v=1\.0\.35\.2/);
+  assert.match(shellHtml, /updates-downloads-current\.css\?v=1\.0\.35\.2/);
   assert.match(currentDownloadsJs, /id = "current-downloads"|ROOT_ID = "current-downloads"/);
   assert.match(currentDownloadsJs, /Abrir centro web completo/);
   assert.match(currentDownloadsJs, /current-legacy-download-link/);
   assert.match(currentDownloadsJs, /Descargas disponibles/);
 });
 
-test("el manifiesto publica EXE, ZIP e IPA con integridad verificable", () => {
-  assert.equal(manifest.web_version, "1.0.35.1");
+test("el manifiesto publica EXE, ZIP y las dos IPA con integridad verificable", () => {
+  assert.equal(manifest.web_version, "1.0.35.2");
   assert.equal(manifest.desktop_release.version, "1.0.35");
-  assert.equal(manifest.downloads.length, 3);
-  assert.deepEqual(manifest.downloads.map(file => file.extension), ["EXE", "ZIP", "IPA"]);
+  assert.equal(manifest.downloads.length, 4);
+  assert.deepEqual(manifest.downloads.map(file => file.extension), ["EXE", "ZIP", "IPA", "IPA"]);
   for (const file of manifest.downloads) {
     assert.match(file.url, /^https:\/\/github\.com\/erickcarela58-star\/dcarela-panel\/releases\/download\//);
     assert.doesNotMatch(file.url, /dcarela-pos-private/);
@@ -52,8 +52,11 @@ test("Finanzas se ofrece solo como beta manual y el CRM tiene URL operativa", ()
   assert.equal(crm.url, "https://erickcarela58-star.github.io/dcarela-crm-panel/");
 });
 
-test("Brújula no se presenta como instalada antes de compilar y firmar", () => {
+test("Brújula se publica solo como beta manual verificable", () => {
   const brujula = manifest.apps.find(app => app.id === "brujula");
-  assert.equal(brujula.status, "build_pending");
-  assert.equal(brujula.url, null);
+  const download = manifest.downloads.find(file => file.product === "Brújula");
+  assert.equal(brujula.status, "beta_unsigned");
+  assert.match(brujula.url, /brujula-v0\.1\.0-beta\/Brujula_0\.1\.0_unsigned\.ipa$/);
+  assert.equal(download.sha256, "0678ec76133fdceeef11a0787239f8eff678a926b9479f2759cbb542951a8d3d");
+  assert.equal(download.size_bytes, 376386);
 });

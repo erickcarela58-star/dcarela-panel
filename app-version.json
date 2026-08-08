@@ -1,14 +1,14 @@
 {
   "schema": 1,
-  "build": "2026.08.08.1.0.35.1",
-  "web_version": "1.0.35.1",
-  "pwa_version": "1.0.35.1",
+  "build": "2026.08.08.1.0.35.2",
+  "web_version": "1.0.35.2",
+  "pwa_version": "1.0.35.2",
   "desktop_version": "1.0.35",
   "ios_version": "1.2.2",
   "ios_release_url": "https://github.com/erickcarela58-star/dcarela-panel/releases/download/finanzas-ios-1.2.2-beta/DCarelaFinanzas.ipa",
-  "published_at": "2026-08-08T13:39:23-04:00",
+  "published_at": "2026-08-08T14:34:10-04:00",
   "channel": "stable",
-  "notes": "POS 1.0.35 build web 1: Finanzas y Configuración migradas a CURRENT, pantalla completa corregida y sincronización financiera segura.",
+  "notes": "POS 1.0.35 build web 2: Brújula 0.1.0 añadida como beta técnica descargable, junto con Finanzas y Caja CURRENT.",
   "release_page_url": "https://github.com/erickcarela58-star/dcarela-panel/releases",
   "desktop_release": {
     "version": "1.0.35",
@@ -77,6 +77,26 @@
       "action": "Descargar beta .IPA",
       "notes": "Beta técnica con descarga real de CSV/PDF. No es una publicación de App Store ni TestFlight.",
       "installation_method": "Instalar con AltStore o Sideloadly usando tu propia cuenta Apple. La firma generada por ese servicio puede vencer y requerir renovación."
+    },
+    {
+      "product": "Brújula",
+      "label": "Beta técnica para iPhone",
+      "name": "Brujula_0.1.0_unsigned.ipa",
+      "extension": "IPA",
+      "version": "0.1.0",
+      "build": "1",
+      "platform": "iPhone · iOS 17+",
+      "channel": "beta",
+      "publisher_signature": "not_signed",
+      "signature_label": "Sin firma de distribución Apple",
+      "published_at": "2026-08-08T18:34:10Z",
+      "size_bytes": 376386,
+      "sha256": "0678ec76133fdceeef11a0787239f8eff678a926b9479f2759cbb542951a8d3d",
+      "url": "https://github.com/erickcarela58-star/dcarela-panel/releases/download/brujula-v0.1.0-beta/Brujula_0.1.0_unsigned.ipa",
+      "checksums_url": "https://github.com/erickcarela58-star/dcarela-panel/releases/download/brujula-v0.1.0-beta/Brujula_0.1.0_unsigned.ipa.sha256",
+      "action": "Descargar beta .IPA",
+      "notes": "Beta nativa con app principal y cinco extensiones. No es una publicación de App Store ni TestFlight.",
+      "installation_method": "Firmar e instalar con AltStore o Sideloadly. Family Controls, Screen Time y App Groups requieren entitlements aprobados por Apple y pueden no habilitarse con una firma personal."
     }
   ],
   "apps": [
@@ -105,9 +125,10 @@
       "name": "Brújula",
       "version": "0.1.0",
       "platform": "iPhone",
-      "status": "build_pending",
-      "url": null,
-      "notes": "Proyecto nativo localizado y validado estructuralmente. El IPA requiere compilar en macOS/Xcode y resolver los entitlements de Family Controls antes de publicarlo."
+      "status": "beta_unsigned",
+      "url": "https://github.com/erickcarela58-star/dcarela-panel/releases/download/brujula-v0.1.0-beta/Brujula_0.1.0_unsigned.ipa",
+      "action": "Descargar beta .IPA",
+      "notes": "Beta técnica compilada y verificable para instalación manual. Family Controls requiere entitlements aprobados por Apple."
     }
   ]
 }
