@@ -1,14 +1,14 @@
 {
   "schema": 1,
-  "build": "2026.08.08.1.0.35.3",
-  "web_version": "1.0.35.3",
-  "pwa_version": "1.0.35.3",
+  "build": "2026.08.08.1.0.35.4",
+  "web_version": "1.0.35.4",
+  "pwa_version": "1.0.35.4",
   "desktop_version": "1.0.35.1",
   "ios_version": "1.2.2",
   "ios_release_url": "https://github.com/erickcarela58-star/dcarela-panel/releases/download/finanzas-ios-1.2.2-beta/DCarelaFinanzas.ipa",
-  "published_at": "2026-08-08T15:05:02-04:00",
+  "published_at": "2026-08-08T23:20:00-04:00",
   "channel": "stable",
-  "notes": "POS 1.0.35.1: sincronización de Caja recuperable y nueve errores locales resueltos. Brújula y Finanzas permanecen disponibles.",
+  "notes": "POS 1.0.35.1 estable. Los dos CRM ya están publicados y disponibles desde Actualizaciones; Brújula y Finanzas permanecen disponibles.",
   "release_page_url": "https://github.com/erickcarela58-star/dcarela-panel/releases",
   "desktop_release": {
     "version": "1.0.35.1",
@@ -119,6 +119,16 @@
       "url": "https://erickcarela58-star.github.io/dcarela-crm-panel/",
       "action": "Abrir CRM",
       "notes": "Panel web publicado por la URL de contingencia mientras se corrige el DNS del dominio personalizado."
+    },
+    {
+      "id": "crm-fotos",
+      "name": "CRM Fotos / WhatsApp",
+      "version": "2026.08.08.1",
+      "platform": "Web y móvil",
+      "status": "published",
+      "url": "https://erickcarela58-star.github.io/dcarela-fotos-panel/",
+      "action": "Abrir CRM Fotos",
+      "notes": "Segundo CRM publicado por HTTPS con el filtro del número vinculado y las funciones del bridge de WhatsApp."
     },
     {
       "id": "brujula",

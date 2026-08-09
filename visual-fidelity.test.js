@@ -9,8 +9,8 @@ const shell = fs.readFileSync("index.html", "utf8");
 const mobile = fs.readFileSync("mobile/index.html", "utf8");
 
 test("las metricas CURRENT cargan la capa visual en escritorio y movil", () => {
-  assert.match(shell, /visual-fidelity\.css\?v=1\.0\.35\.3/);
-  assert.match(shell, /visual-fidelity\.js\?v=1\.0\.35\.3/);
+  assert.match(shell, /visual-fidelity\.css\?v=1\.0\.35\.4/);
+  assert.match(shell, /visual-fidelity\.js\?v=1\.0\.35\.4/);
   assert.match(mobile, /\.\.\/visual-fidelity\.css\?v=1\.0\.34/);
   assert.match(mobile, /\.\.\/visual-fidelity\.js\?v=1\.0\.34/);
 });
