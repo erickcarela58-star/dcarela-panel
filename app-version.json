@@ -113,22 +113,22 @@
     {
       "id": "crm",
       "name": "CRM multicaja",
-      "version": "2026.08.09.1",
+      "version": "2026.08.09.2",
       "platform": "Web y móvil",
       "status": "published",
       "url": "https://erickcarela58-star.github.io/dcarela-crm-panel/",
       "action": "Abrir CRM",
-      "notes": "Panel web publicado por HTTPS con conversaciones, pipeline, planificación, prospectos y control del bridge."
+      "notes": "Panel web publicado por HTTPS con cierre de sesión del segundo WhatsApp, conversaciones, pipeline y control del bridge."
     },
     {
       "id": "crm-fotos",
       "name": "CRM Fotos / WhatsApp",
-      "version": "2026.08.09.1",
+      "version": "2026.08.09.2",
       "platform": "Web y móvil",
       "status": "published",
       "url": "https://erickcarela58-star.github.io/dcarela-fotos-panel/",
       "action": "Abrir CRM Fotos",
-      "notes": "Segundo CRM publicado por HTTPS con filtro del número vinculado, estado del bridge y sincronización manual de historial."
+      "notes": "Segundo CRM publicado por HTTPS con cierre de sesión, filtro del número vinculado y sincronización manual de historial."
     },
     {
       "id": "brujula",
