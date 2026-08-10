@@ -72,11 +72,13 @@
   function suiteStatus(app) {
     const published = app.status === "published" && app.url;
     const beta = app.status === "beta_unsigned" && app.url;
-    const available = published || beta;
+    const diagnostic = app.status === "diagnostic_unsigned" && app.url;
+    const available = published || beta || diagnostic;
     const label = published
       ? "Aplicación disponible"
+      : diagnostic ? "Diagnóstico sin firma Apple"
       : beta ? "Beta para instalación manual" : "Compilación pendiente";
-    const action = app.action || (published ? "Abrir aplicación" : "Descargar beta");
+    const action = app.action || (published ? "Abrir aplicación" : diagnostic ? "Descargar diagnóstico" : "Descargar beta");
     return `<article><div><strong>${escapeHtml(app.name || app.id || "Aplicación")}</strong><small>${escapeHtml(app.platform || "")}</small></div><span class="${published ? "is-ok" : "is-warn"}">${escapeHtml(label)}</span><p>${escapeHtml(app.notes || "")}</p><b>Versión ${escapeHtml(app.version || "--")}</b>${available ? `<a href="${escapeHtml(app.url)}" target="_blank" rel="noopener">${escapeHtml(action)}</a>` : ""}</article>`;
   }
 
