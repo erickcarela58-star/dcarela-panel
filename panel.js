@@ -293,6 +293,7 @@
     dashboard: cargarDashboard,
     sucursales: cargarSucursales,
     ventas: cargarVentas,
+    "caja-virtual": cargarCajaVirtual,
     caja: cargarCaja,
     turnos: cargarTurnos,
     recalcular: cargarRecalculador,
@@ -2330,7 +2331,8 @@
     const pendingCount = salePendingCount();
     document.querySelectorAll(".sale-web-access").forEach(element => element.classList.toggle("oculto", !saleAccess.canUse));
     setSaleButtonState("btnReanudarVenta", saleAccess.canUse && pendingCount > 0, saleAccess.canUse ? "No hay cuentas en espera guardadas." : "Tu cuenta no tiene permiso para usar la caja web.");
-    setSaleButtonState("btnNuevaVentaWeb", saleAccess.canUse, "Tu cuenta no tiene permiso para usar la caja web.");
+    setSaleButtonState("btnNuevaVentaWeb", saleAccess.canUse, "Tu cuenta no tiene permiso para usar la Caja virtual.");
+    setSaleButtonState("btnVirtualNewSale", saleAccess.canUse, "Tu cuenta no tiene permiso para usar la Caja virtual.");
     setSaleButtonState("btnSaleOpenShift", saleAccess.canOpenShift, "Tu cuenta no puede abrir la caja web.");
     setSaleButtonState("btnSaleVerifyPrice", saleAccess.canVerifyPrice, "Tu cuenta no puede verificar precios en la caja web.");
     setSaleButtonState("btnSaleFocusSearch", saleAccess.canUse, "Tu cuenta no puede usar la caja web.");
@@ -2364,7 +2366,7 @@
     });
     const result = await response.json().catch(() => ({}));
     if (!response.ok || !result.ok) {
-      const error = new Error(result.error || `La caja web no respondio (HTTP ${response.status}).`);
+      const error = new Error(result.error || `La Caja virtual no respondio (HTTP ${response.status}).`);
       error.status = response.status;
       throw error;
     }
@@ -2613,6 +2615,79 @@
     setSaleAccess({ role: status.role || saleAccess.role, ...(status.permissions || {}), loaded: true });
     saleShift = status.shift || null;
     renderSaleShift();
+    return status;
+  }
+
+  function virtualCapabilityLabel(capability) {
+    return ({
+      ventas: "Ventas sincronizadas",
+      pagos_mixtos: "Efectivo, tarjeta, transferencia, cheque y pago mixto",
+      credito: "Ventas a credito con limite y cliente obligatorio",
+      pendientes: "Multiples cuentas en espera por navegador",
+      cotizaciones: "Cotizacion imprimible antes del cobro",
+      anulaciones: "Anulacion auditada con motivo",
+      entradas_salidas: "Entradas y salidas de efectivo",
+      arqueo: "Cierre por denominacion, esperado, contado y diferencia",
+      impresion: "Ticket termico validado para 80 mm",
+    })[capability] || capability;
+  }
+
+  async function cargarCajaVirtual() {
+    const status = await saleApi("status");
+    setSaleAccess({ role: status.role || saleAccess.role, ...(status.permissions || {}), loaded: true });
+    saleShift = status.shift || null;
+    const summary = status.summary || {};
+    const open = Boolean(saleShift?.id);
+    $("virtualShiftPill").textContent = open ? `Turno abierto | ${fecha(saleShift.abiertoEn || saleShift.openedAt)}` : "Caja cerrada";
+    $("virtualShiftPill").classList.toggle("live", open);
+    $("virtualMetrics").innerHTML = [
+      ["Estado", open ? "Abierta" : "Cerrada", open ? "terminal disponible" : "abre un turno para vender"],
+      ["Ventas", String(summary.saleCount || 0), money(summary.grossSalesCentavos || 0)],
+      ["Efectivo vendido", money(summary.cashSalesCentavos || 0), "sin duplicar propinas"],
+      ["Entradas", money(summary.entriesCentavos || 0), "movimientos del turno"],
+      ["Salidas", money(summary.exitsCentavos || 0), "movimientos del turno"],
+      ["Efectivo esperado", money(summary.expectedCashCentavos || 0), "apertura + cobros + entradas - salidas"],
+    ].map(([label, value, detail]) => `<div class="metric-item"><span>${esc(label)}</span><strong>${esc(value)}</strong><small>${esc(detail)}</small></div>`).join("");
+    const capabilities = Array.isArray(status.capabilities) ? status.capabilities : [];
+    $("virtualCapabilities").innerHTML = capabilities.map(item => `<div><span aria-hidden="true">&#10003;</span><strong>${esc(virtualCapabilityLabel(item))}</strong></div>`).join("");
+    setSaleButtonState("btnVirtualNewSale", saleAccess.canUse, "Tu cuenta no puede usar la Caja virtual.");
+    setSaleButtonState("btnVirtualResume", saleAccess.canUse && salePendingCount() > 0, saleAccess.canUse ? "No hay cuentas en espera." : "Tu cuenta no puede usar la Caja virtual.");
+    setSaleButtonState("btnVirtualCashIn", open && saleAccess.canCloseShift, open ? "Tu cuenta no puede mover efectivo." : "Abre un turno primero.");
+    setSaleButtonState("btnVirtualCashOut", open && saleAccess.canCloseShift, open ? "Tu cuenta no puede mover efectivo." : "Abre un turno primero.");
+    setSaleButtonState("btnVirtualClose", open && saleAccess.canCloseShift, open ? "Tu cuenta no puede cerrar este turno." : "No hay un turno abierto.");
+    $("virtualCashError").textContent = "";
+
+    const recent = await eventos(["VentaCobrada", "VentaCancelada", "EntradaEfectivo", "SalidaEfectivo", "CajaAbierta", "CajaCerrada"], null, null, 400);
+    const own = recent.filter(item => item.device_id === status.device_id).slice(0, 30);
+    $("virtualActivity").innerHTML = own.length ? tabla(own, event => {
+      const p = P(event);
+      const amount = event.event_type === "VentaCobrada"
+        ? totalDe(p)
+        : numero(p.montoCentavos, p.efectivoContadoCentavos, p.montoAperturaCentavos);
+      return [fecha(fechaEventoIso(event)), event.event_type, p.folio ? `#${esc(p.folio)}` : "--", amount ? money(amount) : "--", esc(p.clienteNombre || p.motivo || p.nota || p.usuarioNombre || "--")];
+    }, ["Fecha", "Operacion", "Folio", "Monto", "Detalle"]) : '<div class="empty-state">Esta Caja virtual aun no tiene actividad.</div>';
+  }
+
+  function openVirtualCashMovement(kind) {
+    const outgoing = kind === "salida";
+    if (!saleShift?.id) { toast("Abre un turno de Caja virtual primero."); return; }
+    abrirEditor(
+      outgoing ? "Salida de efectivo" : "Entrada de efectivo",
+      "El movimiento quedara ligado al turno de Caja virtual, con auditoria y sincronizacion.",
+      '<label><span>Monto</span><input name="monto" inputmode="decimal" required></label><label class="field-wide"><span>Motivo</span><input name="motivo" maxlength="500" required></label><label class="field-wide"><span>Nota adicional</span><textarea name="nota" rows="3" maxlength="1000"></textarea></label>',
+      async form => {
+        const result = await saleApi("cash.move", {
+          tipo: kind,
+          montoCentavos: centavosInput(form.get("monto")),
+          motivo: String(form.get("motivo") || "").trim(),
+          nota: String(form.get("nota") || "").trim() || null,
+        }, saleUuid());
+        cerrarEditor();
+        toast(`${outgoing ? "Salida" : "Entrada"} registrada: ${money(result.movement.montoCentavos)}.`);
+        await cargarCajaVirtual();
+      },
+      outgoing ? "Registrar salida" : "Registrar entrada",
+    );
   }
 
   async function openSaleConsole(resume = false) {
@@ -2985,6 +3060,7 @@
       cancelCache.at = 0;
       toast(`Venta #${result.sale.folio} registrada y enviada a las cajas.`);
       cargarVentas().catch(() => {});
+      if ((location.hash.slice(1) || "dashboard") === "caja-virtual") cargarCajaVirtual().catch(() => {});
     } catch (error) {
       if (error.status === 409 && /Inventario requiere confirmacion/i.test(error.message) && !inventoryReason && saleAccess.canForceInventory) {
         abrirEditor("Confirmar inventario", error.message, '<label class="field-wide"><span>Motivo para continuar</span><textarea name="motivo" rows="3" required maxlength="500" placeholder="Ej.: conteo pendiente en esta sucursal"></textarea></label>', async form => {
@@ -3015,7 +3091,8 @@
       saleShift = result.shift;
       renderSaleShift();
       setSaleStage("catalog", true);
-      toast("Caja web abierta. Ya puedes registrar ventas.");
+      toast("Caja virtual abierta. Ya puedes registrar ventas.");
+      if ((location.hash.slice(1) || "dashboard") === "caja-virtual") cargarCajaVirtual().catch(() => {});
     } catch (error) { $("saleError").textContent = error.message; }
     finally { button.disabled = false; }
   }
@@ -3034,7 +3111,7 @@
       </label>`).join("");
 
     abrirEditor(
-      "Cerrar caja web",
+      "Cerrar Caja virtual",
       "Cuenta el efectivo billete por billete. El total se calcula solo y debe cuadrar antes de cerrar.",
       `<div class="conteo-grid">${filas}</div>
        <div class="conteo-total" id="conteoResumen">
@@ -3043,7 +3120,7 @@
          <div id="conteoDif" class="conteo-dif"></div>
        </div>
        <label class="field-wide"><span>Motivo (obligatorio si hay diferencia)</span>
-         <textarea name="nota" rows="3" maxlength="1000"></textarea></label>`,
+         <textarea name="nota" rows="5" maxlength="2000" placeholder="Documenta la explicacion completa; no se recortara visualmente"></textarea></label>`,
       async form => {
         const conteo = DENOMINACIONES
           .map(v => ({ valorCentavos: v * 100, cantidad: Math.max(0, Math.trunc(numero(form.get(`den_${v}`)))) }))
@@ -3062,6 +3139,7 @@
         toast(dif === 0
           ? "Caja cerrada. El conteo cuadro exacto."
           : `Caja cerrada. Diferencia: ${money(dif)}.`);
+        if ((location.hash.slice(1) || "dashboard") === "caja-virtual") cargarCajaVirtual().catch(() => {});
       },
       "Cerrar y guardar arqueo");
 
@@ -6080,7 +6158,7 @@
       const view = location.hash.slice(1) || "dashboard";
       if (view === "dashboard") cargarDashboard().catch(() => {});
       if (view === "notificaciones") cargarNotificaciones().catch(() => {});
-      if (["ventas", "caja", "turnos", "recalcular", "reportes", "inventario", "clientes", "proveedores", "asistente", "configuracion"].includes(view)) loaders[view]?.().catch(() => {});
+      if (["ventas", "caja-virtual", "caja", "turnos", "recalcular", "reportes", "inventario", "clientes", "proveedores", "asistente", "configuracion"].includes(view)) loaders[view]?.().catch(() => {});
     }, 700);
   }
 
@@ -6413,6 +6491,17 @@
         openPendingSales();
       } catch (error) { toast(error.message); }
     });
+    on("btnVirtualNewSale", "click", () => openSaleConsole(false).catch(error => toast(error.message)));
+    on("btnVirtualResume", "click", async () => {
+      try {
+        await openSaleConsole(false);
+        openPendingSales();
+      } catch (error) { toast(error.message); }
+    });
+    on("btnVirtualCashIn", "click", () => openVirtualCashMovement("entrada"));
+    on("btnVirtualCashOut", "click", () => openVirtualCashMovement("salida"));
+    on("btnVirtualClose", "click", openSaleCloseShift);
+    on("btnVirtualRefresh", "click", () => cargarCajaVirtual().catch(error => { $("virtualCashError").textContent = error.message; }));
     on("btnCerrarVenta", "click", closeSaleConsole);
     on("saleOverlay", "click", event => { if (event.target === $("saleOverlay")) closeSaleConsole(); });
     $("saleStageTabs").querySelectorAll("[data-sale-stage]").forEach(button => button.addEventListener("click", () => setSaleStage(button.dataset.saleStage, true)));

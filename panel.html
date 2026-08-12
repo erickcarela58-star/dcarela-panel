@@ -87,6 +87,7 @@
         <a href="#dashboard" data-title="Resumen operativo">Resumen</a>
         <a href="#sucursales" data-title="Sucursales">Sucursales</a>
         <a href="#ventas" data-title="Ventas">Ventas</a>
+        <a href="#caja-virtual" data-title="Caja virtual">Caja virtual</a>
         <a href="#caja" data-title="Caja y arqueos">Caja</a>
         <a href="#turnos" data-title="Ventas por turnos">Turnos</a>
         <a href="#recalcular" data-title="Recalcular incongruencias">Recalcular</a>
@@ -197,6 +198,36 @@
           </div>
           <div id="ventasResumen" class="inline-metrics"></div>
           <section class="surface"><div id="ventasTabla" class="table-wrap"></div></section>
+        </section>
+
+        <section id="v-caja-virtual" class="vista oculto">
+          <div class="section-heading virtual-cash-heading">
+            <div><p class="eyebrow">Terminal web completa</p><h2>Caja virtual</h2><p>Vende desde el navegador con el mismo catalogo, clientes, inventario, pagos y auditoria de las cajas locales.</p></div>
+            <span id="virtualShiftPill" class="status-pill">Consultando turno</span>
+          </div>
+          <div id="virtualMetrics" class="metric-strip virtual-metric-strip" aria-label="Resumen de caja virtual"></div>
+          <div class="virtual-cash-layout">
+            <section class="surface virtual-cash-command">
+              <div class="surface-title"><div><h3>Operaciones</h3><p>Acciones auditadas y sincronizadas con todas las terminales.</p></div></div>
+              <div class="virtual-action-grid">
+                <button id="btnVirtualNewSale" class="virtual-action primary" type="button"><strong>Nueva venta</strong><span>Productos, venta comun, cliente y cobro mixto</span></button>
+                <button id="btnVirtualResume" class="virtual-action secondary" type="button"><strong>Cuentas en espera</strong><span>Continua una venta pendiente de este navegador</span></button>
+                <button id="btnVirtualCashIn" class="virtual-action secondary" type="button"><strong>Entrada de efectivo</strong><span>Registra fondo adicional con motivo</span></button>
+                <button id="btnVirtualCashOut" class="virtual-action secondary" type="button"><strong>Salida de efectivo</strong><span>Documenta retiro o gasto de caja</span></button>
+                <button id="btnVirtualClose" class="virtual-action secondary" type="button"><strong>Cerrar y arquear</strong><span>Conteo por denominacion, esperado y diferencia</span></button>
+                <button id="btnVirtualRefresh" class="virtual-action secondary" type="button"><strong>Actualizar estado</strong><span>Recarga turno, ventas y efectivo</span></button>
+              </div>
+              <p id="virtualCashError" class="error" role="alert"></p>
+            </section>
+            <section class="surface virtual-cash-guide">
+              <div class="surface-title"><div><h3>Paridad operativa</h3><p>Funciones disponibles desde esta terminal web.</p></div></div>
+              <div id="virtualCapabilities" class="virtual-capability-list"></div>
+            </section>
+            <section class="surface virtual-cash-activity">
+              <div class="surface-title"><div><h3>Actividad del turno</h3><p>Ventas, anulaciones y movimientos de efectivo de esta caja virtual.</p></div><a href="#ventas">Ver todas</a></div>
+              <div id="virtualActivity" class="table-wrap"></div>
+            </section>
+          </div>
         </section>
 
         <section id="v-caja" class="vista oculto">
@@ -633,7 +664,7 @@
       <footer><span>D' Carela Compufoto</span><span id="footerClock"></span></footer>
     </div>
     <nav class="mobile-command-dock" aria-label="Accesos principales">
-      <a href="#dashboard"><i aria-hidden="true">⌂</i><span>Resumen</span></a>
+      <a href="#caja-virtual"><i aria-hidden="true">+</i><span>Vender</span></a>
       <a href="#proveedores"><i aria-hidden="true">$</i><span>Finanzas</span></a>
       <a href="#inventario"><i aria-hidden="true">▦</i><span>Inventario</span></a>
       <a href="#asistente"><i aria-hidden="true">✦</i><span>IA</span></a>
@@ -646,7 +677,7 @@
     <section id="saleConsole" class="sale-console" role="dialog" aria-modal="true" aria-labelledby="saleTitle">
       <header class="sale-console-header">
         <div class="sale-console-identity">
-          <p class="eyebrow">Caja web segura</p>
+          <p class="eyebrow">Caja virtual segura</p>
           <h2 id="saleTitle">Nueva venta</h2>
           <p id="saleBranch">Sucursal</p>
         </div>
@@ -662,7 +693,7 @@
             <span><kbd>F12</kbd> Cobrar</span>
           </div>
           <span id="saleShiftPill" class="status-pill">Consultando turno</span>
-          <button id="btnCerrarVenta" class="icon-button" type="button" aria-label="Cerrar caja web">&#215;</button>
+          <button id="btnCerrarVenta" class="icon-button" type="button" aria-label="Cerrar Caja virtual">&#215;</button>
         </div>
       </header>
 
@@ -687,7 +718,7 @@
       </div>
 
       <div id="saleShiftGate" class="sale-shift-gate oculto">
-        <div><strong>Abre la caja web</strong><p>El fondo inicial, las ventas y el cierre quedan separados de las cajas de Windows.</p></div>
+        <div><strong>Abre la Caja virtual</strong><p>El fondo inicial, las ventas y el cierre quedan separados por terminal y sincronizados con las cajas de Windows.</p></div>
         <label><span>Fondo inicial</span><input id="saleOpening" inputmode="decimal" value="0.00"></label>
         <button id="btnSaleOpenShift" class="primary" type="button">Abrir caja y comenzar</button>
       </div>
@@ -790,7 +821,7 @@
   <script src="jspdf.plugin.autotable.min.js"></script>
   <script src="ticket-termico.js?v=1.0.34.2"></script>
   <script src="panel-sale-pending.js?v=1.0.34.2"></script>
-<script src="panel.js?v=1.0.34.2"></script>
+<script src="panel.js?v=20260812-caja-virtual-v2"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));

@@ -3399,6 +3399,28 @@ body.sale-printing #saleOverlay {
   display: block !important;
   background: #fff !important;
 }
+
+/* Caja virtual: modulo operativo de primer nivel, no solo un popup de Ventas. */
+.virtual-cash-heading { align-items: end; padding-bottom: 18px; border-bottom: 1px solid var(--line); }
+.virtual-cash-heading .eyebrow { margin-bottom: 7px; }
+.virtual-metric-strip { margin: 0 0 18px; grid-template-columns: repeat(6,minmax(0,1fr)); }
+.virtual-cash-layout { display: grid; grid-template-columns: minmax(0,1.55fr) minmax(280px,.65fr); gap: 16px; }
+.virtual-cash-command,.virtual-cash-guide,.virtual-cash-activity { min-width: 0; }
+.virtual-cash-activity { grid-column: 1 / -1; }
+.virtual-action-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; }
+.virtual-action { min-height: 88px; padding: 15px 16px; text-align: left; border-radius: 11px; }
+.virtual-action strong,.virtual-action span { display: block; }
+.virtual-action strong { margin-bottom: 5px; font-size: 15px; }
+.virtual-action span { max-width: 38ch; color: var(--muted); font-size: 11px; font-weight: 600; line-height: 1.45; }
+.virtual-action.primary span { color: color-mix(in srgb,var(--ui-canvas,#fff) 76%,transparent); }
+.virtual-action:disabled { cursor: not-allowed; opacity: .42; }
+.virtual-capability-list { display: grid; gap: 0; }
+.virtual-capability-list > div { display: grid; grid-template-columns: 24px 1fr; gap: 8px; align-items: start; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.virtual-capability-list > div:last-child { border-bottom: 0; }
+.virtual-capability-list span { display: grid; width: 20px; height: 20px; place-items: center; color: var(--green); border: 1px solid color-mix(in srgb,var(--green) 34%,transparent); border-radius: 50%; font-size: 11px; }
+.virtual-capability-list strong { font-size: 12px; line-height: 1.4; }
+@media (max-width: 1200px) { .virtual-metric-strip { grid-template-columns: repeat(3,minmax(0,1fr)); }.virtual-cash-layout { grid-template-columns: 1fr; }.virtual-cash-activity { grid-column: auto; } }
+@media (max-width: 720px) { .virtual-metric-strip,.virtual-action-grid { grid-template-columns: 1fr; }.virtual-cash-heading { align-items: start; }.virtual-action { min-height: 76px; } }
 body.sale-printing #saleConsole {
   width: auto !important;
   max-width: none !important;
