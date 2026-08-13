@@ -1,14 +1,14 @@
 {
   "schema": 1,
-  "build": "2026.08.13.2.0.43.2",
+  "build": "2026.08.13.3.0.43.2",
   "web_version": "1.0.43.2",
   "pwa_version": "1.0.43.2",
   "desktop_version": "1.0.44",
   "ios_version": "4.0.0",
   "ios_release_url": "https://github.com/erickcarela58-star/carela-compufoto/releases/download/finanzas-ios-4.0.0/DCarelaFinanzas-4.0.0-unsigned.ipa",
-  "published_at": "2026-08-13T00:51:20Z",
+  "published_at": "2026-08-13T06:22:00Z",
   "channel": "stable",
-  "notes": "Panel 1.0.43.2 aísla la central de Plaza Artesanal. Finanzas iOS 4.0 corrige el falso modo de solo lectura, adopta la navegación del panel y habilita edición administrativa real.",
+  "notes": "Panel 1.0.43.2 aísla la central de Plaza Artesanal. Finanzas iOS 4.0 mantiene control administrativo nativo y Brújula iOS 3.0 incorpora Enfoque DNS por categorías y dominios.",
   "release_page_url": "https://github.com/erickcarela58-star/dcarela-panel/releases",
   "desktop_release": {
     "version": "1.0.44",
@@ -79,21 +79,21 @@
     {
       "product": "Brújula",
       "label": "Artefacto diagnóstico sin firma para iPhone",
-      "name": "Brujula-2.0.0-unsigned.ipa",
+      "name": "Brujula-3.0.0-unsigned.ipa",
       "extension": "IPA",
-      "version": "2.0.0",
-      "build": "200",
+      "version": "3.0.0",
+      "build": "300",
       "platform": "iPhone · iOS 17+",
       "channel": "diagnostic",
       "publisher_signature": "not_signed",
       "signature_label": "Artefacto verificado · sin firma ni perfil Apple",
-      "published_at": "2026-08-10T12:11:23Z",
-      "size_bytes": 17709398,
-      "sha256": "bd8fcd89af473cee11296c4960915043e8e4ba8f482aed1ad95941ab4b73c158",
-      "url": "https://github.com/erickcarela58-star/carela-compufoto/releases/download/ios-diagnostics-20260810/Brujula-2.0.0-unsigned.ipa",
+      "published_at": "2026-08-13T06:22:00Z",
+      "size_bytes": 17748588,
+      "sha256": "37b8f9251711a14ba13f93d5ac0d303ef378cbee1ab4d29672649eb01a8f6fd8",
+      "url": "https://github.com/erickcarela58-star/carela-compufoto/releases/download/brujula-ios-3.0.0/Brujula-3.0.0-unsigned.ipa",
       "action": "Descargar IPA de diagnóstico",
-      "notes": "Build SwiftUI nativa con rutinas temporizadas y voz, asistente Productividad/Ligar, biblioteca PDF/TXT, teclado adaptable, Salud, Cámara, notificaciones y Family Controls.",
-      "installation_method": "No es instalable directamente: no contiene firma ni perfil de aprovisionamiento Apple. Screen Time/Family Controls además requiere entitlements aprobados; la distribución final debe realizarse con Apple."
+      "notes": "Build SwiftUI 3.0 con Enfoque DNS por categorías y dominios, perfil manual removible, rutinas temporizadas y voz, asistente Productividad/Ligar, biblioteca, Salud y Cámara.",
+      "installation_method": "No es instalable directamente: no contiene firma ni perfil de aprovisionamiento Apple. Network Extensions DNS Settings requiere firma con la capacidad aprobada; la distribución final debe realizarse con Apple."
     }
   ],
   "apps": [
@@ -130,12 +130,12 @@
     {
       "id": "brujula",
       "name": "Brújula",
-      "version": "2.0.0 (build 200)",
+      "version": "3.0.0 (build 300)",
       "platform": "iPhone",
       "status": "diagnostic_unsigned",
-      "url": "https://github.com/erickcarela58-star/carela-compufoto/releases/download/ios-diagnostics-20260810/Brujula-2.0.0-unsigned.ipa",
+      "url": "https://github.com/erickcarela58-star/carela-compufoto/releases/download/brujula-ios-3.0.0/Brujula-3.0.0-unsigned.ipa",
       "action": "Descargar IPA de diagnóstico",
-      "notes": "Aplicación nativa con rutinas temporizadas, voz, asistente Productividad/Ligar, libros PDF/TXT, teclado adaptable, Salud, cámara y permisos. Artefacto verificado, sin firma ni perfil Apple."
+      "notes": "Aplicación nativa 3.0 con Enfoque DNS por categorías y dominios, perfil manual removible, rutinas temporizadas, voz, asistente, libros, Salud y cámara. Artefacto verificado, sin firma ni perfil Apple."
     }
   ]
 }

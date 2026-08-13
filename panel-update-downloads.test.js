@@ -58,12 +58,12 @@ test("Finanzas publica el diagnostico 4.0.0 y los dos CRM apuntan a v18", () => 
   assert.match(crmFotos.version, /per-chat-photo-bot-v18/);
 });
 
-test("Brújula publica el diagnostico 2.0.0 build 200 verificable", () => {
+test("Brújula publica el diagnostico 3.0.0 build 300 verificable", () => {
   const brujula = manifest.apps.find(app => app.id === "brujula");
   const download = manifest.downloads.find(file => file.product === "Brújula");
   assert.equal(brujula.status, "diagnostic_unsigned");
-  assert.equal(brujula.version, "2.0.0 (build 200)");
-  assert.match(brujula.url, /Brujula-2\.0\.0-unsigned\.ipa$/);
-  assert.equal(download.sha256, "bd8fcd89af473cee11296c4960915043e8e4ba8f482aed1ad95941ab4b73c158");
-  assert.equal(download.size_bytes, 17709398);
+  assert.equal(brujula.version, "3.0.0 (build 300)");
+  assert.match(brujula.url, /Brujula-3\.0\.0-unsigned\.ipa$/);
+  assert.equal(download.sha256, "37b8f9251711a14ba13f93d5ac0d303ef378cbee1ab4d29672649eb01a8f6fd8");
+  assert.equal(download.size_bytes, 17748588);
 });
