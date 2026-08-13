@@ -19,5 +19,26 @@ test("Caja virtual consume el resumen real y movimientos auditados", () => {
   assert.match(panel, /"caja-virtual": cargarCajaVirtual/);
   assert.match(panel, /saleApi\("cash\.move"/);
   assert.match(panel, /summary\.expectedCashCentavos/);
-  assert.match(sw, /2026\.08\.12\.caja-virtual-v2/);
+  assert.match(sw, /2026\.08\.12\.caja-virtual-v3/);
+});
+
+test("Caja virtual replica F1-F12 y protege el esperado durante el conteo", () => {
+  for (let key = 1; key <= 12; key += 1) assert.match(panel, new RegExp(`"F${key}"`));
+  assert.match(panel, /CHANGE_LINE: "change-line"/);
+  assert.match(panel, /CASH_IN: "cash-in"/);
+  assert.match(panel, /CASH_OUT: "cash-out"/);
+  assert.match(panel, /WHOLESALE: "wholesale"/);
+  assert.match(panel, /submitSale\(null, shortcut\.action === SALE_SHORTCUT_ACTIONS\.SUBMIT_PRINT\)/);
+  assert.doesNotMatch(panel, /id="conteoEsperado"/);
+  assert.doesNotMatch(panel, /Esperado por el sistema/);
+  assert.match(html, /id="btnSaleSubmitPrint"/);
+  assert.match(html, /id="btnSaleWholesale"/);
+});
+
+test("Finanzas rastrea transferencias pendientes sin alterar el saldo", () => {
+  assert.match(html, /id="finTransferenciasPendientes"/);
+  assert.match(html, /id="btnFinNuevaPendiente"/);
+  assert.match(panel, /fin_transferencias_pendientes/);
+  assert.match(panel, /fin\.pending_transfer\.confirm/);
+  assert.match(panel, /no duplica el movimiento financiero original/i);
 });

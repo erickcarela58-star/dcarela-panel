@@ -2690,6 +2690,16 @@ html[data-theme].embedded-panel .update-platform-card:last-child {
   border-radius: 6px;
 }
 
+.sale-line.selected {
+  border-color: var(--ink, #18181b);
+  box-shadow: inset 3px 0 0 var(--ink, #18181b);
+}
+
+.sale-line:focus-visible {
+  outline: 2px solid var(--ink, #18181b);
+  outline-offset: 2px;
+}
+
 .sale-line-name {
   min-width: 0;
 }

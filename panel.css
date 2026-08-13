@@ -3401,6 +3401,16 @@ body.sale-printing #saleOverlay {
 }
 
 /* Caja virtual: modulo operativo de primer nivel, no solo un popup de Ventas. */
+.virtual-cash-modules { grid-column: 1 / -1; }
+.virtual-module-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; }
+.virtual-module-grid > a,
+.virtual-module-grid > button { display:grid; gap:5px; min-height:104px; padding:14px; border:1px solid var(--line); border-radius:14px; background:var(--surface); color:var(--text); text-align:left; text-decoration:none; cursor:pointer; }
+.virtual-module-grid > a:hover,
+.virtual-module-grid > button:hover { border-color:var(--text); transform:translateY(-1px); }
+.virtual-module-grid strong { font-size:14px; }
+.virtual-module-grid span { color:var(--muted); font-size:12px; line-height:1.35; }
+@media (max-width:900px) { .virtual-module-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media (max-width:520px) { .virtual-module-grid { grid-template-columns:1fr; } }
 .virtual-cash-heading { align-items: end; padding-bottom: 18px; border-bottom: 1px solid var(--line); }
 .virtual-cash-heading .eyebrow { margin-bottom: 7px; }
 .virtual-metric-strip { margin: 0 0 18px; grid-template-columns: repeat(6,minmax(0,1fr)); }

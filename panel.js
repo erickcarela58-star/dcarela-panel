@@ -68,7 +68,8 @@
     "GastoRegistrado", "GastoEditado", "GastoEliminado", "CostoRecurrenteGuardado",
     "CostoObligacionGenerada", "CostoObligacionGuardada", "CostoPagoRegistrado",
     "CostoObligacionAnulada", "ReciboPagoEmitido", "ReciboPagoFirmaActualizada",
-    "ReciboPagoAnulado", "ActualizacionDisponible", "ErrorCajonDinero", "ErrorImpresionCorte"
+    "ReciboPagoAnulado", "ActualizacionDisponible", "ErrorCajonDinero", "ErrorImpresionCorte",
+    "TransferenciaPendiente", "TransferenciaConfirmada"
   ];
 
   let sb = null;
@@ -118,6 +119,7 @@
   let saleRequestId = null;
   let saleSubmitting = false;
   let saleStage = "catalog";
+  let saleSelectedLineIndex = -1;
   let saleAccess = {
     role: "viewer",
     canUse: false,
@@ -1472,7 +1474,7 @@
     const crear = id => {
       if (!grupos.has(id)) grupos.set(id, {
         id, inicio: null, fin: null, ultimaVenta: null, caja: "Caja", estado: "abierto",
-        apertura: null, esperado: null, contado: null, diferencia: null, motivo: "",
+        apertura: null, entregar: null, esperado: null, contado: null, diferencia: null, motivo: "",
         total: 0, efectivo: 0, itbis: 0, ventas: [], conteo: [], cajeros: new Set(), usuarios: new Set()
       });
       return grupos.get(id);
@@ -1503,6 +1505,7 @@
       if (event.event_type === "CajaCerrada") {
         grupo.fin = payload.cerradoEn || fechaEventoIso(event);
         grupo.esperado = opcional(payload.efectivoEsperadoCentavos, payload.efectivo_esperado_centavos);
+        grupo.entregar = opcional(payload.efectivoAEntregarCentavos, payload.efectivo_a_entregar_centavos);
         grupo.contado = opcional(payload.efectivoContadoCentavos, payload.efectivo_contado_centavos);
         grupo.diferencia = opcional(payload.diferenciaCentavos, payload.diferencia_centavos);
         grupo.conteo = Array.isArray(payload.conteoDenominaciones) ? payload.conteoDenominaciones : [];
@@ -1613,10 +1616,10 @@
             return `<div class="turn-sale"><span>#${esc(payload.folio ?? "--")}</span><span>${esc(hora)}</span><span>${esc(nombreCajero(payload, userCatalog))}</span><span>${esc(metodoConCuentaDe(payload))}</span><strong>${money(totalDe(payload))}</strong></div>`;
           }).join("")
         : '<div class="empty-state">Este turno no tiene ventas sincronizadas.</div>';
-      return `<tr class="turn-row" id="turn-${esc(turno.id)}"><td>${esc(fecha(turno.inicio))}</td><td>${turno.fin ? esc(fecha(turno.fin)) : "En curso"}</td><td>${esc(turno.cajero)}</td><td>${esc(turno.caja)}</td><td>${turno.ventas.length}</td><td class="amount">${money(turno.total)}</td><td class="amount">${money(turno.efectivo)}</td><td class="amount">${turno.apertura === null ? "--" : money(turno.apertura)}</td><td class="amount">${turno.esperado === null ? "--" : money(turno.esperado)}</td><td class="amount">${turno.contado === null ? "--" : money(turno.contado)}</td><td class="amount ${diferenciaClase}" title="${esc(turno.motivo)}">${esc(diferenciaTexto)}</td><td><span class="tag ${turno.estado === "cerrado" ? "ok" : "warn"}">${esc(turno.estado)}</span></td><td><button class="secondary turn-toggle" data-detail="turn-detail-${index}">Ventas</button></td></tr>
-        <tr id="turn-detail-${index}" class="detail-row oculto"><td colspan="13"><div class="detail-box turn-detail"><div class="turn-detail-head"><strong>Folios de este turno</strong><span>${turno.motivo ? `Nota del arqueo: ${esc(turno.motivo)}` : "Sin nota de diferencia"}</span></div>${pista ? `<div class="cash-clue ${diferencia > 0 ? "surplus" : "shortage"}">${esc(pista)}</div>` : ""}${detalle}</div></td></tr>`;
+      return `<tr class="turn-row" id="turn-${esc(turno.id)}"><td>${esc(fecha(turno.inicio))}</td><td>${turno.fin ? esc(fecha(turno.fin)) : "En curso"}</td><td>${esc(turno.cajero)}</td><td>${esc(turno.caja)}</td><td>${turno.ventas.length}</td><td class="amount">${money(turno.total)}</td><td class="amount">${money(turno.efectivo)}</td><td class="amount">${turno.apertura === null ? "--" : money(turno.apertura)}</td><td class="amount">${turno.entregar === null ? "--" : money(turno.entregar)}</td><td class="amount">${turno.esperado === null ? "--" : money(turno.esperado)}</td><td class="amount">${turno.contado === null ? "--" : money(turno.contado)}</td><td class="amount ${diferenciaClase}" title="${esc(turno.motivo)}">${esc(diferenciaTexto)}</td><td><span class="tag ${turno.estado === "cerrado" ? "ok" : "warn"}">${esc(turno.estado)}</span></td><td><button class="secondary turn-toggle" data-detail="turn-detail-${index}">Ventas</button></td></tr>
+        <tr id="turn-detail-${index}" class="detail-row oculto"><td colspan="14"><div class="detail-box turn-detail"><div class="turn-detail-head"><strong>Folios de este turno</strong><span>${turno.motivo ? `Nota del arqueo: ${esc(turno.motivo)}` : "Sin nota de diferencia"}</span></div>${pista ? `<div class="cash-clue ${diferencia > 0 ? "surplus" : "shortage"}">${esc(pista)}</div>` : ""}${detalle}</div></td></tr>`;
     }).join("");
-    $("turnosTabla").innerHTML = `<table><thead><tr><th>Entrada</th><th>Salida</th><th>Cajero(s)</th><th>Caja</th><th>Ventas</th><th class="amount">Total</th><th class="amount">Efectivo</th><th class="amount">Apertura</th><th class="amount">Esperado</th><th class="amount">Contado</th><th class="amount">Diferencia</th><th>Estado</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
+    $("turnosTabla").innerHTML = `<table><thead><tr><th>Entrada</th><th>Salida</th><th>Cajero(s)</th><th>Caja</th><th>Ventas</th><th class="amount">Total</th><th class="amount">Efectivo</th><th class="amount">Apertura</th><th class="amount">A entregar</th><th class="amount">Esperado fisico</th><th class="amount">Contado</th><th class="amount">Diferencia</th><th>Estado</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
     document.querySelectorAll(".turn-toggle").forEach(button => button.addEventListener("click", () => $(button.dataset.detail).classList.toggle("oculto")));
     const focus = sessionStorage.getItem("dcarela.turno.focus");
     if (focus) {
@@ -2336,6 +2339,10 @@
     setSaleButtonState("btnSaleOpenShift", saleAccess.canOpenShift, "Tu cuenta no puede abrir la caja web.");
     setSaleButtonState("btnSaleVerifyPrice", saleAccess.canVerifyPrice, "Tu cuenta no puede verificar precios en la caja web.");
     setSaleButtonState("btnSaleFocusSearch", saleAccess.canUse, "Tu cuenta no puede usar la caja web.");
+    setSaleButtonState("btnSaleChange", saleAccess.canCreateSale, "Tu cuenta no puede modificar la venta.");
+    setSaleButtonState("btnSaleCashIn", saleAccess.canUse, "Tu cuenta no puede registrar entradas.");
+    setSaleButtonState("btnSaleCashOut", saleAccess.canUse, "Tu cuenta no puede registrar salidas.");
+    setSaleButtonState("btnSaleWholesale", saleAccess.canCreateSale, "Tu cuenta no puede cambiar el precio de mayoreo.");
     setSaleButtonState("btnSaleCommon", saleAccess.canOpenCommonSale, "Tu cuenta no puede registrar ventas comunes.");
     setSaleButtonState("btnSalePark", saleAccess.canParkSale, "Tu cuenta no puede guardar ventas pendientes.");
     setSaleButtonState("btnSaleClear", saleAccess.canCreateSale, "Tu cuenta no puede modificar la cuenta actual.");
@@ -2343,6 +2350,7 @@
     setSaleButtonState("btnSaleAddPayment", saleAccess.canCreateSale, "Tu cuenta no puede agregar pagos.");
     setSaleButtonState("btnSaleQuote", saleAccess.canCreateSale, "Tu cuenta no puede preparar cotizaciones desde la caja web.");
     setSaleButtonState("btnSaleSubmit", saleAccess.canCreateSale, "Tu cuenta no puede registrar ventas en la caja web.");
+    setSaleButtonState("btnSaleSubmitPrint", saleAccess.canCreateSale, "Tu cuenta no puede registrar ventas en la caja web.");
     setSaleButtonState("btnSaleMobileCheckout", saleAccess.canCreateSale, "Tu cuenta no puede registrar ventas en la caja web.");
     setSaleButtonState("btnSaleCloseShift", saleAccess.canCloseShift, "Tu cuenta no puede cerrar la caja web.", true);
     $("salePriceReasonField")?.classList.toggle("oculto", !saleAccess.canOverridePrice || !saleHasCustomPrices());
@@ -2498,7 +2506,7 @@
         const quantity = numero(line.cantidad);
         const gross = Math.round(numero(line.precioUnitarioCentavos) * quantity);
         const final = Math.round(gross * (1 - numero(line.descuentoPct) / 100));
-        return `<article class="sale-line" data-sale-line="${index}">
+        return `<article class="sale-line${index === saleSelectedLineIndex ? " selected" : ""}" data-sale-line="${index}" tabindex="0">
           <div class="sale-line-name"><strong>${esc(line.nombre)}</strong><small>${line.comun ? "Venta comun" : esc(line.codigoBarras || line.unidadMedida || "Producto")}</small></div>
           <label><span>Cantidad</span><input data-sale-field="cantidad" inputmode="decimal" value="${esc(line.cantidad)}"${saleAccess.canCreateSale ? "" : " disabled"}></label>
           <label><span>Precio</span><input data-sale-field="precio" inputmode="decimal" value="${esc(pesoInput(line.precioUnitarioCentavos))}"${saleAccess.canOverridePrice ? "" : " disabled"}></label>
@@ -2555,7 +2563,10 @@
       descuentoPct: 0, mayoreo: false, tasaItbis: numero(product.tasaItbis, .18),
       usaInventario: product.usaInventario !== false, stock: product.stock, comun: false
     });
+    saleSelectedLineIndex = saleCart.findIndex(line => line.productoId === productId);
+    if (saleSelectedLineIndex < 0) saleSelectedLineIndex = saleCart.length - 1;
     renderSaleCart();
+    selectSaleLine(saleSelectedLineIndex);
     $("saleSearch").value = "";
     renderSaleProducts();
     $("saleSearch").focus();
@@ -2629,6 +2640,13 @@
       entradas_salidas: "Entradas y salidas de efectivo",
       arqueo: "Cierre por denominacion, esperado, contado y diferencia",
       impresion: "Ticket termico validado para 80 mm",
+      clientes: "Directorio, credito, abonos e historial de clientes",
+      productos: "Productos, servicios, categorias y combos",
+      inventario: "Existencias y movimientos sincronizados",
+      reportes: "Reportes de ventas, impuestos, turnos y productos",
+      finanzas: "Cuentas, gastos, compromisos y conciliacion",
+      atajos_f1_f12: "Mapa F1-F12 igual a la caja local",
+      seguimiento_transferencias: "Transferencias bancarias pendientes de confirmacion",
     })[capability] || capability;
   }
 
@@ -2644,9 +2662,12 @@
       ["Estado", open ? "Abierta" : "Cerrada", open ? "terminal disponible" : "abre un turno para vender"],
       ["Ventas", String(summary.saleCount || 0), money(summary.grossSalesCentavos || 0)],
       ["Efectivo vendido", money(summary.cashSalesCentavos || 0), "sin duplicar propinas"],
+      ["Abonos de clientes", money(summary.customerCashPaymentsCentavos || 0), "incluidos una sola vez"],
       ["Entradas", money(summary.entriesCentavos || 0), "movimientos del turno"],
       ["Salidas", money(summary.exitsCentavos || 0), "movimientos del turno"],
-      ["Efectivo esperado", money(summary.expectedCashCentavos || 0), "apertura + cobros + entradas - salidas"],
+      ["Devoluciones", money(summary.cashRefundsCentavos || 0), "reembolsos en efectivo"],
+      ["A entregar", money(summary.cashToDeliverCentavos || 0), "sin contar el fondo de apertura"],
+      ["Esperado fisico", money(summary.expectedCashCentavos || 0), "fondo + monto a entregar"],
     ].map(([label, value, detail]) => `<div class="metric-item"><span>${esc(label)}</span><strong>${esc(value)}</strong><small>${esc(detail)}</small></div>`).join("");
     const capabilities = Array.isArray(status.capabilities) ? status.capabilities : [];
     $("virtualCapabilities").innerHTML = capabilities.map(item => `<div><span aria-hidden="true">&#10003;</span><strong>${esc(virtualCapabilityLabel(item))}</strong></div>`).join("");
@@ -2732,6 +2753,7 @@
   function clearSale(resetReceipt = true) {
     saleCart = [];
     salePayments = [];
+    saleSelectedLineIndex = -1;
     saleRequestId = null;
     $("saleClient").value = "";
     $("saleRounding").value = "exacto";
@@ -2752,6 +2774,65 @@
     renderSaleProducts();
     renderSaleCart();
     setSaleStage("catalog");
+  }
+
+  function selectedSaleLine() {
+    if (!saleCart.length) return null;
+    if (saleSelectedLineIndex < 0 || saleSelectedLineIndex >= saleCart.length)
+      saleSelectedLineIndex = saleCart.length - 1;
+    return saleCart[saleSelectedLineIndex] || null;
+  }
+
+  function selectSaleLine(index, focus = false) {
+    const parsed = Number(index);
+    saleSelectedLineIndex = saleCart.length && Number.isFinite(parsed)
+      ? Math.max(0, Math.min(saleCart.length - 1, Math.trunc(parsed)))
+      : -1;
+    document.querySelectorAll("[data-sale-line]").forEach(element => {
+      element.classList.toggle("selected", Number(element.dataset.saleLine) === saleSelectedLineIndex);
+    });
+    if (focus && saleSelectedLineIndex >= 0)
+      document.querySelector(`[data-sale-line="${saleSelectedLineIndex}"] [data-sale-field="cantidad"]`)?.focus();
+  }
+
+  function openSaleLineChange() {
+    const line = selectedSaleLine();
+    if (!line) { toast("Agrega o selecciona un producto antes de cambiarlo."); return; }
+    abrirEditor("Cambiar linea", line.nombre, `
+      <label><span>Cantidad</span><input name="cantidad" inputmode="decimal" required value="${esc(line.cantidad)}"></label>
+      <label><span>Precio (RD$)</span><input name="precio" inputmode="decimal" required value="${esc(pesoInput(line.precioUnitarioCentavos))}"${saleAccess.canOverridePrice ? "" : " readonly"}></label>
+      <label><span>Descuento %</span><input name="descuento" inputmode="decimal" value="${esc(line.descuentoPct || 0)}"${saleAccess.canOverridePrice ? "" : " readonly"}></label>`, async form => {
+      const quantity = numero(String(form.get("cantidad") || "").replace(",", "."));
+      if (quantity <= 0 || Math.round(quantity * 1000) !== quantity * 1000)
+        throw new Error("La cantidad debe ser mayor que cero y admitir hasta tres decimales.");
+      line.cantidad = String(quantity);
+      if (saleAccess.canOverridePrice) {
+        line.precioUnitarioCentavos = centavosInput(form.get("precio"));
+        line.descuentoPct = Math.min(100, Math.max(0, numero(String(form.get("descuento") || "0").replace(",", "."))));
+      }
+      cerrarEditor();
+      renderSaleCart();
+      selectSaleLine(saleSelectedLineIndex, true);
+    }, "Aplicar cambio");
+  }
+
+  function toggleSaleWholesale() {
+    const line = selectedSaleLine();
+    if (!line) { toast("Agrega o selecciona un producto antes de aplicar mayoreo."); return; }
+    if (numero(line.precioMayoreoCentavos) <= 0) {
+      toast("El producto seleccionado no tiene precio de mayoreo configurado.");
+      return;
+    }
+    line.mayoreo = !line.mayoreo;
+    line.precioUnitarioCentavos = line.mayoreo ? line.precioMayoreoCentavos : line.precioNormalCentavos;
+    renderSaleCart();
+    selectSaleLine(saleSelectedLineIndex);
+    toast(line.mayoreo ? "Precio de mayoreo aplicado." : "Precio normal restaurado.");
+  }
+
+  function navigateFromSale(route) {
+    closeSaleConsole();
+    location.hash = route;
   }
 
   function salePendingRecord(name) {
@@ -3038,7 +3119,7 @@
     setTimeout(() => document.body.classList.remove("sale-printing"), 500);
   }
 
-  async function submitSale(inventoryReason = null) {
+  async function submitSale(inventoryReason = null, printAfter = false) {
     if (!saleAccess.canCreateSale) { toast("Tu cuenta no puede registrar ventas en la caja web."); return; }
     if (saleSubmitting) return;
     saleSubmitting = true;
@@ -3057,6 +3138,7 @@
       $("saleReceipt").classList.remove("oculto");
       $("saleConsole").classList.add("receipt-mode");
       syncSaleMobileSummary();
+      if (printAfter) setTimeout(printSaleReceipt, 80);
       cancelCache.at = 0;
       toast(`Venta #${result.sale.folio} registrada y enviada a las cajas.`);
       cargarVentas().catch(() => {});
@@ -3068,7 +3150,7 @@
           if (!reason) throw new Error("El motivo es obligatorio.");
           cerrarEditor();
           saleSubmitting = false;
-          await submitSale(reason);
+          await submitSale(reason, printAfter);
         }, "Confirmar y registrar");
       } else {
         $("saleError").textContent = error.message;
@@ -3078,7 +3160,7 @@
       saleSubmitting = false;
       $("btnSaleSubmit").disabled = false;
       $("btnSaleMobileCheckout").disabled = false;
-      $("btnSaleSubmit").innerHTML = "<kbd>F12</kbd> Cobrar y registrar";
+      $("btnSaleSubmit").innerHTML = "<kbd>F2</kbd>/<kbd>F12</kbd> Cobrar normal";
     }
   }
 
@@ -3112,12 +3194,11 @@
 
     abrirEditor(
       "Cerrar Caja virtual",
-      "Cuenta el efectivo billete por billete. El total se calcula solo y debe cuadrar antes de cerrar.",
+      "Cuenta el efectivo billete por billete. El sistema valida el arqueo sin revelar el esperado al cajero.",
       `<div class="conteo-grid">${filas}</div>
        <div class="conteo-total" id="conteoResumen">
          <div><span>Total contado</span><b id="conteoTotal">RD$ 0.00</b></div>
-         <div><span>Esperado por el sistema</span><b id="conteoEsperado">--</b></div>
-         <div id="conteoDif" class="conteo-dif"></div>
+         <div><span>Validacion protegida</span><b>Se muestra al cerrar</b></div>
        </div>
        <label class="field-wide"><span>Motivo (obligatorio si hay diferencia)</span>
          <textarea name="nota" rows="5" maxlength="2000" placeholder="Documenta la explicacion completa; no se recortara visualmente"></textarea></label>`,
@@ -3143,23 +3224,15 @@
       },
       "Cerrar y guardar arqueo");
 
-    // Total en vivo + aviso de diferencia mientras se cuenta.
-    const esperado = numero(saleShift?.efectivoEsperadoCentavos);
-    const elTotal = $("conteoTotal"), elEsp = $("conteoEsperado"), elDif = $("conteoDif");
-    if (elEsp) elEsp.textContent = esperado ? money(esperado) : "--";
+    // Solo se calcula el dinero fisicamente contado. El esperado y la
+    // diferencia permanecen protegidos hasta que el corte ya fue guardado.
+    const elTotal = $("conteoTotal");
     function recalcular() {
       let total = 0;
       document.querySelectorAll(".conteo-cant").forEach(inp => {
         total += numero(inp.dataset.den) * 100 * Math.max(0, Math.trunc(numero(inp.value)));
       });
       if (elTotal) elTotal.textContent = money(total);
-      if (!elDif) return;
-      if (!esperado) { elDif.textContent = ""; elDif.className = "conteo-dif"; return; }
-      const d = total - esperado;
-      elDif.textContent = d === 0
-        ? "Cuadra exacto"
-        : `${d > 0 ? "Sobra" : "Falta"} ${money(Math.abs(d))} — escribe el motivo`;
-      elDif.className = "conteo-dif " + (d === 0 ? "ok" : "alerta");
     }
     document.querySelectorAll(".conteo-cant").forEach(inp => inp.addEventListener("input", recalcular));
     recalcular();
@@ -3193,14 +3266,20 @@
 
   const SALE_SHORTCUT_ACTIONS = Object.freeze({
     BLOCKED_MODAL: "blocked-modal",
-    NEW_SALE: "new-sale",
-    PARK_SALE: "park-sale",
-    RESUME_SALE: "resume-sale",
+    NAV_SALE: "nav-sale",
+    NAV_CLIENTS: "nav-clients",
+    NAV_PRODUCTS: "nav-products",
+    NAV_INVENTORY: "nav-inventory",
+    CHANGE_LINE: "change-line",
+    PARK_OR_RESUME: "park-or-resume",
+    CASH_IN: "cash-in",
+    CASH_OUT: "cash-out",
     COMMON_SALE: "common-sale",
     VERIFY_PRICE: "verify-price",
-    STAGE_CATALOG: "stage-catalog",
-    STAGE_CART: "stage-cart",
+    SEARCH_PRODUCT: "search-product",
+    WHOLESALE: "wholesale",
     SUBMIT_SALE: "submit-sale",
+    SUBMIT_PRINT: "submit-print",
     CLOSE_CONSOLE: "close-console",
     CLOSE_PRICE_VERIFIER: "close-price-verifier",
   });
@@ -3232,16 +3311,17 @@
   function resolveSaleShortcut(event, rawContext = {}) {
     const key = String(event?.key || "");
     const ctrlEnter = key === "Enter" && event?.ctrlKey && !event?.altKey && !event?.metaKey;
+    const ctrlCommon = String(key).toLowerCase() === "p" && event?.ctrlKey && !event?.altKey && !event?.metaKey;
     const context = saleShortcutContext({
       ...rawContext,
       hasEditableTarget: rawContext.hasEditableTarget ?? saleShortcutEditableTarget(event?.target),
     });
     if (!context.overlayOpen) return null;
-    if (!ctrlEnter && (event?.ctrlKey || event?.altKey || event?.metaKey)) return null;
-    const functionKey = /^F(?:[5-9]|1[0-2])$/.test(key);
+    if (!ctrlEnter && !ctrlCommon && (event?.ctrlKey || event?.altKey || event?.metaKey)) return null;
+    const functionKey = /^F(?:[1-9]|1[0-2])$/.test(key);
     if (context.editorOpen || event?.isComposing) {
-      if (context.editorOpen && (functionKey || ctrlEnter)) {
-        return { action: SALE_SHORTCUT_ACTIONS.BLOCKED_MODAL, key: ctrlEnter ? "Ctrl+Enter" : key };
+      if (context.editorOpen && (functionKey || ctrlEnter || ctrlCommon)) {
+        return { action: SALE_SHORTCUT_ACTIONS.BLOCKED_MODAL, key: ctrlEnter ? "Ctrl+Enter" : ctrlCommon ? "Ctrl+P" : key };
       }
       return null;
     }
@@ -3258,14 +3338,19 @@
         repeat: Boolean(event?.repeat),
       };
     }
+    if (ctrlCommon) return { action: SALE_SHORTCUT_ACTIONS.COMMON_SALE, key: "Ctrl+P", allowed: context.canOpenCommonSale };
     if (!functionKey) return null;
-    if (key === "F5") return { action: SALE_SHORTCUT_ACTIONS.NEW_SALE, key };
-    if (key === "F6") return { action: SALE_SHORTCUT_ACTIONS.PARK_SALE, key, allowed: context.canParkSale };
-    if (key === "F7") return { action: SALE_SHORTCUT_ACTIONS.RESUME_SALE, key, allowed: context.hasPendingSales };
-    if (key === "F8") return { action: SALE_SHORTCUT_ACTIONS.COMMON_SALE, key, allowed: context.canOpenCommonSale };
+    if (key === "F1") return { action: context.stage === "checkout" && context.hasCartLines ? SALE_SHORTCUT_ACTIONS.SUBMIT_PRINT : SALE_SHORTCUT_ACTIONS.NAV_SALE, key };
+    if (key === "F2") return { action: context.stage === "checkout" && context.hasCartLines ? SALE_SHORTCUT_ACTIONS.SUBMIT_SALE : SALE_SHORTCUT_ACTIONS.NAV_CLIENTS, key };
+    if (key === "F3") return { action: SALE_SHORTCUT_ACTIONS.NAV_PRODUCTS, key };
+    if (key === "F4") return { action: SALE_SHORTCUT_ACTIONS.NAV_INVENTORY, key };
+    if (key === "F5") return { action: SALE_SHORTCUT_ACTIONS.CHANGE_LINE, key, allowed: context.hasCartLines };
+    if (key === "F6") return { action: SALE_SHORTCUT_ACTIONS.PARK_OR_RESUME, key, allowed: context.canParkSale || context.hasPendingSales };
+    if (key === "F7") return { action: SALE_SHORTCUT_ACTIONS.CASH_IN, key, allowed: context.shiftOpen };
+    if (key === "F8") return { action: SALE_SHORTCUT_ACTIONS.CASH_OUT, key, allowed: context.shiftOpen };
     if (key === "F9") return { action: SALE_SHORTCUT_ACTIONS.VERIFY_PRICE, key, allowed: context.canVerifyPrice };
-    if (key === "F10") return { action: SALE_SHORTCUT_ACTIONS.STAGE_CATALOG, key };
-    if (key === "F11") return { action: SALE_SHORTCUT_ACTIONS.STAGE_CART, key };
+    if (key === "F10") return { action: SALE_SHORTCUT_ACTIONS.SEARCH_PRODUCT, key };
+    if (key === "F11") return { action: SALE_SHORTCUT_ACTIONS.WHOLESALE, key, allowed: context.hasCartLines };
     return {
       action: SALE_SHORTCUT_ACTIONS.SUBMIT_SALE,
       key,
@@ -3306,11 +3391,14 @@
   function executeSaleShortcut(shortcut) {
     const receiptVisible = !$("saleReceipt")?.classList.contains("oculto");
     if (receiptVisible && ![
-      SALE_SHORTCUT_ACTIONS.NEW_SALE,
+      SALE_SHORTCUT_ACTIONS.NAV_SALE,
+      SALE_SHORTCUT_ACTIONS.NAV_CLIENTS,
+      SALE_SHORTCUT_ACTIONS.NAV_PRODUCTS,
+      SALE_SHORTCUT_ACTIONS.NAV_INVENTORY,
       SALE_SHORTCUT_ACTIONS.CLOSE_CONSOLE,
       SALE_SHORTCUT_ACTIONS.CLOSE_PRICE_VERIFIER,
     ].includes(shortcut.action)) {
-      toast("La venta ya fue registrada. Pulsa F5 para preparar la siguiente.");
+      toast("La venta ya fue registrada. Pulsa Siguiente venta para continuar.");
       return true;
     }
     switch (shortcut.action) {
@@ -3322,74 +3410,59 @@
       case SALE_SHORTCUT_ACTIONS.CLOSE_CONSOLE:
         closeSaleConsole();
         return true;
-      case SALE_SHORTCUT_ACTIONS.NEW_SALE:
-        if (!receiptVisible && saleHasDraft()
-            && !confirm("La cuenta actual se borrara. ¿Preparar una nueva venta?")) return true;
-        if (!$("salePriceVerifier").classList.contains("oculto")) closeSalePriceVerifier();
-        clearSale();
+      case SALE_SHORTCUT_ACTIONS.NAV_SALE:
+        if (receiptVisible) clearSale();
         showSaleWorkbenchFromShortcut("catalog");
         return true;
-      case SALE_SHORTCUT_ACTIONS.PARK_SALE:
-        if (!saleAccess.canParkSale) {
-          toast("Tu cuenta no puede guardar ventas pendientes.");
-          return true;
-        }
-        if (!saleCart.length) {
-          toast("No hay una cuenta para guardar.");
-          return true;
-        }
-        parkSale();
+      case SALE_SHORTCUT_ACTIONS.NAV_CLIENTS:
+        navigateFromSale("clientes");
         return true;
-      case SALE_SHORTCUT_ACTIONS.RESUME_SALE:
-        if (!salePendingCount()) {
-          toast("No hay cuentas en espera guardadas.");
-          return true;
-        }
-        openPendingSales();
+      case SALE_SHORTCUT_ACTIONS.NAV_PRODUCTS:
+        sessionStorage.setItem("dcarela.inventory.focus", "productos");
+        navigateFromSale("inventario");
+        return true;
+      case SALE_SHORTCUT_ACTIONS.NAV_INVENTORY:
+        sessionStorage.setItem("dcarela.inventory.focus", "existencias");
+        navigateFromSale("inventario");
+        return true;
+      case SALE_SHORTCUT_ACTIONS.CHANGE_LINE:
+        openSaleLineChange();
+        return true;
+      case SALE_SHORTCUT_ACTIONS.PARK_OR_RESUME:
+        if (saleCart.length) parkSale();
+        else if (salePendingCount()) openPendingSales();
+        else toast("No hay una venta actual ni cuentas pendientes.");
+        return true;
+      case SALE_SHORTCUT_ACTIONS.CASH_IN:
+        openVirtualCashMovement("entrada");
+        return true;
+      case SALE_SHORTCUT_ACTIONS.CASH_OUT:
+        openVirtualCashMovement("salida");
         return true;
       case SALE_SHORTCUT_ACTIONS.COMMON_SALE:
-        if (!saleAccess.canOpenCommonSale) {
-          toast("Tu cuenta no puede registrar ventas comunes.");
-          return true;
-        }
-        openCommonSale();
+        if (!saleAccess.canOpenCommonSale) toast("Tu cuenta no puede registrar ventas comunes.");
+        else openCommonSale();
         return true;
       case SALE_SHORTCUT_ACTIONS.VERIFY_PRICE:
-        if (!saleAccess.canVerifyPrice) {
-          toast("Tu cuenta no puede verificar precios en la caja web.");
-          return true;
-        }
-        if (!$("salePriceVerifier").classList.contains("oculto")) closeSalePriceVerifier();
+        if (!saleAccess.canVerifyPrice) toast("Tu cuenta no puede verificar precios en la caja web.");
+        else if (!$("salePriceVerifier").classList.contains("oculto")) closeSalePriceVerifier();
         else openSalePriceVerifier();
         return true;
-      case SALE_SHORTCUT_ACTIONS.STAGE_CATALOG:
+      case SALE_SHORTCUT_ACTIONS.SEARCH_PRODUCT:
         if (!$("salePriceVerifier").classList.contains("oculto")) closeSalePriceVerifier();
         showSaleWorkbenchFromShortcut("catalog");
         return true;
-      case SALE_SHORTCUT_ACTIONS.STAGE_CART:
-        if (!saleShift?.id) {
-          showSaleWorkbenchFromShortcut("catalog");
-          return true;
-        }
-        if (!saleCart.length) {
-          setSaleStage("catalog", true);
-          toast("Agrega productos antes de revisar la cuenta.");
-          return true;
-        }
-        if (!$("salePriceVerifier").classList.contains("oculto")) closeSalePriceVerifier();
-        showSaleWorkbenchFromShortcut("cart");
+      case SALE_SHORTCUT_ACTIONS.WHOLESALE:
+        toggleSaleWholesale();
         return true;
-      case SALE_SHORTCUT_ACTIONS.SUBMIT_SALE:
+      case SALE_SHORTCUT_ACTIONS.SUBMIT_PRINT:
+      case SALE_SHORTCUT_ACTIONS.SUBMIT_SALE: {
         if (!saleShift?.id) {
           showSaleWorkbenchFromShortcut("catalog");
           toast("Abre la caja web antes de cobrar.");
           return true;
         }
-        if (!saleAccess.canCreateSale) {
-          toast("Tu cuenta no puede registrar ventas en la caja web.");
-          return true;
-        }
-        if (!saleCart.length) {
+        if (!saleAccess.canCreateSale || !saleCart.length) {
           setSaleStage("catalog", true);
           toast("Agrega productos antes de cobrar.");
           return true;
@@ -3399,8 +3472,9 @@
           showSaleWorkbenchFromShortcut("checkout");
           return true;
         }
-        if (!shortcut.repeat) submitSale();
+        if (!shortcut.repeat) submitSale(null, shortcut.action === SALE_SHORTCUT_ACTIONS.SUBMIT_PRINT);
         return true;
+      }
       default:
         return false;
     }
@@ -3408,7 +3482,7 @@
 
   window.__DCARELA_SALE_SHORTCUTS__ = Object.freeze({
     actions: SALE_SHORTCUT_ACTIONS,
-    keys: Object.freeze(["F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12", "Ctrl+Enter", "Escape"]),
+    keys: Object.freeze(["F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12", "Ctrl+P", "Ctrl+Enter", "Escape"]),
     isEditableTarget: saleShortcutEditableTarget,
     resolve: resolveSaleShortcut,
   });
@@ -3650,7 +3724,8 @@
     $("cajaResumen").innerHTML = metric("Cierres registrados", String(closings.length)) + metric("Diferencias", String(differences.length)) + metric("Sobrantes", String(sobrantes.length)) + metric("Faltantes", String(faltantes.length)) + metric("Movimientos", String(movements.length));
     $("cajaTabla").innerHTML = tabla(items, event => {
       const payload = P(event);
-      const amount = numero(payload.montoCentavos, payload.efectivoContadoCentavos, payload.montoAperturaCentavos);
+      const amount = numero(payload.montoCentavos, payload.efectivoAEntregarCentavos,
+        payload.efectivoContadoCentavos, payload.montoAperturaCentavos);
       const diferencia = numero(payload.diferenciaCentavos);
       const diferenciaHtml = event.event_type.includes("Diferencia") || diferencia
         ? `<span class="${diferencia > 0 ? "difference-surplus" : diferencia < 0 ? "difference-bad" : "difference-ok"}">${esc(money(diferencia))}</span>`
@@ -4391,7 +4466,7 @@
   }
 
   async function cargarCuentasFin(month) {
-    const [cuentasRes, accountVisualsRes, catsRes, movs, cardsRes, budgetsRes, preferencesRes, currenciesRes, cumuloRes, commitmentsRes, commitmentPaymentsRes] = await Promise.all([
+    const [cuentasRes, accountVisualsRes, catsRes, movs, cardsRes, budgetsRes, preferencesRes, currenciesRes, cumuloRes, commitmentsRes, commitmentPaymentsRes, pendingTransfersRes] = await Promise.all([
       sb.rpc("fin_account_balances", { p_business_id: BUSINESS }),
       sb.from("fin_cuentas")
         .select("id,visual_tono,visual_tono_secundario,visual_icono,visual_estilo,visual_mascara")
@@ -4407,6 +4482,8 @@
         .order("activo", { ascending: false }).order("proximo_vencimiento", { ascending: true, nullsFirst: false }),
       sb.from("fin_compromiso_pagos").select("*").eq("business_id", BUSINESS)
         .order("fecha", { ascending: false }).limit(500),
+      sb.from("fin_transferencias_pendientes").select("*").eq("business_id", BUSINESS)
+        .order("estado", { ascending: false }).order("fecha_esperada", { ascending: true }),
     ]);
     if (cuentasRes.error) throw cuentasRes.error;
     if (accountVisualsRes.error) throw accountVisualsRes.error;
@@ -4417,6 +4494,7 @@
     if (currenciesRes.error) throw currenciesRes.error;
     if (commitmentsRes.error) throw commitmentsRes.error;
     if (commitmentPaymentsRes.error) throw commitmentPaymentsRes.error;
+    if (pendingTransfersRes.error) throw pendingTransfersRes.error;
     const visuals = new Map((accountVisualsRes.data || []).map(item => [item.id, item]));
     const cuentas = (cuentasRes.data || []).map(item => ({ ...item, ...(visuals.get(item.id) || {}) }));
     const catsRows = catsRes.data || [];
@@ -4431,11 +4509,13 @@
       cumulo: cumuloRes.error ? null : (cumuloRes.data || null),
       commitments: commitmentsRes.data || [],
       commitmentPayments: commitmentPaymentsRes.data || [],
+      pendingTransfers: pendingTransfersRes.data || [],
       month,
     };
     dispararAlertaCumuloMensual();
     finDashboardPeriod = finStateCache.preferences?.periodo_dashboard || finDashboardPeriod;
     renderFinAccounts();
+    renderFinPendingTransfers();
     renderFinCommitments();
     renderFinMovements();
     await renderFinBudgets();
@@ -4537,6 +4617,58 @@
       abrirConciliacionCuentaFin(state.accounts.find(account => account.id === button.dataset.finAccountReconcile));
     }));
     $("finCuentasCards").querySelector("[data-fin-open-commitments]")?.addEventListener("click", () => setCostTab("compromisos"));
+  }
+
+  function renderFinPendingTransfers() {
+    const mount = $("finTransferenciasPendientes");
+    const state = finStateCache;
+    if (!mount || !state) return;
+    const accountNames = new Map(state.accounts.map(account => [account.id, account.nombre]));
+    const rows = state.pendingTransfers || [];
+    if (!rows.length) {
+      mount.innerHTML = '<div class="empty-state">No hay transferencias pendientes de confirmacion.</div>';
+      return;
+    }
+    mount.innerHTML = `<table><thead><tr><th>Esperada</th><th>Cuenta</th><th>Detalle</th><th>Direccion</th><th class="amount">Monto</th><th>Estado</th><th></th></tr></thead><tbody>${rows.map(item => `
+      <tr><td>${esc(fechaCorta(item.fecha_esperada))}</td><td>${esc(accountNames.get(item.cuenta_id) || "Cuenta")}</td><td><strong>${esc(item.descripcion)}</strong>${item.referencia ? `<small>${esc(item.referencia)}</small>` : ""}</td><td>${item.direccion === "salida" ? "Salida" : "Entrada"}</td><td class="amount">${money(item.monto_centavos)}</td><td><span class="tag ${item.estado === "confirmada" ? "ok" : item.estado === "pendiente" ? "warn" : ""}">${esc(item.estado)}</span></td><td>${canEdit && item.estado === "pendiente" ? `<div class="button-row"><button class="primary" data-pending-confirm="${esc(item.id)}">Confirmar llegada</button><button class="secondary" data-pending-cancel="${esc(item.id)}">Cancelar</button></div>` : ""}</td></tr>`).join("")}</tbody></table>`;
+    mount.querySelectorAll("[data-pending-confirm]").forEach(button => button.addEventListener("click", () => resolvePendingTransfer(button.dataset.pendingConfirm, true)));
+    mount.querySelectorAll("[data-pending-cancel]").forEach(button => button.addEventListener("click", () => resolvePendingTransfer(button.dataset.pendingCancel, false)));
+  }
+
+  function openPendingTransfer() {
+    const accounts = (finStateCache?.accounts || []).filter(account => account.estado !== "eliminada" && !account.oculta);
+    const popular = accounts.find(account => account.nombre.toLowerCase().includes("popular")) || accounts[0];
+    const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1);
+    abrirEditor("Rastrear transferencia", "No cambia el saldo hasta comprobar el estado bancario; evita registrar dinero dos veces.", `
+      <label><span>Cuenta receptora</span><select name="cuentaId">${accounts.map(account => `<option value="${esc(account.id)}"${selected(account.id, popular?.id)}>${esc(account.nombre)}</option>`).join("")}</select></label>
+      <label><span>Direccion</span><select name="direccion"><option value="entrada">Entrada</option><option value="salida">Salida</option></select></label>
+      <label><span>Monto (RD$)</span><input name="monto" inputmode="decimal" required></label>
+      <label><span>Fecha esperada</span><input name="fechaEsperada" type="date" required value="${inputDate(tomorrow)}"></label>
+      <label class="field-wide"><span>Descripcion</span><input name="descripcion" required maxlength="500" placeholder="Ej.: transferencia del cierre pendiente de reflejarse"></label>
+      <label class="field-wide"><span>Referencia</span><input name="referencia" maxlength="180"></label>`, async form => {
+      await adminWrite("fin.pending_transfer.create", null, {
+        cuentaId: form.get("cuentaId"), direccion: form.get("direccion"),
+        montoCentavos: centavosInput(form.get("monto")), fechaOrigen: inputDate(new Date()),
+        fechaEsperada: form.get("fechaEsperada"), descripcion: form.get("descripcion"),
+        referencia: form.get("referencia"),
+      });
+      cerrarEditor();
+      toast("Transferencia pendiente registrada sin alterar el saldo.");
+      await cargarCuentasFin(finStateCache?.month || inputDate(new Date()).slice(0, 7));
+    }, "Guardar seguimiento");
+  }
+
+  function resolvePendingTransfer(id, confirmed) {
+    const item = finStateCache?.pendingTransfers?.find(value => value.id === id);
+    if (!item) return;
+    abrirEditor(confirmed ? "Confirmar llegada" : "Cancelar seguimiento",
+      confirmed ? "Confirma solo si el banco ya refleja el importe. Esta accion no duplica el movimiento financiero original." : "El registro permanecera en auditoria como cancelado.",
+      '<label class="field-wide"><span>Nota de verificacion</span><textarea name="nota" rows="4" required maxlength="500" placeholder="Indica como verificaste el estado bancario"></textarea></label>', async form => {
+        await adminWrite(confirmed ? "fin.pending_transfer.confirm" : "fin.pending_transfer.cancel", id, { nota: form.get("nota") });
+        cerrarEditor();
+        toast(confirmed ? "Transferencia confirmada y documentada." : "Seguimiento cancelado.");
+        await cargarCuentasFin(finStateCache?.month || inputDate(new Date()).slice(0, 7));
+      }, confirmed ? "Confirmar" : "Cancelar seguimiento");
   }
 
   const FIN_COMMITMENT_FREQUENCY = {
@@ -5450,6 +5582,7 @@
       schema: "dcarela-finanzas-v1", generated_at: new Date().toISOString(), business_id: BUSINESS,
       version_pos: "1.0.17", accounts: state.accounts, categories: state.categories, movements,
       cards: state.cards, budgets: state.budgets, preferences: state.preferences, currencies: state.currencies,
+      pending_transfers: state.pendingTransfers || [],
       checksum_basis: `${state.accounts.length}:${state.categories.length}:${movements.length}:${movements.reduce((sum, item) => sum + numero(item.monto_centavos), 0)}`,
     };
     const name = `DCARELA_FINANZAS_BACKUP_${inputDate(new Date())}.json`;
@@ -5484,6 +5617,7 @@
       .on("postgres_changes", { event: "*", schema: "public", table: "fin_cuentas", filter: `business_id=eq.${BUSINESS}` }, refresh)
       .on("postgres_changes", { event: "*", schema: "public", table: "fin_presupuestos", filter: `business_id=eq.${BUSINESS}` }, refresh)
       .on("postgres_changes", { event: "*", schema: "public", table: "fin_tarjetas", filter: `business_id=eq.${BUSINESS}` }, refresh)
+      .on("postgres_changes", { event: "*", schema: "public", table: "fin_transferencias_pendientes", filter: `business_id=eq.${BUSINESS}` }, refresh)
       .subscribe();
   }
 
@@ -6502,6 +6636,8 @@
     on("btnVirtualCashOut", "click", () => openVirtualCashMovement("salida"));
     on("btnVirtualClose", "click", openSaleCloseShift);
     on("btnVirtualRefresh", "click", () => cargarCajaVirtual().catch(error => { $("virtualCashError").textContent = error.message; }));
+    document.querySelectorAll("[data-virtual-open-sale]").forEach(button => button.addEventListener("click", () => openSaleConsole(false).catch(error => toast(error.message))));
+    document.querySelectorAll("[data-inventory-focus]").forEach(link => link.addEventListener("click", () => sessionStorage.setItem("dcarela.inventory.focus", link.dataset.inventoryFocus)));
     on("btnCerrarVenta", "click", closeSaleConsole);
     on("saleOverlay", "click", event => { if (event.target === $("saleOverlay")) closeSaleConsole(); });
     $("saleStageTabs").querySelectorAll("[data-sale-stage]").forEach(button => button.addEventListener("click", () => setSaleStage(button.dataset.saleStage, true)));
@@ -6511,8 +6647,12 @@
     });
     on("btnSaleOpenShift", "click", openSaleShift);
     on("btnSaleCloseShift", "click", openSaleCloseShift);
+    on("btnSaleChange", "click", openSaleLineChange);
+    on("btnSaleCashIn", "click", () => openVirtualCashMovement("entrada"));
+    on("btnSaleCashOut", "click", () => openVirtualCashMovement("salida"));
     on("btnSaleVerifyPrice", "click", openSalePriceVerifier);
     on("btnSaleFocusSearch", "click", () => setSaleStage("catalog", true));
+    on("btnSaleWholesale", "click", toggleSaleWholesale);
     on("btnClosePriceVerifier", "click", closeSalePriceVerifier);
     on("salePriceVerifier", "click", event => { if (event.target === $("salePriceVerifier")) closeSalePriceVerifier(); });
     on("salePriceSearch", "input", event => renderSalePriceVerifier(event.target.value));
@@ -6524,7 +6664,8 @@
     on("btnSaleCommon", "click", openCommonSale);
     on("btnSaleClear", "click", () => clearSale());
     on("btnSaleCartClear", "click", () => clearSale());
-    on("btnSalePark", "click", parkSale);
+    on("btnSalePark", "click", () => saleCart.length ? parkSale()
+      : salePendingCount() ? openPendingSales() : toast("No hay una venta actual ni cuentas pendientes."));
     on("saleSearch", "input", event => renderSaleProducts(event.target.value));
     on("saleSearch", "keydown", event => {
       if (event.key !== "Enter") return;
@@ -6535,10 +6676,17 @@
       $("saleProductResults").querySelector("[data-sale-product]")?.click();
     });
     on("saleCart", "click", event => {
+      const article = event.target.closest("[data-sale-line]");
+      if (article) selectSaleLine(Number(article.dataset.saleLine));
       const button = event.target.closest("[data-sale-remove]");
       if (!button) return;
       saleCart.splice(Number(button.dataset.saleRemove), 1);
+      saleSelectedLineIndex = Math.min(saleSelectedLineIndex, saleCart.length - 1);
       renderSaleCart();
+    });
+    on("saleCart", "focusin", event => {
+      const article = event.target.closest("[data-sale-line]");
+      if (article) selectSaleLine(Number(article.dataset.saleLine));
     });
     on("saleCart", "input", event => {
       const field = event.target.dataset.saleField;
@@ -6579,6 +6727,7 @@
     on("saleCashReceived", "input", () => { try { updateSaleCashChange(); } catch {} });
     on("btnSaleAddPayment", "click", () => { try { addSalePayment(); } catch (error) { toast(error.message); } });
     on("btnSaleSubmit", "click", () => submitSale());
+    on("btnSaleSubmitPrint", "click", () => submitSale(null, true));
     on("btnSaleQuote", "click", () => {
       if (!saleCart.length) { toast("Agrega productos antes de imprimir la cotizacion."); return; }
       $("saleReceiptContent").innerHTML = saleReceiptMarkup({ lineas: saleCart, vendidaEn: new Date().toISOString() }, true);
@@ -6642,6 +6791,12 @@
       } catch (error) { toast(error.message); }
     };
     on("btnFinTransferTop", "click", openTransfer);
+    on("btnFinNuevaPendiente", "click", async () => {
+      try {
+        if (!finStateCache) await cargarCuentasFin($("provMes").value || inputDate(new Date()).slice(0, 7));
+        openPendingTransfer();
+      } catch (error) { toast(error.message); }
+    });
     on("btnFinQuick", "click", () => abrirMovimientoFin("gasto"));
     on("btnFinQuickMov", "click", () => abrirMovimientoFin("gasto"));
     on("btnVerMovimientosFin", "click", () => setCostTab("movimientos"));
