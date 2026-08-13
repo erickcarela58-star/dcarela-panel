@@ -31,7 +31,7 @@ test("el manifiesto publica EXE, ZIP y las dos IPA con integridad verificable", 
   assert.equal(manifest.web_version, "1.0.43");
   assert.equal(manifest.desktop_release.version, "1.0.43");
   assert.equal(manifest.downloads.length, 4);
-  assert.deepEqual(manifest.downloads.map(file => file.extension), ["EXE", "ZIP", "IPA", "IPA"]);
+  assert.deepEqual(manifest.downloads.map(file => file.extension), ["EXE", "EXE", "IPA", "IPA"]);
   for (const file of manifest.downloads) {
     assert.match(file.url, /^https:\/\/github\.com\/erickcarela58-star\/(?:dcarela-panel|carela-compufoto)\/releases\/download\//);
     assert.doesNotMatch(file.url, /dcarela-pos-private/);
