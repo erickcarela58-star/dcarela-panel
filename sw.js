@@ -1,4 +1,4 @@
-const APP_BUILD = "2026.08.13.pos-emulator-v4";
+const APP_BUILD = "2026.08.13.branch-isolation-ios-v5";
 const CACHE = `dcarela-pos-shell-${APP_BUILD}`;
 const SHELL = [
   `./panel.css?v=${APP_BUILD}`,

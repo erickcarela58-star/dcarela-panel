@@ -16,7 +16,7 @@
   const BUSINESS = _urlBiz || window.__DCARELA_DEFAULT?.business || cfg?.business || "dcarela";
   const EMBEDDED = new URLSearchParams(location.search).get("embedded") === "1";
   const THEME_KEY = "dcarela.ui.theme";
-  const APP_BUILD = "1.0.43.1";
+  const APP_BUILD = "1.0.43.2";
   let currentTheme = document.documentElement.dataset.theme === "dark" ? "dark" : "light";
   let installPrompt = null;
   let updateReloading = false;
@@ -351,8 +351,9 @@
     const next = new URL(location.href);
     next.searchParams.set("b", businessId);
     next.hash = view;
-    const saved = JSON.parse(localStorage.getItem("dcarela.cfg") || "null");
-    if (saved) localStorage.setItem("dcarela.cfg", JSON.stringify({ ...saved, business: businessId }));
+    // La sucursal viaja solamente en la URL. Nunca se guarda como negocio
+    // predeterminado global: abrir Plaza Artesanal no puede cambiar la central
+    // para la proxima sesion ni contaminar otro panel abierto.
     location.assign(next.toString());
   }
 
