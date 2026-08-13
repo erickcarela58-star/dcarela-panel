@@ -42,14 +42,14 @@ test("el manifiesto publica dos EXE y las dos IPA con integridad verificable", (
   }
 });
 
-test("Finanzas publica el diagnostico 3.0.0 y los dos CRM apuntan a v18", () => {
+test("Finanzas publica el diagnostico 4.0.0 y los dos CRM apuntan a v18", () => {
   const finance = manifest.apps.find(app => app.id === "finanzas-ios");
   const crm = manifest.apps.find(app => app.id === "crm");
   const crmFotos = manifest.apps.find(app => app.id === "crm-fotos");
   assert.ok(finance);
   assert.equal(finance.status, "diagnostic_unsigned");
-  assert.equal(finance.version, "3.0.0 (build 300)");
-  assert.match(finance.url, /DCarelaFinanzas-3\.0\.0-unsigned\.ipa$/);
+  assert.equal(finance.version, "4.0.0 (build 400)");
+  assert.match(finance.url, /DCarelaFinanzas-4\.0\.0-unsigned\.ipa$/);
   assert.equal(crm.status, "published");
   assert.equal(crm.url, "https://erickcarela58-star.github.io/dcarela-crm-panel/");
   assert.equal(crmFotos.status, "published");

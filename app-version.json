@@ -1,14 +1,14 @@
 {
   "schema": 1,
-  "build": "2026.08.13.1.0.43.2",
+  "build": "2026.08.13.2.0.43.2",
   "web_version": "1.0.43.2",
   "pwa_version": "1.0.43.2",
   "desktop_version": "1.0.44",
-  "ios_version": "3.0.0",
-  "ios_release_url": "https://github.com/erickcarela58-star/carela-compufoto/releases/download/ios-diagnostics-20260810/DCarelaFinanzas-3.0.0-unsigned.ipa",
+  "ios_version": "4.0.0",
+  "ios_release_url": "https://github.com/erickcarela58-star/carela-compufoto/releases/download/finanzas-ios-4.0.0/DCarelaFinanzas-4.0.0-unsigned.ipa",
   "published_at": "2026-08-13T00:51:20Z",
   "channel": "stable",
-  "notes": "Panel 1.0.43.2 aísla la sucursal central de Plaza Artesanal y actualiza los enlaces iOS a Finanzas 3.0.0 y Brújula 2.0.0. POS Windows 1.0.44 protege la vinculación por sucursal.",
+  "notes": "Panel 1.0.43.2 aísla la central de Plaza Artesanal. Finanzas iOS 4.0 corrige el falso modo de solo lectura, adopta la navegación del panel y habilita edición administrativa real.",
   "release_page_url": "https://github.com/erickcarela58-star/dcarela-panel/releases",
   "desktop_release": {
     "version": "1.0.44",
@@ -60,20 +60,20 @@
     {
       "product": "D' Carela Finanzas",
       "label": "Artefacto diagnóstico sin firma para iPhone y iPad",
-      "name": "DCarelaFinanzas-3.0.0-unsigned.ipa",
+      "name": "DCarelaFinanzas-4.0.0-unsigned.ipa",
       "extension": "IPA",
-      "version": "3.0.0",
-      "build": "300",
+      "version": "4.0.0",
+      "build": "400",
       "platform": "iOS / iPadOS 16.4+",
       "channel": "diagnostic",
       "publisher_signature": "not_signed",
       "signature_label": "Artefacto verificado · sin firma ni perfil Apple",
-      "published_at": "2026-08-10T11:56:45Z",
-      "size_bytes": 784406,
-      "sha256": "59adf6e7e256890fc8b020f63a1b02d5c6c25f45a561f56aa6606afa9bee2040",
-      "url": "https://github.com/erickcarela58-star/carela-compufoto/releases/download/ios-diagnostics-20260810/DCarelaFinanzas-3.0.0-unsigned.ipa",
+      "published_at": "2026-08-13T04:03:30Z",
+      "size_bytes": 807904,
+      "sha256": "b280faae3b971d63859e4648db3b73dae6c8958a9478eedee89485fd3631f3fe",
+      "url": "https://github.com/erickcarela58-star/carela-compufoto/releases/download/finanzas-ios-4.0.0/DCarelaFinanzas-4.0.0-unsigned.ipa",
       "action": "Descargar IPA de diagnóstico",
-      "notes": "Build SwiftUI nativa y editable: cuentas, transferencias, categorías, presupuestos, tarjetas, conciliación auditada y aviso de corroboración después de cada corte.",
+      "notes": "Build SwiftUI 4.0 reconstruida: navegación equivalente al panel, permisos administrativos corregidos y edición de cuentas, categorías, presupuestos y tarjetas.",
       "installation_method": "No es instalable directamente: no contiene firma ni perfil de aprovisionamiento Apple. Requiere firma autorizada en macOS/Xcode o publicación posterior mediante App Store o TestFlight."
     },
     {
@@ -100,12 +100,12 @@
     {
       "id": "finanzas-ios",
       "name": "D' Carela Finanzas",
-      "version": "3.0.0 (build 300)",
+      "version": "4.0.0 (build 400)",
       "platform": "iPhone / iPad",
       "status": "diagnostic_unsigned",
-      "url": "https://github.com/erickcarela58-star/carela-compufoto/releases/download/ios-diagnostics-20260810/DCarelaFinanzas-3.0.0-unsigned.ipa",
+      "url": "https://github.com/erickcarela58-star/carela-compufoto/releases/download/finanzas-ios-4.0.0/DCarelaFinanzas-4.0.0-unsigned.ipa",
       "action": "Descargar IPA de diagnóstico",
-      "notes": "Aplicación SwiftUI nativa y editable con conciliación, cuentas, movimientos, transferencias, presupuestos, tarjetas y alertas de corte. Artefacto verificado, sin firma ni perfil Apple."
+      "notes": "Aplicación SwiftUI 4.0 con navegación del panel, permisos de propietario corregidos y edición administrativa real. Artefacto verificado, sin firma ni perfil Apple."
     },
     {
       "id": "crm",
