@@ -27,7 +27,7 @@ test("la vista CURRENT muestra las descargas sin abrir el panel anterior", () =>
   assert.match(currentDownloadsJs, /Descargas disponibles/);
 });
 
-test("el manifiesto publica EXE, ZIP y las dos IPA con integridad verificable", () => {
+test("el manifiesto publica dos EXE y las dos IPA con integridad verificable", () => {
   assert.equal(manifest.web_version, "1.0.43");
   assert.equal(manifest.desktop_release.version, "1.0.43");
   assert.equal(manifest.downloads.length, 4);
