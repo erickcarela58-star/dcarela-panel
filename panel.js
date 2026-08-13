@@ -16,7 +16,7 @@
   const BUSINESS = _urlBiz || window.__DCARELA_DEFAULT?.business || cfg?.business || "dcarela";
   const EMBEDDED = new URLSearchParams(location.search).get("embedded") === "1";
   const THEME_KEY = "dcarela.ui.theme";
-  const APP_BUILD = "1.0.35.4";
+  const APP_BUILD = "1.0.43.1";
   let currentTheme = document.documentElement.dataset.theme === "dark" ? "dark" : "light";
   let installPrompt = null;
   let updateReloading = false;
@@ -116,6 +116,7 @@
   let salePayments = [];
   let saleBankAccounts = [];
   let saleLastReceipt = null;
+  let saleReceiptPreview = false;
   let saleRequestId = null;
   let saleSubmitting = false;
   let saleStage = "catalog";
@@ -324,7 +325,12 @@
     if (EMBEDDED && window.parent !== window) {
       window.parent.postMessage({ type: "dcarela:panel-route", view: selected, businessId: BUSINESS }, location.origin);
     }
-    loaders[selected]().catch(error => mostrarError(selected, error));
+    const loading = loaders[selected]().catch(error => { mostrarError(selected, error); throw error; });
+    if (selected === "caja-virtual") {
+      loading.then(() => {
+        if ($("saleOverlay")?.classList.contains("oculto")) return openSaleConsole(false);
+      }).catch(() => {});
+    }
   }
 
   function mostrarError(module, error) {
@@ -2490,6 +2496,7 @@
     const totals = saleExactTotals();
     const countText = `${saleCart.length} ${saleCart.length === 1 ? "producto" : "productos"}`;
     $("saleCartCount").textContent = countText;
+    if ($("saleSideCount")) $("saleSideCount").textContent = `${saleCart.length} ${saleCart.length === 1 ? "articulo" : "articulos"}`;
     $("saleStageCartCount").textContent = String(saleCart.length);
     $("saleStageCheckoutCount").textContent = saleCart.length ? money(totals.total) : "0";
     $("saleMobileCount").textContent = countText;
@@ -2511,8 +2518,11 @@
           <label><span>Cantidad</span><input data-sale-field="cantidad" inputmode="decimal" value="${esc(line.cantidad)}"${saleAccess.canCreateSale ? "" : " disabled"}></label>
           <label><span>Precio</span><input data-sale-field="precio" inputmode="decimal" value="${esc(pesoInput(line.precioUnitarioCentavos))}"${saleAccess.canOverridePrice ? "" : " disabled"}></label>
           <label><span>Desc. %</span><input data-sale-field="descuento" inputmode="decimal" value="${esc(line.descuentoPct || 0)}"${saleAccess.canOverridePrice ? "" : " disabled"}></label>
+          <span class="sale-line-tax">${numero(line.tasaItbis) > 0 ? `${Math.round(numero(line.tasaItbis) * 100)}%` : "Exento"}</span>
+          <strong class="sale-line-total">${money(final)}</strong>
+          <span class="sale-line-stock">${line.usaInventario ? esc(line.stock ?? "--") : "--"}</span>
           <button class="sale-line-remove" data-sale-remove="${index}" type="button" aria-label="Quitar"${saleAccess.canCreateSale ? "" : " disabled"}>&#215;</button>
-          <div class="sale-line-options">${line.precioMayoreoCentavos > 0 ? `<label><input data-sale-wholesale="${index}" type="checkbox"${line.mayoreo ? " checked" : ""}${saleAccess.canCreateSale ? "" : " disabled"}> Precio mayoreo (${money(line.precioMayoreoCentavos)})</label>` : `<span>${line.usaInventario ? `Existencia base: ${esc(line.stock ?? "--")}` : "No controla existencia"}</span>`}<strong>${money(final)}</strong></div>
+          <div class="sale-line-options">${line.precioMayoreoCentavos > 0 ? `<label><input data-sale-wholesale="${index}" type="checkbox"${line.mayoreo ? " checked" : ""}${saleAccess.canCreateSale ? "" : " disabled"}> Precio mayoreo (${money(line.precioMayoreoCentavos)})</label>` : `<span>${line.usaInventario ? "Controla existencia" : "No controla existencia"}</span>`}</div>
         </article>`;
       }).join("");
     }
@@ -2748,6 +2758,47 @@
     $("saleOverlay").classList.add("oculto");
     $("saleOverlay").setAttribute("aria-hidden", "true");
     document.body.style.overflow = "";
+    if ((location.hash.slice(1) || "dashboard") === "caja-virtual") location.hash = "dashboard";
+  }
+
+  async function latestActiveSaleEvent() {
+    const rows = await eventos(["VentaCobrada", "VentaCancelada"], null, null, 500);
+    const cancellations = rows.filter(row => row.event_type === "VentaCancelada");
+    const cancelled = new Set(cancellations.flatMap(clavesVenta));
+    return rows.find(row => row.event_type === "VentaCobrada" && !clavesVenta(row).some(key => cancelled.has(key))) || null;
+  }
+
+  function previewCurrentTicket() {
+    if (!saleCart.length) { toast("Agrega productos para previsualizar el ticket."); return; }
+    $("saleReceiptContent").innerHTML = saleReceiptMarkup({ lineas: saleCart, vendidaEn: new Date().toISOString() }, true);
+    $("saleWorkbench").classList.add("oculto");
+    $("saleReceipt").classList.remove("oculto");
+    $("saleConsole").classList.add("receipt-mode");
+    saleReceiptPreview = true;
+    $("btnSaleNext").textContent = "Volver a la venta";
+    syncSaleMobileSummary();
+  }
+
+  async function cancelLastSaleFromConsole() {
+    const event = await latestActiveSaleEvent();
+    if (!event) { toast("No hay una venta valida reciente para anular."); return; }
+    const payload = P(event);
+    const id = event.entity_id || payload.ventaId || payload.venta_id || payload.id;
+    if (!id) { toast("La ultima venta no tiene un identificador anulable."); return; }
+    cancelSaleWeb(id, payload.folio || "--");
+  }
+
+  async function reprintLastSaleFromConsole() {
+    const event = await latestActiveSaleEvent();
+    if (!event) { toast("No hay una venta valida reciente para reimprimir."); return; }
+    const payload = P(event);
+    $("saleReceiptContent").innerHTML = saleReceiptMarkup(payload, false);
+    $("saleWorkbench").classList.add("oculto");
+    $("saleReceipt").classList.remove("oculto");
+    $("saleConsole").classList.add("receipt-mode");
+    saleReceiptPreview = true;
+    $("btnSaleNext").textContent = "Volver a la venta";
+    syncSaleMobileSummary();
   }
 
   function clearSale(resetReceipt = true) {
@@ -3131,6 +3182,8 @@
     try {
       const result = await saleApi("sale.create", salePayload(inventoryReason), saleRequestId);
       saleLastReceipt = result.sale;
+      saleReceiptPreview = false;
+      $("btnSaleNext").textContent = "Siguiente venta";
       updateSalePendingButton();
       syncSalePermissionUi();
       $("saleReceiptContent").innerHTML = saleReceiptMarkup(result.sale);
@@ -3160,7 +3213,7 @@
       saleSubmitting = false;
       $("btnSaleSubmit").disabled = false;
       $("btnSaleMobileCheckout").disabled = false;
-      $("btnSaleSubmit").innerHTML = "<kbd>F2</kbd>/<kbd>F12</kbd> Cobrar normal";
+      $("btnSaleSubmit").textContent = "COBRAR (F12)";
     }
   }
 
@@ -4589,10 +4642,11 @@
       const style = ["glass", "solid", "outline", "metal"].includes(account.visual_estilo) ? account.visual_estilo : "glass";
       const icon = FIN_ACCOUNT_ICONS[account.visual_icono] || FIN_ACCOUNT_ICONS.landmark;
       const mask = account.visual_mascara ? `&bull;&bull;&bull;&bull; ${esc(account.visual_mascara)}` : "";
+      const signLabel = isCard ? (display > 0 ? "Deuda" : "Sin deuda") : balance < 0 ? "Negativo" : balance > 0 ? "Disponible" : "En cero";
       return `<article class="fin-account visual ${style} ${balance < 0 ? "neg" : "pos"}${account.oculta ? " muted" : ""}" style="--account-primary:${primary};--account-secondary:${secondary}">
         <button type="button" class="fin-account-open" data-fin-account-ledger="${esc(account.id)}" title="Ver los movimientos que forman este saldo">
           <span class="fin-account-visual-head"><i>${esc(icon)}</i><span><b>${esc(account.nombre)}</b><small>${mask || esc(FIN_TIPO_LABEL[account.tipo] || account.tipo)}</small></span></span>
-          <strong>${isCard ? `Deuda ${money(display)}` : money(display)}</strong>
+          <span class="fin-account-balance-row"><strong>${isCard ? money(display) : money(balance)}</strong><em class="fin-account-sign">${esc(signLabel)}</em></span>
           <small>${esc(FIN_TIPO_LABEL[account.tipo] || account.tipo)}${account.ligada_ventas ? " &middot; ligada a ventas" : ""}${account.oculta ? " &middot; oculta" : ""}</small>
         </button>
         ${canEdit ? `<div class="fin-account-actions"><button type="button" data-fin-account-reconcile="${esc(account.id)}">Conciliar</button><button type="button" data-fin-account-edit="${esc(account.id)}">Editar</button></div>` : ""}
@@ -4602,7 +4656,7 @@
     const cumuloCard = cumulo && numero(cumulo.total_centavos) > 0
       ? `<article class="fin-account cumulo"><button type="button" class="fin-account-open" data-fin-open-commitments title="Ver cuotas, capital y saldos pendientes"><span class="fin-account-name">Por saldar este mes</span><strong>${money(numero(cumulo.total_centavos))}</strong><small>${cumulo.compromisos_n || 0} vencimiento(s) &middot; prestamos pendientes ${money(numero(cumulo.deuda_prestamos_centavos))}</small></button></article>`
       : "";
-    $("finCuentasCards").innerHTML = `<article class="fin-account total"><span class="fin-account-name">Patrimonio total</span><strong>${money(patrimonio)}</strong><small>Suma de cuentas incluidas</small></article>${cumuloCard}${cards}`;
+    $("finCuentasCards").innerHTML = `<article class="fin-account total ${patrimonio < 0 ? "neg" : "pos"}"><span class="fin-account-name">Patrimonio total</span><span class="fin-account-balance-row"><strong>${money(patrimonio)}</strong><em class="fin-account-sign">${patrimonio < 0 ? "Negativo" : "Positivo"}</em></span><small>Suma de cuentas incluidas</small></article>${cumuloCard}${cards}`;
     $("finCuentasCards").querySelectorAll("[data-fin-account-ledger]").forEach(button => button.addEventListener("click", () => {
       const accountId = button.dataset.finAccountLedger;
       setCostTab("movimientos");
@@ -6727,7 +6781,10 @@
     on("saleCashReceived", "input", () => { try { updateSaleCashChange(); } catch {} });
     on("btnSaleAddPayment", "click", () => { try { addSalePayment(); } catch (error) { toast(error.message); } });
     on("btnSaleSubmit", "click", () => submitSale());
-    on("btnSaleSubmitPrint", "click", () => submitSale(null, true));
+    on("btnSaleSubmitPrint", "click", previewCurrentTicket);
+    on("btnSaleCancelCurrent", "click", () => clearSale());
+    on("btnSaleCancelLast", "click", () => cancelLastSaleFromConsole().catch(error => toast(error.message)));
+    on("btnSaleReprintLast", "click", () => reprintLastSaleFromConsole().catch(error => toast(error.message)));
     on("btnSaleQuote", "click", () => {
       if (!saleCart.length) { toast("Agrega productos antes de imprimir la cotizacion."); return; }
       $("saleReceiptContent").innerHTML = saleReceiptMarkup({ lineas: saleCart, vendidaEn: new Date().toISOString() }, true);
@@ -6745,9 +6802,26 @@
     });
     on("btnSalePrintReceipt", "click", printSaleReceipt);
     on("btnSaleNext", "click", () => {
+      if (saleReceiptPreview) {
+        saleReceiptPreview = false;
+        $("saleReceipt").classList.add("oculto");
+        $("saleWorkbench").classList.remove("oculto");
+        $("saleConsole").classList.remove("receipt-mode");
+        $("btnSaleNext").textContent = "Siguiente venta";
+        syncSaleMobileSummary();
+        return;
+      }
       clearSale();
       setSaleStage("catalog", true);
     });
+    document.querySelectorAll("[data-pos-route]").forEach(button => button.addEventListener("click", () => {
+      const target = button.dataset.posRoute || "dashboard";
+      closeSalePriceVerifier();
+      $("saleOverlay").classList.add("oculto");
+      $("saleOverlay").setAttribute("aria-hidden", "true");
+      document.body.style.overflow = "";
+      location.hash = target;
+    }));
     on("btnSaleMobileCart", "click", () => setSaleStage("cart", true));
     on("btnSaleMobileCheckout", "click", () => {
       if (saleStage !== "checkout") setSaleStage("checkout", true);

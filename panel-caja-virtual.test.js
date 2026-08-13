@@ -19,7 +19,7 @@ test("Caja virtual consume el resumen real y movimientos auditados", () => {
   assert.match(panel, /"caja-virtual": cargarCajaVirtual/);
   assert.match(panel, /saleApi\("cash\.move"/);
   assert.match(panel, /summary\.expectedCashCentavos/);
-  assert.match(sw, /2026\.08\.12\.caja-virtual-v3/);
+  assert.match(sw, /2026\.08\.13\.pos-emulator-v4/);
 });
 
 test("Caja virtual replica F1-F12 y protege el esperado durante el conteo", () => {
@@ -33,6 +33,22 @@ test("Caja virtual replica F1-F12 y protege el esperado durante el conteo", () =
   assert.doesNotMatch(panel, /Esperado por el sistema/);
   assert.match(html, /id="btnSaleSubmitPrint"/);
   assert.match(html, /id="btnSaleWholesale"/);
+  assert.match(html, /class="sale-desktop-nav"/);
+  assert.match(html, /class="sale-cart-table-head"/);
+  assert.match(html, /COBRAR \(F12\)/);
+  assert.match(panel, /latestActiveSaleEvent/);
+  assert.match(panel, /selected === "caja-virtual"/);
+});
+
+test("Cuentas y tarjetas exponen signo, jerarquia y contraste en ambos temas", () => {
+  assert.match(panel, /fin-account-sign/);
+  assert.match(panel, /Disponible/);
+  assert.match(panel, /Negativo/);
+  assert.match(panel, /Sin deuda/);
+  const theme = fs.readFileSync("panel-theme.css", "utf8");
+  assert.match(theme, /color-mix\(in srgb, var\(--account-primary\) 62%, #101114\)/);
+  assert.match(theme, /fin-account-balance-row/);
+  assert.match(theme, /fin-account\.visual:not\(\.outline\).*color: #fff/s);
 });
 
 test("Finanzas rastrea transferencias pendientes sin alterar el saldo", () => {

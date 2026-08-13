@@ -35,9 +35,9 @@
   </script>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="dcarela-logo.png">
-  <link rel="stylesheet" href="panel.css?v=20260812-caja-virtual-v3">
-  <link rel="stylesheet" href="panel-theme.css?v=20260812-caja-virtual-v3">
-  <link rel="stylesheet" href="visual-fidelity.css?v=20260812-caja-virtual-v3">
+  <link rel="stylesheet" href="panel.css?v=20260813-pos-emulator-v4">
+  <link rel="stylesheet" href="panel-theme.css?v=20260813-pos-emulator-v4">
+  <link rel="stylesheet" href="visual-fidelity.css?v=20260813-pos-emulator-v4">
 </head>
 <body>
   <section id="access" class="access-shell">
@@ -201,46 +201,21 @@
         </section>
 
         <section id="v-caja-virtual" class="vista oculto">
-          <div class="section-heading virtual-cash-heading">
-            <div><p class="eyebrow">Terminal web completa</p><h2>Caja virtual</h2><p>Vende desde el navegador con el mismo catalogo, clientes, inventario, pagos y auditoria de las cajas locales.</p></div>
+          <div class="virtual-desktop-entry">
+            <img src="dcarela-logo.png" alt="">
+            <div><p class="eyebrow">Modulo adicional</p><h2>Caja virtual Windows</h2><p>La terminal se abre con la misma distribucion, teclas y reglas de la caja instalada.</p></div>
             <span id="virtualShiftPill" class="status-pill">Consultando turno</span>
+            <button id="btnVirtualNewSale" class="primary" type="button">Entrar a la caja</button>
           </div>
-          <div id="virtualMetrics" class="metric-strip virtual-metric-strip" aria-label="Resumen de caja virtual"></div>
-          <div class="virtual-cash-layout">
-            <section class="surface virtual-cash-command">
-              <div class="surface-title"><div><h3>Operaciones</h3><p>Acciones auditadas y sincronizadas con todas las terminales.</p></div></div>
-              <div class="virtual-action-grid">
-                <button id="btnVirtualNewSale" class="virtual-action primary" type="button"><strong>Nueva venta</strong><span>Productos, venta comun, cliente y cobro mixto</span></button>
-                <button id="btnVirtualResume" class="virtual-action secondary" type="button"><strong>Cuentas en espera</strong><span>Continua una venta pendiente de este navegador</span></button>
-                <button id="btnVirtualCashIn" class="virtual-action secondary" type="button"><strong>Entrada de efectivo</strong><span>Registra fondo adicional con motivo</span></button>
-                <button id="btnVirtualCashOut" class="virtual-action secondary" type="button"><strong>Salida de efectivo</strong><span>Documenta retiro o gasto de caja</span></button>
-                <button id="btnVirtualClose" class="virtual-action secondary" type="button"><strong>Cerrar y arquear</strong><span>Conteo protegido; el esperado no se revela al cajero</span></button>
-                <button id="btnVirtualRefresh" class="virtual-action secondary" type="button"><strong>Actualizar estado</strong><span>Recarga turno, ventas y efectivo</span></button>
-              </div>
-              <p id="virtualCashError" class="error" role="alert"></p>
-            </section>
-            <section class="surface virtual-cash-guide">
-              <div class="surface-title"><div><h3>Paridad operativa</h3><p>Funciones disponibles desde esta terminal web.</p></div></div>
-              <div id="virtualCapabilities" class="virtual-capability-list"></div>
-            </section>
-            <section class="surface virtual-cash-modules">
-              <div class="surface-title"><div><h3>Modulos de la caja local</h3><p>La Caja virtual usa los mismos datos y abre cada area sin salir del sistema.</p></div></div>
-              <div class="virtual-module-grid">
-                <button type="button" data-virtual-open-sale><kbd>F1</kbd><strong>Ventas</strong><span>Cobro, mixto y ticket</span></button>
-                <a href="#clientes"><kbd>F2</kbd><strong>Clientes</strong><span>Credito, abonos e historial</span></a>
-                <a href="#inventario" data-inventory-focus="productos"><kbd>F3</kbd><strong>Productos</strong><span>Catalogo, precios y combos</span></a>
-                <a href="#inventario" data-inventory-focus="existencias"><kbd>F4</kbd><strong>Inventario</strong><span>Existencias y movimientos</span></a>
-                <a href="#caja"><strong>Caja y arqueos</strong><span>Entradas, salidas y cierres</span></a>
-                <a href="#turnos"><strong>Turnos</strong><span>Conciliacion por cajero</span></a>
-                <a href="#reportes"><strong>Reportes</strong><span>Ventas, impuestos y productos</span></a>
-                <a href="#proveedores"><strong>Finanzas</strong><span>Cuentas, gastos y compromisos</span></a>
-              </div>
-            </section>
-            <section class="surface virtual-cash-activity">
-              <div class="surface-title"><div><h3>Actividad del turno</h3><p>Ventas, anulaciones y movimientos de efectivo de esta caja virtual.</p></div><a href="#ventas">Ver todas</a></div>
-              <div id="virtualActivity" class="table-wrap"></div>
-            </section>
-          </div>
+          <div id="virtualMetrics" class="oculto" aria-hidden="true"></div>
+          <div id="virtualCapabilities" class="oculto" aria-hidden="true"></div>
+          <div id="virtualActivity" class="oculto" aria-hidden="true"></div>
+          <p id="virtualCashError" class="error" role="alert"></p>
+          <button id="btnVirtualResume" class="oculto" type="button">Cuentas en espera</button>
+          <button id="btnVirtualCashIn" class="oculto" type="button">Entrada</button>
+          <button id="btnVirtualCashOut" class="oculto" type="button">Salida</button>
+          <button id="btnVirtualClose" class="oculto" type="button">Cerrar</button>
+          <button id="btnVirtualRefresh" class="oculto" type="button">Actualizar</button>
         </section>
 
         <section id="v-caja" class="vista oculto">
@@ -518,6 +493,7 @@
                 <button type="button" data-prompt="Dame un resumen de las ventas de hoy y cualquier alerta que deba atender.">Resumen de hoy</button>
                 <button type="button" data-prompt="Audita los productos sin precio, sin categoria o con inventario inconsistente y dime que corregir primero.">Auditar productos</button>
                 <button type="button" data-prompt="Analiza las cuentas por cobrar, su antiguedad y recomiendame las tres acciones mas importantes.">Revisar creditos</button>
+                <button type="button" data-prompt="Audita el ultimo corte: separa fondo inicial, efectivo a entregar, abonos, entradas, salidas, devoluciones y cualquier diferencia registrada.">Auditar ultimo corte</button>
               </div>
               <div id="iaAttachments" class="assistant-attachments oculto"></div>
               <form id="iaComposer" class="assistant-composer">
@@ -693,28 +669,25 @@
   <div id="saleOverlay" class="sale-overlay oculto" aria-hidden="true">
     <section id="saleConsole" class="sale-console" role="dialog" aria-modal="true" aria-labelledby="saleTitle">
       <header class="sale-console-header">
-        <div class="sale-console-identity">
-          <p class="eyebrow">Caja virtual segura</p>
-          <h2 id="saleTitle">Nueva venta</h2>
-          <p id="saleBranch">Sucursal</p>
+        <div class="sale-console-brand">
+          <img src="dcarela-logo.png" alt="">
+          <span><strong>D' Carela Compufoto</strong><small>Punto de venta web</small></span>
         </div>
+        <nav class="sale-desktop-nav" aria-label="Modulos de Caja virtual">
+          <button type="button" class="act" data-pos-route="caja-virtual"><kbd>F1</kbd> Ventas</button>
+          <button type="button" data-pos-route="clientes"><kbd>F2</kbd> Clientes</button>
+          <button type="button" data-pos-route="inventario"><kbd>F3</kbd> Inventario</button>
+          <button type="button" data-pos-route="proveedores">Finanzas <span aria-hidden="true">▣</span></button>
+          <button type="button" data-pos-route="caja">Corte <span aria-hidden="true">▣</span></button>
+          <button type="button" data-pos-route="reportes">Reportes <span aria-hidden="true">▣</span></button>
+          <button type="button" data-pos-route="dashboard">Resumen <span aria-hidden="true">▣</span></button>
+        </nav>
         <div class="sale-header-actions">
-          <div class="sale-shortcut-hints" aria-label="Atajos de teclado">
-            <span><kbd>F1</kbd> Venta</span>
-            <span><kbd>F2</kbd> Clientes</span>
-            <span><kbd>F3</kbd> Productos</span>
-            <span><kbd>F4</kbd> Inventario</span>
-            <span><kbd>F5</kbd> Cambiar</span>
-            <span><kbd>F6</kbd> Pendiente</span>
-            <span><kbd>F7</kbd> Entrada</span>
-            <span><kbd>F8</kbd> Salida</span>
-            <span><kbd>F9</kbd> Precio</span>
-            <span><kbd>F10</kbd> Buscar</span>
-            <span><kbd>F11</kbd> Mayoreo</span>
-            <span><kbd>F12</kbd> Cobrar</span>
-          </div>
+          <span class="sale-admin-label">Administrador</span>
           <span id="saleShiftPill" class="status-pill">Consultando turno</span>
-          <button id="btnCerrarVenta" class="icon-button" type="button" aria-label="Cerrar Caja virtual">&#215;</button>
+          <button type="button" class="sale-header-text" data-pos-route="asistente">IA</button>
+          <button type="button" class="sale-header-text" data-pos-route="respaldos">Respaldar</button>
+          <button id="btnCerrarVenta" class="sale-header-text" type="button" aria-label="Salir de Caja virtual">Salir</button>
         </div>
       </header>
 
@@ -730,18 +703,6 @@
         </button>
       </nav>
 
-      <div id="saleCommandStrip" class="sale-command-strip" aria-label="Herramientas de venta">
-        <button id="btnSaleChange" class="secondary" type="button"><kbd>F5</kbd> Cambiar</button>
-        <button id="btnSalePark" class="secondary" type="button"><kbd>F6</kbd> Pendiente</button>
-        <button id="btnSaleCashIn" class="secondary" type="button"><kbd>F7</kbd> Entrada</button>
-        <button id="btnSaleCashOut" class="secondary" type="button"><kbd>F8</kbd> Salida</button>
-        <button id="btnSaleVerifyPrice" class="secondary" type="button"><kbd>F9</kbd> Verificar precio</button>
-        <button id="btnSaleFocusSearch" class="secondary" type="button"><kbd>F10</kbd> Buscar</button>
-        <button id="btnSaleWholesale" class="secondary" type="button"><kbd>F11</kbd> Mayoreo</button>
-        <button id="btnSaleCommon" class="secondary" type="button"><kbd>Ctrl+P</kbd> Venta comun</button>
-        <button id="btnSaleClear" class="secondary" type="button">Limpiar</button>
-      </div>
-
       <div id="saleShiftGate" class="sale-shift-gate oculto">
         <div><strong>Abre la Caja virtual</strong><p>El fondo inicial, las ventas y el cierre quedan separados por terminal y sincronizados con las cajas de Windows.</p></div>
         <label><span>Fondo inicial</span><input id="saleOpening" inputmode="decimal" value="0.00"></label>
@@ -750,38 +711,54 @@
 
       <div id="saleWorkbench" class="sale-workbench oculto">
         <section id="salePaneCatalog" class="sale-products-pane sale-pane" data-sale-pane="catalog" data-sale-active="true" role="tabpanel" aria-labelledby="saleStageCatalog">
-          <div class="sale-pane-heading"><div><p class="eyebrow">Catalogo</p><h3>Productos</h3></div><small>Busca por nombre, SKU o codigo</small></div>
           <div class="sale-search-row">
-            <label for="saleSearch" class="sale-search-field"><span class="sr-only">Buscar producto</span><input id="saleSearch" type="search" autocomplete="off" placeholder="Buscar producto o escanear codigo de barras"></label>
+            <label for="saleSearch" class="sale-search-field"><span class="sr-only">Buscar producto</span><input id="saleSearch" type="search" autocomplete="off" placeholder="Buscar producto, SKU o escanear codigo de barras"></label>
             <span class="sale-search-key"><kbd>F10</kbd></span>
           </div>
           <div id="saleProductResults" class="sale-product-results" aria-live="polite"></div>
         </section>
 
+        <div id="saleCommandStrip" class="sale-command-strip" aria-label="Herramientas de venta">
+          <button id="btnSaleCommon" class="secondary" type="button"><kbd>Ctrl+P</kbd> Art. comun</button>
+          <button id="btnSaleChange" class="secondary" type="button"><kbd>F5</kbd> Cambiar</button>
+          <button id="btnSalePark" class="secondary" type="button"><kbd>F6</kbd> Pendiente</button>
+          <button id="btnSaleCashIn" class="secondary" type="button"><kbd>F7</kbd> Entradas</button>
+          <button id="btnSaleCashOut" class="secondary" type="button"><kbd>F8</kbd> Salidas</button>
+          <button id="btnSaleVerifyPrice" class="secondary" type="button"><kbd>F9</kbd> Verificador</button>
+          <button id="btnSaleFocusSearch" class="secondary" type="button"><kbd>F10</kbd> Buscar</button>
+          <button id="btnSaleWholesale" class="secondary" type="button"><kbd>F11</kbd> Mayoreo</button>
+          <button id="btnSaleQuote" class="secondary" type="button">Cotizar</button>
+          <button id="btnSaleClear" class="secondary" type="button">Cancelar venta</button>
+        </div>
+
         <section id="salePaneCart" class="sale-cart-pane sale-pane" data-sale-pane="cart" data-sale-active="false" role="tabpanel" aria-labelledby="saleStageCart">
-          <div class="sale-cart-heading">
-            <div><p class="eyebrow">Cuenta</p><h3>Cuenta actual</h3><small id="saleCartCount">0 productos</small></div>
-            <button id="btnSaleCartClear" class="secondary" type="button">Limpiar</button>
-          </div>
+          <div class="sale-cart-table-head"><span>Producto</span><span>Cant.</span><span>Precio</span><span>Desc. %</span><span>ITBIS</span><span>Importe</span><span>Existencia</span></div>
+          <span id="saleCartCount" class="sr-only">0 productos</span>
           <div id="saleCart" class="sale-cart"></div>
-          <div class="sale-totals">
-            <span>Base sin ITBIS <strong id="saleBase">RD$0.00</strong></span>
-            <span>ITBIS <strong id="saleTax">RD$0.00</strong></span>
-            <span>Descuentos <strong id="saleDiscount">RD$0.00</strong></span>
-            <span class="sale-grand-total">Total <strong id="saleTotal">RD$0.00</strong></span>
-          </div>
+          <button id="btnSaleCartClear" class="sr-only" type="button">Limpiar</button>
         </section>
 
         <section id="salePaneCheckout" class="sale-checkout-pane sale-pane" data-sale-pane="checkout" data-sale-active="false" role="tabpanel" aria-labelledby="saleStageCheckout">
-          <div class="sale-pane-heading"><div><p class="eyebrow">Cobro</p><h3>Finalizar venta</h3></div><small>Cliente, pago y comprobante</small></div>
-          <div class="sale-checkout-grid">
-            <label><span>Cliente</span><select id="saleClient"><option value="">Consumidor final</option></select></label>
+          <div class="sale-side-title"><small id="saleSideCount">0 articulos</small><h3>Venta actual</h3></div>
+          <div class="sale-client-card"><label><span>Cliente</span><select id="saleClient"><option value="">Consumidor final</option></select></label></div>
+          <div class="sale-totals">
+            <span>Subtotal (sin ITBIS) <strong id="saleBase">RD$0.00</strong></span>
+            <span>ITBIS <strong id="saleTax">RD$0.00</strong></span>
+            <span>Descuento <strong id="saleDiscount">RD$0.00</strong></span>
+            <span class="sale-grand-total">TOTAL <strong id="saleTotal">RD$0.00</strong></span>
+          </div>
+          <details class="sale-side-options">
+            <summary>Opciones de venta y ticket</summary>
+            <div class="sale-checkout-grid">
             <label><span>Redondeo</span><select id="saleRounding"><option value="exacto">Total exacto</option><option value="abajo_5">Bajar a RD$5</option></select></label>
             <label><span>Propina</span><input id="saleTip" inputmode="decimal" value="0.00"></label>
             <label id="salePriceReasonField" class="field-wide oculto"><span>Motivo del precio especial</span><input id="salePriceReason" maxlength="500" placeholder="Obligatorio si cambias un precio"></label>
             <label class="field-wide"><span>Nota del ticket</span><textarea id="saleNote" rows="2" maxlength="1200" placeholder="Opcional"></textarea></label>
-          </div>
-          <div class="sale-payment-builder">
+            </div>
+          </details>
+          <details class="sale-side-options" open>
+            <summary>Forma de pago</summary>
+            <div class="sale-payment-builder">
             <div class="sale-payment-fields">
               <label><span>Metodo</span><select id="salePaymentMethod"><option value="efectivo">Efectivo</option><option value="tarjeta">Tarjeta</option><option value="transferencia">Transferencia</option><option value="cheque">Cheque</option><option value="credito">Credito</option></select></label>
               <label><span>Monto</span><input id="salePaymentAmount" inputmode="decimal" value="0.00"></label>
@@ -791,13 +768,16 @@
             </div>
             <div id="salePayments" class="sale-payments"></div>
             <label id="saleCashReceivedField" class="sale-cash-received oculto"><span>Efectivo recibido</span><input id="saleCashReceived" inputmode="decimal" value="0.00"><small id="saleChange">Devuelta: RD$0.00</small></label>
-          </div>
+            </div>
+          </details>
           <p id="saleError" class="error" role="alert"></p>
           <div class="sale-final-actions">
-            <button id="btnSaleQuote" class="secondary" type="button">Imprimir cotizacion</button>
+            <button id="btnSaleSubmitPrint" class="secondary" type="button">Previsualizar ticket</button>
+            <button id="btnSaleSubmit" class="primary" type="button">COBRAR (F12)</button>
+            <button id="btnSaleCancelCurrent" class="secondary" type="button">Cancelar venta</button>
+            <button id="btnSaleCancelLast" class="secondary" type="button">Anular ultima venta</button>
+            <button id="btnSaleReprintLast" class="secondary" type="button">Reimprimir ultimo ticket</button>
             <button id="btnSaleCloseShift" class="secondary" type="button">Cerrar caja</button>
-            <button id="btnSaleSubmitPrint" class="secondary" type="button"><kbd>F1</kbd> Cobrar e imprimir</button>
-            <button id="btnSaleSubmit" class="primary" type="button"><kbd>F2</kbd>/<kbd>F12</kbd> Cobrar normal</button>
           </div>
         </section>
       </div>
@@ -847,7 +827,7 @@
   <script src="jspdf.plugin.autotable.min.js"></script>
   <script src="ticket-termico.js?v=1.0.34.2"></script>
   <script src="panel-sale-pending.js?v=1.0.34.2"></script>
-<script src="panel.js?v=20260812-caja-virtual-v3"></script>
+<script src="panel.js?v=20260813-pos-emulator-v4"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));

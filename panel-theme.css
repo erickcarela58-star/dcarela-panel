@@ -3444,6 +3444,202 @@ html[data-theme].embedded-panel .update-platform-card:last-child {
   }
 }
 
+/* POS web 1.0.43.1: emulacion de la distribucion del escritorio Windows. */
+.virtual-desktop-entry {
+  min-height: calc(100dvh - 180px);
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 12px;
+  text-align: center;
+}
+.virtual-desktop-entry img { width: 54px; height: 54px; object-fit: contain; }
+.virtual-desktop-entry h2 { margin: 2px 0 6px; color: var(--ui-text); font-size: 24px; }
+.virtual-desktop-entry p { margin: 0; color: var(--ui-muted); }
+.sale-overlay { padding: 0; background: var(--ui-canvas); backdrop-filter: none; }
+.sale-console {
+  width: 100%;
+  height: 100dvh;
+  max-width: none;
+  border: 2px solid var(--ui-text);
+  border-radius: 0;
+  box-shadow: none;
+}
+.sale-console-header {
+  min-height: 66px;
+  padding: 8px 16px;
+  gap: 18px;
+  background: var(--ui-canvas-raised);
+}
+.sale-console-brand { min-width: 220px; display: flex; align-items: center; gap: 10px; }
+.sale-console-brand img { width: 28px; height: 28px; object-fit: contain; }
+.sale-console-brand strong,.sale-console-brand small { display: block; color: var(--ui-text); }
+.sale-console-brand strong { font-size: 13px; }
+.sale-console-brand small { margin-top: 2px; color: var(--ui-muted); font-size: 9px; }
+.sale-desktop-nav { min-width: 0; flex: 1 1 auto; display: flex; align-items: center; justify-content: center; gap: 3px; }
+.sale-desktop-nav button,.sale-header-text {
+  min-height: 38px;
+  padding: 8px 12px;
+  color: var(--ui-text);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  box-shadow: none;
+  font-size: 10px;
+  white-space: nowrap;
+}
+.sale-desktop-nav button:hover,.sale-header-text:hover { transform: none; background: var(--ui-surface-soft); border-color: var(--ui-line); }
+.sale-desktop-nav button.act { color: var(--ui-canvas-raised); background: var(--ui-text); }
+.sale-desktop-nav button.act kbd { color: inherit; background: transparent; border: 0; box-shadow: none; }
+.sale-admin-label { color: var(--ui-text); font-size: 10px; white-space: nowrap; }
+.sale-header-actions { gap: 4px; }
+.sale-header-actions .status-pill { max-width: 150px; }
+.sale-stage-tabs { display: none !important; }
+
+@media (min-width: 901px) {
+  .sale-workbench {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 330px;
+    grid-template-rows: 64px 52px minmax(0, 1fr);
+    grid-template-areas: "search side" "commands side" "cart side";
+    overflow: hidden;
+    background: var(--ui-canvas);
+  }
+  .sale-products-pane {
+    grid-area: search;
+    position: relative;
+    padding: 14px 14px 8px;
+    overflow: visible;
+    border: 0;
+    border-bottom: 1px solid var(--ui-line);
+  }
+  .sale-search-row { position: relative; inset: auto; padding: 0; background: transparent; }
+  .sale-product-results {
+    position: absolute;
+    z-index: 30;
+    top: 58px;
+    left: 14px;
+    right: 14px;
+    max-height: min(480px, 62vh);
+    padding: 7px;
+    overflow: auto;
+    background: var(--ui-canvas-raised);
+    border: 1px solid var(--ui-line);
+    border-radius: 7px;
+    box-shadow: var(--ui-shadow-float);
+  }
+  .sale-product-results:empty { display: none; }
+  .sale-command-strip {
+    grid-area: commands;
+    min-width: 0;
+    min-height: 52px;
+    padding: 7px 14px;
+    border-bottom: 1px solid var(--ui-line);
+  }
+  .sale-command-strip button:nth-last-child(2) { margin-left: 0; }
+  .sale-cart-pane {
+    grid-area: cart;
+    padding: 12px 14px 16px;
+    display: flex !important;
+    flex-direction: column;
+    overflow: auto;
+    border: 0;
+  }
+  .sale-cart-table-head {
+    min-width: 860px;
+    padding: 8px 10px;
+    display: grid;
+    grid-template-columns: minmax(210px,1fr) 72px 90px 72px 64px 100px 80px 32px;
+    gap: 7px;
+    color: var(--ui-text);
+    background: var(--ui-surface-soft);
+    border: 1px solid var(--ui-line);
+    font-size: 9px;
+    font-weight: 750;
+  }
+  .sale-cart-table-head span:last-child { grid-column: 7; }
+  .sale-cart { min-width: 860px; min-height: 100%; gap: 0; border-inline: 1px solid var(--ui-line); }
+  .sale-cart-empty { min-height: 100%; border: 0; border-radius: 0; }
+  .sale-line {
+    grid-template-columns: minmax(210px,1fr) 72px 90px 72px 64px 100px 80px 32px;
+    gap: 7px;
+    align-items: center;
+    padding: 8px 10px;
+    background: var(--ui-canvas-raised);
+    border: 0;
+    border-bottom: 1px solid var(--ui-line);
+    border-radius: 0;
+  }
+  .sale-line label span { display: none; }
+  .sale-line-tax,.sale-line-stock { color: var(--ui-muted); font-size: 9px; text-align: center; }
+  .sale-line-total { color: var(--ui-text); font-size: 11px; text-align: right; }
+  .sale-line-options { grid-column: 1 / -1; padding: 1px 0 0; }
+  .sale-checkout-pane {
+    grid-area: side;
+    display: flex !important;
+    padding: 12px;
+    overflow: auto;
+    border-left: 1px solid var(--ui-line);
+    background: var(--ui-canvas-raised);
+  }
+  .sale-side-title small { display: block; color: var(--ui-muted); font-size: 9px; }
+  .sale-side-title h3 { margin: 5px 0 0; color: var(--ui-text); font-size: 17px; }
+  .sale-client-card { padding: 11px; border: 1px solid var(--ui-line); border-radius: 8px; }
+  .sale-client-card label span { display: block; margin-bottom: 6px; color: var(--ui-text); font-size: 10px; font-weight: 750; }
+  .sale-client-card select { width: 100%; }
+  .sale-totals { margin: 0; padding: 10px 0; background: transparent; border: 0; border-radius: 0; }
+  .sale-totals > span { padding: 4px 0; font-size: 10px; }
+  .sale-totals .sale-grand-total { margin-top: 7px; padding-top: 12px; display: grid; gap: 5px; font-size: 11px; }
+  .sale-totals .sale-grand-total strong { font-size: 30px; letter-spacing: -.04em; }
+  .sale-side-options { border-top: 1px solid var(--ui-line); }
+  .sale-side-options summary { padding: 9px 0; color: var(--ui-text); cursor: pointer; font-size: 10px; font-weight: 750; }
+  .sale-side-options .sale-checkout-grid,.sale-side-options .sale-payment-builder { margin-bottom: 8px; }
+  .sale-final-actions { position: static; margin-top: auto; display: grid; grid-template-columns: 1fr; gap: 7px; }
+  .sale-final-actions button { width: 100%; min-height: 37px; }
+  .sale-final-actions .primary { min-height: 44px; color: var(--ui-canvas-raised); background: var(--ui-text); }
+  .sale-mobile-summary { display: none !important; }
+}
+
+/* Cuentas y tarjetas: jerarquia compacta, gradientes legibles y signo explicito. */
+.fin-accounts { grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)) !important; gap: 10px !important; }
+.fin-account { min-width: 0; min-height: 132px !important; border-radius: 12px !important; }
+.fin-account.total,.fin-account.cumulo { padding: 15px !important; background: linear-gradient(145deg, var(--ui-surface-strong), var(--ui-surface-soft)) !important; }
+.fin-account-open { min-height: 96px !important; padding: 14px 15px 10px !important; }
+.fin-account.visual:not(.outline) {
+  background: linear-gradient(135deg,
+    color-mix(in srgb, var(--account-primary) 62%, #101114),
+    color-mix(in srgb, var(--account-secondary) 55%, #30333a)) !important;
+  border: 1px solid color-mix(in srgb, var(--account-primary) 42%, var(--ui-line)) !important;
+}
+.fin-account.visual:not(.outline) .fin-account-open,
+.fin-account.visual:not(.outline) .fin-account-open b,
+.fin-account.visual:not(.outline) .fin-account-open small,
+.fin-account.visual:not(.outline) .fin-account-open strong { color: #fff !important; }
+.fin-account.visual.outline { background: linear-gradient(145deg, var(--ui-canvas-raised), var(--ui-surface-soft)) !important; }
+.fin-account strong { margin: 8px 0 3px !important; overflow: hidden; font-size: clamp(17px, 1.65vw, 22px) !important; line-height: 1.12 !important; text-overflow: ellipsis; }
+.fin-account-balance-row { display: flex; align-items: end; justify-content: space-between; gap: 8px; }
+.fin-account-sign { flex: 0 0 auto; padding: 3px 6px; border: 1px solid currentColor; border-radius: 999px; font-size: 8px; font-style: normal; font-weight: 850; text-transform: uppercase; }
+.fin-account.pos .fin-account-sign { color: #8ff0d1; }
+.fin-account.neg .fin-account-sign { color: #ffb2b8; }
+.fin-account.outline.pos .fin-account-sign { color: var(--ui-success); }
+.fin-account.outline.neg .fin-account-sign { color: var(--ui-danger); }
+.fin-account-actions { padding: 7px 9px 9px !important; }
+.fin-account-actions button { min-height: 29px !important; font-size: 9px !important; }
+#finTransferenciasPendientes td:nth-child(3) { min-width: 260px; }
+#finTransferenciasPendientes td:nth-child(3) strong,
+#finTransferenciasPendientes td:nth-child(3) small { display: block; overflow-wrap: anywhere; }
+#finTransferenciasPendientes td:nth-child(3) small { margin-top: 4px; color: var(--ui-muted); }
+
+@media (max-width: 900px) {
+  .sale-console-header { min-height: 58px; }
+  .sale-console-brand { min-width: 0; }
+  .sale-desktop-nav { display: none; }
+  .sale-admin-label,.sale-header-actions .status-pill,.sale-header-actions [data-pos-route] { display: none; }
+  .sale-cart-table-head { display: none; }
+  .sale-side-title,.sale-client-card { display: block; }
+  .sale-command-strip { order: 2; }
+}
+
 /* Assistant theme contract v41.
    The assistant must honor the selected theme both in the standalone PWA and
    inside the desktop shell. Keep native select text explicit because Chromium

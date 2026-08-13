@@ -1,14 +1,14 @@
 {
   "schema": 1,
-  "build": "2026.08.12.1.0.43",
-  "web_version": "1.0.43",
-  "pwa_version": "1.0.43",
+  "build": "2026.08.13.1.0.43.1",
+  "web_version": "1.0.43.1",
+  "pwa_version": "1.0.43.1",
   "desktop_version": "1.0.43",
   "ios_version": "2.0.0",
   "ios_release_url": "https://github.com/erickcarela58-star/carela-compufoto/releases/download/ios-diagnostics-20260810/DCarelaFinanzas-2.0.0-unsigned.ipa",
   "published_at": "2026-08-13T00:51:20Z",
   "channel": "stable",
-  "notes": "POS 1.0.43 corrige el corte protegido, separa el fondo inicial, integra abonos y devoluciones, y completa Caja virtual con F1-F12 y transferencias pendientes. Las IPA siguen siendo artefactos diagnósticos sin firma Apple.",
+  "notes": "Panel 1.0.43.1 reconstruye Caja virtual como emulación del escritorio Windows, corrige Cuentas/Tarjetas en ambos temas y amplía el conocimiento operativo del Asistente IA. POS Windows permanece en 1.0.43.",
   "release_page_url": "https://github.com/erickcarela58-star/dcarela-panel/releases",
   "desktop_release": {
     "version": "1.0.43",
