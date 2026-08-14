@@ -1,4 +1,4 @@
-const APP_BUILD = "2026.08.13.branch-isolation-ios-v5";
+const APP_BUILD = "2026.08.14.standalone-sync-v1";
 const CACHE = `dcarela-pos-shell-${APP_BUILD}`;
 const SHELL = [
   `./panel.css?v=${APP_BUILD}`,
@@ -19,6 +19,7 @@ self.addEventListener("install", event => {
     await cache.addAll(SHELL);
     await Promise.all([
       cache.add("./index.html").catch(() => null),
+      cache.add("./panel.html?standalone=1").catch(() => null),
       cache.add("./mobile/index.html").catch(() => null)
     ]);
   }));
@@ -49,7 +50,7 @@ self.addEventListener("fetch", event => {
     return;
   }
   if (url.pathname.endsWith("/panel.html")) {
-    event.respondWith(fetch(request, { cache: "no-store" }).catch(() => Response.redirect("./", 302)));
+    event.respondWith(fetch(request, { cache: "no-store" }).catch(() => caches.match("./panel.html?standalone=1")));
     return;
   }
   event.respondWith(fetch(request).then(response => {

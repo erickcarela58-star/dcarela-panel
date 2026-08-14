@@ -19,8 +19,10 @@ test("Actualizaciones contiene un bloque visible de archivos descargables", () =
 });
 
 test("la vista CURRENT muestra las descargas sin abrir el panel anterior", () => {
-  assert.match(shellHtml, /updates-downloads-current\.js\?v=1\.0\.43/);
-  assert.match(shellHtml, /updates-downloads-current\.css\?v=1\.0\.43/);
+  assert.match(shellHtml, /panel\.html/);
+  assert.match(shellHtml, /standalone/);
+  assert.doesNotMatch(shellHtml, /shell-assets|iframe/i);
+  assert.match(panelHtml, /id="updateDownloads"/);
   assert.match(currentDownloadsJs, /id = "current-downloads"|ROOT_ID = "current-downloads"/);
   assert.match(currentDownloadsJs, /Abrir centro web completo/);
   assert.match(currentDownloadsJs, /current-legacy-download-link/);
@@ -42,14 +44,14 @@ test("el manifiesto publica dos EXE y las dos IPA con integridad verificable", (
   }
 });
 
-test("Finanzas publica el diagnostico 4.0.0 y los dos CRM apuntan a v18", () => {
+test("Finanzas publica el diagnostico 5.0.0 y los dos CRM apuntan a v18", () => {
   const finance = manifest.apps.find(app => app.id === "finanzas-ios");
   const crm = manifest.apps.find(app => app.id === "crm");
   const crmFotos = manifest.apps.find(app => app.id === "crm-fotos");
   assert.ok(finance);
   assert.equal(finance.status, "diagnostic_unsigned");
-  assert.equal(finance.version, "4.0.0 (build 400)");
-  assert.match(finance.url, /DCarelaFinanzas-4\.0\.0-unsigned\.ipa$/);
+  assert.equal(finance.version, "5.0.0 (build 500)");
+  assert.match(finance.url, /DCarelaFinanzas-5\.0\.0-unsigned\.ipa$/);
   assert.equal(crm.status, "published");
   assert.equal(crm.url, "https://erickcarela58-star.github.io/dcarela-crm-panel/");
   assert.equal(crmFotos.status, "published");

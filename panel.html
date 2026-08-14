@@ -12,11 +12,12 @@
   <script>
     (() => {
       const params = new URLSearchParams(location.search);
+      const standalone = params.get("standalone") === "1";
       let sameOriginParent = false;
       try {
         sameOriginParent = window.self !== window.top && new URL(document.referrer).origin === location.origin;
       } catch {}
-      if (params.get("embedded") !== "1" || !sameOriginParent) {
+      if (!standalone && (params.get("embedded") !== "1" || !sameOriginParent)) {
         const current = new URL("./", location.href);
         current.hash = location.hash;
         document.documentElement.hidden = true;
@@ -30,14 +31,14 @@
       document.documentElement.dataset.theme = theme;
       document.documentElement.classList.toggle("dark", theme === "dark");
       document.documentElement.style.colorScheme = theme;
+      document.documentElement.classList.toggle("embedded-panel", !standalone);
     })();
-    document.documentElement.classList.add("embedded-panel");
   </script>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="dcarela-logo.png">
-  <link rel="stylesheet" href="panel.css?v=20260813-branch-isolation-ios-v5">
-  <link rel="stylesheet" href="panel-theme.css?v=20260813-branch-isolation-ios-v5">
-  <link rel="stylesheet" href="visual-fidelity.css?v=20260813-branch-isolation-ios-v5">
+  <link rel="stylesheet" href="panel.css?v=20260814-standalone-sync-v1">
+  <link rel="stylesheet" href="panel-theme.css?v=20260814-standalone-sync-v1">
+  <link rel="stylesheet" href="visual-fidelity.css?v=20260814-standalone-sync-v1">
 </head>
 <body>
   <section id="access" class="access-shell">
@@ -827,7 +828,7 @@
   <script src="jspdf.plugin.autotable.min.js"></script>
   <script src="ticket-termico.js?v=1.0.34.2"></script>
   <script src="panel-sale-pending.js?v=1.0.34.2"></script>
-<script src="panel.js?v=20260813-branch-isolation-ios-v5"></script>
+<script src="panel.js?v=20260814-standalone-sync-v1"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));
