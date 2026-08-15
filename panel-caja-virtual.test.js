@@ -40,6 +40,13 @@ test("Caja virtual replica F1-F12 y protege el esperado durante el conteo", () =
   assert.match(panel, /selected === "caja-virtual"/);
 });
 
+test("Nueva venta muestra el turno antes de terminar el catalogo historico", () => {
+  assert.match(panel, /renderSaleShift\(\);\s*renderSaleCart\(\);\s*const failures/s);
+  assert.match(panel, /cargarCatalogoCloud\(\)\s*\.then\(\(\) => renderSaleProducts\(\)\)/s);
+  assert.match(panel, /eventos\(\["ProductoCreado"[\s\S]+?null, null, 3000\)/);
+  assert.doesNotMatch(panel, /await Promise\.all\(\[cargarCatalogoCloud\(\), cargarClientesCloud\(\)/);
+});
+
 test("Cuentas y tarjetas exponen signo, jerarquia y contraste en ambos temas", () => {
   assert.match(panel, /fin-account-sign/);
   assert.match(panel, /Disponible/);

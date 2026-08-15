@@ -1371,9 +1371,13 @@
       return { products: productCatalog, categories: categoryCatalog, combos: comboCatalog };
     }
     const [productEvents, categoryEvents, comboEvents] = await Promise.all([
-      eventos(["ProductoCreado", "ProductoEditado", "ProductoDesactivado", "InventarioAjustado"], null, null, 10000),
-      eventos(["CategoriaCreada"], null, null, 2000),
-      eventos(["KitEditado"], null, null, 10000)
+      // El lote de reclasificacion del 12/08 dejo un evento reciente por cada
+      // producto activo. Tres paginas cubren el catalogo completo sin obligar
+      // al telefono a descargar decenas de miles de ajustes historicos antes
+      // de mostrar la caja.
+      eventos(["ProductoCreado", "ProductoEditado", "ProductoDesactivado", "InventarioAjustado"], null, null, 3000),
+      eventos(["CategoriaCreada"], null, null, 1000),
+      eventos(["KitEditado"], null, null, 3000)
     ]);
     productCatalog = consolidateProducts(
       mergeEvents(productEvents, ["ProductoCreado", "ProductoEditado", "ProductoDesactivado"])
@@ -1399,7 +1403,7 @@
 
   async function cargarClientesCloud(force = false) {
     if (!force && clientCatalog) return clientCatalog;
-    const items = await eventos(["ClienteCreado", "ClienteEditado", "ClienteDesactivado"], null, null, 10000);
+    const items = await eventos(["ClienteCreado", "ClienteEditado", "ClienteDesactivado"], null, null, 3000);
     clientCatalog = mergeEvents(items, ["ClienteCreado", "ClienteEditado", "ClienteDesactivado"])
       .filter(item => item.nombre)
       .map(item => ({ ...item, activo: item._stateEvent !== "ClienteDesactivado" && item.activo !== false }))
@@ -2740,17 +2744,36 @@
     $("saleBranch").textContent = nombreSucursal(BUSINESS);
     $("saleError").textContent = "";
     setSaleStage("catalog");
-    try {
-      await Promise.all([cargarCatalogoCloud(), cargarClientesCloud(), loadSaleBankAccounts(), cargarNegocioCloud(), refreshSaleShift()]);
-      $("saleClient").innerHTML = '<option value="">Consumidor final</option>' + (clientCatalog || []).filter(client => client.activo !== false).map(client => `<option value="${esc(client.id)}">${esc(client.nombre)}${numero(client.saldoCentavos) ? ` | saldo ${money(client.saldoCentavos)}` : ""}</option>`).join("");
-      renderSaleProducts();
-      renderSaleCart();
-      if (saleCart.length) setSaleStage("cart");
-      setTimeout(() => (saleShift ? (saleCart.length ? $("saleCart") : $("saleSearch")) : $("saleOpening"))?.focus(), 0);
-    } catch (error) {
-      $("saleError").textContent = error.message;
-      renderSaleShift();
+    // El estado ya fue obtenido al cargar permisos. Se muestra primero para
+    // que una consulta historica lenta nunca deje el overlay completamente
+    // negro. Catalogo, clientes y cuentas progresan de forma independiente.
+    renderSaleShift();
+    renderSaleCart();
+    const failures = [];
+    const captureFailure = label => error => {
+      failures.push(`${label}: ${error?.message || error}`);
+    };
+    const tasks = [
+      refreshSaleShift().catch(captureFailure("turno")),
+      cargarCatalogoCloud()
+        .then(() => renderSaleProducts())
+        .catch(captureFailure("catalogo")),
+      cargarClientesCloud()
+        .then(() => {
+          $("saleClient").innerHTML = '<option value="">Consumidor final</option>' + (clientCatalog || []).filter(client => client.activo !== false).map(client => `<option value="${esc(client.id)}">${esc(client.nombre)}${numero(client.saldoCentavos) ? ` | saldo ${money(client.saldoCentavos)}` : ""}</option>`).join("");
+        })
+        .catch(captureFailure("clientes")),
+      loadSaleBankAccounts().catch(captureFailure("cuentas")),
+      cargarNegocioCloud().catch(captureFailure("negocio")),
+    ];
+    await Promise.all(tasks);
+    if (failures.length) {
+      $("saleError").textContent = `No se cargaron todos los datos (${failures.join("; ")}). Puedes reintentar sin cerrar el turno.`;
     }
+    renderSaleShift();
+    renderSaleCart();
+    if (saleCart.length) setSaleStage("cart");
+    setTimeout(() => (saleShift ? (saleCart.length ? $("saleCart") : $("saleSearch")) : $("saleOpening"))?.focus(), 0);
   }
 
   function closeSaleConsole() {
