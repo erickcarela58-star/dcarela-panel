@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-08-16T16:03:30Z",
+  "generatedAt": "2026-08-16T19:21:47Z",
   "apps": {
     "com.dcarela.brujula": {
       "name": "Brújula",
@@ -17,17 +17,16 @@
       "mandatory": false
     },
     "com.dcarela.brujula.7FL6SHN9DV": {
-      "name": "Brújula",
-      "channel": "stable",
+      "name": "Brújula (QA)",
+      "channel": "qa",
       "latestVersion": "4.6.0",
-      "latestBuild": "469",
+      "latestBuild": "471",
       "minimumSupportedBuild": "462",
-      "downloadURL": "https://panel.dcarelacompufoto.com/ios-releases/Brujula/4.6.0/469/Brujula-4.6.0-469.ipa",
-      "altStoreSourceURL": "https://panel.dcarelacompufoto.com/ios-releases/altstore-source.json",
-      "sha256": "5b060cb40f24d271fecdc3a12840a0ee31c70830636db978d6e4c5c868e42492",
-      "size": 16516697,
+      "downloadURL": "https://raw.githubusercontent.com/erickcarela58-star/dcarela-panel/main/ios-releases/QA/Brujula-4.6.0-471-QA.ipa",
+      "sha256": "addf3877aedf02f197df235fa7b3224679cf3cd50f2c05c7832d713ebc0a4e0a",
+      "size": 16132393,
       "publishedAt": "2026-08-16",
-      "releaseNotes": "QA Build 469: Grabación nativa Linear PCM 16kHz WAV, sanitización MIME, auto-recuperación de conversación y diagnóstico de runtime completo.",
+      "releaseNotes": "QA Build 471: CFBundleVersion validado. Keychain fix AltStore.",
       "mandatory": false
     },
     "com.dcarela.brujula.stable": {
