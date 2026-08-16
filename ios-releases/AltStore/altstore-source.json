@@ -16,10 +16,19 @@
           "version": "4.6.0",
           "buildVersion": "469",
           "date": "2026-08-16",
+          "downloadURL": "https://raw.githubusercontent.com/erickcarela58-star/dcarela-panel/main/ios-releases/QA/Brujula-4.6.0-469-QA.ipa",
+          "size": 18007499,
+          "sha256": "a213743eee4c6dbd30c020fc7e2e3fc2664e3c26d60190473d6142806293cf2d",
+          "localizedDescription": "QA Build 469: Verificación física de 12 Atajos firmados AEA1, sincronización anti-race Lock First, Normalizer 16kHz WAV y aislamiento de cerebros."
+        },
+        {
+          "version": "4.6.0",
+          "buildVersion": "469",
+          "date": "2026-08-16",
           "downloadURL": "https://panel.dcarelacompufoto.com/ios-releases/Brujula/4.6.0/469/Brujula-4.6.0-469.ipa",
           "size": 16516697,
           "sha256": "5b060cb40f24d271fecdc3a12840a0ee31c70830636db978d6e4c5c868e42492",
-          "localizedDescription": "QA Build 469: Grabación nativa Linear PCM 16kHz WAV, sanitización MIME, auto-recuperación de conversación y diagnóstico de runtime completo."
+          "localizedDescription": "Stable Build 469: Grabación nativa Linear PCM 16kHz WAV, sanitización MIME, auto-recuperación de conversación y diagnóstico de runtime completo."
         },
         {
           "version": "4.6.0",
