@@ -6,7 +6,7 @@
   "desktop_version": "1.0.44",
   "ios_version": "4.6.0",
   "ios_build": "466",
-  "ios_release_url": "https://panel.dcarelacompufoto.com/ios-releases/brujula/4.6.0/466/Brujula-4.6.0-466.ipa",
+  "ios_release_url": "https://panel.dcarelacompufoto.com/ios-releases/Brujula/4.6.0/466/Brujula-4.6.0-466.ipa",
   "published_at": "2026-08-16T14:06:00Z",
   "channel": "stable",
   "notes": "Brújula 4.6.0 (Build 466) con normalización de audio WAV PCM 16kHz y 10 Atajos reconstruidos. Finanzas 6.1.1 (Build 616).",
@@ -35,7 +35,7 @@
       "published_at": "2026-08-16T14:06:00Z",
       "size_bytes": 16480272,
       "sha256": "fc00ea6319ded07b9d22ccced83421901e00b061d17c7abcbfba0c79577cf622",
-      "url": "https://panel.dcarelacompufoto.com/ios-releases/brujula/4.6.0/466/Brujula-4.6.0-466.ipa",
+      "url": "https://panel.dcarelacompufoto.com/ios-releases/Brujula/4.6.0/466/Brujula-4.6.0-466.ipa",
       "checksums_url": "https://panel.dcarelacompufoto.com/ios-releases/manifest.json",
       "action": "Descargar IPA Brújula",
       "notes": "Build 466 con AudioNormalizationService WAV PCM 16kHz universal, 10 App Intents nativos y auto-recuperación de conversaciones.",
@@ -55,7 +55,7 @@
       "published_at": "2026-08-16T14:06:00Z",
       "size_bytes": 1292435,
       "sha256": "fb9c940ac04d6306ec86bd1f31e69b39e518c43cf645d142666de63ae9d49cae",
-      "url": "https://panel.dcarelacompufoto.com/ios-releases/finanzas/6.1.1/616/DCarelaFinanzas-6.1.1-616.ipa",
+      "url": "https://panel.dcarelacompufoto.com/ios-releases/Finanzas/6.1.1/616/DCarelaFinanzas-6.1.1-616.ipa",
       "checksums_url": "https://panel.dcarelacompufoto.com/ios-releases/manifest.json",
       "action": "Descargar IPA Finanzas",
       "notes": "Build 616 con AudioNormalizationService y ConversationCoordinator integrado.",
@@ -95,7 +95,7 @@
       "version": "4.6.0 (build 466)",
       "platform": "iPhone",
       "status": "published",
-      "url": "https://panel.dcarelacompufoto.com/ios-releases/brujula/4.6.0/466/Brujula-4.6.0-466.ipa",
+      "url": "https://panel.dcarelacompufoto.com/ios-releases/Brujula/4.6.0/466/Brujula-4.6.0-466.ipa",
       "action": "Descargar IPA Brújula",
       "notes": "Build 466 con AudioNormalizationService WAV PCM 16kHz y 10 Atajos reconstruidos."
     },
@@ -111,7 +111,7 @@
       "version": "4.6.0 (build 466)",
       "platform": "iPhone",
       "status": "published",
-      "url": "https://panel.dcarelacompufoto.com/ios-releases/brujula/4.6.0/466/Brujula-4.6.0-466.ipa",
+      "url": "https://panel.dcarelacompufoto.com/ios-releases/Brujula/4.6.0/466/Brujula-4.6.0-466.ipa",
       "action": "Descargar IPA Brújula",
       "notes": "Build 466 con AudioNormalizationService WAV PCM 16kHz y 10 Atajos reconstruidos."
     },
@@ -127,7 +127,7 @@
       "version": "6.1.1 (build 616)",
       "platform": "iPhone / iPad",
       "status": "published",
-      "url": "https://panel.dcarelacompufoto.com/ios-releases/finanzas/6.1.1/616/DCarelaFinanzas-6.1.1-616.ipa",
+      "url": "https://panel.dcarelacompufoto.com/ios-releases/Finanzas/6.1.1/616/DCarelaFinanzas-6.1.1-616.ipa",
       "action": "Descargar IPA Finanzas",
       "notes": "Build 616 con control administrativo nativo y ConversationCoordinator."
     },
@@ -143,7 +143,7 @@
       "version": "6.1.1 (build 616)",
       "platform": "iPhone / iPad",
       "status": "published",
-      "url": "https://panel.dcarelacompufoto.com/ios-releases/finanzas/6.1.1/616/DCarelaFinanzas-6.1.1-616.ipa",
+      "url": "https://panel.dcarelacompufoto.com/ios-releases/Finanzas/6.1.1/616/DCarelaFinanzas-6.1.1-616.ipa",
       "action": "Descargar IPA Finanzas",
       "notes": "Build 616 con control administrativo nativo y ConversationCoordinator."
     }

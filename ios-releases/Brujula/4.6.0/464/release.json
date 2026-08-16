@@ -6,7 +6,7 @@
   "build": "464",
   "size": 16436621,
   "sha256": "f260e264322af31d0d58a40069de15d44f0311d6358c22c3a79094fbbfe9c9fa",
-  "download_url": "https://panel.dcarelacompufoto.com/ios-releases/brujula/4.6.0/464/Brujula-4.6.0-465.ipa",
+  "download_url": "https://panel.dcarelacompufoto.com/ios-releases/Brujula/4.6.0/464/Brujula-4.6.0-465.ipa",
   "altstore_source_url": "https://panel.dcarelacompufoto.com/ios-releases/altstore-source.json",
   "published_at": "2026-08-16",
   "release_notes": "Cierre final: corrección de arquitectura de audio/conversación con ConversationCoordinator, auto-recuperación de sesiones y observabilidad completa.",

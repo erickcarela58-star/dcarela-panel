@@ -6,7 +6,7 @@
   "build": "615",
   "size": 1291713,
   "sha256": "5479abdd6a1dd593adfed215730471bfeef993928c25987474a096287b21be43",
-  "download_url": "https://panel.dcarelacompufoto.com/ios-releases/finanzas/6.1.1/615/DCarelaFinanzas-6.1.1-615.ipa",
+  "download_url": "https://panel.dcarelacompufoto.com/ios-releases/Finanzas/6.1.1/615/DCarelaFinanzas-6.1.1-615.ipa",
   "altstore_source_url": "https://panel.dcarelacompufoto.com/ios-releases/altstore-source.json",
   "published_at": "2026-08-16",
   "release_notes": "Cierre final: integración de ConversationCoordinator, auto-recuperación de sesiones y observabilidad completa.",

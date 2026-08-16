@@ -6,7 +6,7 @@
   "build": "614",
   "size": 1286061,
   "sha256": "f51d5bcf628b30c0c43f581e844c0a774a4bda6591379554230158ad8851e843",
-  "download_url": "https://panel.dcarelacompufoto.com/ios-releases/finanzas/6.1.1/614/DCarelaFinanzas-6.1.1-614.ipa",
+  "download_url": "https://panel.dcarelacompufoto.com/ios-releases/Finanzas/6.1.1/614/DCarelaFinanzas-6.1.1-614.ipa",
   "altstore_source_url": "https://panel.dcarelacompufoto.com/ios-releases/altstore-source.json",
   "published_at": "2026-08-16",
   "release_notes": "Corrección definitiva de DCAUpdateKit con fallback multi-endpoint HTTPS, decodificación universal de manifiesto y observabilidad.",
