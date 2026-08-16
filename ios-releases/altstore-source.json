@@ -23,15 +23,6 @@
         },
         {
           "version": "4.6.0",
-          "buildVersion": "469",
-          "date": "2026-08-16",
-          "downloadURL": "https://panel.dcarelacompufoto.com/ios-releases/Brujula/4.6.0/469/Brujula-4.6.0-469.ipa",
-          "size": 16516697,
-          "sha256": "5b060cb40f24d271fecdc3a12840a0ee31c70830636db978d6e4c5c868e42492",
-          "localizedDescription": "Stable Build 469: Grabación nativa Linear PCM 16kHz WAV, sanitización MIME, auto-recuperación de conversación y diagnóstico de runtime completo."
-        },
-        {
-          "version": "4.6.0",
           "buildVersion": "468",
           "date": "2026-08-16",
           "downloadURL": "https://panel.dcarelacompufoto.com/ios-releases/Brujula/4.6.0/468/Brujula-4.6.0-468.ipa",
