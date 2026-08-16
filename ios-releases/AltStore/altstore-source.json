@@ -12,6 +12,24 @@
       "versions": [
         {
           "version": "4.6.0",
+          "buildVersion": "465",
+          "date": "2026-08-16",
+          "downloadURL": "https://panel.dcarelacompufoto.com/ios-releases/brujula/4.6.0/465/Brujula-4.6.0-465.ipa",
+          "size": 16452379,
+          "sha256": "9b17cc6f886abaabac1201a30522c12bb07fbc54d712716f3af8906b1696845a",
+          "localizedDescription": "Cierre final: corrección de arquitectura de audio/conversación con ConversationCoordinator, auto-recuperación de sesiones y observabilidad completa."
+        },
+        {
+          "version": "4.6.0",
+          "buildVersion": "464",
+          "date": "2026-08-16",
+          "downloadURL": "https://panel.dcarelacompufoto.com/ios-releases/brujula/4.6.0/464/Brujula-4.6.0-464.ipa",
+          "size": 16436621,
+          "sha256": "0d607822bfc60138cc71270424a9a3510f341b13bab24e22a9d63982b179ca51",
+          "localizedDescription": "Corrección definitiva de DCAUpdateKit con fallback multi-endpoint HTTPS, decodificación universal de manifiesto y observabilidad."
+        },
+        {
+          "version": "4.6.0",
           "buildVersion": "463",
           "date": "2026-08-16",
           "downloadURL": "https://panel.dcarelacompufoto.com/ios-releases/brujula/4.6.0/463/Brujula-4.6.0-463.ipa",
@@ -37,6 +55,24 @@
       "subtitle": "Operaciones financieras y panel POS",
       "localizedDescription": "Control financiero y administrativo oficial para D' Carela Estudio Fotográfico.",
       "versions": [
+        {
+          "version": "6.1.1",
+          "buildVersion": "615",
+          "date": "2026-08-16",
+          "downloadURL": "https://panel.dcarelacompufoto.com/ios-releases/finanzas/6.1.1/615/DCarelaFinanzas-6.1.1-615.ipa",
+          "size": 1291713,
+          "sha256": "5b5a9d389524c170788eeecce8dc8ab9d3b62234c68a7bf73cdf733dbb481a5e",
+          "localizedDescription": "Cierre final: integración de ConversationCoordinator, auto-recuperación de sesiones y observabilidad completa."
+        },
+        {
+          "version": "6.1.1",
+          "buildVersion": "614",
+          "date": "2026-08-16",
+          "downloadURL": "https://panel.dcarelacompufoto.com/ios-releases/finanzas/6.1.1/614/DCarelaFinanzas-6.1.1-614.ipa",
+          "size": 1286061,
+          "sha256": "f51d5bcf628b30c0c43f581e844c0a774a4bda6591379554230158ad8851e843",
+          "localizedDescription": "Corrección definitiva de DCAUpdateKit con fallback multi-endpoint HTTPS, decodificación universal de manifiesto y observabilidad."
+        },
         {
           "version": "6.1.1",
           "buildVersion": "613",
