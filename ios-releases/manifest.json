@@ -1,33 +1,33 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-08-16T08:06:33.536912+00:00",
+  "generatedAt": "2026-08-16T13:02:28.905601+00:00",
   "apps": {
     "com.dcarela.brujula": {
       "name": "Brújula",
       "channel": "stable",
       "latestVersion": "4.6.0",
-      "latestBuild": "463",
+      "latestBuild": "466",
       "minimumSupportedBuild": "462",
-      "downloadURL": "https://panel.dcarelacompufoto.com/ios-releases/brujula/4.6.0/463/Brujula-4.6.0-463.ipa",
+      "downloadURL": "https://panel.dcarelacompufoto.com/ios-releases/brujula/4.6.0/466/Brujula-4.6.0-466.ipa",
       "altStoreSourceURL": "https://panel.dcarelacompufoto.com/ios-releases/altstore-source.json",
-      "sha256": "91c880f84c552da22e06112e4a77bd5e0297dba808616bf249538318934ff5c4",
-      "size": 16392726,
+      "sha256": "fc00ea6319ded07b9d22ccced83421901e00b061d17c7abcbfba0c79577cf622",
+      "size": 16480272,
       "publishedAt": "2026-08-16",
-      "releaseNotes": "Orquestación fluida con Gemini, síntesis ejecutiva sin listines mecánicos, DCAObservabilityKit y 50 pruebas QA superadas.",
+      "releaseNotes": "Reconstrucción total: AudioNormalizationService (WAV PCM 16kHz universal), 10 App Intents reconstruidos, auto-recuperación de conversaciones y canal de actualizaciones mejorado.",
       "mandatory": false
     },
     "com.dcarela.panel": {
       "name": "D' Carela Finanzas",
       "channel": "stable",
       "latestVersion": "6.1.1",
-      "latestBuild": "613",
+      "latestBuild": "616",
       "minimumSupportedBuild": "612",
-      "downloadURL": "https://panel.dcarelacompufoto.com/ios-releases/finanzas/6.1.1/613/DCarelaFinanzas-6.1.1-613.ipa",
+      "downloadURL": "https://panel.dcarelacompufoto.com/ios-releases/finanzas/6.1.1/616/DCarelaFinanzas-6.1.1-616.ipa",
       "altStoreSourceURL": "https://panel.dcarelacompufoto.com/ios-releases/altstore-source.json",
-      "sha256": "e26eaa20a0807745a0036623ae5e40feee26dd3b8fd9c81c9a9d52748466b6ac",
-      "size": 1244936,
+      "sha256": "fb9c940ac04d6306ec86bd1f31e69b39e518c43cf645d142666de63ae9d49cae",
+      "size": 1292435,
       "publishedAt": "2026-08-16",
-      "releaseNotes": "Integración completa de DCAObservabilityKit, ledger autoritativo y sincronización con nuevo updater cloud.",
+      "releaseNotes": "Reconstrucción total: AudioNormalizationService, integración de ConversationCoordinator y canal de actualizaciones prioritario.",
       "mandatory": false
     }
   }

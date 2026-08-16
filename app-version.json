@@ -1,141 +1,16 @@
 {
-  "schema": 1,
-  "build": "2026.08.13.5.0.43.2",
-  "web_version": "1.0.43.2",
-  "pwa_version": "1.0.43.2",
-  "desktop_version": "1.0.44",
-  "ios_version": "4.6.0",
-  "ios_release_url": "https://panel.dcarelacompufoto.com/ios-releases/Brujula/4.6.0/465/Brujula-4.6.0-465.ipa",
-  "published_at": "2026-08-13T07:08:01Z",
-  "channel": "stable",
-  "notes": "Panel 1.0.43.2 aísla la central de Plaza Artesanal. Finanzas iOS 5.0 reconstruye la experiencia móvil azul, blanca y naranja con control administrativo nativo. Brújula iOS 3.1 bloquea únicamente la selección del usuario.",
-  "release_page_url": "https://github.com/erickcarela58-star/dcarela-panel/releases",
-  "desktop_release": {
-    "version": "1.0.44",
-    "channel": "stable",
-    "mandatory": false,
-    "created_at": "2026-08-13T02:47:33Z",
-    "release_url": "https://github.com/erickcarela58-star/dcarela-panel/releases/download/pos-v1.0.44/DCARELA_POS_Setup_1.0.44.exe",
-    "sha256": "efa0d026b86b65fa4e9d914991b3bf866ed06388c810d8b2b495b0a26133d17e",
-    "notes": "Instalador 1.0.44 con aislamiento estricto entre la central y Plaza Artesanal."
-  },
-  "downloads": [
-    {
-      "product": "D' Carela POS",
-      "label": "Actualización para Windows",
-      "name": "DCARELA_POS_Update_1.0.43.exe",
-      "extension": "EXE",
-      "version": "1.0.43",
-      "build": "1.0.43",
-      "platform": "Windows 10/11 x64",
-      "channel": "stable",
-      "publisher_signature": "not_signed",
-      "published_at": "2026-08-13T00:51:20Z",
-      "size_bytes": 4058138,
-      "sha256": "84da634b677b49d9bc1b9febd452e38a746a073b360de582b0ebcef6eac17173",
-      "url": "https://github.com/erickcarela58-star/dcarela-panel/releases/download/pos-v1.0.43/DCARELA_POS_Update_1.0.43.exe",
-      "checksums_url": "https://github.com/erickcarela58-star/dcarela-panel/releases/download/pos-v1.0.43/SHA256SUMS.txt",
-      "action": "Descargar actualización .EXE",
-      "notes": "Actualización incremental de Caja 1.0.43. Conserva los datos y corrige el corte, el conteo protegido y las alertas de cierre.",
-      "installation_method": "Descargar, verificar la huella SHA-256 y ejecutar como administrador. Windows puede advertir que el editor no está identificado."
+  "version": "4.6.0",
+  "build": 466,
+  "apps": {
+    "brujula": {
+      "latest_version": "4.6.0",
+      "latest_build": 466,
+      "download_url": "https://panel.dcarelacompufoto.com/ios-releases/brujula/4.6.0/466/Brujula-4.6.0-466.ipa"
     },
-    {
-      "product": "D' Carela POS",
-      "label": "Instalador completo para Windows",
-      "name": "DCARELA_POS_Setup_1.0.44.exe",
-      "extension": "EXE",
-      "version": "1.0.44",
-      "build": "1.0.44",
-      "platform": "Windows 10/11 x64",
-      "channel": "stable",
-      "publisher_signature": "not_signed",
-      "published_at": "2026-08-13T02:47:33Z",
-      "size_bytes": 105222459,
-      "sha256": "efa0d026b86b65fa4e9d914991b3bf866ed06388c810d8b2b495b0a26133d17e",
-      "url": "https://github.com/erickcarela58-star/dcarela-panel/releases/download/pos-v1.0.44/DCARELA_POS_Setup_1.0.44.exe",
-      "action": "Descargar instalador completo .EXE",
-      "notes": "Instalador completo 1.0.44 con terminal vinculada exclusivamente a su sucursal.",
-      "installation_method": "Descargar, verificar la huella SHA-256 y ejecutar. Conserva la base local si se instala sobre la misma carpeta configurada."
-    },
-    {
-      "product": "D' Carela Finanzas",
-      "label": "Artefacto diagnóstico sin firma para iPhone y iPad",
-      "name": "DCarelaFinanzas-5.0.0-unsigned.ipa",
-      "extension": "IPA",
-      "version": "6.1.1",
-      "build": "615",
-      "platform": "iOS / iPadOS 16.4+",
-      "channel": "diagnostic",
-      "publisher_signature": "not_signed",
-      "signature_label": "Artefacto verificado · sin firma ni perfil Apple",
-      "published_at": "2026-08-13T07:08:01Z",
-      "size_bytes": 847535,
-      "sha256": "5479abdd6a1dd593adfed215730471bfeef993928c25987474a096287b21be43",
-      "url": "https://panel.dcarelacompufoto.com/ios-releases/Finanzas/6.1.1/615/DCarelaFinanzas-6.1.1-615.ipa",
-      "action": "Descargar IPA de diagnóstico",
-      "notes": "Build SwiftUI 5.0 reconstruida desde el diseño móvil D' Carela: identidad azul/blanca, cristal, navegación inferior, tarjetas con degradados y módulos financieros editables.",
-      "installation_method": "No es instalable directamente: no contiene firma ni perfil de aprovisionamiento Apple. Requiere firma autorizada en macOS/Xcode o publicación posterior mediante App Store o TestFlight."
-    },
-    {
-      "product": "Brújula",
-      "label": "Artefacto diagnóstico sin firma para iPhone",
-      "name": "Brujula-3.1.0-unsigned.ipa",
-      "extension": "IPA",
-      "version": "4.6.0",
-      "build": "465",
-      "platform": "iPhone · iOS 17+",
-      "channel": "diagnostic",
-      "publisher_signature": "not_signed",
-      "signature_label": "Artefacto verificado · sin firma ni perfil Apple",
-      "published_at": "2026-08-13T06:44:00Z",
-      "size_bytes": 17717601,
-      "sha256": "9b17cc6f886abaabac1201a30522c12bb07fbc54d712716f3af8906b1696845a",
-      "url": "https://panel.dcarelacompufoto.com/ios-releases/Brujula/4.6.0/465/Brujula-4.6.0-465.ipa",
-      "action": "Descargar IPA de diagnóstico",
-      "notes": "Build SwiftUI 3.1 con selector privado de Apple, bloqueo inmediato persistente y límite diario únicamente para aplicaciones, categorías o sitios seleccionados.",
-      "installation_method": "No es instalable directamente: no contiene firma ni perfil de aprovisionamiento Apple. Family Controls requiere firma con el entitlement aprobado; la distribución final debe realizarse con Apple."
+    "finanzas": {
+      "latest_version": "6.1.1",
+      "latest_build": 616,
+      "download_url": "https://panel.dcarelacompufoto.com/ios-releases/finanzas/6.1.1/616/DCarelaFinanzas-6.1.1-616.ipa"
     }
-  ],
-  "apps": [
-    {
-      "id": "finanzas-ios",
-      "name": "D' Carela Finanzas",
-      "version": "6.1.1 (build 615)",
-      "platform": "iPhone / iPad",
-      "status": "diagnostic_unsigned",
-      "url": "https://panel.dcarelacompufoto.com/ios-releases/Finanzas/6.1.1/615/DCarelaFinanzas-6.1.1-615.ipa",
-      "action": "Descargar IPA de diagnóstico",
-      "notes": "Aplicación SwiftUI 5.0 con diseño móvil D' Carela, navegación inferior y edición administrativa real. Artefacto verificado, sin firma ni perfil Apple."
-    },
-    {
-      "id": "crm",
-      "name": "CRM multicaja",
-      "version": "2026-08-10-per-chat-photo-bot-v18",
-      "platform": "Web y móvil",
-      "status": "published",
-      "url": "https://erickcarela58-star.github.io/dcarela-crm-panel/",
-      "action": "Abrir CRM",
-      "notes": "Panel web publicado por HTTPS con conversaciones, pipeline y controles operativos actuales."
-    },
-    {
-      "id": "crm-fotos",
-      "name": "CRM Fotos / WhatsApp",
-      "version": "2026-08-10-per-chat-photo-bot-v18",
-      "platform": "Web y móvil",
-      "status": "published",
-      "url": "https://erickcarela58-star.github.io/dcarela-fotos-panel/",
-      "action": "Abrir CRM Fotos",
-      "notes": "CRM Fotos con control Bot/Humano independiente por chat, enlace Desktop e importación de historial."
-    },
-    {
-      "id": "brujula",
-      "name": "Brújula",
-      "version": "4.6.0 (build 465)",
-      "platform": "iPhone",
-      "status": "diagnostic_unsigned",
-      "url": "https://panel.dcarelacompufoto.com/ios-releases/Brujula/4.6.0/465/Brujula-4.6.0-465.ipa",
-      "action": "Descargar IPA de diagnóstico",
-      "notes": "Aplicación nativa 3.1 que protege solamente apps seleccionadas con el escudo de iOS, bloqueo inmediato persistente y límite diario. Artefacto verificado, sin firma ni perfil Apple."
-    }
-  ]
+  }
 }
