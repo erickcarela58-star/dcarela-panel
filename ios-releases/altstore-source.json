@@ -14,6 +14,15 @@
       "versions": [
         {
           "version": "4.6.0",
+          "buildVersion": "468",
+          "date": "2026-08-16",
+          "downloadURL": "https://panel.dcarelacompufoto.com/ios-releases/Brujula/4.6.0/468/Brujula-4.6.0-468.ipa",
+          "size": 16509364,
+          "sha256": "fa90aed6d56a7cc8c06eadd6a7a4584ff7ae2173596b24635171961c1d106675",
+          "localizedDescription": "Release definitiva: 13 Atajos canónicos, RestrictionReconciler Screen Time anti-bypass, FinalizeSocialPenaltyIntent y AudioNormalizationService WAV PCM 16kHz."
+        },
+        {
+          "version": "4.6.0",
           "buildVersion": "467",
           "date": "2026-08-16",
           "downloadURL": "https://panel.dcarelacompufoto.com/ios-releases/Brujula/4.6.0/467/Brujula-4.6.0-467.ipa",
@@ -77,6 +86,15 @@
       "iconURL": "https://panel.dcarelacompufoto.com/assets/finanzas-icon.png",
       "tintColor": "#1D4ED8",
       "versions": [
+        {
+          "version": "6.1.1",
+          "buildVersion": "618",
+          "date": "2026-08-16",
+          "downloadURL": "https://panel.dcarelacompufoto.com/ios-releases/Finanzas/6.1.1/618/DCarelaFinanzas-6.1.1-618.ipa",
+          "size": 1292932,
+          "sha256": "9e79b5f5ca313f001fcdc6bb9f90320b71216b6c3a660a2dda5186271df7ef9b",
+          "localizedDescription": "Release definitiva: AudioNormalizationService WAV PCM 16kHz, ConversationCoordinator integrado y canal prioritario."
+        },
         {
           "version": "6.1.1",
           "buildVersion": "617",
