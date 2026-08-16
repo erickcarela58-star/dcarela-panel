@@ -14,6 +14,16 @@
       "versions": [
         {
           "version": "4.6.0",
+          "buildVersion": "470",
+          "date": "2026-08-16T19:07:04",
+          "localizedDescription": "v4.6.0 (470) — Corrección crítica: Keychain compatible con re-firma AltStore. Diagnósticos de Brain Gateway corregidos. Inferencia IA conectada al proyecto correcto.",
+          "downloadURL": "https://raw.githubusercontent.com/erickcarela58-star/dcarela-panel/main/ios-releases/QA/Brujula-4.6.0-470-QA.ipa",
+          "size": 16132394,
+          "sha256": "94f1ad2db43f9ea9e3a9c1c0cef0ea6548b297fa7e94a2432853ffc2abc4cc00",
+          "minOSVersion": "17.0"
+        },
+        {
+          "version": "4.6.0",
           "buildVersion": "469",
           "date": "2026-08-16",
           "downloadURL": "https://raw.githubusercontent.com/erickcarela58-star/dcarela-panel/main/ios-releases/QA/Brujula-4.6.0-469-QA.ipa",
@@ -48,7 +58,11 @@
           "sha256": "fc00ea6319ded07b9d22ccced83421901e00b061d17c7abcbfba0c79577cf622",
           "localizedDescription": "Reconstrucción total: AudioNormalizationService, 10 App Intents reconstruidos, auto-recuperación de conversaciones y canal de actualizaciones mejorado."
         }
-      ]
+      ],
+      "version": "4.6.0",
+      "versionDate": "2026-08-16T19:07:04",
+      "downloadURL": "https://raw.githubusercontent.com/erickcarela58-star/dcarela-panel/main/ios-releases/QA/Brujula-4.6.0-470-QA.ipa",
+      "size": 16132394
     },
     {
       "name": "D' Carela Finanzas",
