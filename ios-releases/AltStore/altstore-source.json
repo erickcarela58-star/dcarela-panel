@@ -8,8 +8,28 @@
       "bundleIdentifier": "com.dcarela.brujula",
       "developerName": "D' Carela Studio",
       "subtitle": "Productividad, hábitos y lecturas",
-      "localizedDescription": "Sistema integral de productividad personal, gestión de lecturas y enfoque firme.",
+      "localizedDescription": "Sistema integral de productividad personal, gestión de lecturas y enfoque firme con protección Screen Time anti-bypass.",
+      "iconURL": "https://panel.dcarelacompufoto.com/assets/brujula-icon.png",
+      "tintColor": "#007AFF",
       "versions": [
+        {
+          "version": "4.6.0",
+          "buildVersion": "467",
+          "date": "2026-08-16",
+          "downloadURL": "https://panel.dcarelacompufoto.com/ios-releases/Brujula/4.6.0/467/Brujula-4.6.0-467.ipa",
+          "size": 16507809,
+          "sha256": "77c9e801928cc4b5e007e7803fa51ec065facbd1af23f4af1cd937989b37c868",
+          "localizedDescription": "Integración definitiva: 11 Shortcuts oficiales, RestrictionReconciler Screen Time anti-bypass, AudioNormalizationService WAV PCM 16kHz y observabilidad total."
+        },
+        {
+          "version": "4.6.0",
+          "buildVersion": "466",
+          "date": "2026-08-16",
+          "downloadURL": "https://panel.dcarelacompufoto.com/ios-releases/Brujula/4.6.0/466/Brujula-4.6.0-466.ipa",
+          "size": 16480272,
+          "sha256": "fc00ea6319ded07b9d22ccced83421901e00b061d17c7abcbfba0c79577cf622",
+          "localizedDescription": "Reconstrucción total: AudioNormalizationService (WAV PCM 16kHz universal), 10 App Intents reconstruidos, auto-recuperación de conversaciones y canal de actualizaciones mejorado."
+        },
         {
           "version": "4.6.0",
           "buildVersion": "465",
@@ -54,7 +74,27 @@
       "developerName": "D' Carela Studio",
       "subtitle": "Operaciones financieras y panel POS",
       "localizedDescription": "Control financiero y administrativo oficial para D' Carela Estudio Fotográfico.",
+      "iconURL": "https://panel.dcarelacompufoto.com/assets/finanzas-icon.png",
+      "tintColor": "#1D4ED8",
       "versions": [
+        {
+          "version": "6.1.1",
+          "buildVersion": "617",
+          "date": "2026-08-16",
+          "downloadURL": "https://panel.dcarelacompufoto.com/ios-releases/Finanzas/6.1.1/617/DCarelaFinanzas-6.1.1-617.ipa",
+          "size": 1292933,
+          "sha256": "fda427a56a65b3e426322a9a3da796f740aa27d957dd8f36387857b1d1250476",
+          "localizedDescription": "Integración definitiva: AudioNormalizationService WAV PCM 16kHz, ConversationCoordinator integrado y canal prioritario."
+        },
+        {
+          "version": "6.1.1",
+          "buildVersion": "616",
+          "date": "2026-08-16",
+          "downloadURL": "https://panel.dcarelacompufoto.com/ios-releases/Finanzas/6.1.1/616/DCarelaFinanzas-6.1.1-616.ipa",
+          "size": 1292435,
+          "sha256": "fb9c940ac04d6306ec86bd1f31e69b39e518c43cf645d142666de63ae9d49cae",
+          "localizedDescription": "Reconstrucción total: AudioNormalizationService, integración de ConversationCoordinator y canal de actualizaciones prioritario."
+        },
         {
           "version": "6.1.1",
           "buildVersion": "615",
