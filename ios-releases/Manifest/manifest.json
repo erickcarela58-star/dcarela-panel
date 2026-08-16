@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-08-16T08:06:33.536912+00:00",
+  "apps": {
+    "com.dcarela.brujula": {
+      "name": "Brújula",
+      "channel": "stable",
+      "latestVersion": "4.6.0",
+      "latestBuild": "463",
+      "minimumSupportedBuild": "462",
+      "downloadURL": "https://panel.dcarelacompufoto.com/ios-releases/brujula/4.6.0/463/Brujula-4.6.0-463.ipa",
+      "altStoreSourceURL": "https://panel.dcarelacompufoto.com/ios-releases/altstore-source.json",
+      "sha256": "91c880f84c552da22e06112e4a77bd5e0297dba808616bf249538318934ff5c4",
+      "size": 16392726,
+      "publishedAt": "2026-08-16",
+      "releaseNotes": "Orquestación fluida con Gemini, síntesis ejecutiva sin listines mecánicos, DCAObservabilityKit y 50 pruebas QA superadas.",
+      "mandatory": false
+    },
+    "com.dcarela.panel": {
+      "name": "D' Carela Finanzas",
+      "channel": "stable",
+      "latestVersion": "6.1.1",
+      "latestBuild": "613",
+      "minimumSupportedBuild": "612",
+      "downloadURL": "https://panel.dcarelacompufoto.com/ios-releases/finanzas/6.1.1/613/DCarelaFinanzas-6.1.1-613.ipa",
+      "altStoreSourceURL": "https://panel.dcarelacompufoto.com/ios-releases/altstore-source.json",
+      "sha256": "e26eaa20a0807745a0036623ae5e40feee26dd3b8fd9c81c9a9d52748466b6ac",
+      "size": 1244936,
+      "publishedAt": "2026-08-16",
+      "releaseNotes": "Integración completa de DCAObservabilityKit, ledger autoritativo y sincronización con nuevo updater cloud.",
+      "mandatory": false
+    }
+  }
+}

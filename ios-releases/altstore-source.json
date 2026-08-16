@@ -1,0 +1,61 @@
+{
+  "name": "D' Carela Apps",
+  "identifier": "com.dcarela.altstore-source",
+  "sourceURL": "https://panel.dcarelacompufoto.com/ios-releases/altstore-source.json",
+  "apps": [
+    {
+      "name": "Brújula",
+      "bundleIdentifier": "com.dcarela.brujula",
+      "developerName": "D' Carela Studio",
+      "subtitle": "Productividad, hábitos y lecturas",
+      "localizedDescription": "Sistema integral de productividad personal, gestión de lecturas y enfoque firme.",
+      "versions": [
+        {
+          "version": "4.6.0",
+          "buildVersion": "463",
+          "date": "2026-08-16",
+          "downloadURL": "https://panel.dcarelacompufoto.com/ios-releases/brujula/4.6.0/463/Brujula-4.6.0-463.ipa",
+          "size": 16392726,
+          "sha256": "91c880f84c552da22e06112e4a77bd5e0297dba808616bf249538318934ff5c4",
+          "localizedDescription": "Orquestación fluida con Gemini, síntesis ejecutiva sin listines mecánicos, DCAObservabilityKit y 50 pruebas QA superadas."
+        },
+        {
+          "version": "4.6.0",
+          "buildVersion": "462",
+          "date": "2026-08-16",
+          "downloadURL": "https://panel.dcarelacompufoto.com/ios-releases/brujula/4.6.0/462/Brujula-4.6.0-462.ipa",
+          "size": 16377573,
+          "sha256": "40fd7c4f9b9576bf512a0bd236644990d4f12176eca93b9e8728dc8014ff686b",
+          "localizedDescription": "Cerebros independientes, persistencia aislada, 10 atajos oficiales firmados AEA1 y nuevo Centro de Actualizaciones DCAUpdateKit integrado."
+        }
+      ]
+    },
+    {
+      "name": "D' Carela Finanzas",
+      "bundleIdentifier": "com.dcarela.panel",
+      "developerName": "D' Carela Studio",
+      "subtitle": "Operaciones financieras y panel POS",
+      "localizedDescription": "Control financiero y administrativo oficial para D' Carela Estudio Fotográfico.",
+      "versions": [
+        {
+          "version": "6.1.1",
+          "buildVersion": "613",
+          "date": "2026-08-16",
+          "downloadURL": "https://panel.dcarelacompufoto.com/ios-releases/finanzas/6.1.1/613/DCarelaFinanzas-6.1.1-613.ipa",
+          "size": 1244936,
+          "sha256": "e26eaa20a0807745a0036623ae5e40feee26dd3b8fd9c81c9a9d52748466b6ac",
+          "localizedDescription": "Integración completa de DCAObservabilityKit, ledger autoritativo y sincronización con nuevo updater cloud."
+        },
+        {
+          "version": "6.1.1",
+          "buildVersion": "612",
+          "date": "2026-08-16",
+          "downloadURL": "https://panel.dcarelacompufoto.com/ios-releases/finanzas/6.1.1/612/DCarelaFinanzas-6.1.1-612.ipa",
+          "size": 1231753,
+          "sha256": "707fd0f261802dbd5e57a2bcdba485ffb42a63c3fa03db371cbdf7df46d2396b",
+          "localizedDescription": "Control financiero nativo, ledger autoritativo de operaciones y nuevo Centro de Actualizaciones DCAUpdateKit integrado."
+        }
+      ]
+    }
+  ]
+}

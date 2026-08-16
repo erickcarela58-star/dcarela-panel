@@ -1,0 +1,14 @@
+{
+  "name": "Brújula",
+  "bundle_id": "com.dcarela.brujula",
+  "channel": "stable",
+  "version": "4.6.0",
+  "build": "463",
+  "size": 16392726,
+  "sha256": "91c880f84c552da22e06112e4a77bd5e0297dba808616bf249538318934ff5c4",
+  "download_url": "https://panel.dcarelacompufoto.com/ios-releases/brujula/4.6.0/463/Brujula-4.6.0-463.ipa",
+  "altstore_source_url": "https://panel.dcarelacompufoto.com/ios-releases/altstore-source.json",
+  "published_at": "2026-08-16",
+  "release_notes": "Orquestación fluida con Gemini, síntesis ejecutiva sin listines mecánicos, DCAObservabilityKit y 50 pruebas QA superadas.",
+  "mandatory": false
+}
