@@ -1,16 +1,96 @@
 {
-  "version": "4.6.0",
-  "build": 466,
-  "apps": {
-    "brujula": {
-      "latest_version": "4.6.0",
-      "latest_build": 466,
-      "download_url": "https://panel.dcarelacompufoto.com/ios-releases/brujula/4.6.0/466/Brujula-4.6.0-466.ipa"
+  "schema": 1,
+  "build": "466",
+  "web_version": "1.0.43.4",
+  "pwa_version": "1.0.43.4",
+  "desktop_version": "1.0.44",
+  "ios_version": "4.6.0",
+  "ios_build": "466",
+  "ios_release_url": "https://panel.dcarelacompufoto.com/ios-releases/brujula/4.6.0/466/Brujula-4.6.0-466.ipa",
+  "published_at": "2026-08-16T14:06:00Z",
+  "channel": "stable",
+  "notes": "Brújula 4.6.0 (Build 466) con normalización de audio WAV PCM 16kHz y 10 Atajos reconstruidos. Finanzas 6.1.1 (Build 616).",
+  "release_page_url": "https://panel.dcarelacompufoto.com/#descargar",
+  "downloads": [
+    {
+      "product": "Brújula",
+      "label": "Aplicación oficial para iPhone",
+      "name": "Brujula-4.6.0-466.ipa",
+      "extension": "IPA",
+      "version": "4.6.0",
+      "build": "466",
+      "platform": "iPhone · iOS 17+",
+      "channel": "stable",
+      "publisher_signature": "not_signed",
+      "signature_label": "Artefacto verificado para AltStore / iOS",
+      "published_at": "2026-08-16T14:06:00Z",
+      "size_bytes": 16480272,
+      "sha256": "fc00ea6319ded07b9d22ccced83421901e00b061d17c7abcbfba0c79577cf622",
+      "url": "https://panel.dcarelacompufoto.com/ios-releases/brujula/4.6.0/466/Brujula-4.6.0-466.ipa",
+      "action": "Descargar IPA Brújula",
+      "notes": "Build 466 con AudioNormalizationService WAV PCM 16kHz universal, 10 App Intents nativos y auto-recuperación de conversaciones.",
+      "installation_method": "Instalar mediante AltStore desde el iPhone o sincronizar con AltServer."
     },
-    "finanzas": {
-      "latest_version": "6.1.1",
-      "latest_build": 616,
-      "download_url": "https://panel.dcarelacompufoto.com/ios-releases/finanzas/6.1.1/616/DCarelaFinanzas-6.1.1-616.ipa"
+    {
+      "product": "D' Carela Finanzas",
+      "label": "Aplicación oficial para iPhone y iPad",
+      "name": "DCarelaFinanzas-6.1.1-616.ipa",
+      "extension": "IPA",
+      "version": "6.1.1",
+      "build": "616",
+      "platform": "iOS / iPadOS 16.4+",
+      "channel": "stable",
+      "publisher_signature": "not_signed",
+      "signature_label": "Artefacto verificado para AltStore / iOS",
+      "published_at": "2026-08-16T14:06:00Z",
+      "size_bytes": 1292435,
+      "sha256": "fb9c940ac04d6306ec86bd1f31e69b39e518c43cf645d142666de63ae9d49cae",
+      "url": "https://panel.dcarelacompufoto.com/ios-releases/finanzas/6.1.1/616/DCarelaFinanzas-6.1.1-616.ipa",
+      "action": "Descargar IPA Finanzas",
+      "notes": "Build 616 con AudioNormalizationService y ConversationCoordinator integrado.",
+      "installation_method": "Instalar mediante AltStore desde el iPhone o sincronizar con AltServer."
     }
-  }
+  ],
+  "apps": [
+    {
+      "id": "brujula",
+      "name": "Brújula",
+      "version": "4.6.0 (build 466)",
+      "platform": "iPhone",
+      "status": "published",
+      "url": "https://panel.dcarelacompufoto.com/ios-releases/brujula/4.6.0/466/Brujula-4.6.0-466.ipa",
+      "action": "Descargar IPA Brújula",
+      "notes": "Build 466 con AudioNormalizationService WAV PCM 16kHz y 10 Atajos reconstruidos."
+    },
+    {
+      "id": "com.dcarela.brujula.7FL6SHN9DV",
+      "name": "Brújula",
+      "version": "4.6.0 (build 466)",
+      "platform": "iPhone",
+      "status": "published",
+      "url": "https://panel.dcarelacompufoto.com/ios-releases/brujula/4.6.0/466/Brujula-4.6.0-466.ipa",
+      "action": "Descargar IPA Brújula",
+      "notes": "Build 466 con AudioNormalizationService WAV PCM 16kHz y 10 Atajos reconstruidos."
+    },
+    {
+      "id": "finanzas-ios",
+      "name": "D' Carela Finanzas",
+      "version": "6.1.1 (build 616)",
+      "platform": "iPhone / iPad",
+      "status": "published",
+      "url": "https://panel.dcarelacompufoto.com/ios-releases/finanzas/6.1.1/616/DCarelaFinanzas-6.1.1-616.ipa",
+      "action": "Descargar IPA Finanzas",
+      "notes": "Build 616 con control administrativo nativo y ConversationCoordinator."
+    },
+    {
+      "id": "com.dcarela.panel.7FL6SHN9DV",
+      "name": "D' Carela Finanzas",
+      "version": "6.1.1 (build 616)",
+      "platform": "iPhone / iPad",
+      "status": "published",
+      "url": "https://panel.dcarelacompufoto.com/ios-releases/finanzas/6.1.1/616/DCarelaFinanzas-6.1.1-616.ipa",
+      "action": "Descargar IPA Finanzas",
+      "notes": "Build 616 con control administrativo nativo y ConversationCoordinator."
+    }
+  ]
 }
