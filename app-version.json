@@ -11,6 +11,15 @@
   "channel": "stable",
   "notes": "Brújula 4.6.0 (Build 466) con normalización de audio WAV PCM 16kHz y 10 Atajos reconstruidos. Finanzas 6.1.1 (Build 616).",
   "release_page_url": "https://panel.dcarelacompufoto.com/#descargar",
+  "desktop_release": {
+    "version": "1.0.44",
+    "channel": "stable",
+    "mandatory": false,
+    "created_at": "2026-08-13T02:47:33Z",
+    "release_url": "https://github.com/erickcarela58-star/dcarela-panel/releases/download/pos-v1.0.44/DCARELA_POS_Setup_1.0.44.exe",
+    "sha256": "efa0d026b86b65fa4e9d914991b3bf866ed06388c810d8b2b495b0a26133d17e",
+    "notes": "Instalador 1.0.44 con aislamiento estricto entre la central y Plaza Artesanal."
+  },
   "downloads": [
     {
       "product": "Brújula",
@@ -27,6 +36,7 @@
       "size_bytes": 16480272,
       "sha256": "fc00ea6319ded07b9d22ccced83421901e00b061d17c7abcbfba0c79577cf622",
       "url": "https://panel.dcarelacompufoto.com/ios-releases/brujula/4.6.0/466/Brujula-4.6.0-466.ipa",
+      "checksums_url": "https://panel.dcarelacompufoto.com/ios-releases/manifest.json",
       "action": "Descargar IPA Brújula",
       "notes": "Build 466 con AudioNormalizationService WAV PCM 16kHz universal, 10 App Intents nativos y auto-recuperación de conversaciones.",
       "installation_method": "Instalar mediante AltStore desde el iPhone o sincronizar con AltServer."
@@ -46,9 +56,30 @@
       "size_bytes": 1292435,
       "sha256": "fb9c940ac04d6306ec86bd1f31e69b39e518c43cf645d142666de63ae9d49cae",
       "url": "https://panel.dcarelacompufoto.com/ios-releases/finanzas/6.1.1/616/DCarelaFinanzas-6.1.1-616.ipa",
+      "checksums_url": "https://panel.dcarelacompufoto.com/ios-releases/manifest.json",
       "action": "Descargar IPA Finanzas",
       "notes": "Build 616 con AudioNormalizationService y ConversationCoordinator integrado.",
       "installation_method": "Instalar mediante AltStore desde el iPhone o sincronizar con AltServer."
+    },
+    {
+      "product": "D' Carela POS",
+      "label": "Instalador completo para Windows",
+      "name": "DCARELA_POS_Setup_1.0.44.exe",
+      "extension": "EXE",
+      "version": "1.0.44",
+      "build": "1.0.44",
+      "platform": "Windows 10/11 x64",
+      "channel": "stable",
+      "publisher_signature": "not_signed",
+      "signature_label": "Instalador de escritorio Windows",
+      "published_at": "2026-08-13T02:47:33Z",
+      "size_bytes": 105222459,
+      "sha256": "efa0d026b86b65fa4e9d914991b3bf866ed06388c810d8b2b495b0a26133d17e",
+      "url": "https://github.com/erickcarela58-star/dcarela-panel/releases/download/pos-v1.0.44/DCARELA_POS_Setup_1.0.44.exe",
+      "checksums_url": "https://github.com/erickcarela58-star/dcarela-panel/releases/download/pos-v1.0.44/SHA256SUMS.txt",
+      "action": "Descargar instalador completo .EXE",
+      "notes": "Instalador completo 1.0.44 con terminal vinculada exclusivamente a su sucursal.",
+      "installation_method": "Descargar, verificar la huella SHA-256 y ejecutar."
     }
   ],
   "apps": [
