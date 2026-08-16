@@ -9,6 +9,8 @@
       "developerName": "D' Carela Studio",
       "subtitle": "Productividad, hábitos y lecturas",
       "localizedDescription": "Sistema integral de productividad personal, gestión de lecturas y enfoque firme.",
+      "iconURL": "https://panel.dcarelacompufoto.com/assets/brujula-icon.png",
+      "tintColor": "#007AFF",
       "versions": [
         {
           "version": "4.6.0",
@@ -63,6 +65,8 @@
       "developerName": "D' Carela Studio",
       "subtitle": "Operaciones financieras y panel POS",
       "localizedDescription": "Control financiero y administrativo oficial para D' Carela Estudio Fotográfico.",
+      "iconURL": "https://panel.dcarelacompufoto.com/assets/finanzas-icon.png",
+      "tintColor": "#1D4ED8",
       "versions": [
         {
           "version": "6.1.1",
