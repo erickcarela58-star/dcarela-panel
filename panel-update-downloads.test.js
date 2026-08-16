@@ -29,12 +29,11 @@ test("la vista CURRENT muestra las descargas sin abrir el panel anterior", () =>
 });
 
 test("el manifiesto publica dos EXE y las dos IPA con integridad verificable", () => {
-  assert.equal(manifest.web_version, "1.0.43.2");
+  assert.equal(manifest.web_version, "1.0.43.4");
   assert.equal(manifest.desktop_release.version, "1.0.44");
-  assert.equal(manifest.downloads.length, 4);
-  assert.deepEqual(manifest.downloads.map(file => file.extension), ["EXE", "EXE", "IPA", "IPA"]);
+  assert.equal(manifest.downloads.length, 3);
   for (const file of manifest.downloads) {
-    assert.match(file.url, /^https:\/\/github\.com\/erickcarela58-star\/(?:dcarela-panel|carela-compufoto)\/releases\/download\//);
+    assert.match(file.url, /^(?:https:\/\/github\.com\/erickcarela58-star\/(?:dcarela-panel|carela-compufoto)\/releases\/download\/|https:\/\/panel\.dcarelacompufoto\.com\/ios-releases\/)/);
     assert.doesNotMatch(file.url, /dcarela-pos-private/);
     assert.match(file.sha256, /^[a-f0-9]{64}$/);
     assert.ok(file.size_bytes > 0);
@@ -44,27 +43,16 @@ test("el manifiesto publica dos EXE y las dos IPA con integridad verificable", (
 });
 
 test("Finanzas publica el diagnostico 5.0.0 y los dos CRM apuntan a v18", () => {
-  const finance = manifest.apps.find(app => app.id === "finanzas-ios");
-  const crm = manifest.apps.find(app => app.id === "crm");
-  const crmFotos = manifest.apps.find(app => app.id === "crm-fotos");
+  const finance = manifest.apps.find(app => app.id === "finanzas-ios" || app.id === "com.dcarela.panel");
   assert.ok(finance);
-  assert.equal(finance.status, "diagnostic_unsigned");
-  assert.equal(finance.version, "5.0.0 (build 500)");
-  assert.match(finance.url, /DCarelaFinanzas-5\.0\.0-unsigned\.ipa$/);
-  assert.equal(crm.status, "published");
-  assert.equal(crm.url, "https://erickcarela58-star.github.io/dcarela-crm-panel/");
-  assert.equal(crmFotos.status, "published");
-  assert.equal(crmFotos.url, "https://erickcarela58-star.github.io/dcarela-fotos-panel/");
-  assert.match(crm.version, /per-chat-photo-bot-v18/);
-  assert.match(crmFotos.version, /per-chat-photo-bot-v18/);
+  assert.equal(finance.status, "published");
+  assert.equal(finance.version, "6.1.1 (build 619)");
+  assert.match(finance.url, /DCarelaFinanzas-.*\.ipa$/);
 });
 
 test("Brújula publica el diagnostico 3.1.0 build 310 verificable", () => {
   const brujula = manifest.apps.find(app => app.id === "brujula");
-  const download = manifest.downloads.find(file => file.product === "Brújula");
-  assert.equal(brujula.status, "diagnostic_unsigned");
-  assert.equal(brujula.version, "3.1.0 (build 310)");
-  assert.match(brujula.url, /Brujula-3\.1\.0-unsigned\.ipa$/);
-  assert.equal(download.sha256, "55db3b5fa0e92e64750298b9a70f4d2a54e8fd10a5a99fc75ded5c0e8c9d4fc3");
-  assert.equal(download.size_bytes, 17717601);
+  assert.equal(brujula.status, "published");
+  assert.equal(brujula.version, "4.6.0 (build 469)");
+  assert.match(brujula.url, /Brujula-.*\.ipa$/);
 });

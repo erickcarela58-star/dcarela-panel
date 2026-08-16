@@ -2,10 +2,6 @@
 <html lang="es">
 <head>
   <meta charset="utf-8">
-<!doctype html>
-<html lang="es">
-<head>
-  <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#0a3679">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -15,11 +11,14 @@
   <title>D' Carela Compufoto | Panel POS 1.0.43</title>
   <script>
     (() => {
-      const target = new URL("./mobile/", location.href);
-      target.search = location.search;
-      target.hash = location.hash;
-      document.documentElement.hidden = true;
-      location.replace(target.href);
+      const isMobileScreen = window.innerWidth <= 768 || /Mobi|Android|iPhone/i.test(navigator.userAgent);
+      const forcedDesktop = new URLSearchParams(location.search).has("desktop");
+      if (isMobileScreen && !forcedDesktop && location.pathname.endsWith("panel.html")) {
+        const target = new URL("./mobile/", location.href);
+        target.search = location.search;
+        target.hash = location.hash;
+        location.replace(target.href);
+      }
     })();
   </script>
   <link rel="manifest" href="manifest.webmanifest">
