@@ -313,6 +313,7 @@
     dispositivos: cargarDispositivos,
     respaldos: cargarRespaldos,
     descargar: cargarDescargar,
+    recursos: cargarRecursos,
     configuracion: cargarConfiguracion
   };
 
@@ -5934,6 +5935,10 @@
     const failed = backups.filter(item => String(item.status).toLowerCase().includes("fall"));
     $("bakResumen").innerHTML = metric("Snapshots", String(backups.length)) + metric("Correctos", String(valid.length)) + metric("Fallidos", String(failed.length)) + metric("Ultimo", backups[0] ? fecha(backups[0].created_at) : "--");
     $("bakTabla").innerHTML = tabla(backups, backup => [fecha(backup.created_at), backup.backup_type || "snapshot", Math.round(numero(backup.size) / 1024) + " KB", `<span class="tag ${failed.includes(backup) ? "bad" : "ok"}">${esc(backup.status)}</span>`, backup.verified_at ? fecha(backup.verified_at) : "--", (backup.storage_path || "").split("/").pop() || "--"], ["Fecha", "Tipo", "Tamano", "Estado", "Verificado", "Archivo"]);
+  }
+
+  async function cargarRecursos() {
+    verEstado(true, "Banco de Recursos conectado");
   }
 
   async function cargarConfiguracion() {

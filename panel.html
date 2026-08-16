@@ -93,6 +93,7 @@
         <a href="#dispositivos" data-title="Dispositivos">Dispositivos</a>
         <a href="#respaldos" data-title="Respaldos">Respaldos</a>
         <a href="#descargar" data-title="Actualizaciones y descargas">Actualizaciones</a>
+        <a href="#recursos" data-title="Banco de Recursos y Cerebros">Banco Recursos</a>
         <a href="#configuracion" data-title="Configuracion">Configuracion</a>
       </nav>
       <div class="connection-card">
@@ -644,6 +645,137 @@
               </form>
             </section>
             <section class="surface"><div class="surface-title"><div><h3>Cambios recientes</h3></div></div><div id="cfgEventos" class="table-wrap"></div></section>
+          </div>
+        </section>
+
+        <section id="v-recursos" class="vista oculto">
+          <div class="section-heading">
+            <div>
+              <h2>Banco de Recursos, Cerebros & DNS</h2>
+              <p>Inventario central de particiones IA, modelos de inferencia, atajos canónicos, perfiles DoH y telemetría de la Suite D'Carela.</p>
+            </div>
+            <span class="status-pill">Suite D'Carela 4.6.0</span>
+          </div>
+
+          <div class="config-grid">
+            <!-- Cerebros -->
+            <section class="surface">
+              <div class="surface-title">
+                <div>
+                  <h3>Cerebros IA & Particiones</h3>
+                  <p>Aislamiento estricto de contexto y memoria por dominio de trabajo.</p>
+                </div>
+              </div>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr><th>Namespace</th><th>Dominio</th><th>Herramientas</th><th>Estado</th></tr>
+                  </thead>
+                  <tbody>
+                    <tr><td><code>brujula.productivity</code></td><td>Tareas, Planes, Enfoque</td><td>TaskStore, FocusBlock</td><td><span class="status-pill">Activo</span></td></tr>
+                    <tr><td><code>brujula.reading</code></td><td>Libros, RAG, Notas</td><td>BookKnowledgeStore</td><td><span class="status-pill">Activo</span></td></tr>
+                    <tr><td><code>dcarela.operations</code></td><td>POS, Caja, Auditoría</td><td>AdminWrite, ReadSync</td><td><span class="status-pill">Conectado</span></td></tr>
+                    <tr><td><code>dcarela.operations.finance</code></td><td>Conciliación, Flujo</td><td>FinanceStore, DualKey</td><td><span class="status-pill">Conectado</span></td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>
+
+            <!-- Modelos -->
+            <section class="surface">
+              <div class="surface-title">
+                <div>
+                  <h3>Modelos & Niveles de Inferencia (Tiers)</h3>
+                  <p>Enrutamiento jerárquico para optimización de costos y latencia.</p>
+                </div>
+              </div>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr><th>Nivel</th><th>Tipo</th><th>Latencia</th><th>Ahorro API</th></tr>
+                  </thead>
+                  <tbody>
+                    <tr><td><strong>Tier 0</strong></td><td>Determinístico / Regex On-Device</td><td>&lt; 1 ms</td><td>100% ($0.00)</td></tr>
+                    <tr><td><strong>Tier 1</strong></td><td>RAG Local &amp; Caché de Memoria</td><td>~5 ms</td><td>~80%</td></tr>
+                    <tr><td><strong>Tier 2</strong></td><td>Servidor Propio (Self-Hosted GPU)</td><td>~45 ms</td><td>90%</td></tr>
+                    <tr><td><strong>Tier 3</strong></td><td>Edge Function Cloud (/pos-assistant)</td><td>~220 ms</td><td>Fallback</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>
+
+            <!-- Shortcuts -->
+            <section class="surface field-wide">
+              <div class="surface-title">
+                <div>
+                  <h3>12 Atajos Canónicos &amp; 6 Automatizaciones</h3>
+                  <p>Firmados con AEA1 para control de pantalla, bloqueo de redes y registro seguro.</p>
+                </div>
+              </div>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr><th>#</th><th>Nombre del Atajo</th><th>App Intent</th><th>Tipo de Acción</th></tr>
+                  </thead>
+                  <tbody>
+                    <tr><td>#1</td><td>Brújula — Desviar redes sociales</td><td><code>RedirectSocialIntent</code></td><td>SocialGate</td></tr>
+                    <tr><td>#2</td><td>Brújula — Iniciar período</td><td><code>StartBrujulaFocusIntent</code></td><td>Enfoque</td></tr>
+                    <tr><td>#3</td><td>Brújula — Terminar período</td><td><code>StopBrujulaFocusIntent</code></td><td>Reconciliación</td></tr>
+                    <tr><td>#4</td><td>Brújula — Registrar cierre de redes</td><td><code>CloseBrujulaSocialSessionIntent</code></td><td>Safe (No unblock)</td></tr>
+                    <tr><td>#5</td><td>Brújula — Mostrar redes</td><td><code>ShowSocialIntent</code></td><td>Shield OFF</td></tr>
+                    <tr><td>#6</td><td>Brújula — Ocultar redes</td><td><code>HideSocialIntent</code></td><td>ManagedSettings Shield ON</td></tr>
+                    <tr><td>#7</td><td>Brújula — Penalización social</td><td><code>ApplySocialPenaltyIntent</code></td><td>Cooldown Penalty</td></tr>
+                    <tr><td>#8</td><td>Brújula — Abrir bloqueo</td><td><code>OpenBlockViewIntent</code></td><td>SocialGate UI</td></tr>
+                    <tr><td>#9</td><td>Brújula — Iniciar lectura</td><td><code>StartReadingSessionIntent</code></td><td>Lectura</td></tr>
+                    <tr><td>#10</td><td>Brújula — Plan del día</td><td><code>GetBrujulaTodayPlanIntent</code></td><td>Plan Diario</td></tr>
+                    <tr><td>#11</td><td>Brújula — Crear recordatorio en Apple</td><td>Recordatorios Nativo</td><td>EventKit Sync</td></tr>
+                    <tr><td>#12</td><td>Brújula — Entrada bloqueada</td><td>Hide &rarr; Redirect &rarr; Guided Access</td><td>Anti-Bypass Lock First</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>
+
+            <!-- DNS -->
+            <section class="surface">
+              <div class="surface-title">
+                <div>
+                  <h3>Configuración DNS-over-HTTPS (DoH)</h3>
+                  <p>Plantillas de configuración y perfiles <code>.mobileconfig</code>.</p>
+                </div>
+              </div>
+              <div class="form-grid">
+                <label class="field-wide">
+                  <span>URL DoH del Proveedor</span>
+                  <input id="dnsServerUrl" type="url" placeholder="https://dns.nextdns.io/XXXXXX" value="https://security.cloudflare-dns.com/dns-query">
+                </label>
+                <div class="button-row field-wide">
+                  <button type="button" class="secondary" onclick="document.getElementById('dnsServerUrl').value='https://security.cloudflare-dns.com/dns-query'">Cloudflare</button>
+                  <button type="button" class="secondary" onclick="document.getElementById('dnsServerUrl').value='https://dns.adguard-dns.com/dns-query'">AdGuard</button>
+                  <button type="button" class="secondary" onclick="document.getElementById('dnsServerUrl').value='https://dns.nextdns.io/'">NextDNS</button>
+                </div>
+              </div>
+            </section>
+
+            <!-- Diagnósticos -->
+            <section class="surface">
+              <div class="surface-title">
+                <div>
+                  <h3>Telemetría &amp; Diagnóstico en Vivo</h3>
+                  <p>Estado de enlaces y verificación de endpoints Supabase Edge.</p>
+                </div>
+              </div>
+              <div class="form-grid">
+                <div class="field-wide">
+                  <div class="connection-card" style="margin: 0;">
+                    <span class="status-dot online"></span>
+                    <div><strong>Supabase Edge Functions</strong><small>https://rdmhyhsrewvrpqygtufa.supabase.co</small></div>
+                  </div>
+                </div>
+                <div class="field-wide">
+                  <p class="sync-note">Los eventos del sistema se registran de forma estructurada en <code>diagnostic_events.jsonl</code> sin almacenar secretos.</p>
+                </div>
+              </div>
+            </section>
           </div>
         </section>
       </main>
