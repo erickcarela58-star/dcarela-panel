@@ -14,6 +14,15 @@
       "versions": [
         {
           "version": "4.6.0",
+          "buildVersion": "469",
+          "date": "2026-08-16",
+          "downloadURL": "https://panel.dcarelacompufoto.com/ios-releases/Brujula/4.6.0/469/Brujula-4.6.0-469.ipa",
+          "size": 16516697,
+          "sha256": "5b060cb40f24d271fecdc3a12840a0ee31c70830636db978d6e4c5c868e42492",
+          "localizedDescription": "QA Build 469: Grabación nativa Linear PCM 16kHz WAV, sanitización MIME, auto-recuperación de conversación y diagnóstico de runtime completo."
+        },
+        {
+          "version": "4.6.0",
           "buildVersion": "468",
           "date": "2026-08-16",
           "downloadURL": "https://panel.dcarelacompufoto.com/ios-releases/Brujula/4.6.0/468/Brujula-4.6.0-468.ipa",
@@ -37,43 +46,7 @@
           "downloadURL": "https://panel.dcarelacompufoto.com/ios-releases/Brujula/4.6.0/466/Brujula-4.6.0-466.ipa",
           "size": 16480272,
           "sha256": "fc00ea6319ded07b9d22ccced83421901e00b061d17c7abcbfba0c79577cf622",
-          "localizedDescription": "Reconstrucción total: AudioNormalizationService (WAV PCM 16kHz universal), 10 App Intents reconstruidos, auto-recuperación de conversaciones y canal de actualizaciones mejorado."
-        },
-        {
-          "version": "4.6.0",
-          "buildVersion": "465",
-          "date": "2026-08-16",
-          "downloadURL": "https://panel.dcarelacompufoto.com/ios-releases/Brujula/4.6.0/465/Brujula-4.6.0-465.ipa",
-          "size": 16452379,
-          "sha256": "9b17cc6f886abaabac1201a30522c12bb07fbc54d712716f3af8906b1696845a",
-          "localizedDescription": "Cierre final: corrección de arquitectura de audio/conversación con ConversationCoordinator, auto-recuperación de sesiones y observabilidad completa."
-        },
-        {
-          "version": "4.6.0",
-          "buildVersion": "464",
-          "date": "2026-08-16",
-          "downloadURL": "https://panel.dcarelacompufoto.com/ios-releases/Brujula/4.6.0/464/Brujula-4.6.0-464.ipa",
-          "size": 16436621,
-          "sha256": "0d607822bfc60138cc71270424a9a3510f341b13bab24e22a9d63982b179ca51",
-          "localizedDescription": "Corrección definitiva de DCAUpdateKit con fallback multi-endpoint HTTPS, decodificación universal de manifiesto y observabilidad."
-        },
-        {
-          "version": "4.6.0",
-          "buildVersion": "463",
-          "date": "2026-08-16",
-          "downloadURL": "https://panel.dcarelacompufoto.com/ios-releases/Brujula/4.6.0/463/Brujula-4.6.0-463.ipa",
-          "size": 16392726,
-          "sha256": "91c880f84c552da22e06112e4a77bd5e0297dba808616bf249538318934ff5c4",
-          "localizedDescription": "Orquestación fluida con Gemini, síntesis ejecutiva sin listines mecánicos, DCAObservabilityKit y 50 pruebas QA superadas."
-        },
-        {
-          "version": "4.6.0",
-          "buildVersion": "462",
-          "date": "2026-08-16",
-          "downloadURL": "https://panel.dcarelacompufoto.com/ios-releases/Brujula/4.6.0/462/Brujula-4.6.0-462.ipa",
-          "size": 16377573,
-          "sha256": "40fd7c4f9b9576bf512a0bd236644990d4f12176eca93b9e8728dc8014ff686b",
-          "localizedDescription": "Cerebros independientes, persistencia aislada, 10 atajos oficiales firmados AEA1 y nuevo Centro de Actualizaciones DCAUpdateKit integrado."
+          "localizedDescription": "Reconstrucción total: AudioNormalizationService, 10 App Intents reconstruidos, auto-recuperación de conversaciones y canal de actualizaciones mejorado."
         }
       ]
     },
@@ -86,6 +59,15 @@
       "iconURL": "https://panel.dcarelacompufoto.com/assets/finanzas-icon.png",
       "tintColor": "#1D4ED8",
       "versions": [
+        {
+          "version": "6.1.1",
+          "buildVersion": "619",
+          "date": "2026-08-16",
+          "downloadURL": "https://panel.dcarelacompufoto.com/ios-releases/Finanzas/6.1.1/619/DCarelaFinanzas-6.1.1-619.ipa",
+          "size": 1296574,
+          "sha256": "fea78a06b74b831ab3b4bd7d772238268744515c5bc173a992526a077fe02343",
+          "localizedDescription": "QA Build 619: AudioNormalizationService WAV PCM 16kHz y diagnóstico de runtime completo."
+        },
         {
           "version": "6.1.1",
           "buildVersion": "618",
@@ -112,42 +94,6 @@
           "size": 1292435,
           "sha256": "fb9c940ac04d6306ec86bd1f31e69b39e518c43cf645d142666de63ae9d49cae",
           "localizedDescription": "Reconstrucción total: AudioNormalizationService, integración de ConversationCoordinator y canal de actualizaciones prioritario."
-        },
-        {
-          "version": "6.1.1",
-          "buildVersion": "615",
-          "date": "2026-08-16",
-          "downloadURL": "https://panel.dcarelacompufoto.com/ios-releases/Finanzas/6.1.1/615/DCarelaFinanzas-6.1.1-615.ipa",
-          "size": 1291713,
-          "sha256": "5b5a9d389524c170788eeecce8dc8ab9d3b62234c68a7bf73cdf733dbb481a5e",
-          "localizedDescription": "Cierre final: integración de ConversationCoordinator, auto-recuperación de sesiones y observabilidad completa."
-        },
-        {
-          "version": "6.1.1",
-          "buildVersion": "614",
-          "date": "2026-08-16",
-          "downloadURL": "https://panel.dcarelacompufoto.com/ios-releases/Finanzas/6.1.1/614/DCarelaFinanzas-6.1.1-614.ipa",
-          "size": 1286061,
-          "sha256": "f51d5bcf628b30c0c43f581e844c0a774a4bda6591379554230158ad8851e843",
-          "localizedDescription": "Corrección definitiva de DCAUpdateKit con fallback multi-endpoint HTTPS, decodificación universal de manifiesto y observabilidad."
-        },
-        {
-          "version": "6.1.1",
-          "buildVersion": "613",
-          "date": "2026-08-16",
-          "downloadURL": "https://panel.dcarelacompufoto.com/ios-releases/Finanzas/6.1.1/613/DCarelaFinanzas-6.1.1-613.ipa",
-          "size": 1244936,
-          "sha256": "e26eaa20a0807745a0036623ae5e40feee26dd3b8fd9c81c9a9d52748466b6ac",
-          "localizedDescription": "Integración completa de DCAObservabilityKit, ledger autoritativo y sincronización con nuevo updater cloud."
-        },
-        {
-          "version": "6.1.1",
-          "buildVersion": "612",
-          "date": "2026-08-16",
-          "downloadURL": "https://panel.dcarelacompufoto.com/ios-releases/Finanzas/6.1.1/612/DCarelaFinanzas-6.1.1-612.ipa",
-          "size": 1231753,
-          "sha256": "707fd0f261802dbd5e57a2bcdba485ffb42a63c3fa03db371cbdf7df46d2396b",
-          "localizedDescription": "Control financiero nativo, ledger autoritativo de operaciones y nuevo Centro de Actualizaciones DCAUpdateKit integrado."
         }
       ]
     }
