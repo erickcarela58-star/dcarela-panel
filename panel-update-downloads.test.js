@@ -19,8 +19,7 @@ test("Actualizaciones contiene un bloque visible de archivos descargables", () =
 });
 
 test("la vista CURRENT muestra las descargas sin abrir el panel anterior", () => {
-  assert.match(shellHtml, /panel\.html/);
-  assert.match(shellHtml, /standalone/);
+  assert.match(shellHtml, /mobile/);
   assert.doesNotMatch(shellHtml, /shell-assets|iframe/i);
   assert.match(panelHtml, /id="updateDownloads"/);
   assert.match(currentDownloadsJs, /id = "current-downloads"|ROOT_ID = "current-downloads"/);

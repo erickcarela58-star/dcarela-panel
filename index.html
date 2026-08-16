@@ -3,19 +3,20 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#0a3679">
+  <meta name="theme-color" content="#09090b">
   <meta name="robots" content="noindex,nofollow">
-  <title>D' Carela Compufoto | Panel POS 1.0.43</title>
+  <title>D' Carela Compufoto | Panel Movil</title>
   <script>
     (() => {
-      const target = new URL("./panel.html", location.href);
-      target.searchParams.set("standalone", "1");
+      const target = new URL("./mobile/", location.href);
+      const currentParams = new URLSearchParams(location.search);
+      currentParams.forEach((val, key) => target.searchParams.set(key, val));
       target.hash = location.hash;
       location.replace(target.href);
     })();
   </script>
 </head>
 <body>
-  <p>Abriendo el panel… <a href="./panel.html?standalone=1">Continuar</a></p>
+  <p>Abriendo el panel móvil… <a href="./mobile/">Continuar</a></p>
 </body>
 </html>

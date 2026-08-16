@@ -2,6 +2,10 @@
 <html lang="es">
 <head>
   <meta charset="utf-8">
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#0a3679">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -11,27 +15,11 @@
   <title>D' Carela Compufoto | Panel POS 1.0.43</title>
   <script>
     (() => {
-      const params = new URLSearchParams(location.search);
-      const standalone = params.get("standalone") === "1";
-      let sameOriginParent = false;
-      try {
-        sameOriginParent = window.self !== window.top && new URL(document.referrer).origin === location.origin;
-      } catch {}
-      if (!standalone && (params.get("embedded") !== "1" || !sameOriginParent)) {
-        const current = new URL("./", location.href);
-        current.hash = location.hash;
-        document.documentElement.hidden = true;
-        location.replace(current.href);
-        return;
-      }
-      const requested = params.get("theme");
-      let saved = "light";
-      try { saved = localStorage.getItem("dcarela.ui.theme") || "light"; } catch {}
-      const theme = requested === "dark" || requested === "light" ? requested : (saved === "dark" ? "dark" : "light");
-      document.documentElement.dataset.theme = theme;
-      document.documentElement.classList.toggle("dark", theme === "dark");
-      document.documentElement.style.colorScheme = theme;
-      document.documentElement.classList.toggle("embedded-panel", !standalone);
+      const target = new URL("./mobile/", location.href);
+      target.search = location.search;
+      target.hash = location.hash;
+      document.documentElement.hidden = true;
+      location.replace(target.href);
     })();
   </script>
   <link rel="manifest" href="manifest.webmanifest">

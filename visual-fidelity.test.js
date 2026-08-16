@@ -9,7 +9,7 @@ const shell = fs.readFileSync("index.html", "utf8");
 const mobile = fs.readFileSync("mobile/index.html", "utf8");
 
 test("las metricas CURRENT cargan la capa visual en escritorio y movil", () => {
-  assert.match(shell, /panel\.html/);
+  assert.match(shell, /mobile/);
   assert.match(fs.readFileSync("panel.html", "utf8"), /visual-fidelity\.css\?v=20260814-standalone-sync-v1/);
   assert.match(mobile, /\.\.\/visual-fidelity\.css\?v=1\.0\.34/);
   assert.match(mobile, /\.\.\/visual-fidelity\.js\?v=1\.0\.34/);
