@@ -14,7 +14,11 @@
     } catch { return ""; }
   })();
   const BUSINESS = _urlBiz || window.__DCARELA_DEFAULT?.business || cfg?.business || "dcarela";
-  const EMBEDDED = new URLSearchParams(location.search).get("embedded") === "1";
+  const EMBEDDED = new URLSearchParams(location.search).get("embedded") === "1" || window.self !== window.top;
+  if (EMBEDDED) {
+    document.documentElement.classList.add("is-embedded");
+    document.body?.classList.add("is-embedded");
+  }
   const THEME_KEY = "dcarela.ui.theme";
   const APP_BUILD = "1.0.43.2";
   let currentTheme = document.documentElement.dataset.theme === "dark" ? "dark" : "light";

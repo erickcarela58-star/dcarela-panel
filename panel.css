@@ -89,6 +89,24 @@ input:focus, select:focus, textarea:focus { border-color: var(--cyan); box-shado
 .button-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 20px; }
 
 .app-shell { min-height: 100vh; display: grid; grid-template-columns: 230px minmax(0, 1fr); }
+html.is-embedded, body.is-embedded { background: transparent !important; }
+html.is-embedded .app-shell, .app-shell.is-embedded {
+  grid-template-columns: 1fr !important;
+  min-height: 100% !important;
+}
+html.is-embedded .sidebar,
+html.is-embedded .topbar,
+.app-shell.is-embedded .sidebar,
+.app-shell.is-embedded .topbar {
+  display: none !important;
+}
+html.is-embedded .workspace,
+.app-shell.is-embedded .workspace {
+  width: 100% !important;
+  max-width: 100% !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
 .sidebar {
   position: sticky;
   top: 0;

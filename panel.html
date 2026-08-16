@@ -11,13 +11,18 @@
   <title>D' Carela Compufoto | Panel POS 1.0.43</title>
   <script>
     (() => {
-      const isMobileScreen = window.innerWidth <= 768 || /Mobi|Android|iPhone/i.test(navigator.userAgent);
-      const forcedDesktop = new URLSearchParams(location.search).has("desktop");
-      if (isMobileScreen && !forcedDesktop && location.pathname.endsWith("panel.html")) {
-        const target = new URL("./mobile/", location.href);
-        target.search = location.search;
-        target.hash = location.hash;
-        location.replace(target.href);
+      const isEmbedded = window.self !== window.top || new URLSearchParams(location.search).get("embedded") === "1";
+      if (isEmbedded) {
+        document.documentElement.classList.add("is-embedded");
+      } else {
+        const isMobileScreen = window.innerWidth <= 768 || /Mobi|Android|iPhone/i.test(navigator.userAgent);
+        const forcedDesktop = new URLSearchParams(location.search).has("desktop");
+        if (isMobileScreen && !forcedDesktop && location.pathname.endsWith("panel.html")) {
+          const target = new URL("./mobile/", location.href);
+          target.search = location.search;
+          target.hash = location.hash;
+          location.replace(target.href);
+        }
       }
     })();
   </script>
