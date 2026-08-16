@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-08-16T19:21:47Z",
+  "generatedAt": "2026-08-16T19:30:37Z",
   "apps": {
     "com.dcarela.brujula": {
       "name": "Brújula",
@@ -23,10 +23,10 @@
       "latestBuild": "471",
       "minimumSupportedBuild": "462",
       "downloadURL": "https://raw.githubusercontent.com/erickcarela58-star/dcarela-panel/main/ios-releases/QA/Brujula-4.6.0-471-QA.ipa",
-      "sha256": "addf3877aedf02f197df235fa7b3224679cf3cd50f2c05c7832d713ebc0a4e0a",
-      "size": 16132393,
+      "sha256": "b4321e94de38833339f2bfd0a9a612dc6645c99b7495462b55f8a18528bebcfb",
+      "size": 16158627,
       "publishedAt": "2026-08-16",
-      "releaseNotes": "QA Build 471: CFBundleVersion validado. Keychain fix AltStore.",
+      "releaseNotes": "QA Build 471: ResourceBankView integrado, CFBundleVersion validado. Keychain fix AltStore.",
       "mandatory": false
     },
     "com.dcarela.brujula.stable": {
