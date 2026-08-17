@@ -3,7 +3,7 @@
   "generatedAt": "2026-08-17T02:15:00Z",
   "apps": {
     "com.dcarela.brujula": {
-      "name": "Brújula",
+      "name": "Br\u00fajula",
       "channel": "stable",
       "latestVersion": "4.6.0",
       "latestBuild": "469",
@@ -13,11 +13,11 @@
       "sha256": "5b060cb40f24d271fecdc3a12840a0ee31c70830636db978d6e4c5c868e42492",
       "size": 16516697,
       "publishedAt": "2026-08-16",
-      "releaseNotes": "QA Build 469: Grabación nativa Linear PCM 16kHz WAV, sanitización MIME, auto-recuperación de conversación y diagnóstico de runtime completo.",
+      "releaseNotes": "QA Build 469: Grabaci\u00f3n nativa Linear PCM 16kHz WAV, sanitizaci\u00f3n MIME, auto-recuperaci\u00f3n de conversaci\u00f3n y diagn\u00f3stico de runtime completo.",
       "mandatory": false
     },
     "com.dcarela.brujula.7FL6SHN9DV": {
-      "name": "Brújula (QA)",
+      "name": "Br\u00fajula (QA)",
       "channel": "qa",
       "latestVersion": "4.6.0",
       "latestBuild": "474",
@@ -30,7 +30,7 @@
       "mandatory": false
     },
     "com.dcarela.brujula.stable": {
-      "name": "Brújula",
+      "name": "Br\u00fajula",
       "channel": "stable",
       "latestVersion": "4.6.0",
       "latestBuild": "469",
@@ -40,11 +40,11 @@
       "sha256": "5b060cb40f24d271fecdc3a12840a0ee31c70830636db978d6e4c5c868e42492",
       "size": 16516697,
       "publishedAt": "2026-08-16",
-      "releaseNotes": "QA Build 469: Grabación nativa Linear PCM 16kHz WAV, sanitización MIME, auto-recuperación de conversación y diagnóstico de runtime completo.",
+      "releaseNotes": "QA Build 469: Grabaci\u00f3n nativa Linear PCM 16kHz WAV, sanitizaci\u00f3n MIME, auto-recuperaci\u00f3n de conversaci\u00f3n y diagn\u00f3stico de runtime completo.",
       "mandatory": false
     },
     "brujula": {
-      "name": "Brújula",
+      "name": "Br\u00fajula",
       "channel": "stable",
       "latestVersion": "4.6.0",
       "latestBuild": "469",
@@ -54,7 +54,7 @@
       "sha256": "5b060cb40f24d271fecdc3a12840a0ee31c70830636db978d6e4c5c868e42492",
       "size": 16516697,
       "publishedAt": "2026-08-16",
-      "releaseNotes": "QA Build 469: Grabación nativa Linear PCM 16kHz WAV, sanitización MIME, auto-recuperación de conversación y diagnóstico de runtime completo.",
+      "releaseNotes": "QA Build 469: Grabaci\u00f3n nativa Linear PCM 16kHz WAV, sanitizaci\u00f3n MIME, auto-recuperaci\u00f3n de conversaci\u00f3n y diagn\u00f3stico de runtime completo.",
       "mandatory": false
     },
     "com.dcarela.panel": {
@@ -68,7 +68,7 @@
       "sha256": "fea78a06b74b831ab3b4bd7d772238268744515c5bc173a992526a077fe02343",
       "size": 1296574,
       "publishedAt": "2026-08-16",
-      "releaseNotes": "QA Build 619: AudioNormalizationService WAV PCM 16kHz y diagnóstico de runtime completo.",
+      "releaseNotes": "QA Build 619: AudioNormalizationService WAV PCM 16kHz y diagn\u00f3stico de runtime completo.",
       "mandatory": false
     },
     "com.dcarela.panel.7FL6SHN9DV": {
@@ -82,7 +82,7 @@
       "sha256": "fea78a06b74b831ab3b4bd7d772238268744515c5bc173a992526a077fe02343",
       "size": 1296574,
       "publishedAt": "2026-08-16",
-      "releaseNotes": "QA Build 619: AudioNormalizationService WAV PCM 16kHz y diagnóstico de runtime completo.",
+      "releaseNotes": "QA Build 619: AudioNormalizationService WAV PCM 16kHz y diagn\u00f3stico de runtime completo.",
       "mandatory": false
     },
     "com.dcarela.panel.stable": {
@@ -96,7 +96,7 @@
       "sha256": "fea78a06b74b831ab3b4bd7d772238268744515c5bc173a992526a077fe02343",
       "size": 1296574,
       "publishedAt": "2026-08-16",
-      "releaseNotes": "QA Build 619: AudioNormalizationService WAV PCM 16kHz y diagnóstico de runtime completo.",
+      "releaseNotes": "QA Build 619: AudioNormalizationService WAV PCM 16kHz y diagn\u00f3stico de runtime completo.",
       "mandatory": false
     },
     "finanzas": {
@@ -110,8 +110,13 @@
       "sha256": "fea78a06b74b831ab3b4bd7d772238268744515c5bc173a992526a077fe02343",
       "size": 1296574,
       "publishedAt": "2026-08-16",
-      "releaseNotes": "QA Build 619: AudioNormalizationService WAV PCM 16kHz y diagnóstico de runtime completo.",
+      "releaseNotes": "QA Build 619: AudioNormalizationService WAV PCM 16kHz y diagn\u00f3stico de runtime completo.",
       "mandatory": false
     }
-  }
+  },
+  "version": "4.6.0",
+  "build": 475,
+  "ipa_sha256": "0bd9d3b670f59bd4026670ecc29fb54667ecff47d22c931e8eac085d2663714a",
+  "ipa_size": 18656366,
+  "download_url": "https://raw.githubusercontent.com/dcarela/panel/main/ios-releases/Brujula-4.6.0-475-QA.ipa"
 }
