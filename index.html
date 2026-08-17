@@ -8,9 +8,7 @@
   <title>D' Carela Compufoto | Panel Movil</title>
   <script>
     (() => {
-      const isMobile = window.innerWidth <= 768 || /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
-      const targetPath = isMobile ? "./mobile/" : "./panel.html";
-      const target = new URL(targetPath, location.href);
+      const target = new URL("./panel.html", location.href);
       const currentParams = new URLSearchParams(location.search);
       currentParams.forEach((val, key) => target.searchParams.set(key, val));
       target.hash = location.hash;

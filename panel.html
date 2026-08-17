@@ -9,28 +9,12 @@
   <meta name="apple-mobile-web-app-title" content="D' Carela Punto de Venta 1.0.43">
   <meta name="description" content="Panel web POS 1.0.43 de D' Carela Compufoto con operación responsive, tema claro/oscuro y módulos administrativos del punto de venta.">
   <title>D' Carela Compufoto | Panel POS 1.0.43</title>
-  <script>
-    (() => {
-      const isEmbedded = window.self !== window.top || new URLSearchParams(location.search).get("embedded") === "1";
-      if (isEmbedded) {
-        document.documentElement.classList.add("is-embedded");
-      } else {
-        const isMobileScreen = window.innerWidth <= 768 || /Mobi|Android|iPhone/i.test(navigator.userAgent);
-        const forcedDesktop = new URLSearchParams(location.search).has("desktop");
-        if (isMobileScreen && !forcedDesktop && location.pathname.endsWith("panel.html")) {
-          const target = new URL("./mobile/", location.href);
-          target.search = location.search;
-          target.hash = location.hash;
-          location.replace(target.href);
-        }
-      }
-    })();
-  </script>
+  <meta name="dcarela-build" content="20260816-single-shell-v2">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="dcarela-logo.png">
-  <link rel="stylesheet" href="panel.css?v=20260814-standalone-sync-v1">
-  <link rel="stylesheet" href="panel-theme.css?v=20260814-standalone-sync-v1">
-  <link rel="stylesheet" href="visual-fidelity.css?v=20260814-standalone-sync-v1">
+  <link rel="stylesheet" href="panel.css?v=20260816-single-shell-v2">
+  <link rel="stylesheet" href="panel-theme.css?v=20260816-single-shell-v2">
+  <link rel="stylesheet" href="visual-fidelity.css?v=20260816-single-shell-v2">
 </head>
 <body>
   <section id="access" class="access-shell">
@@ -952,7 +936,7 @@
   <script src="jspdf.plugin.autotable.min.js"></script>
   <script src="ticket-termico.js?v=1.0.34.2"></script>
   <script src="panel-sale-pending.js?v=1.0.34.2"></script>
-<script src="panel.js?v=20260814-standalone-sync-v1"></script>
+<script src="panel.js?v=2026.08.16.single-shell-v2"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));
