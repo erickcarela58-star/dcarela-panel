@@ -17,8 +17,8 @@
           "buildVersion": "476",
           "date": "2026-08-17",
           "downloadURL": "https://raw.githubusercontent.com/erickcarela58-star/dcarela-panel/main/ios-releases/Brujula-5.0.0-476-QA.ipa",
-          "size": 18696174,
-          "sha256": "92c7552e60af3c54f6b434dba025bf265d5723c9476e44a1b0fd277cc70a6613",
+          "size": 18700394,
+          "sha256": "bc9b73bb7b820b5591fe037db637bb5f58e64a7be5f0d1863399d84fc7bdf7e5",
           "localizedDescription": "Build 476 (v5.0.0): Ingesti\u00f3n RAG en background con barra de progreso roja y notificaciones, 10 Atajos can\u00f3nicos limpios sin confirmaci\u00f3n, Centro de Automatizaciones (6 reglas), Dark Mode auditado sin botones quemados, y navegaci\u00f3n web integrada."
         },
         {
@@ -91,9 +91,9 @@
       "version": "5.0.0",
       "versionDate": "2026-08-17T06:11:00Z",
       "downloadURL": "https://raw.githubusercontent.com/erickcarela58-star/dcarela-panel/main/ios-releases/Brujula-5.0.0-476-QA.ipa",
-      "size": 18696174,
+      "size": 18700394,
       "versionDescription": "Build 476 (v5.0.0): Ingesti\u00f3n RAG en background con barra de progreso roja y notificaciones, 10 Atajos can\u00f3nicos limpios sin confirmaci\u00f3n, Centro de Automatizaciones (6 reglas), Dark Mode auditado sin botones quemados, y navegaci\u00f3n web integrada.",
-      "sha256": "92c7552e60af3c54f6b434dba025bf265d5723c9476e44a1b0fd277cc70a6613"
+      "sha256": "bc9b73bb7b820b5591fe037db637bb5f58e64a7be5f0d1863399d84fc7bdf7e5"
     },
     {
       "name": "D' Carela Finanzas",

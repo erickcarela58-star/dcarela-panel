@@ -116,7 +116,7 @@
   },
   "version": "5.0.0",
   "build": 476,
-  "ipa_sha256": "92c7552e60af3c54f6b434dba025bf265d5723c9476e44a1b0fd277cc70a6613",
-  "ipa_size": 18696174,
+  "ipa_sha256": "bc9b73bb7b820b5591fe037db637bb5f58e64a7be5f0d1863399d84fc7bdf7e5",
+  "ipa_size": 18700394,
   "download_url": "https://raw.githubusercontent.com/erickcarela58-star/dcarela-panel/main/ios-releases/Brujula-5.0.0-476-QA.ipa"
 }
