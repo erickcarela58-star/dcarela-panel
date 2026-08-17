@@ -14,12 +14,12 @@
       "versions": [
         {
           "version": "4.6.0",
-          "buildVersion": "471",
-          "date": "2026-08-16T19:30:37",
-          "localizedDescription": "v4.6.0 (471) — Build QA validada: ResourceBankView integrado en Ajustes. Info.plist CFBundleVersion alineado a 471. Keychain dual-layer (kSecAttrAccessibleWhenUnlocked + CryptoKit fallback) para re-firma AltStore. Brain Gateway Supabase corregido.",
-          "downloadURL": "https://raw.githubusercontent.com/erickcarela58-star/dcarela-panel/main/ios-releases/QA/Brujula-4.6.0-471-QA.ipa",
-          "size": 16158627,
-          "sha256": "b4321e94de38833339f2bfd0a9a612dc6645c99b7495462b55f8a18528bebcfb",
+          "buildVersion": "472",
+          "date": "2026-08-16T22:35:21",
+          "localizedDescription": "v4.6.0 (472) — Build QA validada: Transcripción de voz STT on-device y cloud unificada. ReadingQuizEngine con Repetition Guard y detector de cambio de tema / correcciones. Indicador de escritura (3 puntos) estable y sin saltos de layout. Banco de Recursos con 17 archivos físicos empaquetados en sandbox.",
+          "downloadURL": "https://raw.githubusercontent.com/erickcarela58-star/dcarela-panel/main/ios-releases/QA/Brujula-4.6.0-472-QA.ipa",
+          "size": 16219982,
+          "sha256": "20ed63233b00189349953fa753719e747c6251936787fa083ce486cf94dc0c3f",
           "minOSVersion": "17.0"
         },
         {
@@ -60,9 +60,9 @@
         }
       ],
       "version": "4.6.0",
-      "versionDate": "2026-08-16T19:30:37",
-      "downloadURL": "https://raw.githubusercontent.com/erickcarela58-star/dcarela-panel/main/ios-releases/QA/Brujula-4.6.0-471-QA.ipa",
-      "size": 16158627
+      "versionDate": "2026-08-16T22:35:21",
+      "downloadURL": "https://raw.githubusercontent.com/erickcarela58-star/dcarela-panel/main/ios-releases/QA/Brujula-4.6.0-472-QA.ipa",
+      "size": 16219982
     },
     {
       "name": "D' Carela Finanzas",

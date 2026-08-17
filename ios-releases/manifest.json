@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-08-16T19:30:37Z",
+  "generatedAt": "2026-08-16T22:35:21Z",
   "apps": {
     "com.dcarela.brujula": {
       "name": "Brújula",
@@ -20,13 +20,13 @@
       "name": "Brújula (QA)",
       "channel": "qa",
       "latestVersion": "4.6.0",
-      "latestBuild": "471",
+      "latestBuild": "472",
       "minimumSupportedBuild": "462",
-      "downloadURL": "https://raw.githubusercontent.com/erickcarela58-star/dcarela-panel/main/ios-releases/QA/Brujula-4.6.0-471-QA.ipa",
-      "sha256": "b4321e94de38833339f2bfd0a9a612dc6645c99b7495462b55f8a18528bebcfb",
-      "size": 16158627,
+      "downloadURL": "https://raw.githubusercontent.com/erickcarela58-star/dcarela-panel/main/ios-releases/QA/Brujula-4.6.0-472-QA.ipa",
+      "sha256": "20ed63233b00189349953fa753719e747c6251936787fa083ce486cf94dc0c3f",
+      "size": 16219982,
       "publishedAt": "2026-08-16",
-      "releaseNotes": "QA Build 471: ResourceBankView integrado, CFBundleVersion validado. Keychain fix AltStore.",
+      "releaseNotes": "QA Build 472: Transcripción STT nativa on-device, Reading Quiz repetition guard, Typing indicator fixed frame, Banco de Recursos físicos.",
       "mandatory": false
     },
     "com.dcarela.brujula.stable": {
