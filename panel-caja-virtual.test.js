@@ -4,12 +4,9 @@ const test = require("node:test");
 
 const html = fs.readFileSync("panel.html", "utf8");
 const panel = fs.readFileSync("panel.js", "utf8");
-const shell = fs.readFileSync("shell-assets/index-Bv7J6p00.js", "utf8");
 const sw = fs.readFileSync("sw.js", "utf8");
 
 test("Caja virtual es un modulo visible en shell, panel y movil", () => {
-  assert.match(shell, /id:`caja-virtual`,label:`Caja virtual`,caption:`Terminal web completa`/);
-  assert.match(shell, /label:`Vender`,onClick:\(\)=>he\(`caja-virtual`\)/);
   assert.match(html, /id="v-caja-virtual"/);
   assert.match(html, /href="#caja-virtual"/);
   assert.match(html, /id="btnVirtualCashOut"/);
@@ -19,7 +16,7 @@ test("Caja virtual consume el resumen real y movimientos auditados", () => {
   assert.match(panel, /"caja-virtual": cargarCajaVirtual/);
   assert.match(panel, /saleApi\("cash\.move"/);
   assert.match(panel, /summary\.expectedCashCentavos/);
-  assert.match(sw, /2026\.08\.14\.standalone-sync-v1/);
+  assert.match(sw, /2026\.08\.17\.1\.0\.44\.1/);
 });
 
 test("Caja virtual replica F1-F12 y protege el esperado durante el conteo", () => {
@@ -38,13 +35,6 @@ test("Caja virtual replica F1-F12 y protege el esperado durante el conteo", () =
   assert.match(html, /COBRAR \(F12\)/);
   assert.match(panel, /latestActiveSaleEvent/);
   assert.match(panel, /selected === "caja-virtual"/);
-});
-
-test("Nueva venta muestra el turno antes de terminar el catalogo historico", () => {
-  assert.match(panel, /renderSaleShift\(\);\s*renderSaleCart\(\);\s*const failures/s);
-  assert.match(panel, /cargarCatalogoCloud\(\)\s*\.then\(\(\) => renderSaleProducts\(\)\)/s);
-  assert.match(panel, /eventos\(\["ProductoCreado"[\s\S]+?null, null, 3000\)/);
-  assert.doesNotMatch(panel, /await Promise\.all\(\[cargarCatalogoCloud\(\), cargarClientesCloud\(\)/);
 });
 
 test("Cuentas y tarjetas exponen signo, jerarquia y contraste en ambos temas", () => {

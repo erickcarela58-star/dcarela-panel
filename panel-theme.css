@@ -3765,3 +3765,81 @@ html[data-theme="light"] #v-asistente:not(.oculto) .assistant-send {
   background: #18181b !important;
   border-color: #18181b !important;
 }
+
+/* Metric fidelity & animated SVG wave layer */
+:root {
+  --metric-inner-stroke: rgba(255, 255, 255, .96);
+  --metric-inner-shadow: rgba(9, 9, 11, .24);
+}
+
+html[data-theme="dark"],
+.dark {
+  --metric-inner-stroke: rgba(255, 255, 255, .92);
+  --metric-inner-shadow: rgba(0, 0, 0, .7);
+}
+
+svg[data-current-metric="true"] {
+  isolation: isolate;
+}
+
+svg[data-current-metric="true"] .current-metric-inner,
+.dashboard-health-wave-inner,
+.wave-inner {
+  fill: none !important;
+  stroke: var(--metric-inner-stroke) !important;
+  stroke-width: 1.65 !important;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 1 !important;
+  filter: drop-shadow(0 1px 1px var(--metric-inner-shadow));
+  vector-effect: non-scaling-stroke;
+}
+
+svg[data-current-metric="true"] .current-metric-inner,
+.dashboard-health-wave,
+.dashboard-trend-line,
+.wave-inner,
+.wave-line,
+.report-wave-line,
+.report-wave-tax,
+.finance-flow-income,
+.finance-flow-expense {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: current-metric-draw .95s cubic-bezier(.22, 1, .36, 1) forwards;
+}
+
+.dashboard-health-wave-inner,
+.wave-inner,
+.report-wave-tax,
+.finance-flow-expense {
+  animation-delay: .14s;
+}
+
+.dashboard-trend-line,
+.dashboard-health-wave:not(.dashboard-health-wave-inner),
+.wave-line,
+.report-wave-line,
+.finance-flow-income {
+  filter: drop-shadow(0 1px 1px color-mix(in srgb, var(--ui-text, #18181b) 18%, transparent));
+}
+
+@keyframes current-metric-draw {
+  to { stroke-dashoffset: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  svg[data-current-metric="true"] .current-metric-inner,
+  .dashboard-health-wave,
+  .dashboard-trend-line,
+  .wave-inner,
+  .wave-line,
+  .report-wave-line,
+  .report-wave-tax,
+  .finance-flow-income,
+  .finance-flow-expense {
+    animation: none !important;
+    stroke-dashoffset: 0 !important;
+  }
+}
+

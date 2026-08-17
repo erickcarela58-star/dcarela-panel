@@ -1,17 +1,19 @@
-const APP_BUILD = "2026.08.17.v1.0.44.0";
+const APP_BUILD = "2026.08.17.1.0.44.1";
 const CACHE = `dcarela-pos-shell-${APP_BUILD}`;
 const SHELL = [
   `./panel.css?v=${APP_BUILD}`,
   `./panel-theme.css?v=${APP_BUILD}`,
   `./panel.js?v=${APP_BUILD}`,
-  `./updates-downloads-current.css?v=${APP_BUILD}`,
-  `./updates-downloads-current.js?v=${APP_BUILD}`,
+  `./ticket-termico.js?v=${APP_BUILD}`,
+  `./panel-sale-pending.js?v=${APP_BUILD}`,
   "./supabase.min.js",
   "./jspdf.umd.min.js",
   "./jspdf.plugin.autotable.min.js",
   "./dcarela-logo.png",
+  "./favicon.svg",
   "./manifest.webmanifest",
-  "./app-version.json"
+  "./app-version.json",
+  "./config.js"
 ];
 
 self.addEventListener("install", event => {
@@ -19,7 +21,7 @@ self.addEventListener("install", event => {
     await cache.addAll(SHELL);
     await Promise.all([
       cache.add("./index.html").catch(() => null),
-      cache.add("./panel.html?standalone=1").catch(() => null),
+      cache.add("./panel.html").catch(() => null),
       cache.add("./mobile/index.html").catch(() => null)
     ]);
   }));
@@ -49,8 +51,8 @@ self.addEventListener("fetch", event => {
     event.respondWith(fetch(request, { cache: "no-store" }).catch(() => caches.match("./app-version.json")));
     return;
   }
-  if (url.pathname.endsWith("/panel.html")) {
-    event.respondWith(fetch(request, { cache: "no-store" }).catch(() => caches.match("./panel.html?standalone=1")));
+  if (url.pathname.endsWith("/panel.html") || url.pathname.endsWith("/") || url.pathname.endsWith("/index.html")) {
+    event.respondWith(fetch(request, { cache: "no-store" }).catch(() => caches.match(request).then(cached => cached || caches.match("./index.html"))));
     return;
   }
   event.respondWith(fetch(request).then(response => {
