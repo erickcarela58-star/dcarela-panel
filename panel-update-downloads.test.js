@@ -29,7 +29,7 @@ test("la vista CURRENT muestra las descargas sin abrir el panel anterior", () =>
 });
 
 test("el manifiesto publica dos EXE y las dos IPA con integridad verificable", () => {
-  assert.equal(manifest.web_version, "1.0.43.4");
+  assert.equal(manifest.web_version, "1.0.44.0");
   assert.equal(manifest.desktop_release.version, "1.0.44");
   assert.equal(manifest.downloads.length, 3);
   for (const file of manifest.downloads) {
@@ -53,6 +53,6 @@ test("Finanzas publica el diagnostico 5.0.0 y los dos CRM apuntan a v18", () => 
 test("Brújula publica el diagnostico 3.1.0 build 310 verificable", () => {
   const brujula = manifest.apps.find(app => app.id === "brujula");
   assert.equal(brujula.status, "published");
-  assert.equal(brujula.version, "4.6.0 (build 469)");
+  assert.equal(brujula.version, "5.0.0 (build 476)");
   assert.match(brujula.url, /Brujula-.*\.ipa$/);
 });
