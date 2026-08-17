@@ -46,13 +46,13 @@ test("Finanzas publica el diagnostico 5.0.0 y los dos CRM apuntan a v18", () => 
   const finance = manifest.apps.find(app => app.id === "finanzas-ios" || app.id === "com.dcarela.panel");
   assert.ok(finance);
   assert.equal(finance.status, "published");
-  assert.equal(finance.version, "6.1.1 (build 620)");
+  assert.equal(finance.version, "6.1.1 (build 621)");
   assert.match(finance.url, /DCarelaFinanzas-.*\.ipa$/);
 });
 
 test("Brújula publica el diagnostico 3.1.0 build 310 verificable", () => {
   const brujula = manifest.apps.find(app => app.id === "brujula");
   assert.equal(brujula.status, "published");
-  assert.equal(brujula.version, "5.0.0 (build 476)");
+  assert.equal(brujula.version, "5.0.0 (build 477)");
   assert.match(brujula.url, /Brujula-.*\.ipa$/);
 });
