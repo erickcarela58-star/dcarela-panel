@@ -14,6 +14,16 @@
       "versions": [
         {
           "version": "4.6.0",
+          "buildVersion": "474",
+          "date": "2026-08-17T02:15:00Z",
+          "localizedDescription": "v4.6.0 (474) — Fix de reconocimiento de voz y autenticación: despacho en MainActor para permiso explícito de voz de iOS, ciclo de vida de archivo de audio corregido, fallback multimodal directo a Gemini y login interactivo al asistente.",
+          "downloadURL": "https://raw.githubusercontent.com/erickcarela58-star/dcarela-panel/main/ios-releases/QA/Brujula-4.6.0-474-QA.ipa",
+          "size": 16370499,
+          "sha256": "bde8c9cd343f96c0d6918186c5a80337441201fa343b90c772367ff0d2504e90",
+          "minOSVersion": "17.0"
+        },
+        {
+          "version": "4.6.0",
           "buildVersion": "473",
           "date": "2026-08-17T01:00:00",
           "localizedDescription": "v4.6.0 (473) — Fix crítico: 17 recursos físicos (12 shortcuts, 4 DNS, 1 doc) correctamente empaquetados en el bundle de la app con SHA-256 verificados. Fallback del Banco de Recursos corregido con hashes reales. Audio STT, ReadingQuizEngine, typing indicator y audio pipeline sin cambios.",
@@ -70,9 +80,9 @@
         }
       ],
       "version": "4.6.0",
-      "versionDate": "2026-08-17T01:00:00",
-      "downloadURL": "https://raw.githubusercontent.com/erickcarela58-star/dcarela-panel/main/ios-releases/QA/Brujula-4.6.0-473-QA.ipa",
-      "size": 16366038
+      "versionDate": "2026-08-17T02:15:00Z",
+      "downloadURL": "https://raw.githubusercontent.com/erickcarela58-star/dcarela-panel/main/ios-releases/QA/Brujula-4.6.0-474-QA.ipa",
+      "size": 16370499
     },
     {
       "name": "D' Carela Finanzas",

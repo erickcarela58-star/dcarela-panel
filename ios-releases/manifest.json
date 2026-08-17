@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-08-17T01:10:00Z",
+  "generatedAt": "2026-08-17T02:15:00Z",
   "apps": {
     "com.dcarela.brujula": {
       "name": "Brújula",
@@ -20,13 +20,13 @@
       "name": "Brújula (QA)",
       "channel": "qa",
       "latestVersion": "4.6.0",
-      "latestBuild": "473",
+      "latestBuild": "474",
       "minimumSupportedBuild": "462",
-      "downloadURL": "https://raw.githubusercontent.com/erickcarela58-star/dcarela-panel/main/ios-releases/QA/Brujula-4.6.0-473-QA.ipa",
-      "sha256": "0082ecfacc1d25b8cf32728613df7e3b2c4fa85775e93a5721744e81d4902447",
-      "size": 16366038,
+      "downloadURL": "https://raw.githubusercontent.com/erickcarela58-star/dcarela-panel/main/ios-releases/QA/Brujula-4.6.0-474-QA.ipa",
+      "sha256": "bde8c9cd343f96c0d6918186c5a80337441201fa343b90c772367ff0d2504e90",
+      "size": 16370499,
       "publishedAt": "2026-08-17",
-      "releaseNotes": "QA Build 473: Fix crítico de packaging — Library/ (12 shortcuts, 4 DNS, 1 doc) ahora correctamente incluida en el bundle. SHA-256 del fallback corregidos. Audio STT, ReadingQuizEngine, typing indicator sin cambios.",
+      "releaseNotes": "QA Build 474: Fix de reconocimiento de voz, ciclo de vida de archivo de audio y fallback multimodal con login interactivo.",
       "mandatory": false
     },
     "com.dcarela.brujula.stable": {
