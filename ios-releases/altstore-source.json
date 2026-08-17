@@ -82,9 +82,9 @@
       "version": "4.6.0",
       "versionDate": "2026-08-17T05:34:00Z",
       "downloadURL": "https://raw.githubusercontent.com/dcarela/panel/main/ios-releases/Brujula-4.6.0-475-QA.ipa",
-      "size": 18656366,
+      "size": 18648459,
       "versionDescription": "Build 475 (QA): Automation Center (6 reglas), Dark Mode & Theme Accent Color Selector, Internal Library Browser & Web RAG, AppIntents metadata, and 12 signed shortcuts.",
-      "sha256": "0bd9d3b670f59bd4026670ecc29fb54667ecff47d22c931e8eac085d2663714a"
+      "sha256": "683f574fa6b664a0cabd234efa7c6c1eec2bfd86e0d70962bdef583f794cc08e"
     },
     {
       "name": "D' Carela Finanzas",
