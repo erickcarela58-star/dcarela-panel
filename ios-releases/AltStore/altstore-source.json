@@ -4,14 +4,23 @@
   "sourceURL": "https://panel.dcarelacompufoto.com/ios-releases/altstore-source.json",
   "apps": [
     {
-      "name": "Brújula",
+      "name": "Br\u00fajula",
       "bundleIdentifier": "com.dcarela.brujula",
       "developerName": "D' Carela Studio",
-      "subtitle": "Productividad, hábitos y lecturas",
-      "localizedDescription": "Sistema integral de productividad personal, gestión de lecturas y enfoque firme con protección Screen Time anti-bypass.",
+      "subtitle": "Productividad, h\u00e1bitos y lecturas",
+      "localizedDescription": "Sistema integral de productividad personal, gesti\u00f3n de lecturas y enfoque firme con protecci\u00f3n Screen Time anti-bypass.",
       "iconURL": "https://panel.dcarelacompufoto.com/assets/brujula-icon.png",
       "tintColor": "#007AFF",
       "versions": [
+        {
+          "version": "5.0.0",
+          "buildVersion": "476",
+          "date": "2026-08-17",
+          "downloadURL": "https://raw.githubusercontent.com/erickcarela58-star/dcarela-panel/main/ios-releases/Brujula-5.0.0-476-QA.ipa",
+          "size": 18696174,
+          "sha256": "475a25df41c4f58903bf749a1de8029afdf0a54c2963c029aed61c1440ff8ee3",
+          "localizedDescription": "Build 476 (v5.0.0): Ingesti\u00f3n RAG en background con barra de progreso roja y notificaciones, 10 Atajos can\u00f3nicos limpios sin confirmaci\u00f3n, Centro de Automatizaciones (6 reglas), Dark Mode auditado sin botones quemados, y navegaci\u00f3n web integrada."
+        },
         {
           "version": "4.6.0",
           "buildVersion": "469",
@@ -19,7 +28,7 @@
           "downloadURL": "https://raw.githubusercontent.com/erickcarela58-star/dcarela-panel/main/ios-releases/QA/Brujula-4.6.0-469-QA.ipa",
           "size": 18007499,
           "sha256": "a213743eee4c6dbd30c020fc7e2e3fc2664e3c26d60190473d6142806293cf2d",
-          "localizedDescription": "QA Build 469: Verificación física de 12 Atajos firmados AEA1, sincronización anti-race Lock First, Normalizer 16kHz WAV y aislamiento de cerebros."
+          "localizedDescription": "QA Build 469: Verificaci\u00f3n f\u00edsica de 12 Atajos firmados AEA1, sincronizaci\u00f3n anti-race Lock First, Normalizer 16kHz WAV y aislamiento de cerebros."
         },
         {
           "version": "4.6.0",
@@ -28,7 +37,7 @@
           "downloadURL": "https://panel.dcarelacompufoto.com/ios-releases/Brujula/4.6.0/468/Brujula-4.6.0-468.ipa",
           "size": 16509364,
           "sha256": "fa90aed6d56a7cc8c06eadd6a7a4584ff7ae2173596b24635171961c1d106675",
-          "localizedDescription": "Release definitiva: 13 Atajos canónicos, RestrictionReconciler Screen Time anti-bypass, FinalizeSocialPenaltyIntent y AudioNormalizationService WAV PCM 16kHz."
+          "localizedDescription": "Release definitiva: 13 Atajos can\u00f3nicos, RestrictionReconciler Screen Time anti-bypass, FinalizeSocialPenaltyIntent y AudioNormalizationService WAV PCM 16kHz."
         },
         {
           "version": "4.6.0",
@@ -37,7 +46,7 @@
           "downloadURL": "https://panel.dcarelacompufoto.com/ios-releases/Brujula/4.6.0/467/Brujula-4.6.0-467.ipa",
           "size": 16507809,
           "sha256": "77c9e801928cc4b5e007e7803fa51ec065facbd1af23f4af1cd937989b37c868",
-          "localizedDescription": "Integración definitiva: 11 Shortcuts oficiales, RestrictionReconciler Screen Time anti-bypass, AudioNormalizationService WAV PCM 16kHz y observabilidad total."
+          "localizedDescription": "Integraci\u00f3n definitiva: 11 Shortcuts oficiales, RestrictionReconciler Screen Time anti-bypass, AudioNormalizationService WAV PCM 16kHz y observabilidad total."
         },
         {
           "version": "4.6.0",
@@ -46,16 +55,22 @@
           "downloadURL": "https://panel.dcarelacompufoto.com/ios-releases/Brujula/4.6.0/466/Brujula-4.6.0-466.ipa",
           "size": 16480272,
           "sha256": "fc00ea6319ded07b9d22ccced83421901e00b061d17c7abcbfba0c79577cf622",
-          "localizedDescription": "Reconstrucción total: AudioNormalizationService, 10 App Intents reconstruidos, auto-recuperación de conversaciones y canal de actualizaciones mejorado."
+          "localizedDescription": "Reconstrucci\u00f3n total: AudioNormalizationService, 10 App Intents reconstruidos, auto-recuperaci\u00f3n de conversaciones y canal de actualizaciones mejorado."
         }
-      ]
+      ],
+      "version": "5.0.0",
+      "versionDate": "2026-08-17T06:11:00Z",
+      "versionDescription": "Build 476 (v5.0.0): Ingesti\u00f3n RAG en background con barra de progreso roja y notificaciones, 10 Atajos can\u00f3nicos limpios sin confirmaci\u00f3n, Centro de Automatizaciones (6 reglas), Dark Mode auditado sin botones quemados, y navegaci\u00f3n web integrada.",
+      "downloadURL": "https://raw.githubusercontent.com/erickcarela58-star/dcarela-panel/main/ios-releases/Brujula-5.0.0-476-QA.ipa",
+      "size": 18696174,
+      "sha256": "475a25df41c4f58903bf749a1de8029afdf0a54c2963c029aed61c1440ff8ee3"
     },
     {
       "name": "D' Carela Finanzas",
       "bundleIdentifier": "com.dcarela.panel",
       "developerName": "D' Carela Studio",
       "subtitle": "Operaciones financieras y panel POS",
-      "localizedDescription": "Control financiero y administrativo oficial para D' Carela Estudio Fotográfico.",
+      "localizedDescription": "Control financiero y administrativo oficial para D' Carela Estudio Fotogr\u00e1fico.",
       "iconURL": "https://panel.dcarelacompufoto.com/assets/finanzas-icon.png",
       "tintColor": "#1D4ED8",
       "versions": [
@@ -66,7 +81,7 @@
           "downloadURL": "https://panel.dcarelacompufoto.com/ios-releases/Finanzas/6.1.1/619/DCarelaFinanzas-6.1.1-619.ipa",
           "size": 1296574,
           "sha256": "fea78a06b74b831ab3b4bd7d772238268744515c5bc173a992526a077fe02343",
-          "localizedDescription": "QA Build 619: AudioNormalizationService WAV PCM 16kHz y diagnóstico de runtime completo."
+          "localizedDescription": "QA Build 619: AudioNormalizationService WAV PCM 16kHz y diagn\u00f3stico de runtime completo."
         },
         {
           "version": "6.1.1",
@@ -84,7 +99,7 @@
           "downloadURL": "https://panel.dcarelacompufoto.com/ios-releases/Finanzas/6.1.1/617/DCarelaFinanzas-6.1.1-617.ipa",
           "size": 1292933,
           "sha256": "fda427a56a65b3e426322a9a3da796f740aa27d957dd8f36387857b1d1250476",
-          "localizedDescription": "Integración definitiva: AudioNormalizationService WAV PCM 16kHz, ConversationCoordinator integrado y canal prioritario."
+          "localizedDescription": "Integraci\u00f3n definitiva: AudioNormalizationService WAV PCM 16kHz, ConversationCoordinator integrado y canal prioritario."
         },
         {
           "version": "6.1.1",
@@ -93,7 +108,7 @@
           "downloadURL": "https://panel.dcarelacompufoto.com/ios-releases/Finanzas/6.1.1/616/DCarelaFinanzas-6.1.1-616.ipa",
           "size": 1292435,
           "sha256": "fb9c940ac04d6306ec86bd1f31e69b39e518c43cf645d142666de63ae9d49cae",
-          "localizedDescription": "Reconstrucción total: AudioNormalizationService, integración de ConversationCoordinator y canal de actualizaciones prioritario."
+          "localizedDescription": "Reconstrucci\u00f3n total: AudioNormalizationService, integraci\u00f3n de ConversationCoordinator y canal de actualizaciones prioritario."
         }
       ]
     }
