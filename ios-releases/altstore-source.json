@@ -14,6 +14,16 @@
       "versions": [
         {
           "version": "4.6.0",
+          "buildVersion": "473",
+          "date": "2026-08-17T01:00:00",
+          "localizedDescription": "v4.6.0 (473) — Fix crítico: 17 recursos físicos (12 shortcuts, 4 DNS, 1 doc) correctamente empaquetados en el bundle de la app con SHA-256 verificados. Fallback del Banco de Recursos corregido con hashes reales. Audio STT, ReadingQuizEngine, typing indicator y audio pipeline sin cambios.",
+          "downloadURL": "https://raw.githubusercontent.com/erickcarela58-star/dcarela-panel/main/ios-releases/QA/Brujula-4.6.0-473-QA.ipa",
+          "size": 16366038,
+          "sha256": "0082ecfacc1d25b8cf32728613df7e3b2c4fa85775e93a5721744e81d4902447",
+          "minOSVersion": "17.0"
+        },
+        {
+          "version": "4.6.0",
           "buildVersion": "472",
           "date": "2026-08-16T22:35:21",
           "localizedDescription": "v4.6.0 (472) — Build QA validada: Transcripción de voz STT on-device y cloud unificada. ReadingQuizEngine con Repetition Guard y detector de cambio de tema / correcciones. Indicador de escritura (3 puntos) estable y sin saltos de layout. Banco de Recursos con 17 archivos físicos empaquetados en sandbox.",
@@ -60,9 +70,9 @@
         }
       ],
       "version": "4.6.0",
-      "versionDate": "2026-08-16T22:35:21",
-      "downloadURL": "https://raw.githubusercontent.com/erickcarela58-star/dcarela-panel/main/ios-releases/QA/Brujula-4.6.0-472-QA.ipa",
-      "size": 16219982
+      "versionDate": "2026-08-17T01:00:00",
+      "downloadURL": "https://raw.githubusercontent.com/erickcarela58-star/dcarela-panel/main/ios-releases/QA/Brujula-4.6.0-473-QA.ipa",
+      "size": 16366038
     },
     {
       "name": "D' Carela Finanzas",
