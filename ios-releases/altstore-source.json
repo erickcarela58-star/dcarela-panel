@@ -11,6 +11,13 @@
       "localizedDescription": "Sistema integral de productividad personal, gesti\u00f3n de lecturas y enfoque firme con protecci\u00f3n Screen Time anti-bypass.",
       "iconURL": "https://panel.dcarelacompufoto.com/assets/brujula-icon.png",
       "tintColor": "#007AFF",
+      "version": "5.0.0",
+      "versionDate": "2026-08-17T06:55:00Z",
+      "versionDescription": "Build 476 (v5.0.0): Ingesti\u00f3n RAG en background con barra de progreso roja y notificaciones, 10 Atajos can\u00f3nicos sin confirmaci\u00f3n, Centro de Automatizaciones (6 reglas), Dark Mode auditado sin botones quemados, y navegaci\u00f3n web integrada.",
+      "downloadURL": "https://raw.githubusercontent.com/erickcarela58-star/dcarela-panel/main/ios-releases/Brujula-5.0.0-476-QA.ipa",
+      "size": 18700394,
+      "sha256": "bc9b73bb7b820b5591fe037db637bb5f58e64a7be5f0d1863399d84fc7bdf7e5",
+      "minOSVersion": "17.0",
       "versions": [
         {
           "version": "5.0.0",
@@ -19,81 +26,10 @@
           "downloadURL": "https://raw.githubusercontent.com/erickcarela58-star/dcarela-panel/main/ios-releases/Brujula-5.0.0-476-QA.ipa",
           "size": 18700394,
           "sha256": "bc9b73bb7b820b5591fe037db637bb5f58e64a7be5f0d1863399d84fc7bdf7e5",
-          "localizedDescription": "Build 476 (v5.0.0): Ingesti\u00f3n RAG en background, 10 Atajos can\u00f3nicos sin confirmaci\u00f3n, Centro de Automatizaciones (6 reglas) y modo oscuro sin botones quemados."
-        },
-        {
-          "version": "4.6.0",
-          "buildVersion": "474",
-          "date": "2026-08-17T02:15:00Z",
-          "localizedDescription": "v4.6.0 (474) \u2014 Fix de reconocimiento de voz y autenticaci\u00f3n: despacho en MainActor para permiso expl\u00edcito de voz de iOS, ciclo de vida de archivo de audio corregido, fallback multimodal directo a Gemini y login interactivo al asistente.",
-          "downloadURL": "https://raw.githubusercontent.com/erickcarela58-star/dcarela-panel/main/ios-releases/QA/Brujula-4.6.0-474-QA.ipa",
-          "size": 16370499,
-          "sha256": "bde8c9cd343f96c0d6918186c5a80337441201fa343b90c772367ff0d2504e90",
+          "localizedDescription": "Build 476 (v5.0.0): Ingesti\u00f3n RAG en background con barra de progreso roja y notificaciones, 10 Atajos can\u00f3nicos sin confirmaci\u00f3n, Centro de Automatizaciones (6 reglas), Dark Mode auditado sin botones quemados, y navegaci\u00f3n web integrada.",
           "minOSVersion": "17.0"
-        },
-        {
-          "version": "4.6.0",
-          "buildVersion": "473",
-          "date": "2026-08-17T01:00:00",
-          "localizedDescription": "v4.6.0 (473) \u2014 Fix cr\u00edtico: 17 recursos f\u00edsicos (12 shortcuts, 4 DNS, 1 doc) correctamente empaquetados en el bundle de la app con SHA-256 verificados. Fallback del Banco de Recursos corregido con hashes reales. Audio STT, ReadingQuizEngine, typing indicator y audio pipeline sin cambios.",
-          "downloadURL": "https://raw.githubusercontent.com/erickcarela58-star/dcarela-panel/main/ios-releases/QA/Brujula-4.6.0-473-QA.ipa",
-          "size": 16366038,
-          "sha256": "0082ecfacc1d25b8cf32728613df7e3b2c4fa85775e93a5721744e81d4902447",
-          "minOSVersion": "17.0"
-        },
-        {
-          "version": "4.6.0",
-          "buildVersion": "472",
-          "date": "2026-08-16T22:35:21",
-          "localizedDescription": "v4.6.0 (472) \u2014 Build QA validada: Transcripci\u00f3n de voz STT on-device y cloud unificada. ReadingQuizEngine con Repetition Guard y detector de cambio de tema / correcciones. Indicador de escritura (3 puntos) estable y sin saltos de layout. Banco de Recursos con 17 archivos f\u00edsicos empaquetados en sandbox.",
-          "downloadURL": "https://raw.githubusercontent.com/erickcarela58-star/dcarela-panel/main/ios-releases/QA/Brujula-4.6.0-472-QA.ipa",
-          "size": 16219982,
-          "sha256": "20ed63233b00189349953fa753719e747c6251936787fa083ce486cf94dc0c3f",
-          "minOSVersion": "17.0"
-        },
-        {
-          "version": "4.6.0",
-          "buildVersion": "469",
-          "date": "2026-08-16",
-          "downloadURL": "https://raw.githubusercontent.com/erickcarela58-star/dcarela-panel/main/ios-releases/QA/Brujula-4.6.0-469-QA.ipa",
-          "size": 18007499,
-          "sha256": "a213743eee4c6dbd30c020fc7e2e3fc2664e3c26d60190473d6142806293cf2d",
-          "localizedDescription": "QA Build 469: Verificaci\u00f3n f\u00edsica de 12 Atajos firmados AEA1, sincronizaci\u00f3n anti-race Lock First, Normalizer 16kHz WAV y aislamiento de cerebros."
-        },
-        {
-          "version": "4.6.0",
-          "buildVersion": "468",
-          "date": "2026-08-16",
-          "downloadURL": "https://panel.dcarelacompufoto.com/ios-releases/Brujula/4.6.0/468/Brujula-4.6.0-468.ipa",
-          "size": 16509364,
-          "sha256": "fa90aed6d56a7cc8c06eadd6a7a4584ff7ae2173596b24635171961c1d106675",
-          "localizedDescription": "Release definitiva: 13 Atajos can\u00f3nicos, RestrictionReconciler Screen Time anti-bypass, FinalizeSocialPenaltyIntent y AudioNormalizationService WAV PCM 16kHz."
-        },
-        {
-          "version": "4.6.0",
-          "buildVersion": "467",
-          "date": "2026-08-16",
-          "downloadURL": "https://panel.dcarelacompufoto.com/ios-releases/Brujula/4.6.0/467/Brujula-4.6.0-467.ipa",
-          "size": 16507809,
-          "sha256": "77c9e801928cc4b5e007e7803fa51ec065facbd1af23f4af1cd937989b37c868",
-          "localizedDescription": "Integraci\u00f3n definitiva: 11 Shortcuts oficiales, RestrictionReconciler Screen Time anti-bypass, AudioNormalizationService WAV PCM 16kHz y observabilidad total."
-        },
-        {
-          "version": "4.6.0",
-          "buildVersion": "466",
-          "date": "2026-08-16",
-          "downloadURL": "https://panel.dcarelacompufoto.com/ios-releases/Brujula/4.6.0/466/Brujula-4.6.0-466.ipa",
-          "size": 16480272,
-          "sha256": "fc00ea6319ded07b9d22ccced83421901e00b061d17c7abcbfba0c79577cf622",
-          "localizedDescription": "Reconstrucci\u00f3n total: AudioNormalizationService, 10 App Intents reconstruidos, auto-recuperaci\u00f3n de conversaciones y canal de actualizaciones mejorado."
         }
-      ],
-      "version": "5.0.0",
-      "versionDate": "2026-08-17T06:55:00Z",
-      "downloadURL": "https://raw.githubusercontent.com/erickcarela58-star/dcarela-panel/main/ios-releases/Brujula-5.0.0-476-QA.ipa",
-      "size": 18700394,
-      "versionDescription": "Build 476 (v5.0.0): Ingesti\u00f3n RAG en background con barra de progreso roja y notificaciones, 10 Atajos can\u00f3nicos limpios sin confirmaci\u00f3n, Centro de Automatizaciones (6 reglas), Dark Mode auditado sin botones quemados, y navegaci\u00f3n web integrada.",
-      "sha256": "bc9b73bb7b820b5591fe037db637bb5f58e64a7be5f0d1863399d84fc7bdf7e5"
+      ]
     },
     {
       "name": "D' Carela Finanzas",
@@ -103,6 +39,13 @@
       "localizedDescription": "Control financiero y administrativo oficial para D' Carela Estudio Fotogr\u00e1fico.",
       "iconURL": "https://panel.dcarelacompufoto.com/assets/finanzas-icon.png",
       "tintColor": "#1D4ED8",
+      "version": "6.1.1",
+      "versionDate": "2026-08-17T06:55:00Z",
+      "versionDescription": "Build 620: AudioNormalizationService WAV PCM 16kHz, SessionStore Keychain seguro y asistente aut\u00f3nomo actualizado.",
+      "downloadURL": "https://raw.githubusercontent.com/erickcarela58-star/dcarela-panel/main/ios-releases/DCarelaFinanzas-6.1.1-620.ipa",
+      "size": 1933855,
+      "sha256": "03860936f0f54855e409889725f6e47d41d30cb666708f54bf38d117849943c7",
+      "minOSVersion": "16.4",
       "versions": [
         {
           "version": "6.1.1",
@@ -111,50 +54,10 @@
           "downloadURL": "https://raw.githubusercontent.com/erickcarela58-star/dcarela-panel/main/ios-releases/DCarelaFinanzas-6.1.1-620.ipa",
           "size": 1933855,
           "sha256": "03860936f0f54855e409889725f6e47d41d30cb666708f54bf38d117849943c7",
-          "localizedDescription": "Build 620: AudioNormalizationService WAV PCM 16kHz, SessionStore Keychain seguro y asistente aut\u00f3nomo actualizado."
-        },
-        {
-          "version": "6.1.1",
-          "buildVersion": "619",
-          "date": "2026-08-16",
-          "downloadURL": "https://panel.dcarelacompufoto.com/ios-releases/Finanzas/6.1.1/619/DCarelaFinanzas-6.1.1-619.ipa",
-          "size": 1296574,
-          "sha256": "fea78a06b74b831ab3b4bd7d772238268744515c5bc173a992526a077fe02343",
-          "localizedDescription": "QA Build 619: AudioNormalizationService WAV PCM 16kHz y diagn\u00f3stico de runtime completo."
-        },
-        {
-          "version": "6.1.1",
-          "buildVersion": "618",
-          "date": "2026-08-16",
-          "downloadURL": "https://panel.dcarelacompufoto.com/ios-releases/Finanzas/6.1.1/618/DCarelaFinanzas-6.1.1-618.ipa",
-          "size": 1292932,
-          "sha256": "9e79b5f5ca313f001fcdc6bb9f90320b71216b6c3a660a2dda5186271df7ef9b",
-          "localizedDescription": "Release definitiva: AudioNormalizationService WAV PCM 16kHz, ConversationCoordinator integrado y canal prioritario."
-        },
-        {
-          "version": "6.1.1",
-          "buildVersion": "617",
-          "date": "2026-08-16",
-          "downloadURL": "https://panel.dcarelacompufoto.com/ios-releases/Finanzas/6.1.1/617/DCarelaFinanzas-6.1.1-617.ipa",
-          "size": 1292933,
-          "sha256": "fda427a56a65b3e426322a9a3da796f740aa27d957dd8f36387857b1d1250476",
-          "localizedDescription": "Integraci\u00f3n definitiva: AudioNormalizationService WAV PCM 16kHz, ConversationCoordinator integrado y canal prioritario."
-        },
-        {
-          "version": "6.1.1",
-          "buildVersion": "616",
-          "date": "2026-08-16",
-          "downloadURL": "https://panel.dcarelacompufoto.com/ios-releases/Finanzas/6.1.1/616/DCarelaFinanzas-6.1.1-616.ipa",
-          "size": 1292435,
-          "sha256": "fb9c940ac04d6306ec86bd1f31e69b39e518c43cf645d142666de63ae9d49cae",
-          "localizedDescription": "Reconstrucci\u00f3n total: AudioNormalizationService, integraci\u00f3n de ConversationCoordinator y canal de actualizaciones prioritario."
+          "localizedDescription": "Build 620: AudioNormalizationService WAV PCM 16kHz, SessionStore Keychain seguro y asistente aut\u00f3nomo actualizado.",
+          "minOSVersion": "16.4"
         }
-      ],
-      "version": "6.1.1",
-      "versionDate": "2026-08-17T06:55:00Z",
-      "downloadURL": "https://raw.githubusercontent.com/erickcarela58-star/dcarela-panel/main/ios-releases/DCarelaFinanzas-6.1.1-620.ipa",
-      "size": 1933855,
-      "sha256": "03860936f0f54855e409889725f6e47d41d30cb666708f54bf38d117849943c7"
+      ]
     }
   ]
 }
