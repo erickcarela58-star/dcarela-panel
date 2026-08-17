@@ -46,7 +46,7 @@ test("Finanzas publica el diagnostico 5.0.0 y los dos CRM apuntan a v18", () => 
   const finance = manifest.apps.find(app => app.id === "finanzas-ios" || app.id === "com.dcarela.panel");
   assert.ok(finance);
   assert.equal(finance.status, "published");
-  assert.equal(finance.version, "6.1.1 (build 619)");
+  assert.equal(finance.version, "6.1.1 (build 620)");
   assert.match(finance.url, /DCarelaFinanzas-.*\.ipa$/);
 });
 

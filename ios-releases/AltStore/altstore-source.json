@@ -19,7 +19,7 @@
           "downloadURL": "https://raw.githubusercontent.com/erickcarela58-star/dcarela-panel/main/ios-releases/Brujula-5.0.0-476-QA.ipa",
           "size": 18700394,
           "sha256": "bc9b73bb7b820b5591fe037db637bb5f58e64a7be5f0d1863399d84fc7bdf7e5",
-          "localizedDescription": "Build 476 (v5.0.0): Ingesti\u00f3n RAG en background con barra de progreso roja y notificaciones, 10 Atajos can\u00f3nicos limpios sin confirmaci\u00f3n, Centro de Automatizaciones (6 reglas), Dark Mode auditado sin botones quemados, y navegaci\u00f3n web integrada."
+          "localizedDescription": "Build 476 (v5.0.0): Ingesti\u00f3n RAG en background, 10 Atajos can\u00f3nicos sin confirmaci\u00f3n, Centro de Automatizaciones (6 reglas) y modo oscuro sin botones quemados."
         },
         {
           "version": "4.6.0",
@@ -59,7 +59,7 @@
         }
       ],
       "version": "5.0.0",
-      "versionDate": "2026-08-17T06:11:00Z",
+      "versionDate": "2026-08-17T06:55:00Z",
       "versionDescription": "Build 476 (v5.0.0): Ingesti\u00f3n RAG en background con barra de progreso roja y notificaciones, 10 Atajos can\u00f3nicos limpios sin confirmaci\u00f3n, Centro de Automatizaciones (6 reglas), Dark Mode auditado sin botones quemados, y navegaci\u00f3n web integrada.",
       "downloadURL": "https://raw.githubusercontent.com/erickcarela58-star/dcarela-panel/main/ios-releases/Brujula-5.0.0-476-QA.ipa",
       "size": 18700394,
@@ -74,6 +74,15 @@
       "iconURL": "https://panel.dcarelacompufoto.com/assets/finanzas-icon.png",
       "tintColor": "#1D4ED8",
       "versions": [
+        {
+          "version": "6.1.1",
+          "buildVersion": "620",
+          "date": "2026-08-17",
+          "downloadURL": "https://raw.githubusercontent.com/erickcarela58-star/dcarela-panel/main/ios-releases/DCarelaFinanzas-6.1.1-620.ipa",
+          "size": 1933855,
+          "sha256": "03860936f0f54855e409889725f6e47d41d30cb666708f54bf38d117849943c7",
+          "localizedDescription": "Build 620: AudioNormalizationService WAV PCM 16kHz, SessionStore Keychain seguro y asistente aut\u00f3nomo actualizado."
+        },
         {
           "version": "6.1.1",
           "buildVersion": "619",
@@ -110,7 +119,12 @@
           "sha256": "fb9c940ac04d6306ec86bd1f31e69b39e518c43cf645d142666de63ae9d49cae",
           "localizedDescription": "Reconstrucci\u00f3n total: AudioNormalizationService, integraci\u00f3n de ConversationCoordinator y canal de actualizaciones prioritario."
         }
-      ]
+      ],
+      "version": "6.1.1",
+      "versionDate": "2026-08-17T06:55:00Z",
+      "downloadURL": "https://raw.githubusercontent.com/erickcarela58-star/dcarela-panel/main/ios-releases/DCarelaFinanzas-6.1.1-620.ipa",
+      "size": 1933855,
+      "sha256": "03860936f0f54855e409889725f6e47d41d30cb666708f54bf38d117849943c7"
     }
   ]
 }
