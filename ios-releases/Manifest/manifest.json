@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-08-16T16:03:30Z",
+  "generatedAt": "2026-08-17T01:10:00Z",
   "apps": {
     "com.dcarela.brujula": {
       "name": "Brújula",
@@ -18,16 +18,15 @@
     },
     "com.dcarela.brujula.7FL6SHN9DV": {
       "name": "Brújula",
-      "channel": "stable",
+      "channel": "qa",
       "latestVersion": "4.6.0",
-      "latestBuild": "469",
+      "latestBuild": "473",
       "minimumSupportedBuild": "462",
-      "downloadURL": "https://panel.dcarelacompufoto.com/ios-releases/Brujula/4.6.0/469/Brujula-4.6.0-469.ipa",
-      "altStoreSourceURL": "https://panel.dcarelacompufoto.com/ios-releases/altstore-source.json",
-      "sha256": "5b060cb40f24d271fecdc3a12840a0ee31c70830636db978d6e4c5c868e42492",
-      "size": 16516697,
-      "publishedAt": "2026-08-16",
-      "releaseNotes": "QA Build 469: Grabación nativa Linear PCM 16kHz WAV, sanitización MIME, auto-recuperación de conversación y diagnóstico de runtime completo.",
+      "downloadURL": "https://raw.githubusercontent.com/erickcarela58-star/dcarela-panel/main/ios-releases/QA/Brujula-4.6.0-473-QA.ipa",
+      "sha256": "0082ecfacc1d25b8cf32728613df7e3b2c4fa85775e93a5721744e81d4902447",
+      "size": 16366038,
+      "publishedAt": "2026-08-17",
+      "releaseNotes": "QA Build 473: Fix crítico de packaging — Library/ (12 shortcuts, 4 DNS, 1 doc) ahora correctamente incluida en el bundle. SHA-256 del fallback corregidos. Audio STT, ReadingQuizEngine, typing indicator sin cambios.",
       "mandatory": false
     },
     "com.dcarela.brujula.stable": {

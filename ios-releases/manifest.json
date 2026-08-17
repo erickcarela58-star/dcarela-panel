@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-08-16T22:35:21Z",
+  "generatedAt": "2026-08-17T01:10:00Z",
   "apps": {
     "com.dcarela.brujula": {
       "name": "Brújula",
@@ -20,13 +20,13 @@
       "name": "Brújula (QA)",
       "channel": "qa",
       "latestVersion": "4.6.0",
-      "latestBuild": "472",
+      "latestBuild": "473",
       "minimumSupportedBuild": "462",
-      "downloadURL": "https://raw.githubusercontent.com/erickcarela58-star/dcarela-panel/main/ios-releases/QA/Brujula-4.6.0-472-QA.ipa",
-      "sha256": "20ed63233b00189349953fa753719e747c6251936787fa083ce486cf94dc0c3f",
-      "size": 16219982,
-      "publishedAt": "2026-08-16",
-      "releaseNotes": "QA Build 472: Transcripción STT nativa on-device, Reading Quiz repetition guard, Typing indicator fixed frame, Banco de Recursos físicos.",
+      "downloadURL": "https://raw.githubusercontent.com/erickcarela58-star/dcarela-panel/main/ios-releases/QA/Brujula-4.6.0-473-QA.ipa",
+      "sha256": "0082ecfacc1d25b8cf32728613df7e3b2c4fa85775e93a5721744e81d4902447",
+      "size": 16366038,
+      "publishedAt": "2026-08-17",
+      "releaseNotes": "QA Build 473: Fix crítico de packaging — Library/ (12 shortcuts, 4 DNS, 1 doc) ahora correctamente incluida en el bundle. SHA-256 del fallback corregidos. Audio STT, ReadingQuizEngine, typing indicator sin cambios.",
       "mandatory": false
     },
     "com.dcarela.brujula.stable": {
