@@ -114,9 +114,9 @@
       "mandatory": false
     }
   },
-  "version": "4.6.0",
-  "build": 475,
-  "ipa_sha256": "683f574fa6b664a0cabd234efa7c6c1eec2bfd86e0d70962bdef583f794cc08e",
-  "ipa_size": 18648459,
-  "download_url": "https://raw.githubusercontent.com/dcarela/panel/main/ios-releases/Brujula-4.6.0-475-QA.ipa"
+  "version": "5.0.0",
+  "build": 476,
+  "ipa_sha256": "475a25df41c4f58903bf749a1de8029afdf0a54c2963c029aed61c1440ff8ee3",
+  "ipa_size": 18696174,
+  "download_url": "https://raw.githubusercontent.com/dcarela/panel/main/ios-releases/Brujula-5.0.0-476-QA.ipa"
 }
