@@ -5502,13 +5502,17 @@
 
   function abrirConciliacionCuentaFin(account) {
     if (!account) return;
-    abrirEditor("Conciliar saldo", "Registra la diferencia sin borrar movimientos ni convertirla en ingreso o gasto operativo.", `
-      <div class="reconciliation-summary field-wide"><span>Saldo calculado</span><strong>${money(account.saldo_actual_centavos)}</strong></div>
-      <label><span>Saldo real contado (RD$)</span><input name="saldoObjetivo" type="number" step="0.01" required value="${pesoInput(account.saldo_actual_centavos)}"></label>
+    const isCard = account.tipo === "tarjeta_credito";
+    const currentBalance = numero(account.saldo_actual_centavos);
+    const displayBalance = isCard ? Math.max(0, -currentBalance) : currentBalance;
+    abrirEditor("Conciliar saldo", "Registra la diferencia sin borrar movimientos ni alterar los cobros de ventas.", `
+      <div class="reconciliation-summary field-wide"><span>${isCard ? "Deuda actual en tarjeta" : "Saldo disponible calculado"}</span><strong>${money(displayBalance)}</strong></div>
+      <label><span>${isCard ? "Deuda real acumulada (RD$)" : "Saldo real disponible (RD$)"}</span><input name="saldoObjetivo" type="number" step="0.01" required value="${pesoInput(displayBalance)}"></label>
       <label><span>Fecha</span><input name="fecha" type="date" required value="${inputDate(new Date())}"></label>
-      <label class="field-wide"><span>Motivo obligatorio</span><textarea name="motivo" rows="3" required placeholder="Ejemplo: saldo físico confirmado al cierre; el historial anterior no contenía retiros de caja"></textarea></label>
-      <p class="field-hint field-wide">El asiento queda identificado, genera alerta y puede anularse. Las ventas históricas permanecen intactas.</p>`, async form => {
-      const target = centavosConSignoInput(form.get("saldoObjetivo"));
+      <label class="field-wide"><span>Motivo obligatorio</span><textarea name="motivo" rows="3" required placeholder="Ejemplo: saldo confirmado con estado de cuenta bancario"></textarea></label>
+      <p class="field-hint field-wide">El asiento ajusta el balance real de forma transparente, genera registro contable y conserva intactas las ventas.</p>`, async form => {
+      const rawTarget = centavosConSignoInput(form.get("saldoObjetivo"));
+      const target = isCard ? (rawTarget > 0 ? -rawTarget : rawTarget) : rawTarget;
       const current = numero(account.saldo_actual_centavos);
       const difference = target - current;
       await adminWrite("fin.account.reconcile", account.id, {
