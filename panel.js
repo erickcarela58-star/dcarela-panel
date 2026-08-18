@@ -838,13 +838,139 @@
     </details>`;
   }
 
+  const IA_MEMORY_KEY = "dcarela.ia.memory.v2";
+
+  function getIaLearnedRules() {
+    try {
+      const raw = localStorage.getItem(IA_MEMORY_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length) return parsed;
+      }
+    } catch {}
+    const seed = [
+      { id: "mem_seed_1", content: "Regla de pago: 'Comercial Rosa' (papelería/suministros) se paga habitualmente con Tarjeta de Crédito Qik.", summary: "Comercial Rosa ➔ Tarjeta Qik", category: "finance_rules" },
+      { id: "mem_seed_2", content: "Compromiso mensual: 'ChatGPT' es una suscripción mensual de US$ 28.00 vinculada a la cuenta Banco Popular.", summary: "ChatGPT ➔ US$28 Banco Popular", category: "finance_commitments" },
+      { id: "mem_seed_3", content: "Regla fiscal: Los precios en ventas se capturan con ITBIS (18%) incluido. Desglose exacto hacia atrás.", summary: "ITBIS 18% incluido", category: "fiscal_rules" }
+    ];
+    saveIaLearnedRules(seed);
+    return seed;
+  }
+
+  function saveIaLearnedRules(rules) {
+    try {
+      localStorage.setItem(IA_MEMORY_KEY, JSON.stringify(rules));
+    } catch {}
+  }
+
+  function addIaLearnedRule(content, summary = "", category = "manual_rule") {
+    if (!content || !content.trim()) return null;
+    const rules = getIaLearnedRules();
+    const existing = rules.find(r => r.content.toLowerCase().trim() === content.toLowerCase().trim());
+    if (existing) return existing;
+    const newRule = {
+      id: "mem_" + Math.random().toString(36).substring(2, 10),
+      content: content.trim(),
+      summary: summary.trim() || content.trim().slice(0, 45),
+      category,
+      created_at: new Date().toISOString()
+    };
+    rules.unshift(newRule);
+    saveIaLearnedRules(rules);
+    renderIaLearnings();
+    return newRule;
+  }
+
+  function deleteIaLearnedRule(id) {
+    const rules = getIaLearnedRules().filter(r => r.id !== id);
+    saveIaLearnedRules(rules);
+    renderIaLearnings();
+  }
+
+  function extractLearningsFromMessage(text) {
+    if (!text || text.length < 6) return [];
+    const discovered = [];
+    const t = text.trim();
+
+    const p1 = t.match(/(?:compras?\s+en|pago\s+a|gastos?\s+en|proveedor)\s+([A-Za-z0-9\sÁÉÍÓÚáéíóúñÑ]+?)\s+(?:se\s+paga|hech[ao]s?|pagad[ao]s?)\s+con\s+(?:la\s+)?(tarjeta|efectivo|transferencia|popular|banco|qik)/i) ||
+               t.match(/([A-Za-z0-9\sÁÉÍÓÚáéíóúñÑ]{3,30})\s+(?:siempre\s+)?se\s+paga\s+con\s+(?:la\s+)?(tarjeta|efectivo|transferencia|popular|banco|qik)/i);
+    if (p1 && p1[1].length > 2 && !/^(este|esta|estos|estas|un|una|el|la|los|las)$/i.test(p1[1].trim())) {
+      const entity = p1[1].trim();
+      const method = p1[2].trim();
+      const r = addIaLearnedRule(`Regla de pago: '${entity}' se paga habitualmente con ${method}.`, `${entity} ➔ ${method}`, "supplier_rule");
+      if (r) discovered.push(r);
+    }
+
+    const p2 = t.match(/([A-Za-z0-9\sÁÉÍÓÚáéíóúñÑ]{3,30})\s+(?:es\s+un\s+)?(?:suscripci[oó]n|cuota\s+mensual|costo\s+recurrente|compromiso)/i);
+    if (p2 && p2[1].length > 2 && !/^(este|esta|estos|estas)$/i.test(p2[1].trim())) {
+      const name = p2[1].trim();
+      const r = addIaLearnedRule(`Compromiso recurrente: '${name}' es una suscripción o costo periódico.`, `Recurrente: ${name}`, "recurring_rule");
+      if (r) discovered.push(r);
+    }
+
+    const p3 = t.match(/(?:no,\s+eso\s+no\s+fue\s+|correcci[oó]n:\s*|en\s+realidad\s+fue\s+)(.+)/i);
+    if (p3 && p3[1].length > 5) {
+      const corr = p3[1].trim();
+      const r = addIaLearnedRule(`Corrección del operador: ${corr}`, `Corrección: ${corr.slice(0, 30)}`, "correction_rule");
+      if (r) discovered.push(r);
+    }
+
+    return discovered;
+  }
+
+  function renderIaLearnings() {
+    const rules = getIaLearnedRules();
+    const countEl = $("iaLearningCount");
+    const listEl = $("iaLearningList");
+    if (countEl) countEl.textContent = `${rules.length} activa${rules.length === 1 ? "" : "s"}`;
+    if (listEl) {
+      listEl.innerHTML = rules.length ? rules.map(rule => `
+        <div class="assistant-learning-card" data-rule-id="${esc(rule.id)}">
+          <div>
+            <strong>${esc(rule.summary || "Regla aprendida")}</strong>
+            <p>${esc(rule.content)}</p>
+          </div>
+          <button class="delete-btn" type="button" data-delete-rule="${esc(rule.id)}" title="Eliminar regla" aria-label="Eliminar regla">&#215;</button>
+        </div>
+      `).join("") : `<div class="empty-state compact"><p>Aún no hay reglas aprendidas.</p></div>`;
+
+      listEl.querySelectorAll("[data-delete-rule]").forEach(btn => {
+        btn.addEventListener("click", () => {
+          deleteIaLearnedRule(btn.dataset.deleteRule);
+          toast("Regla eliminada de la memoria.");
+        });
+      });
+    }
+  }
+
+  const IA_EMPTY_HTML = `<div class="assistant-empty">
+    <div class="assistant-empty-icon">✦</div>
+    <strong>Asistente Operativo D' Carela POS</strong>
+    <p>Aprende de tus instrucciones en cada conversación. Puedes consultar ventas, conciliar bancos, registrar compras con tarjeta o pedir auditorías.</p>
+    <div class="assistant-empty-starters">
+      <button type="button" class="starter-card" data-prompt="Dame un resumen de las ventas de hoy, los gastos registrados y el saldo en cuentas.">
+        <span class="starter-icon">📊</span>
+        <strong>Resumen integral del día</strong>
+        <small>Ventas, gastos y saldos en cuentas</small>
+      </button>
+      <button type="button" class="starter-card" data-prompt="Audita los productos sin precio, sin categoría o con inventario inconsistente.">
+        <span class="starter-icon">🔍</span>
+        <strong>Auditar catálogo y stock</strong>
+        <small>Productos sin precio o stock bajo</small>
+      </button>
+    </div>
+  </div>`;
+
   function iaMessageHtml(message) {
     const role = message.role === "user" ? "user" : "assistant";
-    const label = role === "user" ? (session?.user?.email || "Administrador") : "Asistente IA";
+    const label = role === "user" ? (session?.user?.email || "Operador") : "Asistente IA";
+    const learnings = Array.isArray(message?.metadata?.learned_rules) ? message.metadata.learned_rules : [];
+    const learningHtml = learnings.map(l => `<div class="assistant-learning-badge">🧠 Aprendido: ${esc(l.summary || l.content)}</div>`).join("");
     return `<article class="assistant-message ${role}" data-message-id="${esc(message.id || "")}">
       <span class="message-role">${esc(label)}</span>
       <button class="assistant-copy" type="button" data-copy-message="${esc(message.id || "")}" title="Copiar mensaje" aria-label="Copiar mensaje">&#10697;</button>
       ${iaMessageBody(message)}
+      ${learningHtml}
       ${iaAttachmentsMeta(message)}
       ${role === "assistant" ? iaQuickActionsHtml(message) : ""}
       <div class="assistant-message-meta">${esc(fecha(message.created_at))}</div>
@@ -877,6 +1003,12 @@
       $("iaInput").value = prompt;
       enviarMensajeIa();
     }));
+    $("iaMessages").querySelectorAll(".starter-card").forEach(card => card.addEventListener("click", () => {
+      const prompt = card.dataset.prompt || "";
+      if (!prompt || iaBusy) return;
+      $("iaInput").value = prompt;
+      enviarMensajeIa();
+    }));
   }
 
   function renderIaHistory(history) {
@@ -895,10 +1027,11 @@
     });
     const orphanedActions = actions.filter(action => !renderedActions.has(String(action.id)));
     orphanedActions.filter(action => action.status !== "error").forEach(action => chunks.push(iaActionHtml(action)));
-    $("iaMessages").innerHTML = chunks.length ? chunks.join("") : `<div class="assistant-empty"><strong>Pregunta o solicita una accion</strong><p>El asistente usara datos reales y documentara cada cambio.</p></div>`;
-    $("iaConversationTitle").textContent = history?.conversation?.title || "Nueva conversacion";
+    $("iaMessages").innerHTML = chunks.length ? chunks.join("") : IA_EMPTY_HTML;
+    $("iaConversationTitle").textContent = history?.conversation?.title || "Nueva conversación";
     if (history?.conversation?.model) $("iaModel").value = history.conversation.model;
     renderIaDocuments(history?.active_documents || iaStatusCache?.active_documents || []);
+    renderIaLearnings();
     iaBindMessageActions(messages);
     requestAnimationFrame(() => { $("iaMessages").scrollTop = $("iaMessages").scrollHeight; });
   }
@@ -1180,7 +1313,17 @@
     iaBusy = true;
     $("iaError").textContent = "";
     $("btnIaEnviar").disabled = true;
-    const optimistic = { id: `temp-${Date.now()}`, role: "user", content: message || "Analiza los archivos adjuntos.", metadata: { attachments: attachmentDraft }, created_at: new Date().toISOString() };
+
+    // Extracción proactiva de aprendizajes en tiempo real
+    const discovered = extractLearningsFromMessage(message);
+    const optimistic = {
+      id: `temp-${Date.now()}`,
+      role: "user",
+      content: message || "Analiza los archivos adjuntos.",
+      metadata: { attachments: attachmentDraft, learned_rules: discovered },
+      created_at: new Date().toISOString()
+    };
+
     const empty = $("iaMessages").querySelector(".assistant-empty");
     if (empty) empty.remove();
     $("iaMessages").insertAdjacentHTML("beforeend", iaMessageHtml(optimistic) + `<div id="iaThinking" class="assistant-thinking"><span>Pensando y consultando datos</span><i></i><i></i><i></i></div>`);
@@ -1194,24 +1337,27 @@
     $("iaActiveTool").classList.add("oculto");
     input.focus();
     try {
+      const activeRules = getIaLearnedRules().map(r => `- ${r.content}`).join("\n");
       const result = await iaRequest("chat", {
         conversation_id: iaConversationId,
         message,
         model: $("iaModel").value,
-        reasoning_mode: $("iaDepth").value,
-        initiative: $("iaInitiative").value,
-        response_detail: $("iaDetail").value,
-        attachments
+        reasoning_mode: $("iaDepth").value || "deep",
+        initiative: $("iaInitiative").value || "proactive",
+        response_detail: $("iaDetail").value || "extended",
+        attachments,
+        custom_rules: activeRules
       });
       iaConversationId = result.conversation.id;
-      $("iaModelEffective").textContent = `Respuesta generada con ${result.effective_model}`;
+      $("iaModelEffective").textContent = `🧠 Aprendizaje activo · ${result.effective_model}`;
       await cargarConversacionesIa(false);
       await abrirConversacionIa(iaConversationId);
+      renderIaLearnings();
       if (canEdit) await renderIaApprovals();
     } catch (error) {
       $("iaThinking")?.remove();
       $("iaMessages").querySelector(`[data-message-id="${optimistic.id}"]`)?.remove();
-      if (!$("iaMessages").children.length) $("iaMessages").innerHTML = `<div class="assistant-empty"><strong>Pregunta o solicita una accion</strong><p>El asistente usara datos reales y documentara cada cambio.</p></div>`;
+      if (!$("iaMessages").children.length) $("iaMessages").innerHTML = IA_EMPTY_HTML;
       if (!input.value) {
         input.value = originalDraft;
         input.dispatchEvent(new Event("input"));
@@ -6580,12 +6726,12 @@
       else window.parent.postMessage({ type: "dcarela:theme-request", theme: next }, location.origin);
     });
     on("branchSelector", "change", event => abrirSucursal(event.target.value, "dashboard"));
-    on("btnNotificaciones", "click", () => { location.hash = "notificaciones"; });
     on("btnIaNueva", "click", () => {
       iaConversationId = null;
       renderIaConversations();
-      $("iaConversationTitle").textContent = "Nueva conversacion";
-      $("iaMessages").innerHTML = `<div class="assistant-empty"><strong>Pregunta o solicita una accion</strong><p>El asistente usara datos reales y documentara cada cambio.</p></div>`;
+      $("iaConversationTitle").textContent = "Nueva conversación";
+      $("iaMessages").innerHTML = IA_EMPTY_HTML;
+      iaBindMessageActions([]);
       setIaDrawer("history", false);
       $("iaInput").focus();
     });
@@ -6593,6 +6739,20 @@
     on("btnIaControl", "click", () => setIaDrawer("control", !$("iaLayout").classList.contains("control-open")));
     on("btnIaCerrarHistorial", "click", () => setIaDrawer("history", false));
     on("btnIaCerrarControl", "click", () => setIaDrawer("control", false));
+    on("btnIaAddRule", "click", () => {
+      const input = $("iaNewRuleInput");
+      const val = (input.value || "").trim();
+      if (!val) { toast("Escribe una regla de negocio primero."); return; }
+      addIaLearnedRule(val, val.slice(0, 40), "manual_rule");
+      input.value = "";
+      toast("Regla aprendida y guardada en memoria.");
+    });
+    on("iaNewRuleInput", "keydown", event => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        $("btnIaAddRule").click();
+      }
+    });
     on("iaDrawerScrim", "click", () => setIaDrawer("", false));
     on("iaConversationSearch", "input", renderIaConversations);
     document.addEventListener("keydown", event => {
