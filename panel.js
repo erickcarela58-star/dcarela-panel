@@ -5503,8 +5503,10 @@
         fecha: form.get("fecha"),
         motivo: form.get("motivo"),
       });
+      cerrarEditor();
       toast(`Saldo conciliado. Diferencia registrada: ${difference >= 0 ? "+" : "-"}${money(Math.abs(difference))}`);
-      await cargarFinanzas();
+      await cargarProveedores(true);
+      if (typeof cargarCuentasFin === "function") await cargarCuentasFin($("provMes")?.value);
     }, "Conciliar saldo");
   }
 
