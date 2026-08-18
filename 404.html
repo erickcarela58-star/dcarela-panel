@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#09090b">
+  <meta name="robots" content="noindex,nofollow">
+  <title>D' Carela Compufoto | Panel POS</title>
+  <script>
+    (() => {
+      const isMobile = window.innerWidth <= 768 || /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
+      const basePath = isMobile ? "./mobile/" : "./panel.html";
+      const target = new URL(basePath, location.origin);
+      const currentParams = new URLSearchParams(location.search);
+      currentParams.forEach((val, key) => target.searchParams.set(key, val));
+      const route = location.pathname.replace(/^\/+/, "").replace(/\.html$/, "");
+      if (route && route !== "index" && !target.hash) {
+        target.hash = "#" + route;
+      } else if (location.hash) {
+        target.hash = location.hash;
+      }
+      location.replace(target.href);
+    })();
+  </script>
+</head>
+<body>
+  <p>Cargando panel... <a href="./panel.html">Haz clic aquí para continuar</a></p>
+</body>
+</html>
