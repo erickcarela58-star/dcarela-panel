@@ -1162,112 +1162,180 @@ html[data-theme].embedded-panel .dashboard-ledger-section .surface-title {
   padding-bottom: 11px;
   border-bottom: 1px solid var(--ui-line);
 }
+html[data-theme].embedded-panel .branch-overview-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0;
+  margin: 0 0 16px;
+  border-block: 1px solid var(--ui-line);
+  background: var(--ui-canvas);
+}
+html[data-theme].embedded-panel .branch-overview-metric {
+  min-width: 0;
+  padding: 16px 20px;
+  border-right: 1px solid var(--ui-line);
+}
+html[data-theme].embedded-panel .branch-overview-metric:last-child {
+  border-right: 0;
+}
+html[data-theme].embedded-panel .branch-overview-metric span {
+  display: block;
+  color: var(--ui-muted);
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+html[data-theme].embedded-panel .branch-overview-metric strong {
+  display: block;
+  margin-top: 6px;
+  color: var(--ui-text);
+  font-size: clamp(18px, 1.6vw, 26px);
+  font-weight: 850;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.15;
+  white-space: nowrap;
+}
+html[data-theme].embedded-panel .branch-overview-metric.warn strong {
+  color: var(--ui-danger);
+}
 html[data-theme].embedded-panel .branch-ledger {
+  display: grid;
+  gap: 16px;
   margin-top: 0;
-  border-top: 1px solid var(--ui-line);
 }
 html[data-theme].embedded-panel .branch-ledger-row {
   display: grid;
-  grid-template-columns: minmax(180px, .72fr) minmax(460px, 2fr) 220px minmax(190px, .82fr);
-  align-items: center;
+  grid-template-columns: minmax(280px, 1.2fr) minmax(360px, 1.8fr);
+  grid-template-areas:
+    "identity actions"
+    "metrics  waves"
+    "status   status";
   gap: 0;
   padding: 0;
-  border-bottom: 1px solid var(--ui-line);
+  background: var(--ui-surface-soft);
+  border: 1px solid var(--ui-line);
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, .2);
+  transition: border-color .2s ease, box-shadow .2s ease;
 }
 html[data-theme].embedded-panel .branch-ledger-row.current {
-  box-shadow: inset 3px 0 0 var(--ui-text);
-}
-html[data-theme].embedded-panel .branch-identity,
-html[data-theme].embedded-panel .branch-ledger-status,
-html[data-theme].embedded-panel .branch-ledger-row > footer {
-  min-width: 0;
-  padding: 17px;
+  border-color: color-mix(in srgb, var(--ui-text) 32%, var(--ui-line));
+  box-shadow: 0 6px 24px rgba(0, 0, 0, .32), inset 3px 0 0 var(--ui-text);
 }
 html[data-theme].embedded-panel .branch-identity {
+  grid-area: identity;
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 14px;
+  padding: 16px 20px;
+  background: color-mix(in srgb, var(--ui-surface-strong) 65%, transparent);
+  border-bottom: 1px solid var(--ui-line);
+  border-right: 1px solid var(--ui-line);
 }
-html[data-theme].embedded-panel .branch-identity span,
-html[data-theme].embedded-panel .branch-ledger-metrics span,
-html[data-theme].embedded-panel .branch-ledger-metrics small,
-html[data-theme].embedded-panel .branch-ledger-status small {
+html[data-theme].embedded-panel .branch-identity span {
   display: block;
   color: var(--ui-muted);
   font-size: 9px;
+  font-weight: 750;
+  letter-spacing: .06em;
+  text-transform: uppercase;
 }
 html[data-theme].embedded-panel .branch-identity h3 {
-  margin: 5px 0 0;
+  margin: 4px 0 0;
   color: var(--ui-text);
   font-size: 16px;
+  font-weight: 800;
 }
 html[data-theme].embedded-panel .branch-identity i {
-  width: 8px;
-  height: 8px;
+  width: 9px;
+  height: 9px;
   flex: 0 0 auto;
-  margin-top: 4px;
   background: var(--ui-muted);
   border-radius: 50%;
 }
 html[data-theme].embedded-panel .branch-identity i.online {
   background: var(--ui-success);
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--ui-success) 16%, transparent);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--ui-success) 18%, transparent);
+}
+html[data-theme].embedded-panel .branch-ledger-row > footer {
+  grid-area: actions;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 14px 20px;
+  background: color-mix(in srgb, var(--ui-surface-strong) 65%, transparent);
+  border-bottom: 1px solid var(--ui-line);
+}
+html[data-theme].embedded-panel .branch-ledger-row > footer button {
+  min-height: 36px;
+  padding: 8px 16px;
+  font-size: 11px;
+  font-weight: 750;
+  white-space: nowrap;
 }
 html[data-theme].embedded-panel .branch-ledger-metrics {
+  grid-area: metrics;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  min-width: 0;
-  border-inline: 1px solid var(--ui-line);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  border-right: 1px solid var(--ui-line);
 }
 html[data-theme].embedded-panel .branch-ledger-metrics > div {
   min-width: 0;
-  min-height: 82px;
-  padding: 15px 12px;
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--ui-line);
   border-right: 1px solid var(--ui-line);
 }
-html[data-theme].embedded-panel .branch-ledger-metrics > div:last-child {
+html[data-theme].embedded-panel .branch-ledger-metrics > div:nth-child(2n) {
   border-right: 0;
+}
+html[data-theme].embedded-panel .branch-ledger-metrics > div:nth-last-child(-n+2) {
+  border-bottom: 0;
+}
+html[data-theme].embedded-panel .branch-ledger-metrics span {
+  display: block;
+  color: var(--ui-muted);
+  font-size: 9px;
+  font-weight: 750;
+  letter-spacing: .06em;
+  text-transform: uppercase;
 }
 html[data-theme].embedded-panel .branch-ledger-metrics strong {
   display: block;
-  margin: 7px 0 4px;
+  margin: 6px 0 3px;
   color: var(--ui-text);
-  font-size: clamp(12px, 1.08vw, 16px);
-  line-height: 1.12;
-  overflow-wrap: anywhere;
-  white-space: normal;
+  font-size: clamp(14px, 1.2vw, 18px);
+  font-weight: 850;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.15;
+  white-space: nowrap;
 }
-html[data-theme].embedded-panel .branch-ledger-status span,
-html[data-theme].embedded-panel .branch-ledger-status small {
+html[data-theme].embedded-panel .branch-ledger-metrics small {
   display: block;
-  line-height: 1.45;
-}
-html[data-theme].embedded-panel .branch-ledger-status small {
-  margin-top: 5px;
-}
-html[data-theme].embedded-panel .branch-ledger-row > footer {
-  grid-column: 1 / -1;
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  padding-top: 0;
+  color: var(--ui-muted);
+  font-size: 9px;
+  line-height: 1.35;
 }
 html[data-theme].embedded-panel .branch-ledger-waves {
+  grid-area: waves;
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  align-self: stretch;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   min-width: 0;
-  border-right: 1px solid var(--ui-line);
 }
 html[data-theme].embedded-panel .wave-metric {
   position: relative;
-  display: grid;
-  grid-template-rows: auto minmax(54px, 1fr);
-  gap: 6px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
   min-width: 0;
-  min-height: 104px;
-  padding: 12px 12px 10px;
+  min-height: 124px;
+  padding: 16px 18px 12px;
   overflow: hidden;
   border-right: 1px solid var(--ui-line);
 }
@@ -1277,29 +1345,59 @@ html[data-theme].embedded-panel .wave-metric:last-child {
 html[data-theme].embedded-panel .wave-metric-copy {
   position: relative;
   z-index: 2;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: start;
-  gap: 5px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 html[data-theme].embedded-panel .wave-metric-copy span {
+  display: block;
   color: var(--ui-muted);
-  font-size: 8px;
+  font-size: 9px;
+  font-weight: 750;
   letter-spacing: .06em;
   text-transform: uppercase;
-  overflow-wrap: anywhere;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 html[data-theme].embedded-panel .wave-metric-copy strong {
+  display: block;
   color: var(--ui-text);
-  font-size: clamp(14px, 1.2vw, 20px);
-  line-height: 1.08;
-  overflow-wrap: anywhere;
+  font-size: clamp(16px, 1.35vw, 22px);
+  font-weight: 850;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.15;
+  white-space: nowrap;
 }
 html[data-theme].embedded-panel .wave-metric-copy small {
-  grid-column: 1 / -1;
+  display: block;
   color: var(--ui-muted);
-  font-size: 8px;
-  overflow-wrap: anywhere;
+  font-size: 9px;
+  line-height: 1.35;
+}
+html[data-theme].embedded-panel .branch-ledger-status {
+  grid-area: status;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 12px 20px;
+  background: color-mix(in srgb, var(--ui-surface-strong) 40%, transparent);
+  border-top: 1px solid var(--ui-line);
+}
+html[data-theme].embedded-panel .branch-ledger-status span {
+  display: block;
+  color: var(--ui-text);
+  font-size: 11px;
+}
+html[data-theme].embedded-panel .branch-ledger-status span b {
+  font-weight: 800;
+}
+html[data-theme].embedded-panel .branch-ledger-status small {
+  display: block;
+  color: var(--ui-muted);
+  font-size: 10px;
 }
 
 html[data-theme].embedded-panel .vista:not(.oculto) > * {
@@ -1685,29 +1783,69 @@ html[data-theme].embedded-panel .assistant-send {
   html[data-theme].embedded-panel .metric-item:nth-child(3n) {
     border-right: 0;
   }
+  html[data-theme].embedded-panel .branch-overview-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  html[data-theme].embedded-panel .branch-overview-metric:nth-child(2n) {
+    border-right: 0;
+  }
+  html[data-theme].embedded-panel .branch-overview-metric:nth-child(-n+2) {
+    border-bottom: 1px solid var(--ui-line);
+  }
   html[data-theme].embedded-panel .branch-ledger-row {
-    grid-template-columns: minmax(190px, .8fr) minmax(420px, 2fr);
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "identity"
+      "metrics"
+      "waves"
+      "status"
+      "actions";
+  }
+  html[data-theme].embedded-panel .branch-identity {
+    border-right: 0;
+  }
+  html[data-theme].embedded-panel .branch-ledger-metrics {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    border-right: 0;
+    border-bottom: 1px solid var(--ui-line);
+  }
+  html[data-theme].embedded-panel .branch-ledger-metrics > div {
+    border-bottom: 0;
+    border-right: 1px solid var(--ui-line);
+  }
+  html[data-theme].embedded-panel .branch-ledger-metrics > div:last-child {
+    border-right: 0;
   }
   html[data-theme].embedded-panel .branch-ledger-waves {
-    grid-column: 1 / 2;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    border-bottom: 1px solid var(--ui-line);
+  }
+  html[data-theme].embedded-panel .branch-ledger-row > footer {
+    justify-content: stretch;
+    border-bottom: 0;
     border-top: 1px solid var(--ui-line);
   }
-  html[data-theme].embedded-panel .branch-ledger-status {
-    grid-column: 2 / -1;
-    border-top: 1px solid var(--ui-line);
+  html[data-theme].embedded-panel .branch-ledger-row > footer button {
+    flex: 1 1 0;
   }
 }
 
 @media (max-width: 760px) {
-  html[data-theme].embedded-panel .metric-strip,
+  html[data-theme].embedded-panel .metric-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  html[data-theme].embedded-panel .metric-item:nth-child(odd) {
+    border-right: 1px solid var(--ui-line);
+  }
+  html[data-theme].embedded-panel .metric-item:nth-child(even) {
+    border-right: 0;
+  }
   html[data-theme].embedded-panel .branch-overview-strip {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-  html[data-theme].embedded-panel .metric-item:nth-child(odd),
   html[data-theme].embedded-panel .branch-overview-metric:nth-child(odd) {
     border-right: 1px solid var(--ui-line);
   }
-  html[data-theme].embedded-panel .metric-item:nth-child(even),
   html[data-theme].embedded-panel .branch-overview-metric:nth-child(even) {
     border-right: 0;
   }
@@ -1755,25 +1893,35 @@ html[data-theme].embedded-panel .assistant-send {
   html[data-theme].embedded-panel .dashboard-ledger-section {
     border-right: 0;
   }
-  html[data-theme].embedded-panel .branch-ledger-row {
-    grid-template-columns: 1fr;
-  }
   html[data-theme].embedded-panel .branch-ledger-metrics {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    border: 0;
-    border-block: 1px solid var(--ui-line);
   }
   html[data-theme].embedded-panel .branch-ledger-metrics > div:nth-child(2n) {
     border-right: 0;
   }
-  html[data-theme].embedded-panel .branch-ledger-status {
-    grid-column: auto;
-    border-top: 0;
+  html[data-theme].embedded-panel .branch-ledger-metrics > div:nth-child(-n+2) {
+    border-bottom: 1px solid var(--ui-line);
   }
   html[data-theme].embedded-panel .branch-ledger-waves {
-    grid-column: auto;
-    border-top: 0;
+    grid-template-columns: 1fr;
+  }
+  html[data-theme].embedded-panel .branch-ledger-waves .wave-metric {
+    border-right: 0;
     border-bottom: 1px solid var(--ui-line);
+  }
+  html[data-theme].embedded-panel .branch-ledger-waves .wave-metric:last-child {
+    border-bottom: 0;
+  }
+  html[data-theme].embedded-panel .branch-ledger-status {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+  html[data-theme].embedded-panel .branch-ledger-row > footer {
+    flex-direction: column;
+  }
+  html[data-theme].embedded-panel .branch-ledger-row > footer button {
+    width: 100%;
   }
 }
 
