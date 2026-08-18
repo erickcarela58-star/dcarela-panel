@@ -60,11 +60,11 @@
       "iconURL": "https://panel.dcarelacompufoto.com/assets/finanzas-icon.png",
       "tintColor": "#1D4ED8",
       "version": "6.1.2",
-      "versionDate": "2026-08-18T18:38:00Z",
+      "versionDate": "2026-08-18T18:43:00Z",
       "versionDescription": "v6.1.1: Resolución completa edge-to-edge sin bordes artificiales, dock inferior flotante optimizado para safe area, binario nativo ARM64 compatible con AltStore.",
       "downloadURL": "https://raw.githubusercontent.com/erickcarela58-star/dcarela-panel/main/ios-releases/DCarelaFinanzas-5.0.2-QA.ipa",
-      "size": 1934677,
-      "sha256": "67b8c4cc1c0dea1b7c3e87e38d4ea8f047acd5e133489fc47655342b248d5462",
+      "size": 1934704,
+      "sha256": "b985bdf48c848ced0d0aee778732ab06aa311582b7e6eb195a3d06b833b2a38d",
       "minOSVersion": "16.4",
       "versions": [
         {
@@ -72,8 +72,8 @@
           "buildVersion": "621",
           "date": "2026-08-17",
           "downloadURL": "https://raw.githubusercontent.com/erickcarela58-star/dcarela-panel/main/ios-releases/DCarelaFinanzas-5.0.2-QA.ipa",
-          "size": 1934677,
-          "sha256": "67b8c4cc1c0dea1b7c3e87e38d4ea8f047acd5e133489fc47655342b248d5462",
+          "size": 1934704,
+          "sha256": "b985bdf48c848ced0d0aee778732ab06aa311582b7e6eb195a3d06b833b2a38d",
           "localizedDescription": "Build 621: AudioNormalizationService WAV PCM 16kHz, SessionStore Keychain seguro y asistente autónomo actualizado.",
           "minOSVersion": "16.4"
         }
