@@ -15,6 +15,7 @@
   })();
   const BUSINESS = _urlBiz || window.__DCARELA_DEFAULT?.business || cfg?.business || "dcarela";
   const EMBEDDED = new URLSearchParams(location.search).get("embedded") === "1" || window.self !== window.top;
+  document.documentElement.classList.add("embedded-panel");
   if (EMBEDDED) {
     document.documentElement.classList.add("is-embedded");
     document.body?.classList.add("is-embedded");
