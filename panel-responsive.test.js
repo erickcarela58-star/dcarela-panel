@@ -3,15 +3,17 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 
-const root = __dirname;
-const indexHtml = fs.readFileSync(path.join(root, "index.html"), "utf8");
-const panelHtml = fs.readFileSync(path.join(root, "panel.html"), "utf8");
-const panelCss = fs.readFileSync(path.join(root, "panel.css"), "utf8");
+const source = fs.readFileSync(
+  path.join(__dirname, "e2e-responsive.html"),
+  "utf8",
+);
 
-test("el panel incluye viewport responsive y reglas moviles adaptables", () => {
-  assert.match(indexHtml, /name="viewport" content="width=device-width, initial-scale=1"/);
-  assert.match(panelHtml, /name="viewport" content="width=device-width, initial-scale=1"/);
-  assert.match(panelCss, /@media\s*\(max-width:\s*900px\)/);
-  assert.match(panelCss, /@media\s*\(max-width:\s*640px\)/);
-  assert.doesNotMatch(indexHtml, /iframe/i);
+test("el arnes responsive usa viewport movil real y conserva el mismo origen", () => {
+  assert.match(source, /width:\s*430px/);
+  assert.match(source, /height:\s*844px/);
+  assert.match(source, /src="\.\/\?e2e=responsive-430x844#resumen"/);
+  assert.match(source, /URLSearchParams\(location\.search\).*get\("route"\)/);
+  assert.match(source, /#\$\{route\}/);
+  assert.doesNotMatch(source, /(?:password|api[_-]?key|service[_-]?role)/i);
+  assert.match(source, /noindex,nofollow/);
 });

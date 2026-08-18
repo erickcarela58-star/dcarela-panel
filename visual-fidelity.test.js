@@ -2,25 +2,30 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const test = require("node:test");
 
-const themeCss = fs.readFileSync("panel-theme.css", "utf8");
-const panelJs = fs.readFileSync("panel.js", "utf8");
-const panelHtml = fs.readFileSync("panel.html", "utf8");
-const indexHtml = fs.readFileSync("index.html", "utf8");
+const css = fs.readFileSync("visual-fidelity.css", "utf8");
+const enhancer = fs.readFileSync("visual-fidelity.js", "utf8");
+const panel = fs.readFileSync("panel.js", "utf8");
+const shell = fs.readFileSync("index.html", "utf8");
+const mobile = fs.readFileSync("mobile/index.html", "utf8");
 
-test("las metricas y graficos cargan la capa visual unificada", () => {
-  assert.match(indexHtml, /panel-theme\.css\?v=2026\.08\.17\.1\.0\.44\.1/);
-  assert.match(panelHtml, /panel-theme\.css\?v=2026\.08\.17\.1\.0\.44\.1/);
+test("las metricas CURRENT cargan la capa visual en escritorio y movil", () => {
+  assert.match(shell, /mobile/);
+  assert.match(fs.readFileSync("panel.html", "utf8"), /visual-fidelity\.css\?v=20260814-standalone-sync-v1/);
+  assert.match(mobile, /\.\.\/visual-fidelity\.css\?v=1\.0\.34/);
+  assert.match(mobile, /\.\.\/visual-fidelity\.js\?v=1\.0\.34/);
 });
 
-test("las ondas tienen degradado, linea interior clara y animacion accesible en el tema", () => {
-  assert.match(themeCss, /--metric-inner-stroke: rgba\(255, 255, 255, \.96\)/);
-  assert.match(themeCss, /@keyframes current-metric-draw/);
-  assert.match(themeCss, /prefers-reduced-motion: reduce/);
+test("las ondas tienen degradado, linea interior clara y animacion accesible", () => {
+  assert.match(enhancer, /current-metric-inner/);
+  assert.match(enhancer, /stop-opacity", "\.62"/);
+  assert.match(css, /--metric-inner-stroke: rgba\(255, 255, 255, \.96\)/);
+  assert.match(css, /@keyframes current-metric-draw/);
+  assert.match(css, /prefers-reduced-motion: reduce/);
 });
 
 test("reportes y finanzas usan areas SVG degradadas reales", () => {
-  assert.match(panelJs, /linearGradient id="\$\{gradientId\}"/);
-  assert.match(panelJs, /linearGradient id="reportNetArea"/);
-  assert.match(panelJs, /--wave-fill:url\(#\$\{gradientId\}\)/);
-  assert.match(panelJs, /--report-wave-fill:url\(#reportNetArea\)/);
+  assert.match(panel, /linearGradient id="\$\{gradientId\}"/);
+  assert.match(panel, /linearGradient id="reportNetArea"/);
+  assert.match(panel, /--wave-fill:url\(#\$\{gradientId\}\)/);
+  assert.match(panel, /--report-wave-fill:url\(#reportNetArea\)/);
 });
