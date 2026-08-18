@@ -26,6 +26,7 @@ test("la vista CURRENT muestra las descargas sin abrir el panel anterior", () =>
   assert.match(currentDownloadsJs, /Abrir centro web completo/);
   assert.match(currentDownloadsJs, /current-legacy-download-link/);
   assert.match(currentDownloadsJs, /Descargas disponibles/);
+  assert.match(currentDownloadsJs, /new URL\("\.\/app-version\.json", document\.currentScript\?\.src \|\| location\.href\)/);
 });
 
 test("el manifiesto publica el instalador y las dos IPA con integridad verificable", () => {
