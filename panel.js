@@ -20,7 +20,23 @@
     document.body?.classList.add("is-embedded");
   }
   const THEME_KEY = "dcarela.ui.theme";
-  const APP_BUILD = "1.0.45";
+  const THEME_KEY = "dcarela.ui.theme";
+  const APP_BUILD = "1.0.46";
+
+  window.cargarFinanzas = async function(force = false) {
+    try {
+      if (typeof cargarProveedores === "function") await cargarProveedores(force);
+      if (typeof cargarCuentasFin === "function") {
+        const m = document.getElementById("provMes")?.value || new Date().toISOString().slice(0, 7);
+        await cargarCuentasFin(m);
+      }
+    } catch (err) {
+      console.warn("cargarFinanzas:", err);
+    }
+  };
+  async function cargarFinanzas(force = false) {
+    return window.cargarFinanzas(force);
+  }
   let currentTheme = document.documentElement.dataset.theme === "dark" ? "dark" : "light";
   let installPrompt = null;
   let updateReloading = false;
