@@ -380,7 +380,6 @@
 
   async function cargarSucursalesDisponibles() {
     if (!session?.user?.id) return;
-    await dcWaitForAuthenticatedSession(sb);
     const { data: memberships, error: membershipError } = await sb.from("pos_business_members")
       .select("business_id,role,active")
       .eq("user_id", session.user.id)
@@ -592,7 +591,6 @@
   }
 
   async function cargarRolEdicion() {
-    await dcWaitForAuthenticatedSession(sb);
     const { data, error } = await sb.from("pos_business_members")
       .select("role,active")
       .eq("business_id", BUSINESS)
@@ -6626,16 +6624,19 @@
       mostrarAcceso("v-restoring");
       session = nextSession;
       try {
-        const started = await iniciar(generation);
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("Tiempo de espera agotado al conectar.")), 6000)
+        );
+        const started = await Promise.race([iniciar(generation), timeoutPromise]);
         if (!started) return;
         if (generation !== authGeneration) return;
       } catch (error) {
+        console.warn("iniciarConSesion error:", error);
         if (generation !== authGeneration) return;
         sesionOk = false;
         activeUserId = "";
         mostrarAcceso("v-login");
         $("loginErr").textContent = mensajeAutenticacion(error);
-        throw error;
       }
     })();
     try {
@@ -6648,16 +6649,34 @@
   async function restaurarSesion() {
     const generation = ++authGeneration;
     mostrarAcceso("v-restoring");
-    const nextSession = await dcWaitForAuthenticatedSession(sb, 10000, true);
-    if (generation !== authGeneration) return;
-    if (!nextSession) {
-      session = null;
-      sesionOk = false;
-      activeUserId = "";
-      mostrarAcceso("v-login");
-      return;
+    const safetyTimer = setTimeout(() => {
+      if (generation === authGeneration && !sesionOk) {
+        mostrarAcceso("v-login");
+      }
+    }, 4000);
+
+    try {
+      const nextSession = await dcWaitForAuthenticatedSession(sb, 3000, true);
+      if (generation !== authGeneration) return;
+      if (!nextSession) {
+        session = null;
+        sesionOk = false;
+        activeUserId = "";
+        mostrarAcceso("v-login");
+        return;
+      }
+      await iniciarConSesion(nextSession, generation);
+    } catch (err) {
+      if (generation === authGeneration) {
+        session = null;
+        sesionOk = false;
+        activeUserId = "";
+        mostrarAcceso("v-login");
+        $("loginErr").textContent = mensajeAutenticacion(err);
+      }
+    } finally {
+      clearTimeout(safetyTimer);
     }
-    await iniciarConSesion(nextSession, generation);
   }
 
   function manejarCambioAuth(event, nextSession) {
