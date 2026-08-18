@@ -12,11 +12,11 @@
       "iconURL": "https://panel.dcarelacompufoto.com/assets/brujula-icon.png",
       "tintColor": "#007AFF",
       "version": "5.0.2",
-      "versionDate": "2026-08-18T16:12:00Z",
+      "versionDate": "2026-08-18T18:10:00Z",
       "versionDescription": "v5.0.2 (Build 479): Binario nativo universal ARM64 para dispositivo físico iOS (AltStore compatible), separación total de modelos IA (POS exclusivo en tareas, Cerebro de Lecturas independiente en Lecturas), navegador en vivo interactivo para libros y gráficas de onda luminosa continuas.",
       "downloadURL": "https://raw.githubusercontent.com/erickcarela58-star/dcarela-panel/main/ios-releases/Brujula-5.0.2-479-QA.ipa",
-      "size": 19922971,
-      "sha256": "f141caa96e7356684cc6132873021cc5b4abb6922c8701dc22334ecf0ea632fd",
+      "size": 19153627,
+      "sha256": "7a776d8b3ba7227b7e961b962f0439bcb667a0a66eb9491d7c1e5b5f63c29182",
       "minOSVersion": "17.0",
       "versions": [
         {
@@ -24,8 +24,8 @@
           "buildVersion": "479",
           "date": "2026-08-18",
           "downloadURL": "https://raw.githubusercontent.com/erickcarela58-star/dcarela-panel/main/ios-releases/Brujula-5.0.2-479-QA.ipa",
-          "size": 19922971,
-          "sha256": "f141caa96e7356684cc6132873021cc5b4abb6922c8701dc22334ecf0ea632fd",
+          "size": 19153627,
+          "sha256": "7a776d8b3ba7227b7e961b962f0439bcb667a0a66eb9491d7c1e5b5f63c29182",
           "localizedDescription": "v5.0.2 (Build 479): Navegador en vivo interactivo para enlaces de libros, gráficas de onda luminosa continuas estilo Imagen 5, unificación de superficies oscuras y soporte para widgets iOS.",
           "minOSVersion": "17.0"
         },
@@ -60,11 +60,11 @@
       "iconURL": "https://panel.dcarelacompufoto.com/assets/finanzas-icon.png",
       "tintColor": "#1D4ED8",
       "version": "6.1.1",
-      "versionDate": "2026-08-18T16:12:00Z",
+      "versionDate": "2026-08-18T18:10:00Z",
       "versionDescription": "v6.1.1: Resolución completa edge-to-edge sin bordes artificiales, dock inferior flotante optimizado para safe area, binario nativo ARM64 compatible con AltStore.",
       "downloadURL": "https://raw.githubusercontent.com/erickcarela58-star/dcarela-panel/main/ios-releases/DCarelaFinanzas-5.0.2-QA.ipa",
-      "size": 1938588,
-      "sha256": "b4f4979c99d3d9aa152c73ce9fd15297bd6d7c97be6576442b664719d9ebdc01",
+      "size": 1934164,
+      "sha256": "c02c160fe3a5f209f3ae1fd7fab40cac760ad3ddc9859b1ecf4646900d62d79f",
       "minOSVersion": "16.4",
       "versions": [
         {
@@ -72,8 +72,8 @@
           "buildVersion": "621",
           "date": "2026-08-17",
           "downloadURL": "https://raw.githubusercontent.com/erickcarela58-star/dcarela-panel/main/ios-releases/DCarelaFinanzas-5.0.2-QA.ipa",
-          "size": 1938588,
-          "sha256": "b4f4979c99d3d9aa152c73ce9fd15297bd6d7c97be6576442b664719d9ebdc01",
+          "size": 1934164,
+          "sha256": "c02c160fe3a5f209f3ae1fd7fab40cac760ad3ddc9859b1ecf4646900d62d79f",
           "localizedDescription": "Build 621: AudioNormalizationService WAV PCM 16kHz, SessionStore Keychain seguro y asistente autónomo actualizado.",
           "minOSVersion": "16.4"
         }
