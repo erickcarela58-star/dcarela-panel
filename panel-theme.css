@@ -4247,5 +4247,29 @@ svg[data-current-metric="true"] .current-metric-inner,
     margin: 0 auto !important;
     z-index: 9999 !important;
   }
+
+  .access-shell {
+    padding: 16px !important;
+    width: 100% !important;
+    min-height: 100dvh !important;
+    box-sizing: border-box !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+
+  .auth-panel {
+    width: 100% !important;
+    max-width: min(440px, calc(100vw - 32px)) !important;
+    margin: 0 auto !important;
+    border-radius: 24px !important;
+    padding: 28px 20px !important;
+    box-sizing: border-box !important;
+    background: rgba(24, 24, 27, 0.96) !important;
+    color: #fafafa !important;
+    border: 1px solid rgba(255, 255, 255, 0.12) !important;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5) !important;
+  }
 }
+
 
