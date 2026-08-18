@@ -12,11 +12,11 @@
       "iconURL": "https://panel.dcarelacompufoto.com/assets/brujula-icon.png",
       "tintColor": "#007AFF",
       "version": "5.0.2",
-      "versionDate": "2026-08-18T14:54:00Z",
-      "versionDescription": "v5.0.2 (Build 479): Navegador en vivo interactivo para enlaces de libros, gráficas de onda luminosa continuas estilo Imagen 5, unificación de superficies oscuras y soporte para widgets iOS.",
+      "versionDate": "2026-08-18T15:00:00Z",
+      "versionDescription": "v5.0.2 (Build 479): Separación estricta de modelos IA (POS exclusivo en tareas, Cerebro de Lecturas y Biblioteca independiente en Lecturas), navegador en vivo interactivo para enlaces de libros, gráficas de onda luminosa continuas y unificación visual.",
       "downloadURL": "https://raw.githubusercontent.com/erickcarela58-star/dcarela-panel/main/ios-releases/Brujula-5.0.2-479-QA.ipa",
-      "size": 20000066,
-      "sha256": "7c5426b9a6e95f9af1b967f084899c6fe712275d0658044b32ff1da2337be2c3",
+      "size": 20000801,
+      "sha256": "f35ab2f802fd0decdd3c0519e7b3a8300cbf6399a4e886cc1ed55a8b774f460b",
       "minOSVersion": "17.0",
       "versions": [
         {
@@ -24,8 +24,8 @@
           "buildVersion": "479",
           "date": "2026-08-18",
           "downloadURL": "https://raw.githubusercontent.com/erickcarela58-star/dcarela-panel/main/ios-releases/Brujula-5.0.2-479-QA.ipa",
-          "size": 20000066,
-          "sha256": "7c5426b9a6e95f9af1b967f084899c6fe712275d0658044b32ff1da2337be2c3",
+          "size": 20000801,
+          "sha256": "f35ab2f802fd0decdd3c0519e7b3a8300cbf6399a4e886cc1ed55a8b774f460b",
           "localizedDescription": "v5.0.2 (Build 479): Navegador en vivo interactivo para enlaces de libros, gráficas de onda luminosa continuas estilo Imagen 5, unificación de superficies oscuras y soporte para widgets iOS.",
           "minOSVersion": "17.0"
         },
