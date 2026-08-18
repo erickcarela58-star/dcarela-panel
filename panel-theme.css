@@ -4213,3 +4213,39 @@ svg[data-current-metric="true"] .current-metric-inner,
   }
 }
 
+/* Edge-to-Edge Mobile Fullscreen Optimization */
+@media (max-width: 768px) {
+  html, body, #root, [data-panel-shell="true"] {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-height: 100dvh !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-sizing: border-box !important;
+    overflow-x: hidden !important;
+  }
+
+  body {
+    padding-top: env(safe-area-inset-top, 0px) !important;
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 90px) !important;
+  }
+
+  .panel-container, .dashboard-container, main, .main-content {
+    width: 100% !important;
+    max-width: 100% !important;
+    padding-left: 12px !important;
+    padding-right: 12px !important;
+    box-sizing: border-box !important;
+  }
+
+  nav[aria-label="Accesos principales"], .mobile-dock {
+    position: fixed !important;
+    bottom: max(10px, env(safe-area-inset-bottom, 10px)) !important;
+    left: 12px !important;
+    right: 12px !important;
+    max-width: min(480px, calc(100vw - 24px)) !important;
+    margin: 0 auto !important;
+    z-index: 9999 !important;
+  }
+}
+
