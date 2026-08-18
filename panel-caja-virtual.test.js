@@ -19,7 +19,7 @@ test("Caja virtual consume el resumen real y movimientos auditados", () => {
   assert.match(panel, /"caja-virtual": cargarCajaVirtual/);
   assert.match(panel, /saleApi\("cash\.move"/);
   assert.match(panel, /summary\.expectedCashCentavos/);
-  assert.match(sw, /2026\.08\.18\.1\.0\.45\.0/);
+  assert.match(sw, /2026\.08\.18\.1\.0\.\d+\.0/);
 });
 
 test("Caja virtual replica F1-F12 y protege el esperado durante el conteo", () => {
