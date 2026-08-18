@@ -4228,6 +4228,8 @@ svg[data-current-metric="true"] .current-metric-inner,
   body {
     padding-top: env(safe-area-inset-top, 0px) !important;
     padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 90px) !important;
+    background-image: none !important;
+    background-color: #09090b !important;
   }
 
   .panel-container, .dashboard-container, main, .main-content {
