@@ -20,7 +20,6 @@
     document.body?.classList.add("is-embedded");
   }
   const THEME_KEY = "dcarela.ui.theme";
-  const THEME_KEY = "dcarela.ui.theme";
   const APP_BUILD = "1.0.46";
 
   window.cargarFinanzas = async function(force = false) {
