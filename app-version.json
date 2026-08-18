@@ -1,22 +1,22 @@
 {
   "schema": 1,
-  "build": "469",
-  "web_version": "1.0.44.0",
-  "pwa_version": "1.0.44.0",
+  "build": "2026.08.17.1.0.45.1",
+  "web_version": "1.0.45",
+  "pwa_version": "1.0.45",
   "desktop_version": "1.0.44",
   "ios_version": "5.0.0",
   "ios_build": "477",
-  "ios_release_url": "https://raw.githubusercontent.com/erickcarela58-star/dcarela-panel/main/ios-releases/Brujula-5.0.0-477-QA.ipa",
-  "published_at": "2026-08-17T07:05:00Z",
+  "ios_release_url": "https://panel.dcarelacompufoto.com/ios-releases/Brujula-5.0.0-477-QA.ipa",
+  "published_at": "2026-08-18T00:40:00Z",
   "channel": "stable",
-  "notes": "Br\u00fajula 5.0.0 (Build 477) con 10 atajos can\u00f3nicos y Finanzas 6.1.1 (Build 621).",
+  "notes": "Panel web y PWA 1.0.45 restaurados con shell m\u00f3vil, fidelidad visual y centro de descargas. Br\u00fajula 5.0.0 (Build 477) y Finanzas 6.1.1 (Build 621) se conservan sin regresiones.",
   "release_page_url": "https://panel.dcarelacompufoto.com/#descargar",
   "desktop_release": {
     "version": "1.0.44",
     "channel": "stable",
     "mandatory": false,
     "created_at": "2026-08-13T02:47:33Z",
-    "release_url": "https://github.com/erickcarela58-star/dcarela-panel/releases/download/pos-v1.0.44/DCARELA_POS_Setup_1.0.44.exe",
+    "release_url": "https://panel.dcarelacompufoto.com/downloads/pos-1.0.44/",
     "sha256": "efa0d026b86b65fa4e9d914991b3bf866ed06388c810d8b2b495b0a26133d17e",
     "notes": "Instalador 1.0.44 con aislamiento estricto entre la central y Plaza Artesanal."
   },
@@ -38,7 +38,7 @@
       "url": "https://panel.dcarelacompufoto.com/ios-releases/Brujula-5.0.0-477-QA.ipa",
       "checksums_url": "https://panel.dcarelacompufoto.com/ios-releases/manifest.json",
       "action": "Descargar IPA Br\u00fajula",
-      "notes": "Build 469 con grabaci\u00f3n nativa Linear PCM 16kHz WAV, sanitizaci\u00f3n MIME y 13 Atajos can\u00f3nicos.",
+      "notes": "Build 477 con grabaci\u00f3n nativa Linear PCM 16kHz WAV, sanitizaci\u00f3n MIME y 10 Atajos firmados can\u00f3nicos.",
       "installation_method": "Instalar mediante AltStore desde el iPhone o sincronizar con AltServer.",
       "size": 18696174
     },
@@ -59,7 +59,7 @@
       "url": "https://panel.dcarelacompufoto.com/ios-releases/Finanzas/6.1.1/621/DCarelaFinanzas-6.1.1-621.ipa",
       "checksums_url": "https://panel.dcarelacompufoto.com/ios-releases/manifest.json",
       "action": "Descargar IPA Finanzas",
-      "notes": "Build 619 con AudioNormalizationService y ConversationCoordinator integrado.",
+      "notes": "Build 621 con AudioNormalizationService y ConversationCoordinator integrado.",
       "installation_method": "Instalar mediante AltStore desde el iPhone o sincronizar con AltServer."
     },
     {
@@ -76,9 +76,9 @@
       "published_at": "2026-08-13T02:47:33Z",
       "size_bytes": 105222459,
       "sha256": "efa0d026b86b65fa4e9d914991b3bf866ed06388c810d8b2b495b0a26133d17e",
-      "url": "https://github.com/erickcarela58-star/dcarela-panel/releases/download/pos-v1.0.44/DCARELA_POS_Setup_1.0.44.exe",
-      "checksums_url": "https://github.com/erickcarela58-star/dcarela-panel/releases/download/pos-v1.0.44/SHA256SUMS.txt",
-      "action": "Descargar instalador completo .EXE",
+      "url": "https://panel.dcarelacompufoto.com/downloads/pos-1.0.44/",
+      "checksums_url": "https://panel.dcarelacompufoto.com/downloads/pos-1.0.44/SHA256SUMS.txt",
+      "action": "Abrir descarga oficial .EXE",
       "notes": "Instalador completo 1.0.44 con terminal vinculada exclusivamente a su sucursal.",
       "installation_method": "Descargar, verificar la huella SHA-256 y ejecutar."
     }
@@ -98,7 +98,7 @@
       "status": "published",
       "url": "https://panel.dcarelacompufoto.com/ios-releases/Brujula-5.0.0-477-QA.ipa",
       "action": "Descargar IPA Br\u00fajula",
-      "notes": "Build 469 con grabaci\u00f3n nativa Linear PCM 16kHz WAV y 13 Atajos can\u00f3nicos."
+      "notes": "Build 477 con grabaci\u00f3n nativa Linear PCM 16kHz WAV y 10 Atajos firmados can\u00f3nicos."
     },
     {
       "id": "com.dcarela.brujula.7FL6SHN9DV",
@@ -130,7 +130,7 @@
       "status": "published",
       "url": "https://panel.dcarelacompufoto.com/ios-releases/Finanzas/6.1.1/621/DCarelaFinanzas-6.1.1-621.ipa",
       "action": "Descargar IPA Finanzas",
-      "notes": "Build 619 con control administrativo nativo y ConversationCoordinator."
+      "notes": "Build 621 con control administrativo nativo y ConversationCoordinator."
     },
     {
       "id": "com.dcarela.panel.7FL6SHN9DV",
@@ -147,6 +147,26 @@
       "url": "https://panel.dcarelacompufoto.com/ios-releases/Finanzas/6.1.1/619/DCarelaFinanzas-6.1.1-619.ipa",
       "action": "Descargar IPA Finanzas",
       "notes": "Build 619 con control administrativo nativo y ConversationCoordinator."
+    },
+    {
+      "id": "crm",
+      "name": "CRM multicaja",
+      "version": "2026-08-17-per-chat-photo-bot-v18",
+      "platform": "Web y m\u00f3vil",
+      "status": "published",
+      "url": "https://dcarelacompufoto.com/crm/",
+      "action": "Abrir CRM",
+      "notes": "CRM oficial con combos, portafolio, bodas y archivos PDF enlazados al dominio dcarelacompufoto.com."
+    },
+    {
+      "id": "crm-fotos",
+      "name": "CRM Fotos / WhatsApp",
+      "version": "2026-08-17-per-chat-photo-bot-v18",
+      "platform": "Web y m\u00f3vil",
+      "status": "published",
+      "url": "https://dcarelacompufoto.com/crm-fotos/",
+      "action": "Abrir CRM Fotos",
+      "notes": "CRM fotogr\u00e1fico oficial con los enlaces comerciales consolidados bajo dcarelacompufoto.com."
     }
   ]
 }
