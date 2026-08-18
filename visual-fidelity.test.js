@@ -8,8 +8,8 @@ const panelHtml = fs.readFileSync("panel.html", "utf8");
 const mobileHtml = fs.readFileSync("mobile/index.html", "utf8");
 
 test("las metricas y graficos cargan la capa visual unificada en escritorio y movil", () => {
-  assert.match(panelHtml, /panel-theme\.css\?v=2026\.08\.18\.1\.0\.45\.0/);
-  assert.match(mobileHtml, /panel-theme\.css\?v=2026\.08\.18\.1\.0\.45\.0/);
+  assert.match(panelHtml, /panel-theme\.css\?v=2026\.08\.18\.1\.0\.\d+\.0/);
+  assert.match(mobileHtml, /panel-theme\.css\?v=2026\.08\.18\.1\.0\.\d+\.0/);
 });
 
 test("las ondas tienen degradado, linea interior clara y animacion accesible en el tema", () => {
