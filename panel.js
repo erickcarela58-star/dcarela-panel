@@ -308,6 +308,9 @@
     if (message.includes("jwt") || message.includes("token") || message.includes("session")) return "Tu sesion expiro. Inicia sesion nuevamente.";
     if (message.includes("permission") || message.includes("policy") || message.includes("row-level") || message.includes("rls")) return "Tu cuenta esta autenticada, pero no tiene permiso para consultar esta sucursal.";
     if (message.includes("membres") || message.includes("acceso activo")) return "Tu cuenta no tiene una membresia activa para esta sucursal.";
+    if (message.includes("quota") || message.includes("restricted") || message.includes("spend caps") || message.includes("egress") || message.includes("storage_size")) {
+      return "El proyecto Supabase esta restringido por limite de cuota (egress/almacenamiento). Revisa el panel de Supabase.";
+    }
     if (message.includes("fetch") || message.includes("network")) return "No se pudo contactar la nube. Revisa la conexion e intenta de nuevo.";
     return fallback;
   }
