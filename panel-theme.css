@@ -405,13 +405,208 @@ tbody tr:hover { background: color-mix(in srgb, var(--ui-accent) 7%, transparent
 .finance-donut, .report-donut { animation: chart-pop .58s cubic-bezier(.2,.9,.25,1.25) both; }
 
 .editor-overlay {
-  background: rgba(2, 12, 27, .58);
-  backdrop-filter: blur(11px) saturate(105%);
+  background: rgba(0, 0, 0, .75) !important;
+  backdrop-filter: blur(20px) saturate(120%) !important;
 }
-.editor-dialog { border-radius: 8px; }
-
+.editor-dialog {
+  width: min(760px, 94%) !important;
+  max-height: min(88vh, 820px) !important;
+  background: rgba(18, 18, 22, .98) !important;
+  border: 1px solid rgba(255, 255, 255, .14) !important;
+  color: #fafafa !important;
+  border-radius: 16px !important;
+  box-shadow: 0 25px 70px rgba(0, 0, 0, .85) !important;
+  padding: 24px !important;
+}
 .editor-overlay.editor-wide .editor-dialog {
-  width: min(1120px, 100%);
+  width: min(1100px, 96%) !important;
+}
+
+.editor-header {
+  border-bottom: 1px solid rgba(255, 255, 255, .08) !important;
+  padding-bottom: 14px !important;
+  margin-bottom: 18px !important;
+}
+.editor-header .eyebrow {
+  color: #3b82f6 !important;
+  font-size: 10.5px !important;
+  font-weight: 800 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.06em !important;
+}
+.editor-header h2 {
+  color: #fafafa !important;
+  font-size: 19px !important;
+  font-weight: 800 !important;
+  margin: 2px 0 4px !important;
+}
+.editor-header p {
+  color: #a1a1aa !important;
+  font-size: 12.5px !important;
+}
+.editor-header #btnCerrarEditor {
+  color: #a1a1aa !important;
+  background: rgba(255, 255, 255, .06) !important;
+  border: 1px solid rgba(255, 255, 255, .12) !important;
+  border-radius: 50% !important;
+  width: 32px !important;
+  height: 32px !important;
+  font-size: 18px !important;
+  display: grid !important;
+  place-items: center !important;
+  cursor: pointer;
+  transition: all .15s ease;
+}
+.editor-header #btnCerrarEditor:hover {
+  color: #fafafa !important;
+  background: rgba(255, 255, 255, .14) !important;
+  border-color: rgba(255, 255, 255, .25) !important;
+}
+
+.editor-dialog input:not([type="checkbox"]),
+.editor-dialog select,
+.editor-dialog textarea {
+  background: rgba(255, 255, 255, .06) !important;
+  border: 1px solid rgba(255, 255, 255, .14) !important;
+  color: #fafafa !important;
+  border-radius: 8px !important;
+  padding: 9px 12px !important;
+  font-size: 13px !important;
+  transition: all .15s ease;
+}
+.editor-dialog input:focus,
+.editor-dialog select:focus,
+.editor-dialog textarea:focus {
+  border-color: #3b82f6 !important;
+  background: rgba(255, 255, 255, .09) !important;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, .25) !important;
+  outline: none !important;
+}
+
+.form-grid .checkbox-field {
+  grid-column: 1 / -1;
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  gap: 12px !important;
+  cursor: pointer;
+  padding: 10px 14px;
+  background: rgba(255, 255, 255, .04);
+  border: 1px solid rgba(255, 255, 255, .08);
+  border-radius: 8px;
+  font-size: 12.5px;
+  color: #fafafa;
+  user-select: none;
+  transition: all .15s ease;
+}
+.form-grid .checkbox-field:hover {
+  background: rgba(255, 255, 255, .07);
+  border-color: rgba(255, 255, 255, .15);
+}
+.form-grid .checkbox-field > span {
+  display: inline-block !important;
+  margin-bottom: 0 !important;
+}
+.form-grid .checkbox-field input[type="checkbox"] {
+  width: 18px !important;
+  height: 18px !important;
+  min-width: 18px !important;
+  accent-color: #2563eb !important;
+  cursor: pointer;
+  margin: 0 !important;
+  border-radius: 4px;
+}
+
+.editor-dialog [data-frequency-field] {
+  background: rgba(255, 255, 255, .03) !important;
+  border: 1px solid rgba(255, 255, 255, .08) !important;
+  border-radius: 8px !important;
+}
+
+.editor-actions {
+  border-top: 1px solid rgba(255, 255, 255, .08) !important;
+  padding-top: 18px !important;
+  margin-top: 18px !important;
+  display: flex !important;
+  justify-content: flex-end !important;
+  gap: 10px !important;
+  background: transparent !important;
+}
+.editor-actions button.primary {
+  background: #2563eb !important;
+  color: #ffffff !important;
+  border: 1px solid rgba(255, 255, 255, .2) !important;
+  padding: 10px 20px !important;
+  font-weight: 700 !important;
+  border-radius: 8px !important;
+  font-size: 13px !important;
+  box-shadow: 0 4px 14px rgba(37, 99, 235, .35) !important;
+  cursor: pointer;
+  transition: all .15s ease;
+}
+.editor-actions button.primary:hover {
+  background: #1d4ed8 !important;
+  transform: translateY(-1px);
+}
+.editor-actions button.secondary {
+  background: rgba(255, 255, 255, .06) !important;
+  color: #d4d4d8 !important;
+  border: 1px solid rgba(255, 255, 255, .12) !important;
+  padding: 10px 18px !important;
+  font-weight: 600 !important;
+  border-radius: 8px !important;
+  font-size: 13px !important;
+  cursor: pointer;
+  transition: all .15s ease;
+}
+.editor-actions button.secondary:hover {
+  background: rgba(255, 255, 255, .12) !important;
+  color: #ffffff !important;
+}
+
+/* High contrast tags and table actions across Finanzas */
+.tag.ok {
+  color: #34d399 !important;
+  background: rgba(16, 185, 129, .16) !important;
+  border: 1px solid rgba(16, 185, 129, .3) !important;
+}
+.tag.bad {
+  color: #f87171 !important;
+  background: rgba(239, 68, 68, .16) !important;
+  border: 1px solid rgba(239, 68, 68, .3) !important;
+}
+.tag.warn {
+  color: #fbbf24 !important;
+  background: rgba(245, 158, 11, .16) !important;
+  border: 1px solid rgba(245, 158, 11, .3) !important;
+}
+
+.table-actions {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 6px !important;
+  align-items: center !important;
+}
+.table-actions button {
+  min-height: 28px !important;
+  padding: 4px 10px !important;
+  color: #fafafa !important;
+  background: rgba(255, 255, 255, .08) !important;
+  border: 1px solid rgba(255, 255, 255, .15) !important;
+  border-radius: 6px !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  cursor: pointer;
+  transition: all .15s ease;
+}
+.table-actions button:hover:not(:disabled) {
+  background: rgba(255, 255, 255, .16) !important;
+  border-color: rgba(255, 255, 255, .28) !important;
+  transform: translateY(-1px);
+}
+.table-actions button:disabled {
+  opacity: .4 !important;
+  cursor: not-allowed;
 }
 
 .web-sale-picker,
@@ -1635,40 +1830,36 @@ html[data-theme].embedded-panel .cost-analysis-band {
 html[data-theme].embedded-panel .fin-accounts,
 html[data-theme].embedded-panel .finance-budget-grid,
 html[data-theme].embedded-panel .finance-card-grid {
-  gap: 0 !important;
-  border-block: 1px solid var(--ui-line);
+  gap: 12px !important;
+  border-block: 0;
 }
 html[data-theme].embedded-panel .fin-account,
 html[data-theme].embedded-panel .finance-budget,
 html[data-theme].embedded-panel .finance-credit-card {
   min-height: 0 !important;
   margin: 0 !important;
-  padding: 14px !important;
-  background: transparent !important;
-  background-image: none !important;
-  border: 0 !important;
-  border-right: 1px solid var(--ui-line) !important;
-  border-bottom: 1px solid var(--ui-line) !important;
-  border-radius: 0 !important;
-  box-shadow: none !important;
+  padding: 16px !important;
+  background: rgba(255, 255, 255, .04) !important;
+  border: 1px solid rgba(255, 255, 255, .1) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, .25) !important;
   color: var(--ui-text) !important;
 }
 html[data-theme].embedded-panel .notification,
 html[data-theme].embedded-panel .turn-sale,
 html[data-theme].embedded-panel .release-card {
   margin: 0 !important;
-  background: transparent !important;
-  border: 0 !important;
-  border-bottom: 1px solid var(--ui-line) !important;
-  border-radius: 0 !important;
+  background: rgba(255, 255, 255, .03) !important;
+  border: 1px solid rgba(255, 255, 255, .08) !important;
+  border-radius: 10px !important;
   box-shadow: none !important;
 }
 html[data-theme].embedded-panel .report-grid,
 html[data-theme].embedded-panel .recon-grid,
 html[data-theme].embedded-panel .config-grid,
 html[data-theme].embedded-panel .dashboard-grid {
-  gap: 0 !important;
-  border-block: 1px solid var(--ui-line);
+  gap: 12px !important;
+  border-block: 0;
 }
 html[data-theme].embedded-panel .report-grid > .surface,
 html[data-theme].embedded-panel .recon-grid > .surface,
@@ -1676,20 +1867,18 @@ html[data-theme].embedded-panel .config-grid > .surface,
 html[data-theme].embedded-panel .dashboard-grid > .surface {
   min-height: 0 !important;
   margin: 0 !important;
-  padding: 20px !important;
-  background: transparent !important;
-  border: 0 !important;
-  border-right: 1px solid var(--ui-line) !important;
-  border-bottom: 1px solid var(--ui-line) !important;
-  border-radius: 0 !important;
-  box-shadow: none !important;
-  backdrop-filter: none !important;
+  padding: 18px !important;
+  background: rgba(255, 255, 255, .04) !important;
+  border: 1px solid rgba(255, 255, 255, .1) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, .25) !important;
+  backdrop-filter: blur(16px) !important;
 }
 html[data-theme].embedded-panel .report-grid > .surface:nth-child(2n),
 html[data-theme].embedded-panel .recon-grid > .surface:nth-child(2n),
 html[data-theme].embedded-panel .config-grid > .surface:nth-child(2n),
 html[data-theme].embedded-panel .dashboard-grid > .surface:nth-child(2n) {
-  border-right: 0 !important;
+  border-right: 1px solid rgba(255, 255, 255, .1) !important;
 }
 html[data-theme].embedded-panel .report-grid .surface-title,
 html[data-theme].embedded-panel .recon-grid .surface-title,
@@ -1712,7 +1901,7 @@ html[data-theme].embedded-panel .bar-fill {
   border-radius: 0;
 }
 
-/* The assistant is a black-and-white workspace, not a recolored legacy panel. */
+/* The assistant is a modern glassmorphic workspace */
 html[data-theme].embedded-panel .assistant-layout,
 html[data-theme].embedded-panel .assistant-chat-panel {
   color: #f4f4f5 !important;
@@ -1726,35 +1915,23 @@ html[data-theme].embedded-panel .assistant-chat-header {
   box-shadow: 0 10px 28px rgba(0,0,0,.28) !important;
 }
 html[data-theme].embedded-panel .assistant-chat-avatar {
-  color: #09090b !important;
-  background: #fafafa !important;
-  background-image: none !important;
-  border-color: rgba(255,255,255,.7) !important;
-  box-shadow: none !important;
-}
-html[data-theme].embedded-panel .assistant-chat-avatar::after {
-  content: "IA";
-  display: grid;
-  height: 100%;
-  place-items: center;
-  color: #09090b;
-  font-size: 9px;
-  font-weight: 900;
-  letter-spacing: 0;
+  background: linear-gradient(135deg, #0ea5e9, #3b82f6, #8b5cf6) !important;
+  border: 1px solid rgba(255,255,255,.3) !important;
+  box-shadow: 0 0 12px rgba(59, 130, 246, .35) !important;
 }
 html[data-theme].embedded-panel .assistant-messages {
   background: #09090b !important;
 }
 html[data-theme].embedded-panel .assistant-message.user {
-  color: #09090b !important;
-  background: #fafafa !important;
-  border-color: rgba(255,255,255,.85) !important;
-  box-shadow: 0 14px 34px rgba(0,0,0,.28) !important;
+  color: #ffffff !important;
+  background: linear-gradient(135deg, #1d4ed8, #2563eb) !important;
+  border-color: rgba(255,255,255,.2) !important;
+  box-shadow: 0 4px 14px rgba(37, 99, 235, .3) !important;
 }
 html[data-theme].embedded-panel .assistant-message.assistant,
 html[data-theme].embedded-panel .assistant-thinking {
   color: #f4f4f5 !important;
-  background: #18181b !important;
+  background: rgba(255,255,255,.075) !important;
   border-color: rgba(255,255,255,.12) !important;
   box-shadow: 0 14px 34px rgba(0,0,0,.28) !important;
 }
