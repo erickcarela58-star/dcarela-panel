@@ -12,7 +12,7 @@
   "notes": "Panel web y PWA 1.0.45 restaurados con shell m\u00f3vil, fidelidad visual y centro de descargas. Br\u00fajula 5.0.0 (Build 477) y Finanzas 6.1.1 (Build 621) se conservan sin regresiones.",
   "release_page_url": "https://panel.dcarelacompufoto.com/#descargar",
   "desktop_release": {
-    "version": "1.0.46",
+    "version": "1.0.44",
     "channel": "stable",
     "mandatory": false,
     "created_at": "2026-08-13T02:47:33Z",
