@@ -5,10 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#09090b">
   <meta name="robots" content="noindex,nofollow">
-  <title>D' Carela Compufoto | Panel Movil</title>
+  <title>D' Carela Compufoto | Panel POS 1.0.45</title>
   <script>
     (() => {
-      const target = new URL("./panel.html", location.href);
+      const isMobile = window.innerWidth <= 768 || /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
+      const targetPath = isMobile ? "./mobile/" : "./panel.html";
+      const target = new URL(targetPath, location.href);
       const currentParams = new URLSearchParams(location.search);
       currentParams.forEach((val, key) => target.searchParams.set(key, val));
       target.hash = location.hash;
@@ -17,6 +19,6 @@
   </script>
 </head>
 <body>
-  <p>Abriendo el panel móvil… <a href="./mobile/">Continuar</a></p>
+  <p>Abriendo el panel oficial… <a href="./mobile/">Continuar en móvil</a></p>
 </body>
 </html>

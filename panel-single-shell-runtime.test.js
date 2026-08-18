@@ -8,6 +8,7 @@ const panelHtml = fs.readFileSync(path.join(root, "panel.html"), "utf8");
 const panelCss = fs.readFileSync(path.join(root, "panel.css"), "utf8");
 const panelJs = fs.readFileSync(path.join(root, "panel.js"), "utf8");
 const indexHtml = fs.readFileSync(path.join(root, "index.html"), "utf8");
+const mobileHtml = fs.readFileSync(path.join(root, "mobile", "index.html"), "utf8");
 
 test("panel.html contiene exactamente un único shell estructural en desktop", () => {
   const sidebarCount = (panelHtml.match(/<aside\s+class="sidebar"/g) || []).length;
@@ -32,4 +33,11 @@ test("index.html enruta escritorios a panel.html y móviles a mobile/ sin anidar
   assert.match(indexHtml, /\.\/panel\.html/);
   assert.match(indexHtml, /\.\/mobile\//);
   assert.doesNotMatch(indexHtml, /<iframe/i);
+});
+
+test("mobile vuelve a cargar el shell responsive real y no redirige al panel antiguo", () => {
+  assert.match(mobileHtml, /id="root"/);
+  assert.match(mobileHtml, /assets\/index-J61hK3gK\.js/);
+  assert.match(mobileHtml, /updates-downloads-current\.js/);
+  assert.doesNotMatch(mobileHtml, /location\.replace|\.\.\/panel\.html/);
 });

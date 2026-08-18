@@ -2,6 +2,7 @@
   "use strict";
 
   const ROOT_ID = "current-downloads";
+  const MANIFEST_URL = new URL("./app-version.json", document.currentScript?.src || location.href);
   let manifestPromise = null;
   let scheduled = false;
 
@@ -29,7 +30,8 @@
   }
 
   function loadManifest() {
-    manifestPromise ||= fetch(`./app-version.json?downloads=${Date.now()}`, {
+    MANIFEST_URL.searchParams.set("downloads", String(Date.now()));
+    manifestPromise ||= fetch(MANIFEST_URL.href, {
       cache: "no-store",
       headers: { Accept: "application/json" },
     }).then(response => {

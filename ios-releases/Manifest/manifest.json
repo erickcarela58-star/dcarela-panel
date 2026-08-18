@@ -22,7 +22,7 @@
       "latestVersion": "4.6.0",
       "latestBuild": "474",
       "minimumSupportedBuild": "462",
-      "downloadURL": "https://raw.githubusercontent.com/erickcarela58-star/dcarela-panel/main/ios-releases/QA/Brujula-4.6.0-474-QA.ipa",
+      "downloadURL": "https://panel.dcarelacompufoto.com/ios-releases/QA/Brujula-4.6.0-474-QA.ipa",
       "sha256": "bde8c9cd343f96c0d6918186c5a80337441201fa343b90c772367ff0d2504e90",
       "size": 16370499,
       "publishedAt": "2026-08-17",
@@ -115,8 +115,8 @@
     }
   },
   "version": "5.0.0",
-  "build": 476,
-  "ipa_sha256": "bc9b73bb7b820b5591fe037db637bb5f58e64a7be5f0d1863399d84fc7bdf7e5",
-  "ipa_size": 18700394,
-  "download_url": "https://raw.githubusercontent.com/erickcarela58-star/dcarela-panel/main/ios-releases/Brujula-5.0.0-476-QA.ipa"
+  "build": 477,
+  "ipa_sha256": "0ad586e3c9cc1f2f2160a454126b2027febd021cc5caff6c89e3ef67b99b73ff",
+  "ipa_size": 18710624,
+  "download_url": "https://panel.dcarelacompufoto.com/ios-releases/Brujula-5.0.0-477-QA.ipa"
 }

@@ -26,14 +26,15 @@ test("la vista CURRENT muestra las descargas sin abrir el panel anterior", () =>
   assert.match(currentDownloadsJs, /Abrir centro web completo/);
   assert.match(currentDownloadsJs, /current-legacy-download-link/);
   assert.match(currentDownloadsJs, /Descargas disponibles/);
+  assert.match(currentDownloadsJs, /new URL\("\.\/app-version\.json", document\.currentScript\?\.src \|\| location\.href\)/);
 });
 
-test("el manifiesto publica dos EXE y las dos IPA con integridad verificable", () => {
-  assert.equal(manifest.web_version, "1.0.44.0");
+test("el manifiesto publica el instalador y las dos IPA con integridad verificable", () => {
+  assert.equal(manifest.web_version, "1.0.45");
   assert.equal(manifest.desktop_release.version, "1.0.44");
   assert.equal(manifest.downloads.length, 3);
   for (const file of manifest.downloads) {
-    assert.match(file.url, /^(?:https:\/\/github\.com\/erickcarela58-star\/(?:dcarela-panel|carela-compufoto)\/releases\/download\/|https:\/\/panel\.dcarelacompufoto\.com\/ios-releases\/)/);
+    assert.match(file.url, /^https:\/\/panel\.dcarelacompufoto\.com\//);
     assert.doesNotMatch(file.url, /dcarela-pos-private/);
     assert.match(file.sha256, /^[a-f0-9]{64}$/);
     assert.ok(file.size_bytes > 0);
@@ -42,15 +43,22 @@ test("el manifiesto publica dos EXE y las dos IPA con integridad verificable", (
   }
 });
 
-test("Finanzas publica el diagnostico 5.0.0 y los dos CRM apuntan a v18", () => {
+test("Finanzas 621 y los dos CRM se publican por dominios oficiales", () => {
   const finance = manifest.apps.find(app => app.id === "finanzas-ios" || app.id === "com.dcarela.panel");
   assert.ok(finance);
   assert.equal(finance.status, "published");
   assert.equal(finance.version, "6.1.1 (build 621)");
   assert.match(finance.url, /DCarelaFinanzas-.*\.ipa$/);
+  const crm = manifest.apps.find(app => app.id === "crm");
+  const photos = manifest.apps.find(app => app.id === "crm-fotos");
+  assert.equal(crm.url, "https://dcarelacompufoto.com/crm/");
+  assert.equal(photos.url, "https://dcarelacompufoto.com/crm-fotos/");
+  for (const app of manifest.apps) {
+    assert.doesNotMatch(app.url || "", /netlify\.app|github\.io|raw\.githubusercontent\.com/i);
+  }
 });
 
-test("Brújula publica el diagnostico 3.1.0 build 310 verificable", () => {
+test("Brújula publica 5.0.0 build 477 verificable", () => {
   const brujula = manifest.apps.find(app => app.id === "brujula");
   assert.equal(brujula.status, "published");
   assert.equal(brujula.version, "5.0.0 (build 477)");
