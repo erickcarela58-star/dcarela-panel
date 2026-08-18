@@ -6,31 +6,30 @@
   <meta name="theme-color" content="#0a3679">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <meta name="apple-mobile-web-app-title" content="D' Carela Punto de Venta 1.0.45">
+  <meta name="apple-mobile-web-app-title" content="D' Carela POS 1.0.45">
   <meta name="description" content="Panel web POS 1.0.45 de D' Carela Compufoto con operación responsive, tema claro/oscuro y módulos administrativos del punto de venta.">
   <title>D' Carela Compufoto | Panel POS 1.0.45</title>
-  <meta name="dcarela-build" content="2026.08.17.1.0.45.2">
-  <link rel="manifest" href="manifest.webmanifest">
-  <link rel="apple-touch-icon" href="dcarela-logo.png">
-  <link rel="stylesheet" href="panel.css?v=2026.08.17.1.0.45.2">
-  <link rel="stylesheet" href="panel-theme.css?v=2026.08.17.1.0.45.2">
-  <link rel="stylesheet" href="visual-fidelity.css?v=2026.08.17.1.0.45.2">
   <script>
-    const panelParams = new URLSearchParams(location.search);
-    const isEmbedded = panelParams.get("embedded") === "1" || window.self !== window.top;
-    if (isEmbedded) {
-      document.documentElement.classList.add("is-embedded");
-    } else {
-      const isMobile = window.innerWidth <= 768 || /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
-      if (isMobile && panelParams.get("desktop") !== "1") {
-        const target = new URL("./mobile/", location.href);
-        panelParams.forEach((value, key) => target.searchParams.set(key, value));
-        target.searchParams.delete("embedded");
-        target.hash = location.hash;
-        location.replace(target.href);
+    (() => {
+      const panelParams = new URLSearchParams(location.search);
+      const isEmbedded = panelParams.get("embedded") === "1" || window.self !== window.top;
+      const requestedTheme = panelParams.get("theme");
+      let savedTheme = "dark";
+      try { savedTheme = localStorage.getItem("dcarela.ui.theme") || "dark"; } catch {}
+      const theme = requestedTheme === "light" || requestedTheme === "dark" ? requestedTheme : savedTheme;
+      document.documentElement.dataset.theme = theme;
+      document.documentElement.classList.toggle("dark", theme === "dark");
+      document.documentElement.style.colorScheme = theme;
+      if (isEmbedded) {
+        document.documentElement.classList.add("is-embedded", "embedded-panel");
       }
-    }
+    })();
   </script>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="favicon.svg">
+  <link rel="apple-touch-icon" href="dcarela-logo.png">
+  <link rel="stylesheet" href="panel.css?v=2026.08.18.1.0.45.0">
+  <link rel="stylesheet" href="panel-theme.css?v=2026.08.18.1.0.45.0">
 </head>
 <body>
   <section id="access" class="access-shell">
@@ -950,10 +949,9 @@
   <script src="supabase.min.js"></script>
   <script src="jspdf.umd.min.js"></script>
   <script src="jspdf.plugin.autotable.min.js"></script>
-  <script src="ticket-termico.js?v=2026.08.17.1.0.45.2"></script>
-  <script src="panel-sale-pending.js?v=2026.08.17.1.0.45.2"></script>
-  <script src="panel.js?v=2026.08.17.1.0.45.2"></script>
-  <script src="visual-fidelity.js?v=2026.08.17.1.0.45.2"></script>
+  <script src="ticket-termico.js?v=2026.08.18.1.0.45.0"></script>
+  <script src="panel-sale-pending.js?v=2026.08.18.1.0.45.0"></script>
+  <script src="panel.js?v=2026.08.18.1.0.45.0"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));

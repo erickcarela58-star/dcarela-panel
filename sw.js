@@ -1,4 +1,4 @@
-const APP_BUILD = "2026.08.17.1.0.45.2";
+const APP_BUILD = "2026.08.18.1.0.45.0";
 const CACHE = `dcarela-pos-shell-${APP_BUILD}`;
 const SHELL = [
   `./panel.css?v=${APP_BUILD}`,
@@ -6,10 +6,6 @@ const SHELL = [
   `./panel.js?v=${APP_BUILD}`,
   `./ticket-termico.js?v=${APP_BUILD}`,
   `./panel-sale-pending.js?v=${APP_BUILD}`,
-  `./visual-fidelity.css?v=${APP_BUILD}`,
-  `./visual-fidelity.js?v=${APP_BUILD}`,
-  `./updates-downloads-current.css?v=${APP_BUILD}`,
-  `./updates-downloads-current.js?v=${APP_BUILD}`,
   `./mobile/assets/index-J61hK3gK.js?v=${APP_BUILD}`,
   `./mobile/assets/index-BIq1Swuf.css?v=${APP_BUILD}`,
   "./supabase.min.js",
@@ -57,8 +53,8 @@ self.addEventListener("fetch", event => {
     event.respondWith(fetch(request, { cache: "no-store" }).catch(() => caches.match("./app-version.json")));
     return;
   }
-  if (url.pathname.endsWith("/panel.html")) {
-    event.respondWith(fetch(request, { cache: "no-store" }).catch(() => caches.match("./panel.html")));
+  if (url.pathname.endsWith("/panel.html") || url.pathname.endsWith("/") || url.pathname.endsWith("/index.html")) {
+    event.respondWith(fetch(request, { cache: "no-store" }).catch(() => caches.match(request).then(cached => cached || caches.match("./index.html"))));
     return;
   }
   event.respondWith(fetch(request).then(response => {
