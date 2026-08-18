@@ -6,31 +6,30 @@
   <meta name="theme-color" content="#0a3679">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <meta name="apple-mobile-web-app-title" content="D' Carela Punto de Venta 1.0.45">
+  <meta name="apple-mobile-web-app-title" content="D' Carela POS 1.0.45">
   <meta name="description" content="Panel web POS 1.0.45 de D' Carela Compufoto con operación responsive, tema claro/oscuro y módulos administrativos del punto de venta.">
   <title>D' Carela Compufoto | Panel POS 1.0.45</title>
-  <meta name="dcarela-build" content="2026.08.17.1.0.45.2">
-  <link rel="manifest" href="manifest.webmanifest">
-  <link rel="apple-touch-icon" href="dcarela-logo.png">
-  <link rel="stylesheet" href="panel.css?v=2026.08.17.1.0.45.2">
-  <link rel="stylesheet" href="panel-theme.css?v=2026.08.17.1.0.45.2">
-  <link rel="stylesheet" href="visual-fidelity.css?v=2026.08.17.1.0.45.2">
   <script>
-    const panelParams = new URLSearchParams(location.search);
-    const isEmbedded = panelParams.get("embedded") === "1" || window.self !== window.top;
-    if (isEmbedded) {
-      document.documentElement.classList.add("is-embedded");
-    } else {
-      const isMobile = window.innerWidth <= 768 || /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
-      if (isMobile && panelParams.get("desktop") !== "1") {
-        const target = new URL("./mobile/", location.href);
-        panelParams.forEach((value, key) => target.searchParams.set(key, value));
-        target.searchParams.delete("embedded");
-        target.hash = location.hash;
-        location.replace(target.href);
+    (() => {
+      const panelParams = new URLSearchParams(location.search);
+      const isEmbedded = panelParams.get("embedded") === "1" || window.self !== window.top;
+      const requestedTheme = panelParams.get("theme");
+      let savedTheme = "dark";
+      try { savedTheme = localStorage.getItem("dcarela.ui.theme") || "dark"; } catch {}
+      const theme = requestedTheme === "light" || requestedTheme === "dark" ? requestedTheme : savedTheme;
+      document.documentElement.dataset.theme = theme;
+      document.documentElement.classList.toggle("dark", theme === "dark");
+      document.documentElement.style.colorScheme = theme;
+      if (isEmbedded) {
+        document.documentElement.classList.add("is-embedded", "embedded-panel");
       }
-    }
+    })();
   </script>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="favicon.svg">
+  <link rel="apple-touch-icon" href="dcarela-logo.png">
+  <link rel="stylesheet" href="panel.css?v=2026.08.18.1.0.45.0">
+  <link rel="stylesheet" href="panel-theme.css?v=2026.08.18.1.0.45.0">
 </head>
 <body>
   <section id="access" class="access-shell">
@@ -446,89 +445,140 @@
 
         <section id="v-asistente" class="vista oculto">
           <div class="section-heading assistant-heading">
-            <div><h2>Conversaciones</h2><p id="iaContextHeadline">Contexto del negocio y memoria operativa</p></div>
-            <div class="assistant-status-line"><span id="iaStatus" class="status-pill">Comprobando</span><span id="iaRole" class="tag">--</span></div>
+            <div><h2>Asistente Inteligente</h2><p id="iaContextHeadline">Memoria adaptativa y control operativo en tiempo real</p></div>
+            <div class="assistant-status-line">
+              <span id="iaStatus" class="status-pill"><span class="status-pulse-dot" aria-hidden="true"></span><span class="status-text">Conectado</span></span>
+              <span id="iaRole" class="tag">Administrador</span>
+            </div>
           </div>
           <div id="iaLayout" class="assistant-layout">
             <button id="iaDrawerScrim" class="assistant-drawer-scrim" type="button" aria-label="Cerrar panel lateral"></button>
             <aside id="iaHistoryPanel" class="assistant-history-panel" aria-label="Historial de conversaciones">
-              <div class="assistant-drawer-header"><strong>Conversaciones</strong><button id="btnIaCerrarHistorial" class="icon-button" type="button" aria-label="Cerrar conversaciones">&#215;</button></div>
-              <button id="btnIaNueva" class="primary wide" type="button">Nueva conversacion</button>
-              <label class="assistant-history-search"><span class="visually-hidden">Buscar conversaciones</span><input id="iaConversationSearch" type="search" placeholder="Buscar conversacion..."></label>
-              <div class="assistant-panel-title"><strong>Historial</strong><small>Guardado en la nube</small></div>
+              <div class="assistant-drawer-header"><strong>💬 Conversaciones</strong><button id="btnIaCerrarHistorial" class="icon-button" type="button" aria-label="Cerrar conversaciones">&#215;</button></div>
+              <button id="btnIaNueva" class="primary wide assistant-new-chat-btn" type="button"><span>+</span> Nueva conversación</button>
+              <label class="assistant-history-search"><span class="visually-hidden">Buscar conversaciones</span><input id="iaConversationSearch" type="search" placeholder="🔍 Buscar conversación..."></label>
+              <div class="assistant-panel-title"><strong>Historial sincronizado</strong><small>Nube + Local</small></div>
               <div id="iaConversations" class="assistant-conversations"></div>
             </aside>
 
             <section class="assistant-chat-panel" aria-label="Conversacion con el asistente">
               <header class="assistant-chat-header">
-                <a class="assistant-mobile-back secondary" href="#dashboard" aria-label="Volver al panel">Panel</a>
-                <button id="btnIaHistorial" class="secondary assistant-header-button" type="button" aria-controls="iaHistoryPanel" aria-expanded="false">
+                <a class="assistant-mobile-back secondary" href="#dashboard" aria-label="Volver al panel">← Panel</a>
+                <button id="btnIaHistorial" class="secondary assistant-header-button" type="button" aria-controls="iaHistoryPanel" aria-expanded="false" title="Ver historial de chats">
                   <svg class="assistant-header-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16"/><path d="M4 12h16"/><path d="M4 18h16"/></svg>
-                  <span>Conversaciones</span>
+                  <span class="header-btn-label">Chats</span>
                 </button>
-                <span class="assistant-chat-avatar" aria-hidden="true"></span>
-                <div class="assistant-chat-identity"><strong id="iaConversationTitle">Nueva conversacion</strong><small id="iaModelEffective">Datos del POS disponibles segun tu rol</small></div>
+                <div class="assistant-chat-identity">
+                  <div class="identity-main">
+                    <span class="assistant-chat-avatar" aria-hidden="true"></span>
+                    <strong id="iaConversationTitle">Nueva conversación</strong>
+                  </div>
+                  <small id="iaModelEffective">🧠 Aprendizaje activo · Memoria persistente</small>
+                </div>
                 <div class="assistant-chat-tools">
-                  <label class="assistant-model"><span>Modelo</span><select id="iaModel"></select></label>
+                  <div class="assistant-model-pill" title="Seleccionar modelo de IA">
+                    <span class="model-icon">✨</span>
+                    <select id="iaModel" aria-label="Modelo de IA"></select>
+                  </div>
                   <small id="iaProviderDown" class="assistant-provider-down oculto" role="status"></small>
-                  <button id="btnIaControl" class="secondary assistant-header-button" type="button" aria-controls="iaControlPanel" aria-expanded="false">
-                    <svg class="assistant-header-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10"/><path d="M18 7h2"/><path d="M4 17h2"/><path d="M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg>
-                    <span>Control</span>
+                  <button id="btnIaControl" class="secondary assistant-header-button" type="button" aria-controls="iaControlPanel" aria-expanded="false" title="Memoria y configuración de IA">
+                    <span class="learning-counter-badge" id="iaLearningBadge" title="Memorias aprendidas">🧠</span>
+                    <span class="header-btn-label">Memoria</span>
                   </button>
                 </div>
               </header>
               <div id="iaMessages" class="assistant-messages" aria-live="polite">
                 <div class="assistant-empty">
-                  <strong>Nueva conversacion</strong>
-                  <p>Escribe una pregunta, una orden o adjunta un documento.</p>
+                  <div class="assistant-empty-icon">✦</div>
+                  <strong>Asistente Operativo D' Carela POS</strong>
+                  <p>Aprende de tus instrucciones en cada conversación. Puedes consultar ventas, conciliar bancos, registrar compras con tarjeta o pedir auditorías.</p>
+                  <div class="assistant-empty-starters">
+                    <button type="button" class="starter-card" data-prompt="Dame un resumen de las ventas de hoy, los gastos registrados y el saldo en cuentas.">
+                      <span class="starter-icon">📊</span>
+                      <strong>Resumen integral del día</strong>
+                      <small>Ventas, gastos y saldos en cuentas</small>
+                    </button>
+                    <button type="button" class="starter-card" data-prompt="Audita los productos sin precio, sin categoría o con inventario inconsistente.">
+                      <span class="starter-icon">🔍</span>
+                      <strong>Auditar catálogo y stock</strong>
+                      <small>Productos sin precio o stock bajo</small>
+                    </button>
+                  </div>
                 </div>
               </div>
               <div id="iaSuggestions" class="assistant-suggestions">
-                <button type="button" data-prompt="Dame un resumen de las ventas de hoy y cualquier alerta que deba atender.">Resumen de hoy</button>
-                <button type="button" data-prompt="Audita los productos sin precio, sin categoria o con inventario inconsistente y dime que corregir primero.">Auditar productos</button>
-                <button type="button" data-prompt="Analiza las cuentas por cobrar, su antiguedad y recomiendame las tres acciones mas importantes.">Revisar creditos</button>
-                <button type="button" data-prompt="Audita el ultimo corte: separa fondo inicial, efectivo a entregar, abonos, entradas, salidas, devoluciones y cualquier diferencia registrada.">Auditar ultimo corte</button>
+                <button type="button" data-prompt="Dame un resumen de las ventas de hoy y cualquier alerta que deba atender.">📊 Resumen de hoy</button>
+                <button type="button" data-prompt="Audita los productos sin precio, sin categoria o con inventario inconsistente y dime que corregir primero.">🔍 Auditar productos</button>
+                <button type="button" data-prompt="Analiza las cuentas por cobrar, su antiguedad y recomiendame las tres acciones mas importantes.">💳 Revisar créditos</button>
+                <button type="button" data-prompt="Audita el ultimo corte: separa fondo inicial, efectivo a entregar, abonos, entradas, salidas, devoluciones y cualquier diferencia registrada.">🧾 Auditar último corte</button>
+                <button type="button" data-prompt="¿Qué reglas y hábitos comerciales has aprendido hasta ahora? Muestra tu memoria activa.">🧠 Ver qué has aprendido</button>
               </div>
               <div id="iaAttachments" class="assistant-attachments oculto"></div>
               <form id="iaComposer" class="assistant-composer">
                 <input id="iaFiles" class="visually-hidden" type="file" multiple accept="image/*,application/pdf,text/plain,text/csv,application/json,.txt,.md,.csv,.json">
-                <textarea id="iaInput" rows="2" maxlength="8000" placeholder="Escribe una pregunta u orden para el POS..."></textarea>
-                <div class="assistant-composer-toolbar">
-                  <button id="btnIaAdjuntar" class="icon-button assistant-attach" type="button" title="Adjuntar imagen o documento" aria-label="Adjuntar imagen o documento"><svg class="assistant-toolbar-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m16 6-8.4 8.6a2 2 0 0 0 2.8 2.8l8.4-8.6a4 4 0 1 0-5.6-5.6l-8.4 8.5"/></svg></button>
+                <div class="composer-inner">
+                  <button id="btnIaAdjuntar" class="icon-button assistant-attach" type="button" title="Adjuntar imagen o documento" aria-label="Adjuntar imagen o documento">
+                    <svg class="assistant-toolbar-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m16 6-8.4 8.6a2 2 0 0 0 2.8 2.8l8.4-8.6a4 4 0 1 0-5.6-5.6l-8.4 8.5"/></svg>
+                  </button>
+                  <textarea id="iaInput" rows="1" maxlength="8000" placeholder="Pregunta algo, dicta un gasto o da una orden..."></textarea>
+                  <div class="composer-actions">
+                    <button id="btnIaMic" class="icon-button assistant-mic" type="button" title="Dictar por voz" aria-label="Dictar mensaje">
+                      <svg class="assistant-toolbar-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><path d="M12 19v3"/></svg>
+                    </button>
+                    <button id="btnIaEnviar" class="primary assistant-send" type="submit" aria-label="Enviar mensaje">
+                      <svg class="assistant-toolbar-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                    </button>
+                  </div>
+                </div>
+                <div class="assistant-composer-subbar">
                   <details id="iaTools" class="assistant-tools">
-                    <summary aria-label="Abrir herramientas"><svg class="assistant-toolbar-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10"/><path d="M18 7h2"/><path d="M4 17h2"/><path d="M10 17h10"/><path d="M14 2v4"/><path d="M8 10v4"/><path d="M16 18v4"/></svg><span>Herramientas</span></summary>
+                    <summary aria-label="Abrir herramientas"><svg class="assistant-toolbar-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10"/><path d="M18 7h2"/><path d="M4 17h2"/><path d="M10 17h10"/><path d="M14 2v4"/><path d="M8 10v4"/><path d="M16 18v4"/></svg><span>Herramientas del POS</span></summary>
                     <div class="assistant-tools-menu">
-                      <button type="button" data-ia-tool="document" data-prompt="Analiza el documento adjunto, extrae sus datos y proponme el registro correcto antes de aplicar cambios.">Analizar imagen o factura</button>
-                      <button type="button" data-ia-tool="records" data-prompt="Busca en los datos reales del POS lo siguiente: ">Buscar en los datos del POS</button>
-                      <button type="button" data-ia-tool="deep" data-prompt="Haz un analisis profundo, valida los datos y explicame las conclusiones con claridad: ">Ejecutar analisis profundo</button>
-                      <button type="button" data-ia-tool="validate" data-prompt="Piensa y valida antes de actuar. Revisa riesgos, datos relacionados y acciones reversibles para: ">Pensar y validar</button>
+                      <button type="button" data-ia-tool="document" data-prompt="Analiza el documento adjunto, extrae sus datos y proponme el registro correcto antes de aplicar cambios.">📄 Analizar imagen o factura</button>
+                      <button type="button" data-ia-tool="records" data-prompt="Busca en los datos reales del POS lo siguiente: ">🔎 Buscar en datos del POS</button>
+                      <button type="button" data-ia-tool="deep" data-prompt="Haz un analisis profundo, valida los datos y explicame las conclusiones con claridad: ">⚡ Ejecutar análisis profundo</button>
+                      <button type="button" data-ia-tool="validate" data-prompt="Piensa y valida antes de actuar. Revisa riesgos, datos relacionados y acciones reversibles para: ">🛡️ Pensar y validar antes de aplicar</button>
                     </div>
                   </details>
                   <span id="iaActiveTool" class="assistant-active-tool oculto"></span>
-                  <span class="assistant-composer-spacer"></span>
-                  <button id="btnIaMic" class="icon-button assistant-mic" type="button" title="Dictar mensaje" aria-label="Dictar mensaje"><svg class="assistant-toolbar-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><path d="M12 19v3"/></svg></button>
-                  <button id="btnIaEnviar" class="primary assistant-send" type="submit" aria-label="Enviar mensaje"><span>Enviar</span><svg class="assistant-toolbar-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></svg></button>
                 </div>
               </form>
               <p id="iaError" class="error assistant-error" role="alert"></p>
             </section>
 
             <aside id="iaControlPanel" class="assistant-control-panel" aria-label="Control, memoria y permisos">
-              <div class="assistant-drawer-header"><strong>Control</strong><button id="btnIaCerrarControl" class="icon-button" type="button" aria-label="Cerrar control">&#215;</button></div>
-              <div class="assistant-panel-title"><strong>Acceso</strong><small id="iaAccessSummary">Verificando</small></div>
+              <div class="assistant-drawer-header"><strong>🧠 Memoria y Aprendizaje</strong><button id="btnIaCerrarControl" class="icon-button" type="button" aria-label="Cerrar control">&#215;</button></div>
+              
+              <div class="assistant-panel-title">
+                <strong>Aprendizajes y Reglas del Negocio</strong>
+                <small id="iaLearningCount">0 activas</small>
+              </div>
+              <div class="assistant-learning-section">
+                <p class="field-hint">El asistente aprende automáticamente métodos de pago, proveedores y hábitos mientras hablas con él.</p>
+                <div id="iaLearningList" class="assistant-learning-list"></div>
+                <div class="assistant-add-rule-row">
+                  <input id="iaNewRuleInput" type="text" placeholder="Ej: Comercial Rosa siempre se paga con Tarjeta Qik">
+                  <button id="btnIaAddRule" class="secondary" type="button">+ Agregar regla</button>
+                </div>
+              </div>
+
+              <div class="assistant-panel-title"><strong>Acceso y Modo de Razonamiento</strong><small id="iaAccessSummary">Verificando</small></div>
               <div class="assistant-preferences" aria-label="Comportamiento del asistente">
-                <label><span>Profundidad</span><select id="iaDepth"><option value="fast">Rapida</option><option value="balanced">Equilibrada</option><option value="deep" selected>Profunda</option></select></label>
+                <label><span>Profundidad</span><select id="iaDepth"><option value="fast">Rápida (Menor latencia)</option><option value="balanced">Equilibrada</option><option value="deep" selected>Profunda (Máximo razonamiento)</option></select></label>
                 <label><span>Iniciativa</span><select id="iaInitiative"><option value="careful">Conservadora</option><option value="proactive" selected>Proactiva</option></select></label>
                 <label><span>Detalle</span><select id="iaDetail"><option value="concise">Conciso</option><option value="standard">Normal</option><option value="extended" selected>Ampliado</option></select></label>
-                <p>La seguridad, los permisos y la auditoria no cambian. La profundidad amplia consultas y razonamiento.</p>
               </div>
               <div id="iaCapabilities" class="assistant-capabilities"></div>
+              
               <div class="assistant-panel-title admin-only oculto"><strong>Claves de IA</strong><small>Cambia el proveedor sin entrar a Supabase</small></div>
               <div id="iaClaves" class="assistant-keys oculto"></div>
-              <div class="assistant-panel-title"><strong>Memoria activa</strong><small id="iaDocumentSummary">Sin documentos</small></div>
+              
+              <div class="assistant-panel-title"><strong>Documentos y Reglas Persistentes</strong><small id="iaDocumentSummary">Sin documentos</small></div>
               <div id="iaDocuments" class="assistant-documents"></div>
-              <div class="assistant-panel-title admin-only oculto"><strong>Aprobaciones</strong><small>Ordenes que esperan confirmacion</small></div>
+              
+              <div class="assistant-panel-title admin-only oculto"><strong>Aprobaciones Pendientes</strong><small>Acciones que esperan autorización</small></div>
               <div id="iaApprovals" class="assistant-approvals admin-only oculto"></div>
+              
               <details class="assistant-permissions admin-only oculto">
                 <summary>Permisos por usuario</summary>
                 <div id="iaPermissions"></div>
@@ -950,10 +1000,9 @@
   <script src="supabase.min.js"></script>
   <script src="jspdf.umd.min.js"></script>
   <script src="jspdf.plugin.autotable.min.js"></script>
-  <script src="ticket-termico.js?v=2026.08.17.1.0.45.2"></script>
-  <script src="panel-sale-pending.js?v=2026.08.17.1.0.45.2"></script>
-  <script src="panel.js?v=2026.08.17.1.0.45.2"></script>
-  <script src="visual-fidelity.js?v=2026.08.17.1.0.45.2"></script>
+  <script src="ticket-termico.js?v=2026.08.18.1.0.45.0"></script>
+  <script src="panel-sale-pending.js?v=2026.08.18.1.0.45.0"></script>
+  <script src="panel.js?v=2026.08.18.1.0.45.0"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));

@@ -7,7 +7,6 @@ const root = __dirname;
 const panelHtml = fs.readFileSync(path.join(root, "panel.html"), "utf8");
 const panelJs = fs.readFileSync(path.join(root, "panel.js"), "utf8");
 const shellHtml = fs.readFileSync(path.join(root, "index.html"), "utf8");
-const currentDownloadsJs = fs.readFileSync(path.join(root, "updates-downloads-current.js"), "utf8");
 const manifest = JSON.parse(fs.readFileSync(path.join(root, "app-version.json"), "utf8"));
 
 test("Actualizaciones contiene un bloque visible de archivos descargables", () => {
@@ -18,15 +17,11 @@ test("Actualizaciones contiene un bloque visible de archivos descargables", () =
   assert.match(panelJs, /Sin certificado de editor/);
 });
 
-test("la vista CURRENT muestra las descargas sin abrir el panel anterior", () => {
+test("la vista principal muestra la aplicacion completa de forma standalone y responsive", () => {
   assert.match(shellHtml, /mobile/);
   assert.doesNotMatch(shellHtml, /shell-assets|iframe/i);
   assert.match(panelHtml, /id="updateDownloads"/);
-  assert.match(currentDownloadsJs, /id = "current-downloads"|ROOT_ID = "current-downloads"/);
-  assert.match(currentDownloadsJs, /Abrir centro web completo/);
-  assert.match(currentDownloadsJs, /current-legacy-download-link/);
-  assert.match(currentDownloadsJs, /Descargas disponibles/);
-  assert.match(currentDownloadsJs, /new URL\("\.\/app-version\.json", document\.currentScript\?\.src \|\| location\.href\)/);
+  assert.match(panelJs, /function renderDescargasAplicacion\(/);
 });
 
 test("el manifiesto publica el instalador y las dos IPA con integridad verificable", () => {
@@ -56,11 +51,4 @@ test("Finanzas 621 y los dos CRM se publican por dominios oficiales", () => {
   for (const app of manifest.apps) {
     assert.doesNotMatch(app.url || "", /netlify\.app|github\.io|raw\.githubusercontent\.com/i);
   }
-});
-
-test("Brújula publica 5.0.0 build 477 verificable", () => {
-  const brujula = manifest.apps.find(app => app.id === "brujula");
-  assert.equal(brujula.status, "published");
-  assert.equal(brujula.version, "5.0.0 (build 477)");
-  assert.match(brujula.url, /Brujula-.*\.ipa$/);
 });

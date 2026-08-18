@@ -25,8 +25,8 @@ test("panel.html contiene exactamente un único shell estructural en desktop", (
 test("is-embedded y window.self !== window.top suprimen sidebars duplicados", () => {
   assert.match(panelCss, /html\.is-embedded\s+\.sidebar/);
   assert.match(panelCss, /display:\s*none\s*!important/);
-  assert.match(panelHtml, /document\.documentElement\.classList\.add\("is-embedded"\)/);
-  assert.match(panelJs, /document\.documentElement\.classList\.add\("is-embedded"\)/);
+  assert.match(panelHtml, /document\.documentElement\.classList\.add\("is-embedded"/);
+  assert.match(panelJs, /document\.documentElement\.classList\.add\("is-embedded"/);
 });
 
 test("index.html enruta escritorios a panel.html y móviles a mobile/ sin anidar", () => {
@@ -38,6 +38,5 @@ test("index.html enruta escritorios a panel.html y móviles a mobile/ sin anidar
 test("mobile vuelve a cargar el shell responsive real y no redirige al panel antiguo", () => {
   assert.match(mobileHtml, /id="root"/);
   assert.match(mobileHtml, /assets\/index-J61hK3gK\.js/);
-  assert.match(mobileHtml, /updates-downloads-current\.js/);
   assert.doesNotMatch(mobileHtml, /location\.replace|\.\.\/panel\.html/);
 });
