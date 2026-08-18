@@ -6744,11 +6744,21 @@
       button.disabled = true;
       button.textContent = "Validando...";
       try {
-        const result = await sb.auth.signInWithPassword({ email: $("email").value.trim(), password: $("pass").value });
-        if (result.error) { $("loginErr").textContent = mensajeAutenticacion(result.error, "Correo o contrasena incorrectos."); return; }
+        const email = ($("email").value || "").trim().toLowerCase();
+        const password = $("pass").value || "";
+        if (!email || !password) {
+          $("loginErr").textContent = "Por favor ingresa tu correo y contraseña.";
+          return;
+        }
+        const result = await sb.auth.signInWithPassword({ email, password });
+        if (result.error) {
+          const detail = result.error.message || result.error.error_description || "Correo o contrasena incorrectos.";
+          $("loginErr").textContent = mensajeAutenticacion(result.error, detail);
+          return;
+        }
         await iniciarConSesion(result.data.session);
       } catch (error) {
-        $("loginErr").textContent = mensajeAutenticacion(error);
+        $("loginErr").textContent = mensajeAutenticacion(error, error?.message || "No se pudo validar la sesion.");
       } finally {
         button.disabled = false;
         button.textContent = "Entrar";
