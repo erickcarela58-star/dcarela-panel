@@ -2,59 +2,6 @@
    Loaded after panel.css. Visible workspaces use continuous ledgers, compact
    controls and one light/dark token system instead of the former card layout. */
 :root,
-html[data-theme="light"] {
-  color-scheme: light;
-  --ui-canvas: #f4f4f5;
-  --ui-canvas-raised: #ffffff;
-  --ui-surface: rgba(255, 255, 255, .72);
-  --ui-surface-strong: rgba(255, 255, 255, .94);
-  --ui-surface-soft: rgba(244, 244, 245, .78);
-  --ui-sidebar: rgba(250, 250, 250, .96);
-  --ui-sidebar-text: #18181b;
-  --ui-sidebar-muted: #71717a;
-  --ui-header: rgba(250, 250, 250, .88);
-  --ui-input: rgba(255, 255, 255, .84);
-  --ui-text: #18181b;
-  --ui-muted: #71717a;
-  --ui-brand: #18181b;
-  --ui-brand-hover: #303036;
-  --ui-accent: #52525b;
-  --ui-warm: #71717a;
-  --ui-success: #168579;
-  --ui-danger: #c53f48;
-  --ui-violet: #52525b;
-  --ui-line: rgba(24, 24, 27, .14);
-  --ui-rim: rgba(24, 24, 27, .16);
-  --ui-shadow: 0 14px 34px rgba(0, 0, 0, .09);
-  --ui-shadow-float: 0 26px 64px rgba(0, 0, 0, .20);
-  --ui-blur: blur(24px) saturate(128%);
-  --navy: var(--ui-brand);
-  --navy-deep: #09090b;
-  --cyan: var(--ui-accent);
-  --orange: var(--ui-warm);
-  --green: var(--ui-success);
-  --red: var(--ui-danger);
-  --violet: var(--ui-violet);
-  --ink: var(--ui-text);
-  --muted: var(--ui-muted);
-  --canvas: var(--ui-canvas);
-  --surface: var(--ui-surface);
-  --surface-strong: var(--ui-surface-strong);
-  --line: var(--ui-line);
-  --shadow: var(--ui-shadow);
-  --module-surface: var(--ui-surface);
-  --module-surface-strong: var(--ui-surface-strong);
-  --module-line: var(--ui-line);
-  --module-shadow: var(--ui-shadow);
-  --module-shadow-float: var(--ui-shadow-float);
-  --background: var(--ui-canvas);
-  --foreground: var(--ui-text);
-  --card: var(--ui-surface);
-  --card-foreground: var(--ui-text);
-  --primary: var(--ui-brand);
-  --border: var(--ui-line);
-}
-
 html[data-theme="dark"] {
   color-scheme: dark;
   --ui-canvas: #09090b;
@@ -80,7 +27,60 @@ html[data-theme="dark"] {
   --ui-rim: rgba(255, 255, 255, .16);
   --ui-shadow: 0 16px 38px rgba(0, 0, 0, .40);
   --ui-shadow-float: 0 28px 70px rgba(0, 0, 0, .64);
+  --ui-blur: blur(24px) saturate(128%);
+  --navy: var(--ui-brand);
   --navy-deep: #050506;
+  --cyan: var(--ui-accent);
+  --orange: var(--ui-warm);
+  --green: var(--ui-success);
+  --red: var(--ui-danger);
+  --violet: var(--ui-violet);
+  --ink: var(--ui-text);
+  --muted: var(--ui-muted);
+  --canvas: var(--ui-canvas);
+  --surface: var(--ui-surface);
+  --surface-strong: var(--ui-surface-strong);
+  --line: var(--ui-line);
+  --shadow: var(--ui-shadow);
+  --module-surface: var(--ui-surface);
+  --module-surface-strong: var(--ui-surface-strong);
+  --module-line: var(--ui-line);
+  --module-shadow: var(--ui-shadow);
+  --module-shadow-float: var(--ui-shadow-float);
+  --background: var(--ui-canvas);
+  --foreground: var(--ui-text);
+  --card: var(--ui-surface);
+  --card-foreground: var(--ui-text);
+  --primary: var(--ui-brand);
+  --border: var(--ui-line);
+}
+
+html[data-theme="light"] {
+  color-scheme: light;
+  --ui-canvas: #f4f4f5;
+  --ui-canvas-raised: #ffffff;
+  --ui-surface: rgba(255, 255, 255, .72);
+  --ui-surface-strong: rgba(255, 255, 255, .94);
+  --ui-surface-soft: rgba(244, 244, 245, .78);
+  --ui-sidebar: rgba(250, 250, 250, .96);
+  --ui-sidebar-text: #18181b;
+  --ui-sidebar-muted: #71717a;
+  --ui-header: rgba(250, 250, 250, .88);
+  --ui-input: rgba(255, 255, 255, .84);
+  --ui-text: #18181b;
+  --ui-muted: #71717a;
+  --ui-brand: #18181b;
+  --ui-brand-hover: #303036;
+  --ui-accent: #52525b;
+  --ui-warm: #71717a;
+  --ui-success: #168579;
+  --ui-danger: #c53f48;
+  --ui-violet: #52525b;
+  --ui-line: rgba(24, 24, 27, .14);
+  --ui-rim: rgba(24, 24, 27, .16);
+  --ui-shadow: 0 14px 34px rgba(0, 0, 0, .09);
+  --ui-shadow-float: 0 26px 64px rgba(0, 0, 0, .20);
+  --navy-deep: #09090b;
 }
 
 * {
