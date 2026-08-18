@@ -59,21 +59,21 @@
       "localizedDescription": "Control financiero y administrativo oficial para D' Carela Estudio Fotográfico.",
       "iconURL": "https://panel.dcarelacompufoto.com/assets/finanzas-icon.png",
       "tintColor": "#1D4ED8",
-      "version": "6.1.1",
-      "versionDate": "2026-08-18T18:10:00Z",
+      "version": "6.1.2",
+      "versionDate": "2026-08-18T18:38:00Z",
       "versionDescription": "v6.1.1: Resolución completa edge-to-edge sin bordes artificiales, dock inferior flotante optimizado para safe area, binario nativo ARM64 compatible con AltStore.",
       "downloadURL": "https://raw.githubusercontent.com/erickcarela58-star/dcarela-panel/main/ios-releases/DCarelaFinanzas-5.0.2-QA.ipa",
-      "size": 1934164,
-      "sha256": "c02c160fe3a5f209f3ae1fd7fab40cac760ad3ddc9859b1ecf4646900d62d79f",
+      "size": 1934677,
+      "sha256": "67b8c4cc1c0dea1b7c3e87e38d4ea8f047acd5e133489fc47655342b248d5462",
       "minOSVersion": "16.4",
       "versions": [
         {
-          "version": "6.1.1",
+          "version": "6.1.2",
           "buildVersion": "621",
           "date": "2026-08-17",
           "downloadURL": "https://raw.githubusercontent.com/erickcarela58-star/dcarela-panel/main/ios-releases/DCarelaFinanzas-5.0.2-QA.ipa",
-          "size": 1934164,
-          "sha256": "c02c160fe3a5f209f3ae1fd7fab40cac760ad3ddc9859b1ecf4646900d62d79f",
+          "size": 1934677,
+          "sha256": "67b8c4cc1c0dea1b7c3e87e38d4ea8f047acd5e133489fc47655342b248d5462",
           "localizedDescription": "Build 621: AudioNormalizationService WAV PCM 16kHz, SessionStore Keychain seguro y asistente autónomo actualizado.",
           "minOSVersion": "16.4"
         }
