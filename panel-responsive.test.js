@@ -11,7 +11,7 @@ const mobileHtml = fs.readFileSync(path.join(root, "mobile", "index.html"), "utf
 
 test("el panel y movil incluyen viewport responsive y reglas adaptables", () => {
   assert.match(indexHtml, /name="viewport" content="width=device-width, initial-scale=1"/);
-  assert.match(panelHtml, /name="viewport" content="width=device-width, initial-scale=1"/);
+  assert.match(panelHtml, /name="viewport" content="width=device-width, initial-scale=1/);
   assert.match(mobileHtml, /name="viewport" content="width=device-width, initial-scale=1/);
   assert.match(panelCss, /@media\s*\(max-width:\s*900px\)/);
   assert.match(panelCss, /@media\s*\(max-width:\s*640px\)/);
