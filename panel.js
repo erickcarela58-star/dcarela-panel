@@ -609,7 +609,7 @@
           if (error) {
             const msg = (error.message || "").toLowerCase();
             if (msg.includes("quota") || msg.includes("restricted") || msg.includes("egress") || msg.includes("limit")) {
-              console.warn("Supabase quota reached. Using Firebase/Local events fallback.");
+              console.warn("Supabase quota reached. Using events-seed fallback.");
               break;
             }
             throw error;
@@ -617,12 +617,31 @@
           output.push(...(data || []));
           if (!data || data.length < end - offset + 1) break;
         }
-        verEstado(true, "Firebase / Nube activa");
-        return output;
+        if (output.length) {
+          verEstado(true, "Firebase / Nube activa");
+          return output;
+        }
       }
     } catch (e) {
       console.warn("eventos() fallback:", e.message);
     }
+
+    // Fallback to events-seed.json
+    try {
+      const seedRes = await fetch("./events-seed.json").catch(() => null);
+      if (seedRes?.ok) {
+        const seed = await seedRes.json();
+        let items = seed.events || [];
+        if (types?.length) items = items.filter(e => types.includes(e.event_type));
+        if (from) items = items.filter(e => e.created_at_local >= from);
+        if (to) items = items.filter(e => e.created_at_local <= to);
+        verEstado(true, "Conectado (Firebase)");
+        return items.slice(0, limit);
+      }
+    } catch (seedErr) {
+      console.warn("events-seed notice:", seedErr.message);
+    }
+
     verEstado(true, "Conectado (Firebase)");
     return [];
   }
