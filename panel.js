@@ -1574,44 +1574,88 @@
     if (!force && productCatalog && categoryCatalog && comboCatalog) {
       return { products: productCatalog, categories: categoryCatalog, combos: comboCatalog };
     }
-    const [productEvents, categoryEvents, comboEvents] = await Promise.all([
-      // El lote de reclasificacion del 12/08 dejo un evento reciente por cada
-      // producto activo. Tres paginas cubren el catalogo completo sin obligar
-      // al telefono a descargar decenas de miles de ajustes historicos antes
-      // de mostrar la caja.
-      eventos(["ProductoCreado", "ProductoEditado", "ProductoDesactivado", "InventarioAjustado"], null, null, 3000),
-      eventos(["CategoriaCreada"], null, null, 1000),
-      eventos(["KitEditado"], null, null, 3000)
-    ]);
-    productCatalog = consolidateProducts(
-      mergeEvents(productEvents, ["ProductoCreado", "ProductoEditado", "ProductoDesactivado"])
-    )
-      .filter(item => item.nombre)
-      .map(item => ({ ...item, activo: item._stateEvent !== "ProductoDesactivado" && item.activo !== false }))
-      .sort((a, b) => String(a.nombre).localeCompare(String(b.nombre), "es"));
-    categoryCatalog = consolidateNamed(mergeEvents(categoryEvents, ["CategoriaCreada"]))
-      .filter(item => item.nombre)
-      .sort((a, b) => String(a.nombre).localeCompare(String(b.nombre), "es"));
-    comboCatalog = new Map();
-    comboEvents.forEach(event => {
-      const payload = P(event);
-      const id = String(payload.comboId || event.entity_id || "").trim();
-      if (id && !comboCatalog.has(id)) comboCatalog.set(id, {
-        componentes: Array.isArray(payload.componentes) ? payload.componentes : [],
-        costoCentavos: numero(payload.costoCentavos),
-        fecha: fechaEventoIso(event)
-      });
-    });
+    try {
+      const [productEvents, categoryEvents, comboEvents] = await Promise.all([
+        eventos(["ProductoCreado", "ProductoEditado", "ProductoDesactivado", "InventarioAjustado"], null, null, 3000),
+        eventos(["CategoriaCreada"], null, null, 1000),
+        eventos(["KitEditado"], null, null, 3000)
+      ]);
+      const mergedProducts = consolidateProducts(
+        mergeEvents(productEvents, ["ProductoCreado", "ProductoEditado", "ProductoDesactivado"])
+      )
+        .filter(item => item.nombre)
+        .map(item => ({ ...item, activo: item._stateEvent !== "ProductoDesactivado" && item.activo !== false }))
+        .sort((a, b) => String(a.nombre).localeCompare(String(b.nombre), "es"));
+
+      const mergedCategories = consolidateNamed(mergeEvents(categoryEvents, ["CategoriaCreada"]))
+        .filter(item => item.nombre)
+        .sort((a, b) => String(a.nombre).localeCompare(String(b.nombre), "es"));
+
+      if (mergedProducts.length) {
+        productCatalog = mergedProducts;
+        categoryCatalog = mergedCategories;
+        comboCatalog = new Map();
+        comboEvents.forEach(event => {
+          const payload = P(event);
+          const id = String(payload.comboId || event.entity_id || "").trim();
+          if (id && !comboCatalog.has(id)) comboCatalog.set(id, {
+            componentes: Array.isArray(payload.componentes) ? payload.componentes : [],
+            costoCentavos: numero(payload.costoCentavos),
+            fecha: fechaEventoIso(event)
+          });
+        });
+        return { products: productCatalog, categories: categoryCatalog, combos: comboCatalog };
+      }
+    } catch (catErr) {
+      console.warn("cargarCatalogoCloud Supabase notice:", catErr.message);
+    }
+
+    // Fallback to local catalog seed
+    try {
+      const seedRes = await fetch("./catalog-seed.json").catch(() => null);
+      if (seedRes?.ok) {
+        const seed = await seedRes.json();
+        productCatalog = seed.products || [];
+        categoryCatalog = seed.categories || [];
+        comboCatalog = new Map();
+        return { products: productCatalog, categories: categoryCatalog, combos: comboCatalog };
+      }
+    } catch (seedErr) {
+      console.warn("catalog-seed fetch notice:", seedErr.message);
+    }
+
+    productCatalog = productCatalog || [];
+    categoryCatalog = categoryCatalog || [];
+    comboCatalog = comboCatalog || new Map();
     return { products: productCatalog, categories: categoryCatalog, combos: comboCatalog };
   }
 
   async function cargarClientesCloud(force = false) {
     if (!force && clientCatalog) return clientCatalog;
-    const items = await eventos(["ClienteCreado", "ClienteEditado", "ClienteDesactivado"], null, null, 3000);
-    clientCatalog = mergeEvents(items, ["ClienteCreado", "ClienteEditado", "ClienteDesactivado"])
-      .filter(item => item.nombre)
-      .map(item => ({ ...item, activo: item._stateEvent !== "ClienteDesactivado" && item.activo !== false }))
-      .sort((a, b) => String(a.nombre).localeCompare(String(b.nombre), "es"));
+    try {
+      const items = await eventos(["ClienteCreado", "ClienteEditado", "ClienteDesactivado"], null, null, 3000);
+      const merged = mergeEvents(items, ["ClienteCreado", "ClienteEditado", "ClienteDesactivado"])
+        .filter(item => item.nombre)
+        .map(item => ({ ...item, activo: item._stateEvent !== "ClienteDesactivado" && item.activo !== false }))
+        .sort((a, b) => String(a.nombre).localeCompare(String(b.nombre), "es"));
+      if (merged.length) {
+        clientCatalog = merged;
+        return clientCatalog;
+      }
+    } catch (cliErr) {
+      console.warn("cargarClientesCloud notice:", cliErr.message);
+    }
+
+    try {
+      const seedRes = await fetch("./catalog-seed.json").catch(() => null);
+      if (seedRes?.ok) {
+        const seed = await seedRes.json();
+        clientCatalog = seed.clients || [];
+        return clientCatalog;
+      }
+    } catch (seedErr) {}
+
+    clientCatalog = clientCatalog || [];
     return clientCatalog;
   }
 
