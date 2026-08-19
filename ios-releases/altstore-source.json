@@ -15,7 +15,7 @@
       "versionDate": "2026-08-18T18:10:00Z",
       "versionDescription": "v5.0.2 (Build 479): Binario nativo universal ARM64 para dispositivo físico iOS (AltStore compatible), separación total de modelos IA (POS exclusivo en tareas, Cerebro de Lecturas independiente en Lecturas), navegador en vivo interactivo para libros y gráficas de onda luminosa continuas.",
       "downloadURL": "https://panel.dcarelacompufoto.com/ios-releases/Brujula-5.0.2-479-QA.ipa",
-      "size": 19135173,
+      "size": 19136631,
       "sha256": "7a776d8b3ba7227b7e961b962f0439bcb667a0a66eb9491d7c1e5b5f63c29182",
       "minOSVersion": "17.0",
       "versions": [
@@ -24,8 +24,8 @@
           "buildVersion": "479",
           "date": "2026-08-18",
           "downloadURL": "https://panel.dcarelacompufoto.com/ios-releases/Brujula-5.0.2-479-QA.ipa",
-          "size": 19135173,
-          "sha256": "bcc2529ae7b41b73731e37b4c9df44fef48fcc7ea792f39e7efe0c3c9420a55a",
+          "size": 19136631,
+          "sha256": "daa14d2c6892571487e905fd79cc6a0f49c36fed92734e2d8388945ad266f765",
           "localizedDescription": "v5.0.2 (Build 479): Navegador en vivo interactivo para enlaces de libros, gráficas de onda luminosa continuas estilo Imagen 5, unificación de superficies oscuras y soporte para widgets iOS.",
           "minOSVersion": "17.0"
         },
