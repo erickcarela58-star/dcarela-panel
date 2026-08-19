@@ -14,7 +14,7 @@
       "version": "5.0.2",
       "versionDate": "2026-08-18T18:10:00Z",
       "versionDescription": "v5.0.2 (Build 479): Binario nativo universal ARM64 para dispositivo físico iOS (AltStore compatible), separación total de modelos IA (POS exclusivo en tareas, Cerebro de Lecturas independiente en Lecturas), navegador en vivo interactivo para libros y gráficas de onda luminosa continuas.",
-      "downloadURL": "https://raw.githubusercontent.com/erickcarela58-star/dcarela-panel/main/ios-releases/Brujula-5.0.2-479-QA.ipa",
+      "downloadURL": "https://panel.dcarelacompufoto.com/ios-releases/Brujula-5.0.2-479-QA.ipa",
       "size": 19153627,
       "sha256": "7a776d8b3ba7227b7e961b962f0439bcb667a0a66eb9491d7c1e5b5f63c29182",
       "minOSVersion": "17.0",
@@ -23,7 +23,7 @@
           "version": "5.0.2",
           "buildVersion": "479",
           "date": "2026-08-18",
-          "downloadURL": "https://raw.githubusercontent.com/erickcarela58-star/dcarela-panel/main/ios-releases/Brujula-5.0.2-479-QA.ipa",
+          "downloadURL": "https://panel.dcarelacompufoto.com/ios-releases/Brujula-5.0.2-479-QA.ipa",
           "size": 19153627,
           "sha256": "7a776d8b3ba7227b7e961b962f0439bcb667a0a66eb9491d7c1e5b5f63c29182",
           "localizedDescription": "v5.0.2 (Build 479): Navegador en vivo interactivo para enlaces de libros, gráficas de onda luminosa continuas estilo Imagen 5, unificación de superficies oscuras y soporte para widgets iOS.",
@@ -37,16 +37,6 @@
           "size": 17391854,
           "sha256": "dcf0a3968068efd18ac31f26d171ad0aa090afee69699b438439419df8811882",
           "localizedDescription": "v5.0.1 (Build 478): Cerebro Local 100% autónomo offline para libros y productividad, sin bloqueo por API remota, motor de lectura web progresiva con barra roja de 2pt, 14 App Intents y 4 modos de respuesta (Coqueto, Seductor, Retador, Sarcástico).",
-          "minOSVersion": "17.0"
-        },
-        {
-          "version": "5.0.0",
-          "buildVersion": "477",
-          "date": "2026-08-18",
-          "downloadURL": "https://raw.githubusercontent.com/erickcarela58-star/dcarela-panel/main/ios-releases/Brujula-5.0.0-477-QA.ipa",
-          "size": 17387481,
-          "sha256": "b2c4f6d572548dc7567247f18d9c3883ca964ea452fb57dabad2257d0d5893af",
-          "localizedDescription": "v5.0.0 (Build 477): Plan restaurado unificado, 14 App Intents con ejecución real, motor de lectura web progresiva con barra roja de 2pt.",
           "minOSVersion": "17.0"
         }
       ]
@@ -62,7 +52,7 @@
       "version": "6.1.2",
       "versionDate": "2026-08-18T18:43:00Z",
       "versionDescription": "v6.1.1: Resolución completa edge-to-edge sin bordes artificiales, dock inferior flotante optimizado para safe area, binario nativo ARM64 compatible con AltStore.",
-      "downloadURL": "https://raw.githubusercontent.com/erickcarela58-star/dcarela-panel/main/ios-releases/DCarelaFinanzas-5.0.2-QA.ipa",
+      "downloadURL": "https://panel.dcarelacompufoto.com/ios-releases/DCarelaFinanzas-5.0.2-QA.ipa",
       "size": 1934704,
       "sha256": "b985bdf48c848ced0d0aee778732ab06aa311582b7e6eb195a3d06b833b2a38d",
       "minOSVersion": "16.4",
@@ -71,7 +61,7 @@
           "version": "6.1.2",
           "buildVersion": "621",
           "date": "2026-08-17",
-          "downloadURL": "https://raw.githubusercontent.com/erickcarela58-star/dcarela-panel/main/ios-releases/DCarelaFinanzas-5.0.2-QA.ipa",
+          "downloadURL": "https://panel.dcarelacompufoto.com/ios-releases/DCarelaFinanzas-5.0.2-QA.ipa",
           "size": 1934704,
           "sha256": "b985bdf48c848ced0d0aee778732ab06aa311582b7e6eb195a3d06b833b2a38d",
           "localizedDescription": "Build 621: AudioNormalizationService WAV PCM 16kHz, SessionStore Keychain seguro y asistente autónomo actualizado.",
