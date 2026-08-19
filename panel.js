@@ -2523,15 +2523,33 @@
 
   async function cargarDashboard() {
     try {
-      const from = inicioDia();
-      const to = finDia();
-      const [{ active, excluded }, returns, activity, devices, backups] = await Promise.all([
+      let from = inicioDia();
+      let to = finDia();
+      let [{ active, excluded }, returns, activity, devices, backups] = await Promise.all([
         ventasActivas(from, to, 5000).catch(() => ({ active: [], excluded: 0 })),
         eventos(["DevolucionRegistrada"], from, to, 1000).catch(() => []),
         eventos(null, null, null, 45).catch(() => []),
         getDevices().catch(() => []),
         getBackups(5).catch(() => [])
       ]);
+
+      let dayLabel = "hoy";
+      if (!active.length) {
+        const recentSalesEvents = await eventos(["VentaCobrada"], null, null, 200).catch(() => []);
+        if (recentSalesEvents.length) {
+          const latestDateIso = fechaEventoIso(recentSalesEvents[0]);
+          if (latestDateIso) {
+            const latestDay = latestDateIso.slice(0, 10);
+            const latestActive = await ventasActivas(inicioDia(latestDay), finDia(latestDay), 5000).catch(() => null);
+            if (latestActive?.active?.length) {
+              active = latestActive.active;
+              excluded = latestActive.excluded;
+              dayLabel = `ultimo dia activo (${fechaCorta(latestDay + "T12:00:00")})`;
+            }
+          }
+        }
+      }
+
       const gross = active.reduce((sum, event) => sum + totalDe(P(event)), 0);
       const refunds = returns.reduce((sum, event) => sum + montoDe(P(event)), 0);
       const net = gross - refunds;
@@ -2541,9 +2559,9 @@
       const cashState = cashEvents[0]?.event_type === "CajaAbierta" ? "Abierta" : "Cerrada";
 
       $("kVenta").textContent = money(net);
-      $("kVentaDetalle").textContent = refunds ? `${money(refunds)} devuelto` : `${excluded} anulada(s) excluida(s)`;
+      $("kVentaDetalle").textContent = refunds ? `${money(refunds)} devuelto` : `${dayLabel}`;
       $("kNum").textContent = active.length;
-      $("kNumDetalle").textContent = excluded ? `${excluded} anulada(s) fuera del total` : "ventas validas";
+      $("kNumDetalle").textContent = excluded ? `${excluded} anulada(s) fuera` : `${active.length} transacciones`;
       $("kProm").textContent = money(active.length ? Math.round(gross / active.length) : 0);
       $("kEfec").textContent = money(cash);
       $("kItbis").textContent = money(tax);
@@ -4039,9 +4057,8 @@
 
   async function cargarVentas() {
     if (!$("venDesde").value) {
-      const today = inputDate(new Date());
-      $("venDesde").value = today;
-      $("venHasta").value = today;
+      $("venDesde").value = inputDate(new Date(Date.now() - 30 * 86400000));
+      $("venHasta").value = inputDate(new Date());
     }
     const from = inicioDia($("venDesde").value);
     const to = finDia($("venHasta").value);
