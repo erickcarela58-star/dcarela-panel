@@ -5415,7 +5415,7 @@
     $("finFechaReferencia").value = finReferenceDate;
     $("finPeriodTabs").querySelectorAll("[data-fin-period]").forEach(button => button.classList.toggle("act", button.dataset.finPeriod === finDashboardPeriod));
     
-    let summary = {}, dailyRows = [], categoryRows = [];
+    let summary = null, dailyRows = [], categoryRows = [];
     try {
       if (sb) {
         const [summaryRes, dailyRes, categoryRes] = await Promise.all([
@@ -5424,11 +5424,43 @@
           sb.rpc("fin_category_totals", { p_business_id: BUSINESS, p_from: range.from, p_to: range.to, p_type: "gasto" }).catch(() => ({ data: null })),
         ]);
         if (summaryRes?.data?.[0]) summary = summaryRes.data[0];
-        if (dailyRes?.data) dailyRows = dailyRes.data;
-        if (categoryRes?.data) categoryRows = categoryRes.data;
+        if (dailyRes?.data?.length) dailyRows = dailyRes.data;
+        if (categoryRes?.data?.length) categoryRows = categoryRes.data;
       }
     } catch (finErr) {
       console.warn("renderFinDashboard notice:", finErr.message);
+    }
+
+    // Client-side financial analytics computation from state.movements
+    const periodMovements = (state.movements || []).filter(m => m.fecha >= range.from && m.fecha <= range.to);
+    if (!summary) {
+      const inc = periodMovements.filter(m => m.tipo === "ingreso").reduce((sum, m) => sum + numero(m.monto_centavos), 0);
+      const exp = periodMovements.filter(m => m.tipo === "gasto").reduce((sum, m) => sum + numero(m.monto_centavos), 0);
+      summary = { ingresos_centavos: inc, gastos_centavos: exp };
+    }
+
+    if (!dailyRows.length) {
+      const byDay = new Map();
+      periodMovements.forEach(m => {
+        const day = m.fecha;
+        if (!byDay.has(day)) byDay.set(day, { fecha: day, ingresos_centavos: 0, gastos_centavos: 0 });
+        const entry = byDay.get(day);
+        if (m.tipo === "ingreso") entry.ingresos_centavos += numero(m.monto_centavos);
+        if (m.tipo === "gasto") entry.gastos_centavos += numero(m.monto_centavos);
+      });
+      dailyRows = [...byDay.values()].sort((a, b) => a.fecha.localeCompare(b.fecha));
+    }
+
+    if (!categoryRows.length) {
+      const catMap = new Map(state.categories.map(c => [c.id, c.nombre]));
+      const byCat = new Map();
+      periodMovements.filter(m => m.tipo === "gasto").forEach(m => {
+        const catId = m.categoria_id || "sin-categoria";
+        const catName = catMap.get(catId) || m.payee || "Otros gastos";
+        if (!byCat.has(catId)) byCat.set(catId, { categoria_id: catId, nombre: catName, total_centavos: 0 });
+        byCat.get(catId).total_centavos += numero(m.monto_centavos);
+      });
+      categoryRows = [...byCat.values()].sort((a, b) => b.total_centavos - a.total_centavos);
     }
 
     const income = numero(summary.ingresos_centavos);
