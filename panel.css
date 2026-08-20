@@ -1087,20 +1087,20 @@ html.embedded-panel body {
   overflow-x: hidden;
 }
 
-html.embedded-panel .app-shell {
+html.is-embedded .app-shell {
   min-height: 100dvh;
   display: block;
   background: transparent;
 }
 
-html.embedded-panel .sidebar,
-html.embedded-panel .topbar,
-html.embedded-panel .mobile-command-dock,
-html.embedded-panel .workspace > footer {
+html.is-embedded .sidebar,
+html.is-embedded .topbar,
+html.is-embedded .mobile-command-dock,
+html.is-embedded .workspace > footer {
   display: none !important;
 }
 
-html.embedded-panel .workspace {
+html.is-embedded .workspace {
   min-width: 0;
   min-height: 100dvh;
   background: #09090b;
@@ -1108,7 +1108,7 @@ html.embedded-panel .workspace {
   max-width: 100%;
 }
 
-html.embedded-panel .workspace > main {
+html.is-embedded .workspace > main {
   width: 100%;
   max-width: 100%;
   min-height: 100dvh;

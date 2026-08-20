@@ -145,13 +145,13 @@
       expect("button no se trata como destino editable", !api.isEditableTarget(button));
 
       const expectedMap = {
-        F5: api.actions.NEW_SALE,
-        F6: api.actions.PARK_SALE,
-        F7: api.actions.RESUME_SALE,
-        F8: api.actions.COMMON_SALE,
+        F5: api.actions.CHANGE_LINE,
+        F6: api.actions.PARK_OR_RESUME,
+        F7: api.actions.CASH_IN,
+        F8: api.actions.CASH_OUT,
         F9: api.actions.VERIFY_PRICE,
-        F10: api.actions.STAGE_CATALOG,
-        F11: api.actions.STAGE_CART,
+        F10: api.actions.SEARCH_PRODUCT,
+        F11: api.actions.WHOLESALE,
         F12: api.actions.SUBMIT_SALE,
       };
 

@@ -1,24 +1,23 @@
 <!doctype html>
 <html lang="es">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#09090b">
-  <meta name="robots" content="noindex,nofollow">
-  <title>D' Carela Compufoto | Panel POS 1.0.45</title>
-  <script>
-    (() => {
-      const isMobile = window.innerWidth <= 768 || /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
-      const targetPath = isMobile ? "./mobile/" : "./panel.html";
-      const target = new URL(targetPath, location.href);
-      const currentParams = new URLSearchParams(location.search);
-      currentParams.forEach((val, key) => target.searchParams.set(key, val));
-      target.hash = location.hash;
-      location.replace(target.href);
-    })();
-  </script>
-</head>
-<body>
-  <p>Abriendo el panel oficial… <a href="./mobile/">Continuar en móvil</a></p>
-</body>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#09090b" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="D' Carela POS" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="icon" href="./favicon.svg" />
+    <title>D' Carela Compufoto | Panel POS</title>
+    <script type="module" crossorigin src="./shell-assets/index-B5lneklN.js"></script>
+    <link rel="stylesheet" crossorigin href="./shell-assets/index-BIq1Swuf.css">
+  </head>
+  <body>
+    <div id="root"></div>
+    <script src="/firebase-config.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
+    <script src="/firebase-adapter.js"></script>
+  </body>
 </html>

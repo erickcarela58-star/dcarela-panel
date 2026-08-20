@@ -1,0 +1,119 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function membership() {
+      return get(/databases/$(database)/documents/business_members/$(request.auth.uid)).data;
+    }
+    function isActiveMember(businessId) {
+      return signedIn()
+        && exists(/databases/$(database)/documents/business_members/$(request.auth.uid))
+        && membership().active == true
+        && businessId in membership().business_ids;
+    }
+    function isAdmin(businessId) {
+      return isActiveMember(businessId) && membership().role in ['owner', 'admin'];
+    }
+    function canSell(businessId) {
+      return isActiveMember(businessId) && membership().role in ['owner', 'admin', 'cajero'];
+    }
+    function keepsBusiness() {
+      return request.resource.data.business_id == resource.data.business_id;
+    }
+
+    match /business_members/{userId} {
+      allow read: if signedIn() && userId == request.auth.uid;
+      allow write: if false;
+    }
+    match /businesses/{businessId} {
+      allow read: if isActiveMember(businessId);
+      allow write: if false;
+    }
+
+    match /sync_events/{eventId} {
+      allow read: if resource.data.business_id is string && isActiveMember(resource.data.business_id);
+      allow create: if request.resource.data.business_id is string
+        && canSell(request.resource.data.business_id)
+        && request.resource.data.event_id == eventId
+        && request.resource.data.created_by_uid == request.auth.uid
+        && request.resource.data.keys().hasAll([
+          'business_id', 'device_id', 'event_id', 'event_type', 'entity_type',
+          'entity_id', 'payload', 'created_at_local', 'received_at_cloud',
+          'status', 'source', 'created_by_uid'
+        ]);
+      allow update, delete: if false;
+    }
+    match /cash_shifts/{shiftId} {
+      allow read: if resource.data.business_id is string && isActiveMember(resource.data.business_id);
+      allow create: if request.resource.data.business_id is string
+        && canSell(request.resource.data.business_id)
+        && request.resource.data.opened_by_uid == request.auth.uid
+        && request.resource.data.status == 'open';
+      allow update: if keepsBusiness() && canSell(resource.data.business_id)
+        && resource.data.opened_by_uid == request.auth.uid
+        && request.resource.data.status in ['open', 'closed'];
+      allow delete: if false;
+    }
+    match /sales/{saleId} {
+      allow read: if resource.data.business_id is string && isActiveMember(resource.data.business_id);
+      allow create: if request.resource.data.business_id is string
+        && canSell(request.resource.data.business_id)
+        && request.resource.data.created_by_uid == request.auth.uid
+        && request.resource.data.status == 'closed';
+      allow update: if keepsBusiness() && isAdmin(resource.data.business_id)
+        && request.resource.data.status in ['closed', 'cancelled'];
+      allow delete: if false;
+    }
+    match /counters/{counterId} {
+      allow read: if resource.data.business_id is string && canSell(resource.data.business_id);
+      allow create: if request.resource.data.business_id is string && canSell(request.resource.data.business_id);
+      allow update: if keepsBusiness() && canSell(resource.data.business_id);
+      allow delete: if false;
+    }
+
+    match /products/{documentId} {
+      allow read: if resource.data.business_id is string && isActiveMember(resource.data.business_id);
+      allow create: if request.resource.data.business_id is string && isAdmin(request.resource.data.business_id);
+      allow update: if keepsBusiness() && isAdmin(resource.data.business_id);
+      allow delete: if false;
+    }
+    match /categories/{documentId} {
+      allow read: if resource.data.business_id is string && isActiveMember(resource.data.business_id);
+      allow create: if request.resource.data.business_id is string && isAdmin(request.resource.data.business_id);
+      allow update: if keepsBusiness() && isAdmin(resource.data.business_id);
+      allow delete: if false;
+    }
+    match /clients/{documentId} {
+      allow read: if resource.data.business_id is string && isActiveMember(resource.data.business_id);
+      allow create: if request.resource.data.business_id is string && isAdmin(request.resource.data.business_id);
+      allow update: if keepsBusiness() && isAdmin(resource.data.business_id);
+      allow delete: if false;
+    }
+    match /fin_accounts/{documentId} {
+      allow read: if resource.data.business_id is string && isActiveMember(resource.data.business_id);
+      allow create: if request.resource.data.business_id is string && isAdmin(request.resource.data.business_id);
+      allow update: if keepsBusiness() && isAdmin(resource.data.business_id);
+      allow delete: if false;
+    }
+    match /fin_movements/{documentId} {
+      allow read: if resource.data.business_id is string && isActiveMember(resource.data.business_id);
+      allow create: if request.resource.data.business_id is string
+        && isAdmin(request.resource.data.business_id)
+        && request.resource.data.created_by_uid == request.auth.uid;
+      allow update: if keepsBusiness() && isAdmin(resource.data.business_id);
+      allow delete: if false;
+    }
+    match /fin_categories/{documentId} {
+      allow read: if resource.data.business_id is string && isActiveMember(resource.data.business_id);
+      allow create: if request.resource.data.business_id is string && isAdmin(request.resource.data.business_id);
+      allow update: if keepsBusiness() && isAdmin(resource.data.business_id);
+      allow delete: if false;
+    }
+
+    match /{collectionId}/{documentId} {
+      allow read: if resource.data.business_id is string && isActiveMember(resource.data.business_id);
+      allow write: if false;
+    }
+  }
+}

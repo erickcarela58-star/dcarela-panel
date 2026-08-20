@@ -1,4 +1,4 @@
-const APP_BUILD = "2026.08.18.1.0.46.0";
+const APP_BUILD = "2026.08.20.1.0.47.8";
 const CACHE = `dcarela-pos-shell-${APP_BUILD}`;
 const SHELL = [
   `./panel.css?v=${APP_BUILD}`,
@@ -6,7 +6,9 @@ const SHELL = [
   `./panel.js?v=${APP_BUILD}`,
   `./ticket-termico.js?v=${APP_BUILD}`,
   `./panel-sale-pending.js?v=${APP_BUILD}`,
-  `./mobile/assets/index-J61hK3gK.js?v=${APP_BUILD}`,
+  `./shell-assets/index-B5lneklN.js?v=${APP_BUILD}`,
+  `./shell-assets/index-BIq1Swuf.css?v=${APP_BUILD}`,
+  `./mobile/assets/index-DH-Ts2ak.js?v=${APP_BUILD}`,
   `./mobile/assets/index-BIq1Swuf.css?v=${APP_BUILD}`,
   "./supabase.min.js",
   "./jspdf.umd.min.js",
@@ -15,7 +17,9 @@ const SHELL = [
   "./favicon.svg",
   "./manifest.webmanifest",
   "./app-version.json",
-  "./config.js"
+  "./config.js",
+  "./firebase-config.js",
+  "./firebase-adapter.js"
 ];
 
 self.addEventListener("install", event => {

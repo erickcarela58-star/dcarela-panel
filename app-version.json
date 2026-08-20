@@ -1,15 +1,15 @@
 {
   "schema": 1,
-  "build": "2026.08.18.1.0.46.0",
-  "web_version": "1.0.45",
-  "pwa_version": "1.0.45",
+  "build": "2026.08.20.1.0.47.8",
+  "web_version": "1.0.47",
+  "pwa_version": "1.0.47",
   "desktop_version": "1.0.44",
   "ios_version": "5.0.0",
   "ios_build": "477",
   "ios_release_url": "https://panel.dcarelacompufoto.com/ios-releases/Brujula-5.0.0-477-QA.ipa",
-  "published_at": "2026-08-18T00:50:00Z",
+  "published_at": null,
   "channel": "stable",
-  "notes": "Panel web y PWA 1.0.45 restaurados con shell m\u00f3vil, fidelidad visual y centro de descargas. Br\u00fajula 5.0.0 (Build 477) y Finanzas 6.1.1 (Build 621) se conservan sin regresiones.",
+  "notes": "Panel web y PWA 1.0.47: autenticaci\u00f3n sin sesiones simuladas, Firebase limitado a membres\u00edas verificadas y datos est\u00e1ticos comerciales retirados del sitio p\u00fablico.",
   "release_page_url": "https://panel.dcarelacompufoto.com/#descargar",
   "desktop_release": {
     "version": "1.0.44",
@@ -154,7 +154,7 @@
       "status": "published",
       "url": "https://dcarelacompufoto.com/crm/",
       "action": "Abrir CRM",
-      "notes": "CRM oficial con combos, portafolio, bodas y archivos PDF enlazados al dominio dcarelacompufoto.com."
+      "notes": "CRM principal del canal oficial Meta/Cloud, separado del número conectado por WhatsApp Web."
     },
     {
       "id": "crm-fotos",
@@ -164,7 +164,7 @@
       "status": "published",
       "url": "https://dcarelacompufoto.com/crm-fotos/",
       "action": "Abrir CRM Fotos",
-      "notes": "CRM fotogr\u00e1fico oficial con los enlaces comerciales consolidados bajo dcarelacompufoto.com."
+      "notes": "Panel independiente del segundo n\u00famero por WhatsApp Web, fijado al canal fotogr\u00e1fico y vinculado por c\u00f3digo telef\u00f3nico."
     }
   ]
 }

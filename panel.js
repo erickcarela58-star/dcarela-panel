@@ -14,14 +14,14 @@
     } catch { return ""; }
   })();
   const BUSINESS = _urlBiz || window.__DCARELA_DEFAULT?.business || cfg?.business || "dcarela";
-  const EMBEDDED = new URLSearchParams(location.search).get("embedded") === "1" || window.self !== window.top;
+  const EMBEDDED = new URLSearchParams(location.search).get("embedded") === "1";
   document.documentElement.classList.add("embedded-panel");
   if (EMBEDDED) {
     document.documentElement.classList.add("is-embedded");
     document.body?.classList.add("is-embedded");
   }
   const THEME_KEY = "dcarela.ui.theme";
-  const APP_BUILD = "1.0.46";
+  const APP_BUILD = "1.0.47";
 
   window.cargarFinanzas = async function(force = false) {
     try {
@@ -49,12 +49,11 @@
     if (persist) {
       try { localStorage.setItem(THEME_KEY, currentTheme); } catch {}
     }
-    const button = $("btnTema");
-    if (button) {
+    [$("btnTema"), $("btnTemaAcceso")].filter(Boolean).forEach(button => {
       const label = currentTheme === "dark" ? "Usar modo claro" : "Usar modo oscuro";
       button.title = label;
       button.setAttribute("aria-label", label);
-    }
+    });
   }
   applyTheme(currentTheme, false);
   window.addEventListener("beforeinstallprompt", event => {
@@ -94,6 +93,7 @@
 
   let sb = null;
   let session = null;
+  let authProvider = "none";
   let sesionOk = false;
   let authGeneration = 0;
   let activeUserId = "";
@@ -326,7 +326,7 @@
     reportes: cargarReporte,
     inventario: cargarInventario,
     clientes: cargarClientes,
-    proveedores: cargarProveedores,
+    finanzas: cargarProveedores,
     asistente: cargarAsistente,
     notificaciones: cargarNotificaciones,
     dispositivos: cargarDispositivos,
@@ -337,6 +337,10 @@
   };
 
   function mostrarVista(name) {
+    if (name === "proveedores") {
+      name = "finanzas";
+      history.replaceState(null, "", `${location.pathname}${location.search}#finanzas`);
+    }
     const selected = loaders[name] ? name : "dashboard";
     document.querySelectorAll(".vista").forEach(view => view.classList.add("oculto"));
     $("v-" + selected).classList.remove("oculto");
@@ -360,15 +364,17 @@
   function mostrarError(module, error) {
     const msg = String(error?.message || error || "").toLowerCase();
     if (msg.includes("quota") || msg.includes("restricted") || msg.includes("spend caps") || msg.includes("egress") || msg.includes("storage_size") || msg.includes("violat")) {
-      console.warn(`[${module}] Supabase quota restriction bypassed. Operating in Firebase/Local mode.`);
-      verEstado(true, "Operando en Firebase");
-      return;
+      console.warn(`[${module}] backend restringido; no se muestran datos estáticos como si fueran actuales.`);
+      verEstado(false, "Nube temporalmente restringida");
     }
-    verEstado(false, "Error al consultar datos");
+    else verEstado(false, "Error al consultar datos");
     const target = document.querySelector(`#v-${module} .surface:last-child`) || $("v-" + module);
     if (target) {
       target.querySelectorAll("p.error").forEach(el => el.remove());
-      target.insertAdjacentHTML("afterbegin", `<p class="error">${esc(error?.message || error)}</p>`);
+      const detail = msg.includes("quota") || msg.includes("restricted") || msg.includes("egress")
+        ? "La nube está temporalmente restringida. Los datos no se sustituyeron por copias antiguas."
+        : (error?.message || error);
+      target.insertAdjacentHTML("afterbegin", `<p class="error">${esc(detail)}</p>`);
     }
   }
 
@@ -391,14 +397,26 @@
   }
 
   async function cargarSucursalesDisponibles() {
-    if (!session?.user?.id) return;
-    try {
-      if (sb) {
+    if (!session?.user?.id) throw new Error("La sesión no contiene un usuario válido.");
+    if (authProvider === "firebase") {
+      if (!window.DcarelaFirebase?.isAvailable) throw new Error("Firebase no está disponible.");
+      businessMemberships = await window.DcarelaFirebase.getMembershipsForUser(session.user.id);
+      if (!businessMemberships.length) throw new Error("Tu cuenta no tiene una membresía activa para ninguna sucursal.");
+      const ids = businessMemberships.map(item => item.business_id).filter(Boolean);
+      const businesses = await window.DcarelaFirebase.getBusinessesByIds(ids);
+      businessCatalog = businesses.map(item => ({
+        ...item,
+        role: businessMemberships.find(member => member.business_id === item.id)?.role || "viewer"
+      }));
+    } else {
+      try {
+        if (sb) {
         const { data: memberships, error: membershipError } = await sb.from("pos_business_members")
           .select("business_id,role,active")
           .eq("user_id", session.user.id)
           .eq("active", true);
-        if (!membershipError && memberships?.length) {
+        if (membershipError) throw membershipError;
+        if (memberships?.length) {
           businessMemberships = memberships;
           const ids = [...new Set(businessMemberships.map(item => item.business_id).filter(Boolean))];
           const { data: businesses, error: businessError } = await sb.from("pos_businesses")
@@ -414,17 +432,17 @@
             }));
           }
         }
+        }
+      } catch (e) {
+        console.warn("cargarSucursalesDisponibles:", e.message);
+        throw e;
       }
-    } catch (e) {
-      console.warn("cargarSucursalesDisponibles fallback:", e.message);
     }
 
     if (!businessCatalog?.length) {
-      businessCatalog = [
-        { id: "dcarela", name: "D' Carela Compufoto", active: true, role: "owner" },
-        { id: "plaza-artesanal", name: "D' Carela Plaza Artesanal", active: true, role: "owner" }
-      ];
+      throw new Error("Tu cuenta no tiene una membresía activa para esta instalación.");
     }
+    if (!businessCatalog.some(item => item.id === BUSINESS)) throw new Error("Tu cuenta no tiene acceso a esta sucursal.");
 
     const selector = $("branchSelector");
     selector.innerHTML = businessCatalog.map(item =>
@@ -487,6 +505,48 @@
     start.setDate(1);
     start.setHours(0, 0, 0, 0);
     const branchId = branch.id;
+    if (authProvider === "firebase") {
+      if (!window.DcarelaFirebase?.isAvailable) throw new Error("Firebase no está disponible.");
+      const [rawEvents, rawDevices, rawAlerts, products] = await Promise.all([
+        window.DcarelaFirebase.getSyncEvents(branchId),
+        window.DcarelaFirebase.getCollection("devices", [["business_id", "==", branchId]]),
+        window.DcarelaFirebase.getCollection("system_alerts", [["business_id", "==", branchId]]),
+        window.DcarelaFirebase.getProducts(branchId),
+      ]);
+      const allowed = new Set(["VentaCobrada", "VentaCancelada", "CajaAbierta", "CajaCerrada", "CierreConDiferencia", "GastoRegistrado"]);
+      const all = (rawEvents || []).filter(item => allowed.has(item.event_type)
+        && new Date(item.created_at_local || item.received_at_cloud || 0) >= start);
+      const cancellations = new Set();
+      all.filter(item => item.event_type === "VentaCancelada")
+        .forEach(item => clavesVentaSucursal(item).forEach(key => cancellations.add(key)));
+      const sales = all.filter(item => item.event_type === "VentaCobrada"
+        && !clavesVentaSucursal(item).some(key => cancellations.has(key)));
+      const total = sales.reduce((sum, item) => sum + totalDe(P(item)), 0);
+      const profits = sales.map(item => gananciaDocumentada(P(item)));
+      const profit = profits.reduce((sum, item) => sum + item.amount, 0);
+      const profitCoverage = total > 0
+        ? Math.round(profits.reduce((sum, item) => sum + item.revenue, 0) / total * 100)
+        : 100;
+      const devices = (rawDevices || []).sort((a, b) => String(b.last_seen_at || "").localeCompare(String(a.last_seen_at || "")));
+      const latestDevice = devices[0] || null;
+      const connected = latestDevice?.last_seen_at
+        ? Date.now() - new Date(latestDevice.last_seen_at).getTime() < 10 * 60 * 1000
+        : false;
+      return {
+        ...branch,
+        total,
+        sales: sales.length,
+        profit,
+        profitCoverage: Math.max(0, Math.min(100, profitCoverage)),
+        movements: all.length,
+        alerts: (rawAlerts || []).filter(item => !item.acknowledged_at).length,
+        products: new Set((products || []).map(item => item.id).filter(Boolean)).size,
+        device: latestDevice,
+        connected,
+        salesSeries: seriesDiaria(sales, item => totalDe(P(item))),
+        profitSeries: seriesDiaria(sales, item => gananciaDocumentada(P(item)).amount),
+      };
+    }
     const [eventsResult, devicesResult, alertsResult, catalogResult] = await Promise.all([
       sb.from("sync_events")
         .select("event_id,event_type,entity_id,payload,created_at_local,received_at_cloud,device_id")
@@ -586,10 +646,20 @@
     $("branchCards").querySelectorAll("[data-open-branch]").forEach(button =>
       button.addEventListener("click", () => abrirSucursal(button.dataset.openBranch, "dashboard")));
     $("branchCards").querySelectorAll("[data-branch-finance]").forEach(button =>
-      button.addEventListener("click", () => abrirSucursal(button.dataset.branchFinance, "proveedores")));
+      button.addEventListener("click", () => abrirSucursal(button.dataset.branchFinance, "finanzas")));
   }
 
   async function eventos(types, from, to, limit = 400) {
+    if (authProvider === "firebase") {
+      if (!window.DcarelaFirebase?.isAvailable) throw new Error("Firebase no está disponible.");
+      let items = await window.DcarelaFirebase.getSyncEvents(BUSINESS);
+      if (types?.length) items = items.filter(item => types.includes(item.event_type));
+      if (from) items = items.filter(item => String(item.created_at_local || "") >= from);
+      if (to) items = items.filter(item => String(item.created_at_local || "") <= to);
+      items.sort((a, b) => String(b.created_at_local || "").localeCompare(String(a.created_at_local || "")));
+      verEstado(true, "Firebase autenticado");
+      return items.slice(0, Math.max(1, limit));
+    }
     try {
       if (sb) {
         const output = [];
@@ -606,47 +676,29 @@
           if (from) query = query.gte("created_at_local", from);
           if (to) query = query.lte("created_at_local", to);
           const { data, error } = await query;
-          if (error) {
-            const msg = (error.message || "").toLowerCase();
-            if (msg.includes("quota") || msg.includes("restricted") || msg.includes("egress") || msg.includes("limit")) {
-              console.warn("Supabase quota reached. Using events-seed fallback.");
-              break;
-            }
-            throw error;
-          }
+          if (error) throw error;
           output.push(...(data || []));
           if (!data || data.length < end - offset + 1) break;
         }
-        if (output.length) {
-          verEstado(true, "Firebase / Nube activa");
-          return output;
-        }
+        verEstado(true, "Supabase autenticado");
+        return output;
       }
     } catch (e) {
-      console.warn("eventos() fallback:", e.message);
+      console.warn("eventos():", e.message);
+      throw e;
     }
-
-    // Fallback to events-seed.json
-    try {
-      const seedRes = await fetch("./events-seed.json").catch(() => null);
-      if (seedRes?.ok) {
-        const seed = await seedRes.json();
-        let items = seed.events || [];
-        if (types?.length) items = items.filter(e => types.includes(e.event_type));
-        if (from) items = items.filter(e => e.created_at_local >= from);
-        if (to) items = items.filter(e => e.created_at_local <= to);
-        verEstado(true, "Conectado (Firebase)");
-        return items.slice(0, limit);
-      }
-    } catch (seedErr) {
-      console.warn("events-seed notice:", seedErr.message);
-    }
-
-    verEstado(true, "Conectado (Firebase)");
-    return [];
+    throw new Error("No existe un backend autenticado para consultar eventos.");
   }
 
   async function cargarRolEdicion() {
+    if (authProvider === "firebase") {
+      const membership = businessMemberships.find(item => item.business_id === BUSINESS && item.active !== false);
+      if (!membership) throw new Error("Tu cuenta no tiene una membresía activa para esta sucursal.");
+      memberRole = membership.role || "viewer";
+      canEdit = ["owner", "admin"].includes(memberRole);
+      document.querySelectorAll(".admin-only").forEach(element => element.classList.toggle("oculto", !canEdit));
+      return;
+    }
     try {
       if (sb) {
         const { data, error } = await sb.from("pos_business_members")
@@ -663,14 +715,16 @@
         }
       }
     } catch (e) {
-      console.warn("cargarRolEdicion fallback:", e.message);
+      console.warn("cargarRolEdicion:", e.message);
+      throw e;
     }
-    memberRole = "owner";
-    canEdit = true;
-    document.querySelectorAll(".admin-only").forEach(element => element.classList.toggle("oculto", !canEdit));
+    throw new Error("Tu cuenta no tiene una membresía activa para esta sucursal.");
   }
 
   async function authenticatedHeaders(includeJson = false) {
+    if (authProvider !== "supabase") {
+      throw new Error("Esta operación aún requiere una sesión Supabase válida. Firebase está habilitado solo para lectura segura.");
+    }
     const { data, error } = await sb.auth.getSession();
     if (error || !data?.session?.access_token) throw new Error("La sesion vencio. Inicia sesion nuevamente.");
     session = data.session;
@@ -683,6 +737,20 @@
 
   async function adminWrite(action, entityId, data) {
     if (!canEdit) throw new Error("Tu cuenta no tiene permiso de administracion para editar datos.");
+    if (authProvider === "firebase") {
+      if (!window.DcarelaFirebase?.isAvailable) throw new Error("Firebase no está disponible.");
+      const result = await window.DcarelaFirebase.adminAction(action, BUSINESS, memberRole, entityId, data);
+      productCatalog = null;
+      categoryCatalog = null;
+      comboCatalog = null;
+      clientCatalog = null;
+      businessConfig = null;
+      costStateCache = null;
+      finStateCache = null;
+      alertasCache = null;
+      if (action !== "ui.preference.upsert") toast(result.message || "Cambio guardado en Firebase.");
+      return result;
+    }
     const response = await fetch(`${cfg.url.replace(/\/$/, "")}/functions/v1/pos-admin-write`, {
       method: "POST",
       headers: await authenticatedHeaders(true),
@@ -1602,6 +1670,17 @@
     if (!force && productCatalog && categoryCatalog && comboCatalog) {
       return { products: productCatalog, categories: categoryCatalog, combos: comboCatalog };
     }
+    if (authProvider === "firebase") {
+      if (!window.DcarelaFirebase?.isAvailable) throw new Error("Firebase no está disponible.");
+      const [products, categories] = await Promise.all([
+        window.DcarelaFirebase.getProducts(BUSINESS),
+        window.DcarelaFirebase.getCategories(BUSINESS)
+      ]);
+      productCatalog = (products || []).sort((a, b) => String(a.nombre || a.name || "").localeCompare(String(b.nombre || b.name || ""), "es"));
+      categoryCatalog = (categories || []).sort((a, b) => String(a.nombre || a.name || "").localeCompare(String(b.nombre || b.name || ""), "es"));
+      comboCatalog = new Map();
+      return { products: productCatalog, categories: categoryCatalog, combos: comboCatalog };
+    }
     try {
       const [productEvents, categoryEvents, comboEvents] = await Promise.all([
         eventos(["ProductoCreado", "ProductoEditado", "ProductoDesactivado", "InventarioAjustado"], null, null, 3000),
@@ -1638,20 +1717,6 @@
       console.warn("cargarCatalogoCloud Supabase notice:", catErr.message);
     }
 
-    // Fallback to local catalog seed
-    try {
-      const seedRes = await fetch("./catalog-seed.json").catch(() => null);
-      if (seedRes?.ok) {
-        const seed = await seedRes.json();
-        productCatalog = seed.products || [];
-        categoryCatalog = seed.categories || [];
-        comboCatalog = new Map();
-        return { products: productCatalog, categories: categoryCatalog, combos: comboCatalog };
-      }
-    } catch (seedErr) {
-      console.warn("catalog-seed fetch notice:", seedErr.message);
-    }
-
     productCatalog = productCatalog || [];
     categoryCatalog = categoryCatalog || [];
     comboCatalog = comboCatalog || new Map();
@@ -1660,6 +1725,12 @@
 
   async function cargarClientesCloud(force = false) {
     if (!force && clientCatalog) return clientCatalog;
+    if (authProvider === "firebase") {
+      if (!window.DcarelaFirebase?.isAvailable) throw new Error("Firebase no está disponible.");
+      const clients = await window.DcarelaFirebase.getClients(BUSINESS);
+      clientCatalog = (clients || []).sort((a, b) => String(a.nombre || a.name || "").localeCompare(String(b.nombre || b.name || ""), "es"));
+      return clientCatalog;
+    }
     try {
       const items = await eventos(["ClienteCreado", "ClienteEditado", "ClienteDesactivado"], null, null, 3000);
       const merged = mergeEvents(items, ["ClienteCreado", "ClienteEditado", "ClienteDesactivado"])
@@ -1673,15 +1744,6 @@
     } catch (cliErr) {
       console.warn("cargarClientesCloud notice:", cliErr.message);
     }
-
-    try {
-      const seedRes = await fetch("./catalog-seed.json").catch(() => null);
-      if (seedRes?.ok) {
-        const seed = await seedRes.json();
-        clientCatalog = seed.clients || [];
-        return clientCatalog;
-      }
-    } catch (seedErr) {}
 
     clientCatalog = clientCatalog || [];
     return clientCatalog;
@@ -2586,8 +2648,8 @@
       const activeDevices = devices.filter(device => device.status === "activa").length;
       const unread = (await obtenerAlertas().catch(() => [])).filter(alert => !alert.read).length;
       $("healthList").innerHTML = [
-        ["Sincronizacion", latestEvent ? `Ultimo evento ${fecha(fechaEventoIso(latestEvent))}` : "Operando en Firebase", "activa", ""],
-        ["Respaldo", latestBackup ? `${fecha(latestBackup.created_at)} | ${latestBackup.status}` : "Local verificado", latestBackup?.status || "al dia", ""],
+        ["Sincronizacion", latestEvent ? `Ultimo evento ${fecha(fechaEventoIso(latestEvent))}` : "Sin eventos disponibles", latestEvent ? "activa" : "sin datos", ""],
+        ["Respaldo", latestBackup ? `${fecha(latestBackup.created_at)} | ${latestBackup.status}` : "Sin respaldo informado", latestBackup?.status || "sin datos", ""],
         ["Dispositivos", `${activeDevices || 1} activo(s)`, "en linea", ""],
         ["Alertas", `${unread} sin leer`, unread ? "atencion" : "al dia", unread ? "warn" : ""]
       ].map(([title, detail, value, tone]) => `<div class="health-row"><span class="health-dot ${tone}"></span><div><b>${esc(title)}</b><small>${esc(detail)}</small></div><span class="health-value">${esc(value)}</span></div>`).join("");
@@ -2674,7 +2736,7 @@
 
   async function cargarPermisosCajaWeb(force = false) {
     if (!force && saleAccess.loaded) return saleAccess;
-    if (!sb || !session?.user) return saleAccess;
+    if (!session?.user || (authProvider !== "firebase" && !sb)) return saleAccess;
     const status = await saleApi("status");
     setSaleAccess({ role: status.role || memberRole, ...(status.permissions || {}), loaded: true });
     saleShift = status.shift || null;
@@ -2683,6 +2745,10 @@
   }
 
   async function saleApi(action, data = {}, requestId = null) {
+    if (authProvider === "firebase") {
+      if (!window.DcarelaFirebase?.isAvailable) throw new Error("Firebase no está disponible.");
+      return window.DcarelaFirebase.webSaleAction(action, BUSINESS, memberRole, data, requestId);
+    }
     const response = await fetch(`${cfg.url.replace(/\/$/, "")}/functions/v1/pos-web-sale`, {
       method: "POST",
       headers: await authenticatedHeaders(true),
@@ -4833,6 +4899,10 @@
     const [year, monthNumber] = month.split("-").map(Number);
     const from = `${month}-01`;
     const to = inputDate(new Date(year, monthNumber, 1));
+    if (authProvider === "firebase") {
+      if (!window.DcarelaFirebase?.isAvailable) throw new Error("Firebase no está disponible.");
+      return window.DcarelaFirebase.getFinanceMovements(BUSINESS, month);
+    }
     const rows = [];
     try {
       if (sb) {
@@ -4859,49 +4929,46 @@
   async function cargarCuentasFin(month) {
     let cuentasRes, accountVisualsRes, catsRes, movs = [], cardsRes, budgetsRes, preferencesRes, currenciesRes, cumuloRes, commitmentsRes, commitmentPaymentsRes, pendingTransfersRes;
     try {
-      [cuentasRes, accountVisualsRes, catsRes, movs, cardsRes, budgetsRes, preferencesRes, currenciesRes, cumuloRes, commitmentsRes, commitmentPaymentsRes, pendingTransfersRes] = await Promise.all([
-        sb.rpc("fin_account_balances", { p_business_id: BUSINESS }),
-      sb.from("fin_cuentas")
-        .select("id,visual_tono,visual_tono_secundario,visual_icono,visual_estilo,visual_mascara")
-        .eq("business_id", BUSINESS),
-      sb.from("fin_categorias").select("id,nombre,tipo,categoria_padre_id,orden,origen,updated_at").eq("business_id", BUSINESS).eq("estado", "activa").order("tipo").order("orden").order("nombre"),
-      cargarMovimientosFinMes(month),
-      sb.from("fin_tarjetas").select("*").eq("business_id", BUSINESS),
-      sb.from("fin_presupuestos").select("*").eq("business_id", BUSINESS).eq("estado", "activo").order("periodo_inicio", { ascending: false }).limit(500),
-      sb.from("fin_preferencias").select("*").eq("business_id", BUSINESS).maybeSingle(),
-      sb.from("fin_divisas").select("*").eq("business_id", BUSINESS).eq("activa", true).order("principal", { ascending: false }).order("codigo"),
-      sb.rpc("fin_cumulo_mensual", { p_business_id: BUSINESS }),
-      sb.from("fin_compromisos").select("*").eq("business_id", BUSINESS)
-        .order("activo", { ascending: false }).order("proximo_vencimiento", { ascending: true, nullsFirst: false }),
-      sb.from("fin_compromiso_pagos").select("*").eq("business_id", BUSINESS)
-        .order("fecha", { ascending: false }).limit(500),
-      sb.from("fin_transferencias_pendientes").select("*").eq("business_id", BUSINESS)
-        .order("estado", { ascending: false }).order("fecha_esperada", { ascending: true }),
-    ]);
+      if (authProvider === "firebase") {
+        if (!window.DcarelaFirebase?.isAvailable) throw new Error("Firebase no está disponible.");
+        const [accounts, categories, movements, cards, budgets] = await Promise.all([
+          window.DcarelaFirebase.getFinanceAccounts(BUSINESS),
+          window.DcarelaFirebase.getFinanceCategories(BUSINESS),
+          cargarMovimientosFinMes(month),
+          window.DcarelaFirebase.getFinanceCards(BUSINESS),
+          window.DcarelaFirebase.getFinanceBudgets(BUSINESS)
+        ]);
+        cuentasRes = { data: accounts || [] };
+        accountVisualsRes = { data: [] };
+        catsRes = { data: categories || [] };
+        movs = movements || [];
+        cardsRes = { data: cards || [] };
+        budgetsRes = { data: budgets || [] };
+        preferencesRes = { data: null };
+        currenciesRes = { data: [{ codigo: "DOP", nombre: "Peso dominicano", simbolo: "RD$", tasa: 1, principal: true }] };
+        cumuloRes = { data: null };
+        commitmentsRes = { data: [] };
+        commitmentPaymentsRes = { data: [] };
+        pendingTransfersRes = { data: [] };
+      } else {
+        [cuentasRes, accountVisualsRes, catsRes, movs, cardsRes, budgetsRes, preferencesRes, currenciesRes, cumuloRes, commitmentsRes, commitmentPaymentsRes, pendingTransfersRes] = await Promise.all([
+          sb.rpc("fin_account_balances", { p_business_id: BUSINESS }),
+          sb.from("fin_cuentas").select("id,visual_tono,visual_tono_secundario,visual_icono,visual_estilo,visual_mascara").eq("business_id", BUSINESS),
+          sb.from("fin_categorias").select("id,nombre,tipo,categoria_padre_id,orden,origen,updated_at").eq("business_id", BUSINESS).eq("estado", "activa").order("tipo").order("orden").order("nombre"),
+          cargarMovimientosFinMes(month),
+          sb.from("fin_tarjetas").select("*").eq("business_id", BUSINESS),
+          sb.from("fin_presupuestos").select("*").eq("business_id", BUSINESS).eq("estado", "activo").order("periodo_inicio", { ascending: false }).limit(500),
+          sb.from("fin_preferencias").select("*").eq("business_id", BUSINESS).maybeSingle(),
+          sb.from("fin_divisas").select("*").eq("business_id", BUSINESS).eq("activa", true).order("principal", { ascending: false }).order("codigo"),
+          sb.rpc("fin_cumulo_mensual", { p_business_id: BUSINESS }),
+          sb.from("fin_compromisos").select("*").eq("business_id", BUSINESS).order("activo", { ascending: false }).order("proximo_vencimiento", { ascending: true, nullsFirst: false }),
+          sb.from("fin_compromiso_pagos").select("*").eq("business_id", BUSINESS).order("fecha", { ascending: false }).limit(500),
+          sb.from("fin_transferencias_pendientes").select("*").eq("business_id", BUSINESS).order("estado", { ascending: false }).order("fecha_esperada", { ascending: true })
+        ]);
+      }
     } catch (finErr) {
-      console.warn("cargarCuentasFin Supabase fallback to Firebase/Local:", finErr.message);
-      cuentasRes = {
-        data: [
-          { id: "786b5ffd-169c-40f6-8fbc-8f0e6bc69a02", nombre: "Banco Popular", tipo: "banco", saldo_actual_centavos: 485333, incluir_en_total: true, ligada_ventas: true, estado: "activa", orden: 1 },
-          { id: "d131e3d8-8fba-4602-9a96-badeec362451", nombre: "Tarjeta de Credito Qik", tipo: "tarjeta_credito", saldo_actual_centavos: -79456, incluir_en_total: true, ligada_ventas: false, estado: "activa", orden: 2 },
-          { id: "622ddedb-bf63-4b3b-a349-ab58762ab3e8", nombre: "Cuenta Corriente Qik", tipo: "banco", saldo_actual_centavos: 4383, incluir_en_total: true, ligada_ventas: false, estado: "activa", orden: 3 },
-          { id: "a8a05570-a058-4b59-935a-80a8e556d729", nombre: "Efectivo", tipo: "efectivo", saldo_actual_centavos: 1271600, incluir_en_total: true, ligada_ventas: true, estado: "activa", orden: 4 }
-        ]
-      };
-      accountVisualsRes = { data: [] };
-      catsRes = { data: [
-        { id: "cat-1", nombre: "Suscripciones", tipo: "gasto", estado: "activa" },
-        { id: "cat-2", nombre: "Comida", tipo: "gasto", estado: "activa" },
-        { id: "cat-3", nombre: "Materiales", tipo: "gasto", estado: "activa" }
-      ] };
-      cardsRes = { data: [] };
-      budgetsRes = { data: [] };
-      preferencesRes = { data: null };
-      currenciesRes = { data: [{ codigo: "DOP", nombre: "Peso dominicano", simbolo: "RD$", tasa: 1, principal: true }] };
-      cumuloRes = { data: null };
-      commitmentsRes = { data: [] };
-      commitmentPaymentsRes = { data: [] };
-      pendingTransfersRes = { data: [] };
+      console.warn("cargarCuentasFin:", finErr.message);
+      throw finErr;
     }
     const visuals = new Map((accountVisualsRes.data || []).map(item => [item.id, item]));
     const cuentas = (cuentasRes.data || []).map(item => ({ ...item, ...(visuals.get(item.id) || {}) }));
@@ -6066,7 +6133,7 @@
     const refresh = () => {
       clearTimeout(timer);
       timer = setTimeout(() => {
-        if (!$("v-proveedores").classList.contains("oculto")) cargarProveedores(true).catch(error => toast(error.message));
+        if (!$("v-finanzas").classList.contains("oculto")) cargarProveedores(true).catch(error => toast(error.message));
       }, 500);
     };
     finRealtimeChannel = sb.channel(`dcarela-finance-${BUSINESS}`)
@@ -6168,13 +6235,13 @@
       InventarioBajo: "inventario", ProductoAgotado: "inventario",
       ErrorSincronizacion: "notificaciones", BackupSnapshotFallido: "respaldos",
       ErrorImpresionCorte: "caja",
-      DispositivoBloqueado: "dispositivos", CompraCreditoProveedorRegistrada: "proveedores",
-      PagoProveedorRegistrado: "proveedores", GastoRegistrado: "proveedores", GastoEditado: "proveedores",
-      GastoEliminado: "proveedores", CostoRecurrenteGuardado: "proveedores",
-      CostoObligacionGenerada: "proveedores", CostoObligacionGuardada: "proveedores",
-      CostoPagoRegistrado: "proveedores", CostoObligacionAnulada: "proveedores",
-      ReciboPagoEmitido: "proveedores", ReciboPagoFirmaActualizada: "proveedores",
-      ReciboPagoAnulado: "proveedores",
+      DispositivoBloqueado: "dispositivos", CompraCreditoProveedorRegistrada: "finanzas",
+      PagoProveedorRegistrado: "finanzas", GastoRegistrado: "finanzas", GastoEditado: "finanzas",
+      GastoEliminado: "finanzas", CostoRecurrenteGuardado: "finanzas",
+      CostoObligacionGenerada: "finanzas", CostoObligacionGuardada: "finanzas",
+      CostoPagoRegistrado: "finanzas", CostoObligacionAnulada: "finanzas",
+      ReciboPagoEmitido: "finanzas", ReciboPagoFirmaActualizada: "finanzas",
+      ReciboPagoAnulado: "finanzas",
       ActualizacionDisponible: "descargar"
     };
     return {
@@ -6246,7 +6313,7 @@
     if (type.includes("caja") || type.includes("cierre") || type.includes("arqueo")) return "caja";
     if (type.includes("venta") || type.includes("devolucion")) return "ventas";
     if (type.includes("cliente") || type.includes("credito")) return "clientes";
-    if (type.includes("proveedor") || type.includes("gasto") || type.includes("costo") || type.includes("deuda") || type.includes("obligacion")) return "proveedores";
+    if (type.includes("proveedor") || type.includes("gasto") || type.includes("costo") || type.includes("deuda") || type.includes("obligacion")) return "finanzas";
     if (type.includes("dispositivo")) return "dispositivos";
     if (type.includes("version") || type.includes("actualizacion")) return "descargar";
     return "notificaciones";
@@ -6316,7 +6383,7 @@
   }
 
   async function cargarConfiguracion() {
-    $("cfgInfo").innerHTML = `<div class="config-line"><span>Proyecto</span><strong>${esc(cfg.url)}</strong></div><div class="config-line"><span>Negocio</span><strong>${esc(BUSINESS)}</strong></div><div class="config-line"><span>Usuario</span><strong>${esc(session?.user?.email || "--")}</strong></div><div class="config-line"><span>Rol</span><strong>${esc(memberRole)}${canEdit ? " | edicion habilitada" : " | solo lectura"}</strong></div><div class="config-line"><span>Sesion</span><strong>Autenticada con Supabase Auth</strong></div>`;
+    $("cfgInfo").innerHTML = `<div class="config-line"><span>Proyecto</span><strong>${esc(authProvider === "firebase" ? "Firebase erikccarela" : cfg.url)}</strong></div><div class="config-line"><span>Negocio</span><strong>${esc(BUSINESS)}</strong></div><div class="config-line"><span>Usuario</span><strong>${esc(session?.user?.email || "--")}</strong></div><div class="config-line"><span>Rol</span><strong>${esc(memberRole)}${canEdit ? " | edicion habilitada" : " | solo lectura"}</strong></div><div class="config-line"><span>Sesion</span><strong>${authProvider === "firebase" ? "Firebase Auth · reglas verificadas" : "Supabase Auth"}</strong></div>`;
     const negocio = await cargarNegocioCloud();
     $("negNombre").value = negocio.nombre || "";
     $("negRnc").value = negocio.rnc || "";
@@ -6753,7 +6820,7 @@
       const view = location.hash.slice(1) || "dashboard";
       if (view === "dashboard") cargarDashboard().catch(() => {});
       if (view === "notificaciones") cargarNotificaciones().catch(() => {});
-      if (["ventas", "caja-virtual", "caja", "turnos", "recalcular", "reportes", "inventario", "clientes", "proveedores", "asistente", "configuracion"].includes(view)) loaders[view]?.().catch(() => {});
+      if (["ventas", "caja-virtual", "caja", "turnos", "recalcular", "reportes", "inventario", "clientes", "finanzas", "asistente", "configuracion"].includes(view)) loaders[view]?.().catch(() => {});
     }, 700);
   }
 
@@ -6801,7 +6868,7 @@
     // postMessage en cada carga/cambio. Volver a leer la preferencia remota
     // aquí introducía una carrera: el iframe podía regresar a oscuro justo
     // después de que el usuario seleccionara claro en el shell.
-    if (!EMBEDDED) await cargarTemaUsuario().catch(() => {});
+    if (!EMBEDDED && authProvider === "supabase") await cargarTemaUsuario().catch(() => {});
     await cargarPermisosCajaWeb().catch(() => setSaleAccess({ loaded: true }));
     if (generation !== authGeneration || session?.user?.id !== expectedUserId) return false;
     sesionOk = true;
@@ -6809,13 +6876,28 @@
     $("access").classList.add("oculto");
     $("app").classList.remove("oculto");
     $("sessionEmail").textContent = session?.user?.email || "Administrador";
-    verEstado(true, "Sesion autenticada");
+    if ($("backendLabel")) $("backendLabel").textContent = authProvider === "firebase" ? "Firebase · acceso seguro" : "Supabase · edición segura";
+    verEstado(true, authProvider === "firebase" ? "Firebase autenticado" : "Supabase autenticado");
     if (canEdit) renderIaApprovals().catch(() => {});
-    conectarRealtime();
+    if (authProvider === "supabase") conectarRealtime();
     await obtenerAlertas(true).catch(() => []);
     comprobarVersion();
     mostrarVista(location.hash.slice(1) || "dashboard");
     return true;
+  }
+
+  function sesionFirebase(user) {
+    if (!user?.uid) return null;
+    return {
+      provider: "firebase",
+      user: { id: user.uid, email: user.email || "" }
+    };
+  }
+
+  async function sesionFirebaseActual(timeoutMs = 2500) {
+    if (!window.DcarelaFirebase?.isAvailable) return null;
+    const user = await window.DcarelaFirebase.waitForAuthState(timeoutMs);
+    return sesionFirebase(user);
   }
 
   async function iniciarConSesion(nextSession, generation = authGeneration) {
@@ -6835,6 +6917,7 @@
     startupPromise = (async () => {
       mostrarAcceso("v-restoring");
       session = nextSession;
+      authProvider = nextSession.provider === "firebase" ? "firebase" : "supabase";
       try {
         const timeoutPromise = new Promise((_, reject) =>
           setTimeout(() => reject(new Error("Tiempo de espera agotado al conectar.")), 6000)
@@ -6847,6 +6930,7 @@
         if (generation !== authGeneration) return;
         sesionOk = false;
         activeUserId = "";
+        authProvider = "none";
         mostrarAcceso("v-login");
         $("loginErr").textContent = mensajeAutenticacion(error);
       }
@@ -6868,31 +6952,29 @@
     }, 4000);
 
     try {
-      // Check for saved Firebase session
-      const savedFb = localStorage.getItem("dcarela.fb_session");
-      if (savedFb) {
-        try {
-          const parsed = JSON.parse(savedFb);
-          if (parsed?.user?.id) {
-            await iniciarConSesion(parsed, generation);
-            return;
-          }
-        } catch (e) {}
-      }
-
       const nextSession = await dcWaitForAuthenticatedSession(sb, 2500, true).catch(() => null);
       if (generation !== authGeneration) return;
-      if (!nextSession) {
-        session = null;
-        sesionOk = false;
-        activeUserId = "";
-        mostrarAcceso("v-login");
+      if (nextSession) {
+        nextSession.provider = "supabase";
+        await iniciarConSesion(nextSession, generation);
         return;
       }
-      await iniciarConSesion(nextSession, generation);
+      const firebaseSession = await sesionFirebaseActual(2500).catch(() => null);
+      if (generation !== authGeneration) return;
+      if (firebaseSession) {
+        await iniciarConSesion(firebaseSession, generation);
+        if (!sesionOk) await window.DcarelaFirebase.signOut().catch(() => {});
+        return;
+      }
+      session = null;
+      authProvider = "none";
+      sesionOk = false;
+      activeUserId = "";
+      mostrarAcceso("v-login");
     } catch (err) {
       if (generation === authGeneration) {
         session = null;
+        authProvider = "none";
         sesionOk = false;
         activeUserId = "";
         mostrarAcceso("v-login");
@@ -6906,6 +6988,7 @@
     if (event === "SIGNED_OUT") {
       authGeneration++;
       session = null;
+      authProvider = "none";
       sesionOk = false;
       activeUserId = "";
       if (liveChannel) sb.removeChannel(liveChannel).catch(() => {});
@@ -6915,11 +6998,13 @@
       return;
     }
     if (event === "TOKEN_REFRESHED") {
+      if (nextSession) nextSession.provider = "supabase";
       session = nextSession;
       if (nextSession && !sesionOk) setTimeout(() => iniciarConSesion(nextSession).catch(() => {}), 0);
       return;
     }
     if (event === "SIGNED_IN" && nextSession?.user?.id && nextSession.user.id !== activeUserId) {
+      nextSession.provider = "supabase";
       setTimeout(() => iniciarConSesion(nextSession).catch(() => {}), 0);
     }
   }
@@ -6970,85 +7055,36 @@
           return;
         }
 
-        // 1. Try Firebase Auth first
-        if (typeof firebase !== "undefined" && firebase.auth) {
+        let firebaseError = null;
+        if (window.DcarelaFirebase?.isAvailable) {
           try {
-            const fbAuth = firebase.auth();
-            const fbCred = await fbAuth.signInWithEmailAndPassword(email, password).catch(() => null);
-            if (fbCred?.user) {
-              const token = await fbCred.user.getIdToken();
-              const fbSession = {
-                access_token: token,
-                user: { id: fbCred.user.uid || "admin", email: fbCred.user.email }
-              };
-              localStorage.setItem("dcarela.fb_session", JSON.stringify(fbSession));
-              await iniciarConSesion(fbSession);
-              return;
+            const credential = await window.DcarelaFirebase.signIn(email, password);
+            const firebaseSession = sesionFirebase(credential?.user);
+            if (firebaseSession) {
+              await iniciarConSesion(firebaseSession);
+              if (sesionOk) return;
+              await window.DcarelaFirebase.signOut().catch(() => {});
             }
-          } catch (fbErr) {
-            console.warn("Firebase Auth notice:", fbErr.message);
+          } catch (error) {
+            firebaseError = error;
+            await window.DcarelaFirebase.signOut().catch(() => {});
           }
         }
 
-        // 2. Try Supabase Auth with quota immunity
-        let result = null;
-        try {
-          result = await sb.auth.signInWithPassword({ email, password });
-        } catch (sbErr) {
-          const isQuota = (sbErr.message || "").toLowerCase().includes("quota") ||
-                          (sbErr.message || "").toLowerCase().includes("restricted") ||
-                          (sbErr.message || "").toLowerCase().includes("egress") ||
-                          (sbErr.message || "").toLowerCase().includes("limit");
-          if (isQuota && (email === "admin" || email === "erickcarela58@gmail.com" || email.includes("carela") || password.length >= 4)) {
-            const fallbackSession = {
-              access_token: "dcarela-firebase-authenticated-token",
-              user: { id: "admin", email: email }
-            };
-            localStorage.setItem("dcarela.fb_session", JSON.stringify(fallbackSession));
-            toast("Acceso autenticado en modo Firebase / Continuidad.");
-            await iniciarConSesion(fallbackSession);
-            return;
-          }
-          throw sbErr;
-        }
-
+        const result = await sb.auth.signInWithPassword({ email, password });
         if (result?.error) {
-          const detail = result.error.message || result.error.error_description || "Correo o contraseña incorrectos.";
-          const isQuota = detail.toLowerCase().includes("quota") ||
-                          detail.toLowerCase().includes("restricted") ||
-                          detail.toLowerCase().includes("egress") ||
-                          detail.toLowerCase().includes("limit");
-          if (isQuota && (email === "admin" || email === "erickcarela58@gmail.com" || email.includes("carela") || password.length >= 4)) {
-            const fallbackSession = {
-              access_token: "dcarela-firebase-authenticated-token",
-              user: { id: "admin", email: email }
-            };
-            localStorage.setItem("dcarela.fb_session", JSON.stringify(fallbackSession));
-            toast("Acceso autenticado en modo Firebase / Continuidad.");
-            await iniciarConSesion(fallbackSession);
-            return;
-          }
-          $("loginErr").textContent = mensajeAutenticacion(result.error, detail);
+          const detail = result.error.message || result.error.error_description || firebaseError?.message || "Correo o contraseña incorrectos.";
+          const isQuota = /quota|restricted|spend caps|egress|storage_size|limit/i.test(detail);
+          $("loginErr").textContent = isQuota && firebaseError
+            ? "No se pudo validar el acceso: Firebase rechazó las credenciales y Supabase está temporalmente restringido."
+            : mensajeAutenticacion(result.error, detail);
           return;
         }
-
-        if (result?.data?.session) {
-          await iniciarConSesion(result.data.session);
-        }
+        if (!result?.data?.session) throw new Error(firebaseError?.message || "No se recibió una sesión válida.");
+        result.data.session.provider = "supabase";
+        await iniciarConSesion(result.data.session);
       } catch (error) {
         const msg = error?.message || "No se pudo validar la sesion.";
-        const email = ($("email").value || "").trim().toLowerCase();
-        if ((msg.toLowerCase().includes("quota") || msg.toLowerCase().includes("restricted") || msg.toLowerCase().includes("egress")) &&
-            (email === "admin" || email === "erickcarela58@gmail.com" || email.includes("carela"))) {
-          const fallbackSession = {
-            access_token: "dcarela-firebase-authenticated-token",
-            user: { id: "admin", email: email }
-          };
-          localStorage.setItem("dcarela.fb_session", JSON.stringify(fallbackSession));
-          toast("Acceso autenticado en modo Firebase / Continuidad.");
-          await iniciarConSesion(fallbackSession);
-          return;
-        }
         $("loginErr").textContent = mensajeAutenticacion(error, msg);
       } finally {
         button.disabled = false;
@@ -7056,17 +7092,28 @@
       }
     });
     on("pass", "keydown", event => { if (event.key === "Enter") $("btnEntrar").click(); });
-    on("btnSalir", "click", async () => { await sb.auth.signOut(); location.reload(); });
+    on("btnSalir", "click", async () => {
+      await Promise.allSettled([
+        sb?.auth?.signOut?.(),
+        window.DcarelaFirebase?.signOut?.()
+      ]);
+      session = null;
+      authProvider = "none";
+      location.reload();
+    });
     on("btnVolver", "click", () => {
       if (history.length > 1) history.back();
       else location.hash = "dashboard";
     });
-    on("btnTema", "click", () => {
+    const cambiarTema = () => {
       const next = currentTheme === "dark" ? "light" : "dark";
       applyTheme(next, true);
-      if (!EMBEDDED) guardarTemaUsuario(next).catch(error => toast(error.message));
-      else window.parent.postMessage({ type: "dcarela:theme-request", theme: next }, location.origin);
-    });
+      if (!EMBEDDED) {
+        if (authProvider === "supabase") guardarTemaUsuario(next).catch(error => toast(error.message));
+      } else window.parent.postMessage({ type: "dcarela:theme-request", theme: next }, location.origin);
+    };
+    on("btnTema", "click", cambiarTema);
+    on("btnTemaAcceso", "click", cambiarTema);
     on("branchSelector", "change", event => abrirSucursal(event.target.value, "dashboard"));
     on("btnIaNueva", "click", () => {
       iaConversationId = null;
@@ -7422,7 +7469,7 @@
       const month = finReferenceDate.slice(0, 7);
       if (month !== $("provMes").value) {
         $("provMes").value = month;
-        cargarProveedores().catch(error => mostrarError("proveedores", error));
+        cargarProveedores().catch(error => mostrarError("finanzas", error));
       } else renderFinDashboard().catch(error => toast(error.message));
     });
     ["finMovementType", "finMovementAccount", "finMovementCategory"].forEach(id => $(id).addEventListener("change", renderFinMovements));
@@ -7439,7 +7486,7 @@
     $("provTabs").querySelectorAll("[data-cost-tab]").forEach(button => button.addEventListener("click", () => setCostTab(button.dataset.costTab)));
     on("provMes", "change", () => {
       if (!finReferenceDate.startsWith($("provMes").value)) finReferenceDate = `${$("provMes").value}-01`;
-      cargarProveedores().catch(error => mostrarError("proveedores", error));
+      cargarProveedores().catch(error => mostrarError("finanzas", error));
     });
     on("btnInvBuscar", "click", () => cargarInventario().catch(error => mostrarError("inventario", error)));
     on("btnCliBuscar", "click", () => cargarClientes().catch(error => mostrarError("clientes", error)));

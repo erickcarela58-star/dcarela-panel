@@ -18,8 +18,9 @@ test("Actualizaciones contiene un bloque visible de archivos descargables", () =
 });
 
 test("la vista principal muestra la aplicacion completa de forma standalone y responsive", () => {
-  assert.match(shellHtml, /mobile/);
-  assert.doesNotMatch(shellHtml, /shell-assets|iframe/i);
+  assert.match(shellHtml, /id="root"/);
+  assert.match(shellHtml, /shell-assets\/index-[^"']+\.js/);
+  assert.doesNotMatch(shellHtml, /iframe|location\.replace/i);
   assert.match(panelHtml, /id="updateDownloads"/);
   assert.match(panelJs, /function renderDescargasAplicacion\(/);
 });
@@ -48,6 +49,10 @@ test("Finanzas 621 y los dos CRM se publican por dominios oficiales", () => {
   const photos = manifest.apps.find(app => app.id === "crm-fotos");
   assert.equal(crm.url, "https://dcarelacompufoto.com/crm/");
   assert.equal(photos.url, "https://dcarelacompufoto.com/crm-fotos/");
+  assert.notEqual(crm.url, photos.url);
+  assert.match(crm.notes, /Meta\/Cloud/);
+  assert.match(photos.notes, /WhatsApp Web/);
+  assert.match(photos.notes, /código telefónico/);
   for (const app of manifest.apps) {
     assert.doesNotMatch(app.url || "", /netlify\.app|github\.io|raw\.githubusercontent\.com/i);
   }

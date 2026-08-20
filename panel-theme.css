@@ -161,6 +161,13 @@ html[data-theme="dark"] .theme-icon-sun { display: block; }
   background-color: var(--navy-deep);
   background-image: linear-gradient(140deg, rgba(255, 255, 255, .09), transparent 54%);
 }
+.auth-theme-toggle {
+  position: fixed;
+  z-index: 4;
+  top: max(18px, env(safe-area-inset-top));
+  right: max(18px, env(safe-area-inset-right));
+}
+html.is-embedded .auth-theme-toggle { display: none; }
 .auth-panel, .editor-dialog {
   color: var(--ui-text);
   background: var(--ui-surface-strong);
@@ -169,6 +176,16 @@ html[data-theme="dark"] .theme-icon-sun { display: block; }
   backdrop-filter: blur(30px) saturate(135%);
 }
 .auth-panel { border-radius: 8px; }
+html[data-theme="light"].embedded-panel .access-shell {
+  background-color: #f4f4f5 !important;
+  background-image: linear-gradient(140deg, rgba(255, 255, 255, .9), rgba(228, 228, 231, .48)) !important;
+}
+html[data-theme="light"].embedded-panel .auth-panel {
+  color: var(--ui-text) !important;
+  background: rgba(255, 255, 255, .96) !important;
+  border-color: rgba(24, 24, 27, .14) !important;
+  box-shadow: 0 22px 58px rgba(24, 24, 27, .14) !important;
+}
 
 input, select, textarea {
   color: var(--ui-text);

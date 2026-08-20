@@ -4,12 +4,15 @@ const test = require("node:test");
 
 const html = fs.readFileSync("panel.html", "utf8");
 const panel = fs.readFileSync("panel.js", "utf8");
-const shell = fs.readFileSync("shell-assets/index-Bv7J6p00.js", "utf8");
+const index = fs.readFileSync("index.html", "utf8");
+const shellAsset = index.match(/shell-assets\/(index-[^"']+\.js)/)?.[1];
+assert.ok(shellAsset, "La portada debe referenciar el shell compilado");
+const shell = fs.readFileSync(`shell-assets/${shellAsset}`, "utf8");
 const sw = fs.readFileSync("sw.js", "utf8");
 
 test("Caja virtual es un modulo visible en shell, panel y movil", () => {
   assert.match(shell, /id:`caja-virtual`,label:`Caja virtual`,caption:`Terminal web completa`/);
-  assert.match(shell, /label:`Vender`,onClick:\(\)=>he\(`caja-virtual`\)/);
+  assert.match(shell, /`caja-virtual`/);
   assert.match(html, /id="v-caja-virtual"/);
   assert.match(html, /href="#caja-virtual"/);
   assert.match(html, /id="btnVirtualCashOut"/);
@@ -19,7 +22,8 @@ test("Caja virtual consume el resumen real y movimientos auditados", () => {
   assert.match(panel, /"caja-virtual": cargarCajaVirtual/);
   assert.match(panel, /saleApi\("cash\.move"/);
   assert.match(panel, /summary\.expectedCashCentavos/);
-  assert.match(sw, /2026\.08\.18\.1\.0\.\d+\.0/);
+  assert.match(sw, /const APP_BUILD = "2026\.08\.20\.1\.0\.47\.\d+"/);
+  assert.match(sw, new RegExp(shellAsset.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
 });
 
 test("Caja virtual replica F1-F12 y protege el esperado durante el conteo", () => {

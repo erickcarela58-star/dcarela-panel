@@ -8,12 +8,13 @@ const panelJs = fs.readFileSync(path.join(root, "panel.js"), "utf8");
 const themeCss = fs.readFileSync(path.join(root, "panel-theme.css"), "utf8");
 
 test("el iframe embebido conserva el tema del shell", () => {
-  assert.match(panelJs, /if \(!EMBEDDED\) await cargarTemaUsuario\(\)/);
+  assert.match(panelJs, /if \(!EMBEDDED && authProvider === "supabase"\) await cargarTemaUsuario\(\)/);
   assert.match(panelJs, /event\.data\?\.type !== "dcarela:theme"/);
 });
 
 test("el asistente define superficies claras y texto visible del modelo", () => {
   assert.match(themeCss, /html\[data-theme="light"\] #v-asistente[\s\S]*assistant-layout/);
+  assert.match(themeCss, /html\[data-theme="light"\]\.embedded-panel \.auth-panel/);
   assert.doesNotMatch(
     themeCss.slice(themeCss.indexOf("Assistant theme contract v41")),
     /data-theme="light"\]\.embedded-panel/,

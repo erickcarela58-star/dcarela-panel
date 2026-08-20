@@ -27,11 +27,11 @@
     },
     {
       "name": "Finanzas",
-      "url": "./index.html#proveedores"
+      "url": "./index.html#finanzas"
     },
     {
       "name": "Registrar movimiento",
-      "url": "./index.html?quick=1#proveedores"
+      "url": "./index.html?quick=1#finanzas"
     },
     {
       "name": "Inventario",

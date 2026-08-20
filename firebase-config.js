@@ -1,5 +1,5 @@
 window.__DCARELA_FIREBASE_CONFIG = {
-  apiKey: "AIzaSyDqcLYgNqjgkib666vQDQjP5SmDbXAcUVE",
+  apiKey: "AIzaSyDqcLYgNqjgkib666vQDQjP5SmDbXAcuVE",
   authDomain: "erikccarela.firebaseapp.com",
   projectId: "erikccarela",
   storageBucket: "erikccarela.firebasestorage.app",
