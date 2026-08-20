@@ -27,10 +27,13 @@ test("la vista principal muestra la aplicacion completa de forma standalone y re
 
 test("el manifiesto publica el instalador y las dos IPA con integridad verificable", () => {
   assert.match(manifest.web_version, /^1\.0\.\d+$/);
-  assert.equal(manifest.desktop_release.version, "1.0.44");
+  assert.equal(manifest.desktop_release.version, "1.0.45");
   assert.equal(manifest.downloads.length, 3);
   for (const file of manifest.downloads) {
-    assert.match(file.url, /^https:\/\/panel\.dcarelacompufoto\.com\//);
+    assert.match(
+      file.url,
+      /^https:\/\/(?:panel\.dcarelacompufoto\.com\/|github\.com\/erickcarela58-star\/dcarela-panel\/releases\/download\/)/
+    );
     assert.doesNotMatch(file.url, /dcarela-pos-private/);
     assert.match(file.sha256, /^[a-f0-9]{64}$/);
     assert.ok(file.size_bytes > 0);
