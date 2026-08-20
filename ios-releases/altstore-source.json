@@ -50,13 +50,23 @@
       "iconURL": "https://panel.dcarelacompufoto.com/assets/finanzas-icon.png",
       "tintColor": "#1D4ED8",
       "version": "6.1.2",
-      "versionDate": "2026-08-18T18:43:00Z",
-      "versionDescription": "v6.1.1: Resolución completa edge-to-edge sin bordes artificiales, dock inferior flotante optimizado para safe area, binario nativo ARM64 compatible con AltStore.",
-      "downloadURL": "https://panel.dcarelacompufoto.com/ios-releases/DCarelaFinanzas-5.0.2-QA.ipa",
-      "size": 1934704,
-      "sha256": "b985bdf48c848ced0d0aee778732ab06aa311582b7e6eb195a3d06b833b2a38d",
+      "versionDate": "2026-08-20T05:33:32Z",
+      "versionDescription": "v6.1.2 (Build 622): paquete AltStore ARM64 sin firma Apple propia, versión elevada para actualización, normalización de audio sin warnings Sendable y canal de actualización sincronizado con la fuente oficial.",
+      "downloadURL": "https://panel.dcarelacompufoto.com/ios-releases/DCarelaFinanzas-6.1.2-622-QA.ipa",
+      "size": 1302858,
+      "sha256": "2068fac0a9ef138440e9a1a01d96ba80c42907ea6c4565522d7cbf3592d88f71",
       "minOSVersion": "16.4",
       "versions": [
+        {
+          "version": "6.1.2",
+          "buildVersion": "622",
+          "date": "2026-08-20",
+          "downloadURL": "https://panel.dcarelacompufoto.com/ios-releases/DCarelaFinanzas-6.1.2-622-QA.ipa",
+          "size": 1302858,
+          "sha256": "2068fac0a9ef138440e9a1a01d96ba80c42907ea6c4565522d7cbf3592d88f71",
+          "localizedDescription": "v6.1.2 (Build 622): paquete AltStore ARM64 sin firma Apple propia, versión elevada para actualización, normalización de audio sin warnings Sendable y canal de actualización sincronizado con la fuente oficial.",
+          "minOSVersion": "16.4"
+        },
         {
           "version": "6.1.2",
           "buildVersion": "621",
