@@ -50,13 +50,23 @@
       "iconURL": "https://panel.dcarelacompufoto.com/assets/finanzas-icon.png",
       "tintColor": "#1D4ED8",
       "version": "6.1.2",
-      "versionDate": "2026-08-20T05:33:32Z",
-      "versionDescription": "v6.1.2 (Build 622): paquete AltStore ARM64 sin firma Apple propia, versión elevada para actualización, normalización de audio sin warnings Sendable y canal de actualización sincronizado con la fuente oficial.",
-      "downloadURL": "https://panel.dcarelacompufoto.com/ios-releases/DCarelaFinanzas-6.1.2-622-QA.ipa",
-      "size": 1302858,
-      "sha256": "2068fac0a9ef138440e9a1a01d96ba80c42907ea6c4565522d7cbf3592d88f71",
+      "versionDate": "2026-08-20T05:46:47Z",
+      "versionDescription": "v6.1.2 (Build 623): auditoría final de Finanzas, contratos móviles verificados, versión/build nativos alineados y canal AltStore sincronizado con el paquete corregido.",
+      "downloadURL": "https://panel.dcarelacompufoto.com/ios-releases/DCarelaFinanzas-6.1.2-623-QA.ipa",
+      "size": 1302850,
+      "sha256": "cf5fd827223d2f5ddd637981407d6bafa22cc956cb003db7b4007e851993d835",
       "minOSVersion": "16.4",
       "versions": [
+        {
+          "version": "6.1.2",
+          "buildVersion": "623",
+          "date": "2026-08-20",
+          "downloadURL": "https://panel.dcarelacompufoto.com/ios-releases/DCarelaFinanzas-6.1.2-623-QA.ipa",
+          "size": 1302850,
+          "sha256": "cf5fd827223d2f5ddd637981407d6bafa22cc956cb003db7b4007e851993d835",
+          "localizedDescription": "v6.1.2 (Build 623): auditoría final de Finanzas, contratos móviles verificados, versión/build nativos alineados y canal AltStore sincronizado con el paquete corregido.",
+          "minOSVersion": "16.4"
+        },
         {
           "version": "6.1.2",
           "buildVersion": "622",
