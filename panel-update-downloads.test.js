@@ -42,11 +42,11 @@ test("el manifiesto publica el instalador y las dos IPA con integridad verificab
   }
 });
 
-test("Finanzas 621 y los dos CRM se publican por dominios oficiales", () => {
+test("Finanzas 623 y los dos CRM se publican por dominios oficiales", () => {
   const finance = manifest.apps.find(app => app.id === "finanzas-ios" || app.id === "com.dcarela.panel");
   assert.ok(finance);
   assert.equal(finance.status, "published");
-  assert.equal(finance.version, "6.1.1 (build 621)");
+  assert.equal(finance.version, "6.1.2 (build 623)");
   assert.match(finance.url, /DCarelaFinanzas-.*\.ipa$/);
   const crm = manifest.apps.find(app => app.id === "crm");
   const photos = manifest.apps.find(app => app.id === "crm-fotos");
