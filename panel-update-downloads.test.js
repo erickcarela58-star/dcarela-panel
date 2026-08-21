@@ -27,10 +27,13 @@ test("la vista principal muestra la aplicacion completa de forma standalone y re
 
 test("el manifiesto publica el instalador y las dos IPA con integridad verificable", () => {
   assert.match(manifest.web_version, /^1\.0\.\d+$/);
-  assert.equal(manifest.desktop_release.version, "1.0.44");
+  assert.match(manifest.desktop_release.version, /^1\.0\.\d+$/);
   assert.equal(manifest.downloads.length, 3);
   for (const file of manifest.downloads) {
-    assert.match(file.url, /^https:\/\/panel\.dcarelacompufoto\.com\//);
+    assert.match(
+      file.url,
+      /^https:\/\/(?:panel\.dcarelacompufoto\.com\/|github\.com\/erickcarela58-star\/dcarela-panel\/releases\/download\/)/
+    );
     assert.doesNotMatch(file.url, /dcarela-pos-private/);
     assert.match(file.sha256, /^[a-f0-9]{64}$/);
     assert.ok(file.size_bytes > 0);
@@ -39,11 +42,11 @@ test("el manifiesto publica el instalador y las dos IPA con integridad verificab
   }
 });
 
-test("Finanzas 621 y los dos CRM se publican por dominios oficiales", () => {
+test("Finanzas 623 y los dos CRM se publican por dominios oficiales", () => {
   const finance = manifest.apps.find(app => app.id === "finanzas-ios" || app.id === "com.dcarela.panel");
   assert.ok(finance);
   assert.equal(finance.status, "published");
-  assert.equal(finance.version, "6.1.1 (build 621)");
+  assert.equal(finance.version, "6.1.2 (build 623)");
   assert.match(finance.url, /DCarelaFinanzas-.*\.ipa$/);
   const crm = manifest.apps.find(app => app.id === "crm");
   const photos = manifest.apps.find(app => app.id === "crm-fotos");

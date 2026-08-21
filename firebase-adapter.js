@@ -14,6 +14,7 @@
   let auth = null;
   let db = null;
   let initialized = false;
+  const eventArchiveCache = new Map();
 
   function initFirebase() {
     if (initialized) return { app, auth, db };
@@ -264,6 +265,179 @@
     const d = ctx.d;
     const createdAt = nowIso();
     const actor = { created_by_uid: ctx.user.uid, created_by_email: ctx.user.email || '' };
+    const saveWithEvent = async (collection, id, values, eventType, entityType, message) => {
+      const documentId = text(id, 160) || uuid();
+      const eventId = uuid();
+      const payload = { ...values, id: documentId, usuarioId: ctx.user.uid, usuarioNombre: ctx.user.email || 'Panel Firebase' };
+      const batch = d.batch();
+      batch.set(d.collection(collection).doc(documentId), {
+        ...values, business_id: ctx.businessId, updated_at: createdAt, ...actor
+      }, { merge: true });
+      batch.set(d.collection('sync_events').doc(eventId),
+        eventDocument(ctx, eventId, eventType, entityType, documentId, payload, createdAt));
+      await batch.commit();
+      return { ok: true, id: documentId, event: { id: eventId, entity_id: documentId }, message };
+    };
+
+    if (action === 'sale.create') return createFirebaseSale(ctx, data, text(data?.requestId, 80) || uuid());
+
+    if (action === 'ui.preference.upsert') {
+      const id = text(entityId, 160) || ctx.user.uid;
+      await d.collection('ui_preferences').doc(id).set({
+        ...data, business_id: ctx.businessId, user_id: ctx.user.uid, updated_at: createdAt
+      }, { merge: true });
+      return { ok: true, id, message: 'Preferencia guardada.' };
+    }
+
+    if (action === 'product.upsert') {
+      const id = text(entityId || data.productoId, 160) || uuid();
+      return saveWithEvent('products', id, { ...data, productoId: id },
+        entityId ? (data.activo === false ? 'ProductoDesactivado' : 'ProductoEditado') : 'ProductoCreado',
+        'productos', 'Producto guardado y enviado a las cajas.');
+    }
+
+    if (action === 'category.upsert') {
+      const id = text(entityId, 160) || uuid();
+      return saveWithEvent('categories', id, { ...data, categoriaId: id, activo: data.activo !== false },
+        entityId ? 'CategoriaEditada' : 'CategoriaCreada', 'categorias', 'Categoria guardada.');
+    }
+
+    if (action === 'client.upsert') {
+      const id = text(entityId || data.clienteId, 160) || uuid();
+      return saveWithEvent('clients', id, { ...data, clienteId: id, saldoCentavos: Number(data.saldoCentavos || 0) },
+        entityId ? 'ClienteEditado' : 'ClienteCreado', 'clientes', 'Cliente guardado y sincronizado.');
+    }
+
+    if (action === 'combo.components.set') {
+      const id = text(entityId || data.comboId, 160);
+      if (!id) throw new Error('Selecciona el combo que deseas actualizar.');
+      const result = await saveWithEvent('product_combos', id, { ...data, comboId: id },
+        'KitEditado', 'productos', 'Componentes del combo actualizados.');
+      await d.collection('products').doc(id).set({ costoCentavos: Number(data.costoCentavos || 0), updated_at: createdAt }, { merge: true });
+      return result;
+    }
+
+    if (action === 'inventory.set') {
+      const id = text(entityId || data.productoId, 160);
+      const reason = text(data.motivo, 500);
+      if (!id || !reason) throw new Error('El producto y el motivo son obligatorios.');
+      const stock = Number(data.cantidadNueva);
+      if (!Number.isFinite(stock) || stock < 0) throw new Error('La existencia no es valida.');
+      const productRef = d.collection('products').doc(id);
+      const eventId = uuid();
+      await d.runTransaction(async transaction => {
+        const product = await transaction.get(productRef);
+        if (!product.exists || product.data().business_id !== ctx.businessId) throw new Error('El producto no existe.');
+        const payload = { productoId: id, nombre: data.nombre || product.data().nombre, cantidadAnterior: Number(product.data().stock || 0), cantidadNueva: stock, motivo: reason, usuarioId: ctx.user.uid, usuarioNombre: ctx.user.email || 'Panel Firebase' };
+        transaction.update(productRef, { stock, updated_at: createdAt });
+        transaction.set(d.collection('sync_events').doc(eventId), eventDocument(ctx, eventId, 'InventarioAjustado', 'productos', id, payload, createdAt));
+      });
+      return { ok: true, id, message: 'Existencia ajustada con auditoria.' };
+    }
+
+    if (action === 'business.update') {
+      const payload = { ...data, seccion: 'negocio', logoActivo: data.logoActivo ? '1' : '0' };
+      const eventId = uuid();
+      const batch = d.batch();
+      batch.set(d.collection('businesses').doc(ctx.businessId), {
+        ...data, name: data.nombre || data.name || ctx.businessId, active: true, updated_at: createdAt
+      }, { merge: true });
+      batch.set(d.collection('sync_events').doc(eventId), eventDocument(ctx, eventId,
+        'ConfiguracionActualizada', 'configuracion', 'negocio', payload, createdAt));
+      await batch.commit();
+      return { ok: true, id: ctx.businessId, message: 'Datos del negocio actualizados.' };
+    }
+
+    if (action === 'expense_category.upsert') {
+      const id = text(entityId, 160) || uuid();
+      return saveWithEvent('expense_categories', id, {
+        ...data, categoriaId: id, nombre: text(data.nombre, 120), activo: data.activo !== false
+      }, 'CategoriaGastoCreada', 'categorias_gasto', 'Categoria de gasto guardada.');
+    }
+
+    if (action === 'expense.upsert') {
+      const id = text(entityId || data.gastoId, 160) || uuid();
+      return saveWithEvent('expenses', id, {
+        ...data, gastoId: id, montoCentavos: integer(data.montoCentavos, 'monto', 1), activo: true,
+        estado: 'registrado'
+      }, entityId ? 'GastoEditado' : 'GastoRegistrado', 'gastos', 'Gasto guardado con auditoria.');
+    }
+
+    if (action === 'expense.delete') {
+      const id = text(entityId || data.gastoId, 160);
+      if (!id) throw new Error('Selecciona el gasto que deseas anular.');
+      return saveWithEvent('expenses', id, {
+        ...data, gastoId: id, activo: false, estado: 'anulado', anuladoEn: createdAt
+      }, 'GastoAnulado', 'gastos', 'Gasto anulado sin borrar su historial.');
+    }
+
+    if (action === 'cost.recurring.upsert') {
+      const id = text(entityId || data.recurrenteId, 160) || uuid();
+      const active = data.activo !== false;
+      return saveWithEvent('cost_recurrents', id, { ...data, recurrenteId: id, activo: active },
+        active ? 'CostoRecurrenteGuardado' : 'CostoRecurrenteDesactivado', 'costos_recurrentes',
+        active ? 'Costo recurrente guardado.' : 'Costo recurrente desactivado.');
+    }
+
+    if (action === 'cost.obligation.upsert') {
+      const id = text(entityId || data.obligacionId, 160) || uuid();
+      return saveWithEvent('cost_obligations', id, { ...data, obligacionId: id },
+        'CostoObligacionGuardada', 'costos_obligaciones', 'Factura o deuda guardada.');
+    }
+
+    if (action === 'cost.obligation.cancel') {
+      const id = text(entityId || data.obligacionId, 160);
+      if (!id) throw new Error('Selecciona la obligacion que deseas anular.');
+      return saveWithEvent('cost_obligations', id, {
+        ...data, obligacionId: id, saldoCentavos: 0, estado: 'anulada', anuladaEn: createdAt
+      }, 'CostoObligacionAnulada', 'costos_obligaciones', 'Obligacion anulada; los pagos se conservaron.');
+    }
+
+    if (action === 'cost.payment.create') {
+      const obligationId = text(entityId || data.obligacionId, 160);
+      const amount = integer(data.montoCentavos, 'monto', 1);
+      if (!obligationId) throw new Error('La obligacion es obligatoria.');
+      const paymentId = uuid();
+      const eventId = uuid();
+      const obligationRef = d.collection('cost_obligations').doc(obligationId);
+      await d.runTransaction(async transaction => {
+        const obligation = await transaction.get(obligationRef);
+        if (!obligation.exists || obligation.data().business_id !== ctx.businessId) throw new Error('La obligacion no existe.');
+        const current = Number(obligation.data().saldoCentavos ?? obligation.data().saldo_centavos ?? 0);
+        if (amount > current) throw new Error('El pago no puede superar el saldo pendiente.');
+        const balance = current - amount;
+        const payload = { ...data, pagoId: paymentId, obligacionId: obligationId, montoCentavos: amount,
+          saldoCentavos: balance, estado: balance === 0 ? 'pagada' : 'parcial', pagadoEn: createdAt };
+        transaction.create(d.collection('cost_payments').doc(paymentId), {
+          ...payload, business_id: ctx.businessId, created_at: createdAt, ...actor
+        });
+        transaction.update(obligationRef, { saldoCentavos: balance, estado: payload.estado, updated_at: createdAt });
+        transaction.create(d.collection('sync_events').doc(eventId),
+          eventDocument(ctx, eventId, 'CostoPagoRegistrado', 'costos_pagos', paymentId, payload, createdAt));
+      });
+      return { ok: true, id: paymentId, event: { id: eventId, entity_id: paymentId }, message: 'Pago aplicado una sola vez.' };
+    }
+
+    if (action === 'receipt.create') {
+      const id = text(entityId || data.reciboId, 160) || uuid();
+      return saveWithEvent('payment_receipts', id, {
+        ...data, reciboId: id, estado: 'emitido', firmado: false, creadoEn: createdAt
+      }, 'ReciboPagoEmitido', 'recibos_pago', 'Recibo emitido.');
+    }
+
+    if (action === 'receipt.signature') {
+      const id = text(entityId || data.reciboId, 160);
+      if (!id) throw new Error('Selecciona el recibo.');
+      return saveWithEvent('payment_receipts', id, { ...data, reciboId: id, firmado: data.firmado === true },
+        'ReciboPagoFirmaActualizada', 'recibos_pago', 'Firma del recibo actualizada.');
+    }
+
+    if (action === 'receipt.cancel') {
+      const id = text(entityId || data.reciboId, 160);
+      if (!id) throw new Error('Selecciona el recibo.');
+      return saveWithEvent('payment_receipts', id, { ...data, reciboId: id, estado: 'anulado', anuladoEn: createdAt },
+        'ReciboPagoAnulado', 'recibos_pago', 'Recibo anulado sin borrar el historial.');
+    }
 
     if (action === 'fin.account.upsert') {
       const id = text(entityId, 160) || uuid();
@@ -389,6 +563,184 @@
       return { ok: true, id, message: 'Categoria guardada.' };
     }
 
+    if (action === 'fin.movement.cancel' || action === 'fin.movement.restore') {
+      const id = text(entityId, 160);
+      const ref = d.collection('fin_movements').doc(id);
+      const restoring = action.endsWith('.restore');
+      await d.runTransaction(async transaction => {
+        const movement = await transaction.get(ref);
+        if (!movement.exists || movement.data().business_id !== ctx.businessId) throw new Error('El movimiento no existe.');
+        const row = movement.data();
+        const alreadyActive = row.estado !== 'anulado';
+        if (alreadyActive === restoring) return;
+        const amount = Number(row.monto_centavos || 0);
+        const accountRef = d.collection('fin_accounts').doc(row.cuenta_id);
+        const account = await transaction.get(accountRef);
+        if (!account.exists || account.data().business_id !== ctx.businessId) throw new Error('La cuenta del movimiento no existe.');
+        const current = Number(account.data().saldo_actual_centavos || 0);
+        if (row.tipo === 'transferencia' && row.cuenta_destino_id) {
+          const targetRef = d.collection('fin_accounts').doc(row.cuenta_destino_id);
+          const target = await transaction.get(targetRef);
+          if (!target.exists || target.data().business_id !== ctx.businessId) throw new Error('La cuenta destino no existe.');
+          const fee = Number(row.comision_centavos || 0);
+          const direction = restoring ? -1 : 1;
+          transaction.update(accountRef, { saldo_actual_centavos: current + direction * (amount + fee), updated_at: createdAt });
+          transaction.update(targetRef, { saldo_actual_centavos: Number(target.data().saldo_actual_centavos || 0) - direction * amount, updated_at: createdAt });
+        } else {
+          const signed = financeSignedAmount(String(row.tipo || ''), amount);
+          const delta = restoring ? signed : -signed;
+          transaction.update(accountRef, { saldo_actual_centavos: current + delta, updated_at: createdAt });
+        }
+        transaction.update(ref, { estado: restoring ? 'registrado' : 'anulado',
+          motivo_anulacion: restoring ? null : text(data.motivo, 500), updated_at: createdAt });
+      });
+      return { ok: true, id, message: restoring ? 'Movimiento restaurado.' : 'Movimiento anulado sin borrarlo.' };
+    }
+
+    if (action === 'fin.card.upsert') {
+      const id = text(entityId || data.cuentaId, 160);
+      if (!id) throw new Error('Selecciona la cuenta de tarjeta.');
+      await d.collection('fin_cards').doc(id).set({
+        business_id: ctx.businessId, cuenta_id: id, cuenta_pago_id: text(data.cuentaPagoId, 160) || null,
+        dia_corte: Number(data.diaCorte || 30), dia_pago: Number(data.diaPago || 5),
+        limite_credito_centavos: integer(data.limiteCreditoCentavos || 0, 'limite', 0),
+        color: text(data.color, 20) || '#18181B', metodo_visualizacion: text(data.metodoVisualizacion, 30) || 'al_comprar',
+        updated_at: createdAt, ...actor
+      }, { merge: true });
+      return { ok: true, id, message: 'Tarjeta configurada.' };
+    }
+
+    if (action === 'fin.card.payment') {
+      return firebaseAdminAction(ctx, 'fin.transfer.create', null, {
+        ...data, descripcion: data.nota || 'Pago de tarjeta', comisionCentavos: 0
+      });
+    }
+
+    if (action === 'fin.budget.upsert') {
+      const id = text(entityId, 160) || uuid();
+      await d.collection('fin_budgets').doc(id).set({
+        business_id: ctx.businessId, categoria_id: text(data.categoriaId, 160), periodo: text(data.periodo, 30),
+        periodo_inicio: text(data.periodoInicio, 10), monto_centavos: integer(data.montoCentavos, 'monto', 1),
+        alerta_porcentaje: Math.max(1, Math.min(100, Number(data.alertaPorcentaje || 80))), estado: 'activo',
+        updated_at: createdAt, ...actor
+      }, { merge: true });
+      return { ok: true, id, message: 'Presupuesto guardado.' };
+    }
+
+    if (action === 'fin.currency.upsert') {
+      const code = text(data.codigo, 8).toUpperCase();
+      const id = text(entityId, 160) || code;
+      if (!code) throw new Error('El codigo de moneda es obligatorio.');
+      await d.collection('fin_currencies').doc(id).set({
+        business_id: ctx.businessId, codigo: code, nombre: text(data.nombre, 120), simbolo: text(data.simbolo, 12),
+        tasa_a_principal: Number(data.tasaAPrincipal || 1), principal: data.principal === true, activa: data.activa !== false,
+        updated_at: createdAt, ...actor
+      }, { merge: true });
+      return { ok: true, id, message: 'Divisa guardada.' };
+    }
+
+    if (action === 'fin.preferences.upsert') {
+      const id = ctx.businessId;
+      await d.collection('fin_preferences').doc(id).set({
+        business_id: ctx.businessId, moneda_principal: text(data.monedaPrincipal, 8) || 'DOP',
+        periodo_dashboard: text(data.periodoDashboard, 20) || 'mensual',
+        cuenta_gasto_default_id: text(data.cuentaGastoDefaultId, 160) || null,
+        cuenta_ingreso_default_id: text(data.cuentaIngresoDefaultId, 160) || null,
+        locale: text(data.locale, 20) || 'es-DO', semana_inicia: Number(data.semanaInicia || 1),
+        updated_at: createdAt, ...actor
+      }, { merge: true });
+      return { ok: true, id, message: 'Preferencias financieras guardadas.' };
+    }
+
+    if (action === 'fin.pending_transfer.create') {
+      const id = text(entityId, 160) || uuid();
+      await d.collection('fin_pending_transfers').doc(id).set({
+        business_id: ctx.businessId, id, cuenta_id: text(data.cuentaId, 160),
+        direccion: data.direccion === 'salida' ? 'salida' : 'entrada',
+        monto_centavos: integer(data.montoCentavos, 'monto', 1), fecha_origen: text(data.fechaOrigen, 10),
+        fecha_esperada: text(data.fechaEsperada, 10), descripcion: text(data.descripcion, 500),
+        referencia: text(data.referencia, 180) || null, estado: 'pendiente',
+        created_at: createdAt, updated_at: createdAt, ...actor
+      }, { merge: true });
+      return { ok: true, id, message: 'Transferencia pendiente registrada.' };
+    }
+
+    if (action === 'fin.pending_transfer.confirm' || action === 'fin.pending_transfer.cancel') {
+      const id = text(entityId, 160);
+      if (!id) throw new Error('Selecciona la transferencia pendiente.');
+      await d.collection('fin_pending_transfers').doc(id).set({
+        estado: action.endsWith('.confirm') ? 'confirmada' : 'cancelada', nota_cierre: text(data.nota, 1200) || null,
+        updated_at: createdAt, ...actor
+      }, { merge: true });
+      return { ok: true, id, message: action.endsWith('.confirm') ? 'Transferencia confirmada.' : 'Transferencia cancelada.' };
+    }
+
+    if (action === 'fin.commitment.upsert') {
+      const id = text(entityId, 160) || uuid();
+      await d.collection('fin_commitments').doc(id).set({
+        business_id: ctx.businessId, id, nombre: text(data.nombre, 180), tipo: text(data.tipo, 40),
+        frecuencia: text(data.frecuencia, 40), monto_centavos: integer(data.montoCentavos || 0, 'monto', 0),
+        proximo_vencimiento: data.proximoVencimiento || null, dia_semana: data.diaSemana ?? null,
+        dia_mes_1: data.diaMes1 ?? null, dia_mes_2: data.diaMes2 ?? null, intervalo_dias: data.intervaloDias ?? null,
+        fecha_inicio: data.fechaInicio || null, saldo_inicial_registrado_centavos: data.saldoInicialRegistradoCentavos ?? null,
+        saldo_pendiente_centavos: data.saldoPendienteCentavos ?? null,
+        capital_pendiente_centavos: data.capitalPendienteCentavos ?? null,
+        cargos_intereses_pendientes_centavos: data.cargosInteresesPendientesCentavos ?? null,
+        cuotas_totales: data.cuotasTotales ?? null, cuota_actual: data.cuotaActual ?? null,
+        cuotas_pagadas: Number(data.cuotasPagadas || 0), monto_variable: data.montoVariable === true,
+        capital_es_variable: data.capitalEsVariable === true, activo: data.activo !== false,
+        nota: text(data.nota, 1400) || null, metadata: data.metadata || {}, updated_at: createdAt, ...actor
+      }, { merge: true });
+      return { ok: true, id, message: 'Compromiso guardado.' };
+    }
+
+    if (action === 'fin.commitment.payment') {
+      const commitmentId = text(entityId, 160);
+      const amount = integer(data.montoCentavos, 'monto', 1);
+      const id = uuid();
+      const commitmentRef = d.collection('fin_commitments').doc(commitmentId);
+      await d.runTransaction(async transaction => {
+        const commitment = await transaction.get(commitmentRef);
+        if (!commitment.exists || commitment.data().business_id !== ctx.businessId) throw new Error('El compromiso no existe.');
+        let accountRef = null;
+        let accountBalance = 0;
+        if (data.cuentaId) {
+          accountRef = d.collection('fin_accounts').doc(text(data.cuentaId, 160));
+          const account = await transaction.get(accountRef);
+          if (!account.exists || account.data().business_id !== ctx.businessId) throw new Error('La cuenta de pago no existe.');
+          accountBalance = Number(account.data().saldo_actual_centavos || 0);
+        }
+        const balance = Math.max(0, Number(commitment.data().saldo_pendiente_centavos || 0) - Number(data.capitalCentavos || amount));
+        transaction.create(d.collection('fin_commitment_payments').doc(id), {
+          business_id: ctx.businessId, compromiso_id: commitmentId, monto_centavos: amount,
+          capital_centavos: Number(data.capitalCentavos || 0), interes_centavos: Number(data.interesCentavos || 0),
+          cargos_centavos: Number(data.cargosCentavos || 0), cuenta_id: text(data.cuentaId, 160) || null,
+          numero_cuota: data.numeroCuota ?? null, cuotas_aplicadas: Number(data.cuotasAplicadas || 1),
+          proximo_vencimiento: data.proximoVencimiento || null, fecha: text(data.fecha, 10) || createdAt.slice(0, 10),
+          referencia: text(data.referencia, 180) || null, nota: text(data.nota, 1200) || null,
+          created_at: createdAt, ...actor
+        });
+        transaction.update(commitmentRef, { saldo_pendiente_centavos: balance,
+          proximo_vencimiento: data.proximoVencimiento || commitment.data().proximo_vencimiento || null,
+          updated_at: createdAt });
+        if (accountRef) transaction.update(accountRef, { saldo_actual_centavos: accountBalance - amount, updated_at: createdAt });
+      });
+      return { ok: true, id, message: 'Pago del compromiso registrado.' };
+    }
+
+    if (action === 'fin.commitment.deactivate') {
+      const id = text(entityId, 160);
+      await d.collection('fin_commitments').doc(id).set({ activo: false, motivo_desactivacion: text(data.motivo, 500), updated_at: createdAt, ...actor }, { merge: true });
+      return { ok: true, id, message: 'Compromiso desactivado sin borrar pagos.' };
+    }
+
+    if (action === 'device.status') {
+      const id = text(entityId, 160);
+      if (!id) throw new Error('Selecciona el dispositivo.');
+      await d.collection('devices').doc(id).set({ status: data.status === 'bloqueada' ? 'bloqueada' : 'activa', updated_at: createdAt, ...actor }, { merge: true });
+      return { ok: true, id, message: data.status === 'bloqueada' ? 'Dispositivo bloqueado.' : 'Dispositivo reactivado.' };
+    }
+
     throw new Error(`La operacion ${action} aun no esta migrada al backend Firebase seguro.`);
   }
 
@@ -424,6 +776,20 @@
       const { auth: a } = initFirebase();
       if (!a) return;
       return a.signOut();
+    },
+
+    async updatePassword(password) {
+      const { auth: a } = initFirebase();
+      const user = a?.currentUser;
+      if (!user) throw new Error('La sesion Firebase vencio. Inicia sesion nuevamente.');
+      return user.updatePassword(password);
+    },
+
+    async getIdToken(forceRefresh = false) {
+      const { auth: a } = initFirebase();
+      const user = a?.currentUser;
+      if (!user) throw new Error('La sesion Firebase vencio. Inicia sesion nuevamente.');
+      return user.getIdToken(forceRefresh);
     },
 
     getCurrentUser() {
@@ -532,6 +898,21 @@
       });
     },
 
+    async acknowledgeAlerts(ids, businessId) {
+      const ctx = await firebaseContext(businessId, 'admin');
+      const unique = [...new Set((ids || []).filter(Boolean).map(id => text(id, 160)))];
+      if (!unique.length) return { ok: true, count: 0 };
+      const batch = ctx.d.batch();
+      const at = nowIso();
+      unique.forEach(id => batch.update(ctx.d.collection('system_alerts').doc(id), {
+        acknowledged_at: at,
+        acknowledged_by: ctx.user.uid,
+        updated_at: at
+      }));
+      await batch.commit();
+      return { ok: true, count: unique.length };
+    },
+
     // Domain Specific Helpers
     async getBusinesses() {
       return this.getCollection('businesses', [['active', '==', true]]);
@@ -564,12 +945,30 @@
       return this.getCollection('categories', [['business_id', '==', businessId]]);
     },
 
+    async getProductCombos(businessId = 'dcarela') {
+      return this.getCollection('product_combos', [['business_id', '==', businessId]]);
+    },
+
     async getClients(businessId = 'dcarela') {
       return this.getCollection('clients', [['business_id', '==', businessId]]);
     },
 
     async getSyncEvents(businessId = 'dcarela') {
-      return this.getCollection('sync_events', [['business_id', '==', businessId]]);
+      const current = await this.getCollection('sync_events', [['business_id', '==', businessId]]);
+      let archived = eventArchiveCache.get(businessId);
+      if (!archived || Date.now() - archived.at > 5 * 60 * 1000) {
+        const chunks = await this.getCollection('sync_event_archives', [['business_id', '==', businessId]]);
+        archived = {
+          at: Date.now(),
+          events: chunks.flatMap(chunk => Array.isArray(chunk.events) ? chunk.events : [])
+        };
+        eventArchiveCache.set(businessId, archived);
+      }
+      const merged = new Map();
+      archived.events.forEach(event => merged.set(event.event_id || event.id, event));
+      current.forEach(event => merged.set(event.event_id || event.id, event));
+      return [...merged.values()].sort((a, b) => String(b.received_at_cloud || b.created_at_local || '')
+        .localeCompare(String(a.received_at_cloud || a.created_at_local || '')));
     },
 
     async getSales(businessId = 'dcarela', limit = 100) {
@@ -598,6 +997,26 @@
 
     async getFinanceBudgets(businessId = 'dcarela') {
       return this.getCollection('fin_budgets', [['business_id', '==', businessId]]);
+    },
+
+    async getFinancePreferences(businessId = 'dcarela') {
+      return this.getDocument('fin_preferences', businessId);
+    },
+
+    async getFinanceCurrencies(businessId = 'dcarela') {
+      return this.getCollection('fin_currencies', [['business_id', '==', businessId]]);
+    },
+
+    async getFinanceCommitments(businessId = 'dcarela') {
+      return this.getCollection('fin_commitments', [['business_id', '==', businessId]]);
+    },
+
+    async getFinanceCommitmentPayments(businessId = 'dcarela') {
+      return this.getCollection('fin_commitment_payments', [['business_id', '==', businessId]]);
+    },
+
+    async getFinancePendingTransfers(businessId = 'dcarela') {
+      return this.getCollection('fin_pending_transfers', [['business_id', '==', businessId]]);
     },
 
     async getFinanceMovements(businessId = 'dcarela', month = null) {

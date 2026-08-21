@@ -722,9 +722,15 @@
   }
 
   async function authenticatedHeaders(includeJson = false) {
-    if (authProvider !== "supabase") {
-      throw new Error("Esta operación aún requiere una sesión Supabase válida. Firebase está habilitado solo para lectura segura.");
+    if (authProvider === "firebase") {
+      const token = await window.DcarelaFirebase?.getIdToken?.();
+      if (!token) throw new Error("La sesion Firebase vencio. Inicia sesion nuevamente.");
+      return {
+        Authorization: `Bearer ${token}`,
+        ...(includeJson ? { "Content-Type": "application/json" } : {})
+      };
     }
+    if (authProvider !== "supabase") throw new Error("No hay una sesión autenticada.");
     const { data, error } = await sb.auth.getSession();
     if (error || !data?.session?.access_token) throw new Error("La sesion vencio. Inicia sesion nuevamente.");
     session = data.session;
@@ -783,6 +789,14 @@
 
   async function guardarTemaUsuario(theme) {
     if (!session?.user?.id) return;
+    if (authProvider === "firebase") {
+      if (canEdit) {
+        await adminWrite("ui.preference.upsert", session.user.id, {
+          theme, density: "normal", sidebarMode: "expanded", animationsEnabled: true
+        });
+      }
+      return;
+    }
     if (canEdit) {
       await adminWrite("ui.preference.upsert", session.user.id, {
         theme,
@@ -1672,13 +1686,14 @@
     }
     if (authProvider === "firebase") {
       if (!window.DcarelaFirebase?.isAvailable) throw new Error("Firebase no está disponible.");
-      const [products, categories] = await Promise.all([
+      const [products, categories, combos] = await Promise.all([
         window.DcarelaFirebase.getProducts(BUSINESS),
-        window.DcarelaFirebase.getCategories(BUSINESS)
+        window.DcarelaFirebase.getCategories(BUSINESS),
+        window.DcarelaFirebase.getProductCombos(BUSINESS)
       ]);
       productCatalog = (products || []).sort((a, b) => String(a.nombre || a.name || "").localeCompare(String(b.nombre || b.name || ""), "es"));
       categoryCatalog = (categories || []).sort((a, b) => String(a.nombre || a.name || "").localeCompare(String(b.nombre || b.name || ""), "es"));
-      comboCatalog = new Map();
+      comboCatalog = new Map((combos || []).map(item => [item.comboId || item.id, item]));
       return { products: productCatalog, categories: categoryCatalog, combos: comboCatalog };
     }
     try {
@@ -4931,12 +4946,18 @@
     try {
       if (authProvider === "firebase") {
         if (!window.DcarelaFirebase?.isAvailable) throw new Error("Firebase no está disponible.");
-        const [accounts, categories, movements, cards, budgets] = await Promise.all([
+        const [accounts, categories, movements, cards, budgets, preferences, currencies,
+          commitments, commitmentPayments, pendingTransfers] = await Promise.all([
           window.DcarelaFirebase.getFinanceAccounts(BUSINESS),
           window.DcarelaFirebase.getFinanceCategories(BUSINESS),
           cargarMovimientosFinMes(month),
           window.DcarelaFirebase.getFinanceCards(BUSINESS),
-          window.DcarelaFirebase.getFinanceBudgets(BUSINESS)
+          window.DcarelaFirebase.getFinanceBudgets(BUSINESS),
+          window.DcarelaFirebase.getFinancePreferences(BUSINESS),
+          window.DcarelaFirebase.getFinanceCurrencies(BUSINESS),
+          window.DcarelaFirebase.getFinanceCommitments(BUSINESS),
+          window.DcarelaFirebase.getFinanceCommitmentPayments(BUSINESS),
+          window.DcarelaFirebase.getFinancePendingTransfers(BUSINESS)
         ]);
         cuentasRes = { data: accounts || [] };
         accountVisualsRes = { data: [] };
@@ -4944,12 +4965,12 @@
         movs = movements || [];
         cardsRes = { data: cards || [] };
         budgetsRes = { data: budgets || [] };
-        preferencesRes = { data: null };
-        currenciesRes = { data: [{ codigo: "DOP", nombre: "Peso dominicano", simbolo: "RD$", tasa: 1, principal: true }] };
+        preferencesRes = { data: preferences || null };
+        currenciesRes = { data: currencies?.length ? currencies : [{ codigo: "DOP", nombre: "Peso dominicano", simbolo: "RD$", tasa_a_principal: 1, principal: true, activa: true }] };
         cumuloRes = { data: null };
-        commitmentsRes = { data: [] };
-        commitmentPaymentsRes = { data: [] };
-        pendingTransfersRes = { data: [] };
+        commitmentsRes = { data: commitments || [] };
+        commitmentPaymentsRes = { data: commitmentPayments || [] };
+        pendingTransfersRes = { data: pendingTransfers || [] };
       } else {
         [cuentasRes, accountVisualsRes, catsRes, movs, cardsRes, budgetsRes, preferencesRes, currenciesRes, cumuloRes, commitmentsRes, commitmentPaymentsRes, pendingTransfersRes] = await Promise.all([
           sb.rpc("fin_account_balances", { p_business_id: BUSINESS }),
@@ -6360,6 +6381,12 @@
 
   async function cambiarDispositivo(deviceId, status) {
     if (status === "bloqueada" && !window.confirm("Bloquear este dispositivo impedira nuevas sincronizaciones. Continuar?")) return;
+    if (authProvider === "firebase") {
+      await adminWrite("device.status", deviceId, { status });
+      toast(status === "bloqueada" ? "Dispositivo bloqueado." : "Dispositivo reactivado.");
+      await cargarDispositivos();
+      return;
+    }
     const response = await fetch(`${cfg.url.replace(/\/$/, "")}/functions/v1/pos-device-block`, {
       method: "POST",
       headers: await authenticatedHeaders(true),
@@ -6426,21 +6453,30 @@
       throw new Error("Las contrasenas no coinciden.");
     }
     estado.textContent = "Actualizando la contrasena...";
-    const { data, error } = await sb.auth.updateUser({ password: nueva });
-    if (error) throw error;
-    session = data?.session || session;
+    if (authProvider === "firebase") {
+      await window.DcarelaFirebase.updatePassword(nueva);
+    } else {
+      const { data, error } = await sb.auth.updateUser({ password: nueva });
+      if (error) throw error;
+      session = data?.session || session;
+    }
     $("formCambiarClave").reset();
     estado.textContent = "Contrasena actualizada. La sesion actual permanece protegida.";
     toast("Contrasena actualizada correctamente.");
   }
 
   async function consultarVersion() {
-    const response = await fetch(`${cfg.url.replace(/\/$/, "")}/functions/v1/pos-installer-version?channel=stable`, {
-      headers: await authenticatedHeaders()
+    const response = await fetch(`./app-version.json?desktop=${Date.now()}`, {
+      cache: "no-store",
+      headers: { Accept: "application/json" }
     });
-    if (!response.ok) throw new Error(`Servicio de versiones no disponible (HTTP ${response.status}).`);
+    if (!response.ok) throw new Error(`Manifiesto público de versiones no disponible (HTTP ${response.status}).`);
     const body = await response.json();
-    return body?.latest || body?.data || (body?.version ? body : null);
+    const latest = body?.desktop_release || body?.latest || body?.data || (body?.version ? body : null);
+    if (!latest?.version || !latest?.release_url || !latest?.sha256) {
+      throw new Error("El manifiesto público de la caja está incompleto.");
+    }
+    return latest;
   }
 
   async function consultarVersionAplicacion() {
@@ -6825,6 +6861,27 @@
   }
 
   function conectarRealtime() {
+    if (authProvider === "firebase") {
+      if (typeof liveChannel === "function") liveChannel();
+      const unsubscribers = [
+        window.DcarelaFirebase.listenCollection("sync_events", [["business_id", "==", BUSINESS]], items => {
+          const newest = items.sort((a, b) => String(b.received_at_cloud || b.created_at_local || "").localeCompare(String(a.received_at_cloud || a.created_at_local || "")))[0];
+          if (newest?.event_type === "VentaCancelada") cancelCache.at = 0;
+          if (newest && COST_EVENTS.includes(newest.event_type)) costStateCache = null;
+          alertasCache = null;
+          scheduleLiveRefresh();
+        }),
+        window.DcarelaFirebase.listenCollection("system_alerts", [["business_id", "==", BUSINESS]], () => {
+          alertasCache = null;
+          obtenerAlertas(true).then(renderAlertPreview).catch(() => {});
+          scheduleLiveRefresh();
+        })
+      ];
+      liveChannel = () => unsubscribers.forEach(unsubscribe => unsubscribe?.());
+      $("pillVivo").textContent = "en vivo";
+      verEstado(true, "Firebase conectado en vivo");
+      return;
+    }
     if (liveChannel) sb.removeChannel(liveChannel).catch(() => {});
     liveChannel = sb.channel("dcarela-pos-live")
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "sync_events", filter: `business_id=eq.${BUSINESS}` }, change => {
@@ -6879,7 +6936,7 @@
     if ($("backendLabel")) $("backendLabel").textContent = authProvider === "firebase" ? "Firebase · acceso seguro" : "Supabase · edición segura";
     verEstado(true, authProvider === "firebase" ? "Firebase autenticado" : "Supabase autenticado");
     if (canEdit) renderIaApprovals().catch(() => {});
-    if (authProvider === "supabase") conectarRealtime();
+    conectarRealtime();
     await obtenerAlertas(true).catch(() => []);
     comprobarVersion();
     mostrarVista(location.hash.slice(1) || "dashboard");
@@ -6952,13 +7009,6 @@
     }, 4000);
 
     try {
-      const nextSession = await dcWaitForAuthenticatedSession(sb, 2500, true).catch(() => null);
-      if (generation !== authGeneration) return;
-      if (nextSession) {
-        nextSession.provider = "supabase";
-        await iniciarConSesion(nextSession, generation);
-        return;
-      }
       const firebaseSession = await sesionFirebaseActual(2500).catch(() => null);
       if (generation !== authGeneration) return;
       if (firebaseSession) {
@@ -7055,34 +7105,12 @@
           return;
         }
 
-        let firebaseError = null;
-        if (window.DcarelaFirebase?.isAvailable) {
-          try {
-            const credential = await window.DcarelaFirebase.signIn(email, password);
-            const firebaseSession = sesionFirebase(credential?.user);
-            if (firebaseSession) {
-              await iniciarConSesion(firebaseSession);
-              if (sesionOk) return;
-              await window.DcarelaFirebase.signOut().catch(() => {});
-            }
-          } catch (error) {
-            firebaseError = error;
-            await window.DcarelaFirebase.signOut().catch(() => {});
-          }
-        }
-
-        const result = await sb.auth.signInWithPassword({ email, password });
-        if (result?.error) {
-          const detail = result.error.message || result.error.error_description || firebaseError?.message || "Correo o contraseña incorrectos.";
-          const isQuota = /quota|restricted|spend caps|egress|storage_size|limit/i.test(detail);
-          $("loginErr").textContent = isQuota && firebaseError
-            ? "No se pudo validar el acceso: Firebase rechazó las credenciales y Supabase está temporalmente restringido."
-            : mensajeAutenticacion(result.error, detail);
-          return;
-        }
-        if (!result?.data?.session) throw new Error(firebaseError?.message || "No se recibió una sesión válida.");
-        result.data.session.provider = "supabase";
-        await iniciarConSesion(result.data.session);
+        if (!window.DcarelaFirebase?.isAvailable) throw new Error("Firebase no está disponible. Recarga el panel e inténtalo de nuevo.");
+        const credential = await window.DcarelaFirebase.signIn(email, password);
+        const firebaseSession = sesionFirebase(credential?.user);
+        if (!firebaseSession) throw new Error("No se recibió una sesión válida de Firebase.");
+        await iniciarConSesion(firebaseSession);
+        if (!sesionOk) await window.DcarelaFirebase.signOut().catch(() => {});
       } catch (error) {
         const msg = error?.message || "No se pudo validar la sesion.";
         $("loginErr").textContent = mensajeAutenticacion(error, msg);
@@ -7093,10 +7121,8 @@
     });
     on("pass", "keydown", event => { if (event.key === "Enter") $("btnEntrar").click(); });
     on("btnSalir", "click", async () => {
-      await Promise.allSettled([
-        sb?.auth?.signOut?.(),
-        window.DcarelaFirebase?.signOut?.()
-      ]);
+      if (typeof liveChannel === "function") liveChannel();
+      await window.DcarelaFirebase?.signOut?.();
       session = null;
       authProvider = "none";
       location.reload();
@@ -7109,7 +7135,7 @@
       const next = currentTheme === "dark" ? "light" : "dark";
       applyTheme(next, true);
       if (!EMBEDDED) {
-        if (authProvider === "supabase") guardarTemaUsuario(next).catch(error => toast(error.message));
+        guardarTemaUsuario(next).catch(error => toast(error.message));
       } else window.parent.postMessage({ type: "dcarela:theme-request", theme: next }, location.origin);
     };
     on("btnTema", "click", cambiarTema);
@@ -7533,21 +7559,33 @@
       alerts.forEach(alert => { read.add(alert.key); alert.read = true; });
       localStorage.setItem(READ_KEY, JSON.stringify([...read].slice(-1200)));
       const systemIds = alerts.filter(alert => alert.source === "system" && alert.sourceId && !alert.acknowledged).map(alert => alert.sourceId);
-      if (systemIds.length && session?.user?.id) await sb.from("system_alerts").update({ acknowledged_at: new Date().toISOString(), acknowledged_by: session.user.id }).in("id", systemIds).then(() => {});
+      if (systemIds.length && session?.user?.id) {
+        if (authProvider === "firebase") await window.DcarelaFirebase.acknowledgeAlerts(systemIds, BUSINESS).catch(() => {});
+        else await sb.from("system_alerts").update({ acknowledged_at: new Date().toISOString(), acknowledged_by: session.user.id }).in("id", systemIds).then(() => {});
+      }
       actualizarContadorAlertas();
       cargarNotificaciones();
     });
     window.addEventListener("hashchange", () => { if (sesionOk) mostrarVista(location.hash.slice(1) || "dashboard"); });
     setInterval(() => { $("footerClock").textContent = new Date().toLocaleString("es-DO", { dateStyle: "full", timeStyle: "short" }); }, 1000);
 
-    if (!cfg) { mostrarAcceso("v-config"); return; }
-    if (!window.supabase?.createClient) {
+    if (!window.DcarelaFirebase?.isAvailable) {
       mostrarAcceso("v-config");
-      $("cfgErr").textContent = "No se pudo cargar la biblioteca de Supabase.";
+      $("cfgErr").textContent = "No se pudo iniciar Firebase. Recarga la página o revisa tu conexión.";
       return;
     }
-    sb = window.supabase.createClient(cfg.url, cfg.anon);
-    sb.auth.onAuthStateChange((event, nextSession) => manejarCambioAuth(event, nextSession));
+    window.DcarelaFirebase.onAuthStateChanged(user => {
+      if (!user && sesionOk) {
+        authGeneration++;
+        sesionOk = false;
+        activeUserId = "";
+        session = null;
+        authProvider = "none";
+        if (typeof liveChannel === "function") liveChannel();
+        liveChannel = null;
+        mostrarAcceso("v-login");
+      }
+    });
     await restaurarSesion();
   }
 

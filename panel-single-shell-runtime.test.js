@@ -65,3 +65,10 @@ test("Finanzas conserva una URL semántica y migra enlaces antiguos de proveedor
   assert.doesNotMatch(shellJs, /`proveedores`/);
   assert.doesNotMatch(mobileJs, /`proveedores`/);
 });
+
+test("Conciliación conserva una URL semántica aunque reutilice el módulo interno de recálculo", () => {
+  assert.match(shellJs, /id:`conciliacion`,label:`Conciliacion`/);
+  assert.match(mobileJs, /id:`conciliacion`,label:`Conciliacion`/);
+  assert.match(shellJs, /t===`conciliacion`\?`recalcular`:t/);
+  assert.match(mobileJs, /t===`conciliacion`\?`recalcular`:t/);
+});
