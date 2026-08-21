@@ -1,19 +1,19 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-08-20T20:20:00Z",
+  "generatedAt": "2026-08-21T03:36:11Z",
   "apps": {
     "com.dcarela.brujula": {
       "name": "Br\u00fajula",
       "channel": "stable",
-      "latestVersion": "5.0.4",
-      "latestBuild": "481",
+      "latestVersion": "5.1.2",
+      "latestBuild": "484",
       "minimumSupportedBuild": "462",
-      "downloadURL": "https://github.com/erickcarela58-star/dcarela-panel/releases/download/ios-20260820-firebase-hosting/Brujula-5.0.4-481-QA.ipa",
+      "downloadURL": "https://github.com/erickcarela58-star/dcarela-panel/releases/download/ios-20260820-brujula-5.1.2/Brujula-5.1.2-484-QA.ipa",
       "altStoreSourceURL": "https://panel.dcarelacompufoto.com/ios-releases/altstore-source.json",
-      "sha256": "20f8e7a690c2f7f434046fe77470aefa269a35e5d443a2d84290b91b4f410beb",
-      "size": 17617859,
-      "publishedAt": "2026-08-16",
-      "releaseNotes": "QA Build 469: Grabaci\u00f3n nativa Linear PCM 16kHz WAV, sanitizaci\u00f3n MIME, auto-recuperaci\u00f3n de conversaci\u00f3n y diagn\u00f3stico de runtime completo.",
+      "sha256": "55479d7ef84c5caa98ec6b83b4f22e925c13dffd861ee81d0ea201267bccf52d",
+      "size": 17690491,
+      "publishedAt": "2026-08-20",
+      "releaseNotes": "v5.1.2 (Build 484): corrige el bloqueo total de la cuota Jomo, conserva el contador social de Br\u00fajula, repara controles y widgets, a\u00f1ade OCR ordenado de capturas con solapamiento seguro y verifica lectura completa de 1,024 p\u00e1ginas.",
       "mandatory": false
     },
     "com.dcarela.brujula.7FL6SHN9DV": {
