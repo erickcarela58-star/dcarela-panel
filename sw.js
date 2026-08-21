@@ -1,4 +1,4 @@
-const APP_BUILD = "2026.08.20.1.0.47.9";
+const APP_BUILD = "2026.08.20.1.0.47.10";
 const CACHE = `dcarela-pos-shell-${APP_BUILD}`;
 const SHELL = [
   `./panel.css?v=${APP_BUILD}`,
@@ -6,9 +6,9 @@ const SHELL = [
   `./panel.js?v=${APP_BUILD}`,
   `./ticket-termico.js?v=${APP_BUILD}`,
   `./panel-sale-pending.js?v=${APP_BUILD}`,
-  `./shell-assets/index-8382232.js?v=${APP_BUILD}`,
+  `./shell-assets/index-aff89a2c.js?v=${APP_BUILD}`,
   `./shell-assets/index-BIq1Swuf.css?v=${APP_BUILD}`,
-  `./mobile/assets/index-8382232.js?v=${APP_BUILD}`,
+  `./mobile/assets/index-7b03830f.js?v=${APP_BUILD}`,
   `./mobile/assets/index-BIq1Swuf.css?v=${APP_BUILD}`,
   "./supabase.min.js",
   "./jspdf.umd.min.js",
