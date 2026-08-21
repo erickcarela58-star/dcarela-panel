@@ -15,8 +15,8 @@
       "versionDate": "2026-08-21T03:36:11Z",
       "versionDescription": "v5.1.2 (Build 484): corrige el bloqueo total de la cuota Jomo, conserva el contador social de Brújula, repara controles y widgets, añade OCR ordenado de capturas con solapamiento seguro y verifica lectura completa de 1,024 páginas.",
       "downloadURL": "https://github.com/erickcarela58-star/dcarela-panel/releases/download/ios-20260820-brujula-5.1.2/Brujula-5.1.2-484-QA.ipa",
-      "size": 17690491,
-      "sha256": "55479d7ef84c5caa98ec6b83b4f22e925c13dffd861ee81d0ea201267bccf52d",
+      "size": 17690008,
+      "sha256": "8dbdc07cab7ece660f833851899e6816ba277957f30c5af488ac297a02213a78",
       "minOSVersion": "17.0",
       "versions": [
         {
@@ -24,8 +24,8 @@
           "buildVersion": "484",
           "date": "2026-08-20",
           "downloadURL": "https://github.com/erickcarela58-star/dcarela-panel/releases/download/ios-20260820-brujula-5.1.2/Brujula-5.1.2-484-QA.ipa",
-          "size": 17690491,
-          "sha256": "55479d7ef84c5caa98ec6b83b4f22e925c13dffd861ee81d0ea201267bccf52d",
+          "size": 17690008,
+          "sha256": "8dbdc07cab7ece660f833851899e6816ba277957f30c5af488ac297a02213a78",
           "localizedDescription": "v5.1.2 (Build 484): corrige el bloqueo total de la cuota Jomo, conserva el contador social de Brújula, repara controles y widgets, añade OCR ordenado de capturas con solapamiento seguro y verifica lectura completa de 1,024 páginas.",
           "minOSVersion": "17.0"
         },
