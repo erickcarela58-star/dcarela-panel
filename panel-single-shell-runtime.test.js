@@ -73,4 +73,6 @@ test("Conciliación conserva una URL semántica aunque reutilice el módulo inte
   assert.match(mobileJs, /t===`conciliacion`\?`recalcular`:t/);
   assert.match(shellJs, /e===`recalcular`\?`conciliacion`/);
   assert.match(mobileJs, /e===`recalcular`\?`conciliacion`/);
+  assert.match(shellJs, /r=e===`conciliacion`\?`recalcular`:e/);
+  assert.match(mobileJs, /r=e===`conciliacion`\?`recalcular`:e/);
 });
