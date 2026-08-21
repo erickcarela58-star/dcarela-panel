@@ -22,7 +22,7 @@ test("Caja virtual consume el resumen real y movimientos auditados", () => {
   assert.match(panel, /"caja-virtual": cargarCajaVirtual/);
   assert.match(panel, /saleApi\("cash\.move"/);
   assert.match(panel, /summary\.expectedCashCentavos/);
-  assert.match(sw, /const APP_BUILD = "2026\.08\.20\.1\.0\.47\.\d+"/);
+  assert.match(sw, /const APP_BUILD = "2026\.\d{2}\.\d{2}\.1\.0\.\d+\.\d+"/);
   assert.match(sw, new RegExp(shellAsset.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
 });
 
