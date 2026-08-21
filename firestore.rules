@@ -28,7 +28,8 @@ service cloud.firestore {
     }
     match /businesses/{businessId} {
       allow read: if isActiveMember(businessId);
-      allow write: if false;
+      allow update: if isAdmin(businessId);
+      allow create, delete: if false;
     }
 
     match /sync_events/{eventId} {
@@ -111,9 +112,61 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    match /system_alerts/{documentId} {
+      allow read: if resource.data.business_id is string && isActiveMember(resource.data.business_id);
+      allow create: if request.resource.data.business_id is string && isAdmin(request.resource.data.business_id);
+      allow update: if keepsBusiness() && isActiveMember(resource.data.business_id)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'acknowledged_at', 'acknowledged_by', 'updated_at'
+        ]);
+      allow delete: if false;
+    }
+
+    match /ui_preferences/{documentId} {
+      allow read: if resource.data.business_id is string && isActiveMember(resource.data.business_id);
+      allow create: if request.resource.data.business_id is string
+        && isActiveMember(request.resource.data.business_id)
+        && request.resource.data.user_id == request.auth.uid;
+      allow update: if keepsBusiness() && isActiveMember(resource.data.business_id)
+        && resource.data.user_id == request.auth.uid
+        && request.resource.data.user_id == request.auth.uid;
+      allow delete: if false;
+    }
+
+    match /fin_preferences/{businessId} {
+      allow read: if isActiveMember(businessId);
+      allow create, update: if isAdmin(businessId)
+        && request.resource.data.business_id == businessId;
+      allow delete: if false;
+    }
+
     match /{collectionId}/{documentId} {
       allow read: if resource.data.business_id is string && isActiveMember(resource.data.business_id);
-      allow write: if false;
+      allow create: if collectionId in [
+          'product_combos', 'expense_categories', 'expenses', 'cost_recurrents', 'cost_obligations',
+          'cost_payments', 'payment_receipts', 'fin_cards', 'fin_budgets',
+          'fin_currencies', 'fin_preferences', 'fin_commitments',
+          'fin_commitment_payments', 'fin_pending_transfers', 'devices',
+          'sales_archive', 'sync_event_archives', 'catalog_snapshots', 'suppliers',
+          'crm_contacts', 'crm_conversations',
+          'crm_messages', 'crm_templates', 'crm_campaigns', 'crm_tasks',
+          'crm_plans', 'crm_prospects', 'crm_files', 'wa_bridge_control'
+        ]
+        && request.resource.data.business_id is string
+        && isAdmin(request.resource.data.business_id);
+      allow update: if collectionId in [
+          'product_combos', 'expense_categories', 'expenses', 'cost_recurrents', 'cost_obligations',
+          'cost_payments', 'payment_receipts', 'fin_cards', 'fin_budgets',
+          'fin_currencies', 'fin_preferences', 'fin_commitments',
+          'fin_commitment_payments', 'fin_pending_transfers', 'devices',
+          'sales_archive', 'sync_event_archives', 'catalog_snapshots', 'suppliers',
+          'crm_contacts', 'crm_conversations',
+          'crm_messages', 'crm_templates', 'crm_campaigns', 'crm_tasks',
+          'crm_plans', 'crm_prospects', 'crm_files', 'wa_bridge_control'
+        ]
+        && keepsBusiness() && isAdmin(resource.data.business_id);
+      allow delete: if false;
     }
+
   }
 }

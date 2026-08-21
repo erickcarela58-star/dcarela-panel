@@ -71,6 +71,17 @@ test("Caja web y conciliacion usan operaciones Firebase transaccionales y audita
   assert.match(panelJs, /DcarelaFirebase\.adminAction/);
 });
 
+test("todas las herramientas administrativas visibles tienen implementacion Firebase", () => {
+  const actions = [...panelJs.matchAll(/"((?:expense|cost|receipt|fin|device|business|product|category|client|combo|inventory|sale)[a-z_.]+)":\s*"/g)]
+    .map(match => match[1]);
+  assert.ok(actions.length >= 25);
+  for (const action of actions) {
+    assert.match(firebaseAdapter, new RegExp(`action === ['"]${action.replaceAll('.', '\\.')}['"]`), action);
+  }
+  assert.match(firebaseAdapter, /sync_event_archives/);
+  assert.match(firebaseAdapter, /events:\s*chunks\.flatMap/);
+});
+
 test("el sitio no publica respaldos comerciales ni datos personales como archivos seed", () => {
   for (const name of ["firestore-seed.json", "catalog-seed.json", "events-seed.json", "finance-seed.json"]) {
     assert.equal(fs.existsSync(path.join(root, name)), false, `${name} no debe publicarse`);
