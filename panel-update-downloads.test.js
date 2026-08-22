@@ -40,6 +40,10 @@ test("el manifiesto publica el instalador y las dos IPA con integridad verificab
     assert.equal(file.publisher_signature, "not_signed");
     assert.ok(file.installation_method.length > 20);
   }
+  const desktop = manifest.downloads.find(file => file.product === "D' Carela POS");
+  assert.ok(desktop);
+  assert.match(manifest.desktop_release.release_url, /\.exe$/i);
+  assert.equal(desktop.url, manifest.desktop_release.release_url);
 });
 
 test("Finanzas 623 y los dos CRM se publican por dominios oficiales", () => {

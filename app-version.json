@@ -16,7 +16,7 @@
     "channel": "stable",
     "mandatory": false,
     "created_at": "2026-08-22T18:50:00Z",
-    "release_url": "https://panel.dcarelacompufoto.com/downloads/pos-1.0.50/",
+    "release_url": "https://github.com/erickcarela58-star/dcarela-panel/releases/download/pos-v1.0.50/DCARELA_POS_Setup_20260822-1437.exe",
     "sha256": "6eca4eb38ab8bc99a72dccc0bcfb324ccb734a829ac588cdce6eb439b210188c",
     "notes": "POS 1.0.50: repara automaticamente instalaciones que apuntan a Cloud Functions inexistentes, migra el transporte a Firestore, renueva correctamente la sesion Firebase y rescata la cola sin borrar ventas. Incluye las mejoras operativas y visuales validadas del 22 de agosto."
   },
@@ -74,7 +74,7 @@
       "published_at": "2026-08-22T18:50:00Z",
       "size_bytes": 105270516,
       "sha256": "6eca4eb38ab8bc99a72dccc0bcfb324ccb734a829ac588cdce6eb439b210188c",
-      "url": "https://panel.dcarelacompufoto.com/downloads/pos-1.0.50/",
+      "url": "https://github.com/erickcarela58-star/dcarela-panel/releases/download/pos-v1.0.50/DCARELA_POS_Setup_20260822-1437.exe",
       "checksums_url": "https://panel.dcarelacompufoto.com/downloads/pos-1.0.50/SHA256SUMS.txt",
       "action": "Abrir descarga oficial .EXE",
       "notes": "Instalador 1.0.50: rescate automatico de endpoints Firebase heredados, cola sincronizada y mejoras operativas/visuales verificadas.",
