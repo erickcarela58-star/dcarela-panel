@@ -9,7 +9,7 @@ const mobileHtml = fs.readFileSync("mobile/index.html", "utf8");
 const indexHtml = fs.readFileSync("index.html", "utf8");
 
 test("las metricas y graficos cargan la capa visual unificada en escritorio y movil", () => {
-  assert.match(panelHtml, /panel-theme\.css\?v=2026\.08\.23\.1\.0\.54\.\d+/);
+  assert.match(panelHtml, /panel-theme\.css\?v=2026\.08\.23\.1\.0\.55\.\d+/);
   assert.match(indexHtml, /shell-assets\/index-[^"']+\.css/);
   assert.match(mobileHtml, /assets\/index-[^"']+\.css/);
 });
