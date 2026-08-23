@@ -1056,8 +1056,34 @@
     },
 
     async getFinanceMovements(businessId = 'dcarela', month = null) {
-      const rows = await this.getCollection('fin_movements', [['business_id', '==', businessId]]);
-      const filtered = month ? rows.filter(item => String(item.fecha || '').startsWith(`${month}-`)) : rows;
+      const [financeResult, ledgerResult] = await Promise.allSettled([
+        this.getCollection('fin_movements', [['business_id', '==', businessId]]),
+        this.getCollection('sync_events', [
+          ['business_id', '==', businessId],
+          ['event_type', '==', 'LedgerMovimientoRegistrado']
+        ])
+      ]);
+      const rows = financeResult.status === 'fulfilled' ? financeResult.value : [];
+      const ledgerRows = ledgerResult.status === 'fulfilled' ? ledgerResult.value.map(event => {
+        const payload = event.payload || {};
+        return {
+          id: payload.ledgerId || event.entity_id || event.event_id || event.id,
+          business_id: event.business_id || businessId,
+          tipo: payload.tipo || 'GASTO',
+          categoria: payload.categoria || '',
+          descripcion: payload.descripcion || event.event_type || 'Movimiento de caja Windows',
+          monto_centavos: Number(payload.importeDopCentavos ?? payload.importe_dop_centavos ?? 0),
+          importe_dop_centavos: Number(payload.importeDopCentavos ?? payload.importe_dop_centavos ?? 0),
+          moneda: payload.monedaOriginal || 'DOP',
+          estado: payload.estado || 'confirmado',
+          fecha: payload.fechaEfectiva || event.created_at_local || event.received_at_cloud || '',
+          observaciones: payload.observaciones || '',
+          source: 'pos_sync_event'
+        };
+      }) : [];
+      const merged = new Map();
+      [...rows, ...ledgerRows].forEach(item => merged.set(item.id, item));
+      const filtered = month ? [...merged.values()].filter(item => String(item.fecha || '').startsWith(`${month}-`)) : [...merged.values()];
       return filtered.sort((a, b) => String(b.fecha || '').localeCompare(String(a.fecha || '')));
     },
 

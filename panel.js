@@ -21,7 +21,7 @@
     document.body?.classList.add("is-embedded");
   }
   const THEME_KEY = "dcarela.ui.theme";
-  const APP_BUILD = "1.0.49";
+  const APP_BUILD = "1.0.50";
 
   window.cargarFinanzas = async function(force = false) {
     try {
