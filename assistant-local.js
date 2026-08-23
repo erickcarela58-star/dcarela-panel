@@ -346,8 +346,8 @@
         capabilities: capabilities(ctx.role), providers_down: {}, claves: {},
         models: [{ id: 'local-pos', label: 'Cerebro local POS', level: 'Sin consumo de API' }],
         active_documents: [{
-          id: 'local-pos-contract', name: 'Reglas operativas POS 1.0.53',
-          kind: 'system_rules', version: '1.0.53', active: true, persisted: true,
+          id: 'local-pos-contract', name: 'Reglas operativas POS 1.0.54',
+          kind: 'system_rules', version: '1.0.54', active: true, persisted: true,
         }]
       };
     }
