@@ -62,6 +62,16 @@ test('resumen y auditorias usan exclusivamente datos entregados por Firebase', a
   assert.match(stock.message.content, /Stock negativo: \*\*1\*\*/);
 });
 
+test('explica el motor local y el flujo seguro de varias ordenes sin confundirlos con gastos', async () => {
+  const ctx = context();
+  const engine = await assistant.request('chat', ctx, { message: 'Que motor usas, cuanto consumo de API y que modulos puedes consultar?' });
+  assert.match(engine.message.content, /cero consumo de API generativa/i);
+  assert.match(engine.message.content, /ventas, finanzas y gastos/i);
+  const batch = await assistant.request('chat', ctx, { message: 'Explicame como registrar varias ordenes juntas.' });
+  assert.match(batch.message.content, /clave unica por orden/i);
+  assert.match(batch.message.content, /marco duplicados/i);
+});
+
 test('una escritura financiera queda pendiente hasta aprobacion explicita', async () => {
   const ctx = context();
   const proposed = await assistant.request('chat', ctx, { message: 'Registra un gasto de RD$375 en efectivo hoy por comida.' });
@@ -86,4 +96,3 @@ test('si Firestore no permite guardar, conserva el historial local sin pantalla 
   const conversations = await assistant.request('conversations', ctx);
   assert.equal(conversations.conversations.length, 1);
 });
-

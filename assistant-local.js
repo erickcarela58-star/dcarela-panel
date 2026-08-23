@@ -311,6 +311,16 @@
     const query = normalize(prompt);
     const proposal = await buildExpenseProposal(ctx, prompt);
     if (proposal) return { content: proposal.message, action: proposal.action };
+    if (/consumo.*api|api.*consumo|que motor|motor.*usas|modulos.*consult|que.*puedes/.test(query)) {
+      return {
+        content: 'Uso el **cerebro local del POS** y requiero **cero consumo de API generativa** para estas consultas. Leo datos reales de Firebase en los modulos de ventas, finanzas y gastos, cuentas, clientes y creditos, productos e inventario, caja, turnos y cortes. Las escrituras nunca son automaticas: preparo una propuesta auditable y exijo aprobacion antes de aplicarla.',
+      };
+    }
+    if (/varias ordenes|ordenes juntas|lote.*orden|multiples ordenes/.test(query)) {
+      return {
+        content: 'Para **varias ordenes juntas**, preparo un lote revisable con una clave unica por orden, valido cliente, conceptos, montos y forma de pago, y marco duplicados antes de escribir. Luego presento el resumen completo para aprobacion. No aplico lotes incompletos ni invento campos ausentes.',
+      };
+    }
     if (/resumen|venta.*hoy|hoy.*venta|saldo.*cuenta/.test(query)) return { content: await loadSummary(ctx) };
     if (/producto|catalogo|inventario|stock|precio/.test(query)) return { content: await auditProducts(ctx) };
     if (/cliente|credito|deud|cuenta por cobrar/.test(query)) return { content: await auditClients(ctx) };
@@ -420,4 +430,3 @@
 
   return { request, _test: { normalize, money, answer, sanitizeConversation, readLocal, writeLocal } };
 });
-
