@@ -165,6 +165,46 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // --- SaleAds: modulos operativos compartidos por sucursal -----------
+    // Activos, experimentos, atribucion y auditoria son append-only: se crean
+    // con el uid del actor y no se actualizan ni se borran nunca. La capacidad
+    // usa identificador determinista fecha+servicio, por lo que admite
+    // correccion del mismo dia sin cambiar de sucursal ni de autor.
+    function saleAdsCreate() {
+      return request.resource.data.business_id is string
+        && isAdmin(request.resource.data.business_id)
+        && request.resource.data.created_by_uid == request.auth.uid;
+    }
+
+    match /saleads_assets/{documentId} {
+      allow read: if resource.data.business_id is string && isActiveMember(resource.data.business_id);
+      allow create: if saleAdsCreate();
+      allow update, delete: if false;
+    }
+    match /saleads_experiments/{documentId} {
+      allow read: if resource.data.business_id is string && isActiveMember(resource.data.business_id);
+      allow create: if saleAdsCreate();
+      allow update, delete: if false;
+    }
+    match /saleads_attribution/{documentId} {
+      allow read: if resource.data.business_id is string && isActiveMember(resource.data.business_id);
+      allow create: if saleAdsCreate();
+      allow update, delete: if false;
+    }
+    match /saleads_audit/{documentId} {
+      allow read: if resource.data.business_id is string && isActiveMember(resource.data.business_id);
+      allow create: if saleAdsCreate();
+      allow update, delete: if false;
+    }
+    match /saleads_capacity/{documentId} {
+      allow read: if resource.data.business_id is string && isActiveMember(resource.data.business_id);
+      allow create: if saleAdsCreate();
+      allow update: if keepsBusiness()
+        && isAdmin(resource.data.business_id)
+        && request.resource.data.created_by_uid == request.auth.uid;
+      allow delete: if false;
+    }
+
     match /{collectionId}/{documentId} {
       allow read: if resource.data.business_id is string && isActiveMember(resource.data.business_id);
       allow create: if collectionId in [
