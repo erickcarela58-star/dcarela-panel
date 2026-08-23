@@ -112,3 +112,19 @@ test('una colección vacía sin evidencia del ledger Windows tampoco afirma ause
   assert.match(result.message.content, /vista verificable del ledger Windows/i);
   assert.match(result.message.content, /no crearé un gasto duplicado/i);
 });
+
+test('la consulta financiera ignora instrucciones de solo lectura y encuentra el gasto', async () => {
+  const ctx = context(adapter({
+    getFinanceMovements: async () => [{
+      id: 'ledger-01', source: 'pos_sync_event', tipo: 'GASTO',
+      descripcion: 'Ladron amigo de carela', importe_dop_centavos: 250000,
+      fecha: '2026-08-23T03:59:00Z'
+    }]
+  }));
+  const result = await assistant.request('chat', ctx, {
+    message: 'Busca el gasto Ladron amigo de Carela. Solo consulta, no registres nada.'
+  });
+  assert.match(result.message.content, /Ladron amigo de carela/i);
+  assert.match(result.message.content, /RD\$2,500\.00/);
+  assert.doesNotMatch(result.message.content, /No encontre|No pude completar/i);
+});

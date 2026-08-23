@@ -192,7 +192,11 @@
     sale?.totalCalculadoCentavos, sale?.total_centavos, sale?.total
   );
   const saleDate = sale => dayOf(sale?.vendidaEn || sale?.created_at || sale?.created_at_local);
-  const movementAmount = item => number(item?.monto_centavos, item?.montoCentavos, item?.amount_cents);
+  const movementAmount = item => number(
+    item?.monto_centavos, item?.montoCentavos,
+    item?.importe_dop_centavos, item?.importeDopCentavos,
+    item?.amount_cents
+  );
   const movementDate = item => dayOf(item?.fecha || item?.created_at || item?.updated_at);
   const isExpense = item => ['gasto', 'egreso', 'salida', 'ajuste_negativo'].includes(normalize(item?.tipo));
 
@@ -265,7 +269,12 @@
   }
 
   async function searchFinance(ctx, query) {
-    const terms = normalize(query).split(' ').filter(word => word.length > 2 && !['busca', 'buscar', 'gasto', 'gastos', 'pago', 'pagos', 'movimiento'].includes(word));
+    const ignored = new Set([
+      'busca', 'buscar', 'gasto', 'gastos', 'pago', 'pagos', 'movimiento',
+      'solo', 'consulta', 'consultar', 'registra', 'registrar', 'registres',
+      'nada', 'crea', 'crear', 'crees', 'favor'
+    ]);
+    const terms = normalize(query).split(' ').filter(word => word.length > 2 && !ignored.has(word));
     const rows = await ctx.adapter.getFinanceMovements(ctx.businessId);
     const matches = (rows || []).filter(item => {
       const haystack = normalize([item.payee, item.descripcion, item.nota, item.referencia, item.tipo, item.fecha].join(' '));
