@@ -140,6 +140,31 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // Historial privado del cerebro local. Cada usuario solo puede leer y
+    // conservar sus propias conversaciones; las operaciones comerciales se
+    // siguen ejecutando contra las colecciones tipadas y sus reglas separadas.
+    match /assistant_users/{userId}/conversations/{conversationId} {
+      allow read: if signedIn()
+        && userId == request.auth.uid
+        && resource.data.business_id is string
+        && isActiveMember(resource.data.business_id)
+        && resource.data.created_by_uid == request.auth.uid;
+      allow create: if signedIn()
+        && userId == request.auth.uid
+        && request.resource.data.business_id is string
+        && isActiveMember(request.resource.data.business_id)
+        && request.resource.data.created_by_uid == request.auth.uid
+        && request.resource.data.engine == 'local-firebase';
+      allow update: if signedIn()
+        && userId == request.auth.uid
+        && keepsBusiness()
+        && isActiveMember(resource.data.business_id)
+        && resource.data.created_by_uid == request.auth.uid
+        && request.resource.data.created_by_uid == request.auth.uid
+        && request.resource.data.engine == 'local-firebase';
+      allow delete: if false;
+    }
+
     match /{collectionId}/{documentId} {
       allow read: if resource.data.business_id is string && isActiveMember(resource.data.business_id);
       allow create: if collectionId in [

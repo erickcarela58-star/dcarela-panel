@@ -201,22 +201,44 @@
           <section class="surface"><div id="ventasTabla" class="table-wrap"></div></section>
         </section>
 
-        <section id="v-caja-virtual" class="vista oculto">
-          <div class="virtual-desktop-entry">
+        <section id="v-caja-virtual" class="vista oculto virtual-workspace">
+          <header class="virtual-desktop-entry">
             <img src="dcarela-logo.png" alt="">
-            <div><p class="eyebrow">Modulo adicional</p><h2>Caja virtual Windows</h2><p>La terminal se abre con la misma distribucion, teclas y reglas de la caja instalada.</p></div>
+            <div><p class="eyebrow">Punto de venta conectado</p><h2>Caja virtual D' Carela</h2><p>Los mismos modulos, teclas y reglas de la caja Windows, conectados a Firebase.</p></div>
             <span id="virtualShiftPill" class="status-pill">Consultando turno</span>
-            <button id="btnVirtualNewSale" class="primary" type="button">Entrar a la caja</button>
+            <button id="btnVirtualRefresh" class="secondary" type="button">Actualizar</button>
+          </header>
+
+          <nav class="virtual-command-grid" aria-label="Modulos de la Caja virtual">
+            <button id="btnVirtualNewSale" class="virtual-command primary" type="button"><kbd>F1</kbd><strong>Nueva venta</strong><small>Productos, pagos y ticket</small></button>
+            <button class="virtual-command" type="button" data-virtual-route="clientes"><kbd>F2</kbd><strong>Clientes</strong><small>Credito, abonos e historial</small></button>
+            <button class="virtual-command" type="button" data-virtual-route="inventario"><kbd>F3</kbd><strong>Inventario</strong><small>Productos, servicios y stock</small></button>
+            <button class="virtual-command" type="button" data-virtual-route="caja"><kbd>F4</kbd><strong>Caja y turnos</strong><small>Aperturas, movimientos y cortes</small></button>
+            <button class="virtual-command" type="button" data-virtual-route="finanzas"><kbd>F5</kbd><strong>Finanzas</strong><small>Gastos, cuentas y conciliacion</small></button>
+            <button id="btnVirtualResume" class="virtual-command" type="button"><kbd>F6</kbd><strong>Cuentas en espera</strong><small>Recuperar varias ordenes</small></button>
+            <button id="btnVirtualCashIn" class="virtual-command" type="button"><kbd>F7</kbd><strong>Entrada</strong><small>Movimiento auditado</small></button>
+            <button id="btnVirtualCashOut" class="virtual-command" type="button"><kbd>F8</kbd><strong>Salida</strong><small>Retiro con motivo</small></button>
+            <button class="virtual-command" type="button" data-virtual-action="common"><kbd>F9</kbd><strong>Venta comun</strong><small>Servicio fuera de catalogo</small></button>
+            <button class="virtual-command" type="button" data-virtual-action="price"><kbd>F10</kbd><strong>Verificar precio</strong><small>Buscar o escanear</small></button>
+            <button class="virtual-command" type="button" data-virtual-action="wholesale"><kbd>F11</kbd><strong>Mayoreo</strong><small>Precio autorizado</small></button>
+            <button class="virtual-command" type="button" data-virtual-action="checkout"><kbd>F12</kbd><strong>Cobrar</strong><small>Efectivo, banco o mixto</small></button>
+          </nav>
+
+          <div id="virtualMetrics" class="virtual-metrics-grid" aria-label="Resumen del turno"></div>
+          <div class="virtual-detail-grid">
+            <section class="surface">
+              <div class="surface-title"><div><h3>Funciones conectadas</h3><p>Capacidades reales compartidas con la caja Windows.</p></div></div>
+              <div id="virtualCapabilities" class="virtual-capabilities"></div>
+            </section>
+            <section class="surface virtual-activity-surface">
+              <div class="surface-title"><div><h3>Actividad de esta Caja virtual</h3><p>Ventas y movimientos recibidos por Firebase.</p></div></div>
+              <div id="virtualActivity" class="table-wrap"></div>
+            </section>
           </div>
-          <div id="virtualMetrics" class="oculto" aria-hidden="true"></div>
-          <div id="virtualCapabilities" class="oculto" aria-hidden="true"></div>
-          <div id="virtualActivity" class="oculto" aria-hidden="true"></div>
-          <p id="virtualCashError" class="error" role="alert"></p>
-          <button id="btnVirtualResume" class="oculto" type="button">Cuentas en espera</button>
-          <button id="btnVirtualCashIn" class="oculto" type="button">Entrada</button>
-          <button id="btnVirtualCashOut" class="oculto" type="button">Salida</button>
-          <button id="btnVirtualClose" class="oculto" type="button">Cerrar</button>
-          <button id="btnVirtualRefresh" class="oculto" type="button">Actualizar</button>
+          <div class="virtual-footer-actions">
+            <p id="virtualCashError" class="error" role="alert"></p>
+            <button id="btnVirtualClose" class="secondary" type="button">Cerrar turno con arqueo</button>
+          </div>
         </section>
 
         <section id="v-caja" class="vista oculto">
@@ -499,7 +521,7 @@
                 <div class="assistant-empty">
                   <div class="assistant-empty-icon">✦</div>
                   <strong>Asistente Operativo D' Carela POS</strong>
-                  <p>Aprende de tus instrucciones en cada conversación. Puedes consultar ventas, conciliar bancos, registrar compras con tarjeta o pedir auditorías.</p>
+                  <p>Consulta los datos reales del POS con cerebro local. Las escrituras se preparan como propuesta y requieren aprobación.</p>
                   <div class="assistant-empty-starters">
                     <button type="button" class="starter-card" data-prompt="Dame un resumen de las ventas de hoy, los gastos registrados y el saldo en cuentas.">
                       <span class="starter-icon">📊</span>
@@ -510,6 +532,26 @@
                       <span class="starter-icon">🔍</span>
                       <strong>Auditar catálogo y stock</strong>
                       <small>Productos sin precio o stock bajo</small>
+                    </button>
+                    <button type="button" class="starter-card" data-prompt="Revisa clientes con deuda, balances y las acciones de cobro prioritarias.">
+                      <span class="starter-icon">👥</span>
+                      <strong>Clientes y creditos</strong>
+                      <small>Deudores y cuentas por cobrar</small>
+                    </button>
+                    <button type="button" class="starter-card" data-prompt="Revisa el estado de la caja, el turno abierto y el ultimo arqueo confirmado.">
+                      <span class="starter-icon">🧾</span>
+                      <strong>Caja y cortes</strong>
+                      <small>Turnos, efectivo y diferencias</small>
+                    </button>
+                    <button type="button" class="starter-card" data-prompt="Busca gastos y pagos recientes que necesiten revision o conciliacion.">
+                      <span class="starter-icon">💵</span>
+                      <strong>Finanzas y gastos</strong>
+                      <small>Movimientos confirmados</small>
+                    </button>
+                    <button type="button" class="starter-card" data-prompt="Explicame como registrar varias ordenes juntas de forma segura y revisable.">
+                      <span class="starter-icon">📦</span>
+                      <strong>Varias ordenes</strong>
+                      <small>Lotes sin duplicados</small>
                     </button>
                   </div>
                 </div>
@@ -1010,13 +1052,14 @@
   <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
-  <script src="firebase-adapter.js?v=2026.08.20.1.0.47.7"></script>
+  <script src="firebase-adapter.js?v=2026.08.23.1.0.53.1"></script>
+  <script src="assistant-local.js?v=2026.08.23.1.0.53.1"></script>
   <script src="jspdf.umd.min.js"></script>
   <script src="jspdf.plugin.autotable.min.js"></script>
-  <script src="ticket-termico.js?v=2026.08.20.1.0.47.7"></script>
-  <script src="panel-sale-pending.js?v=2026.08.20.1.0.47.7"></script>
-  <script src="panel.js?v=2026.08.20.1.0.47.7"></script>
-  <script src="visual-fidelity.js?v=2026.08.20.1.0.47.7"></script>
+  <script src="ticket-termico.js?v=2026.08.23.1.0.53.1"></script>
+  <script src="panel-sale-pending.js?v=2026.08.23.1.0.53.1"></script>
+  <script src="panel.js?v=2026.08.23.1.0.53.1"></script>
+  <script src="visual-fidelity.js?v=2026.08.23.1.0.53.1"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));

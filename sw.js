@@ -1,4 +1,4 @@
-const APP_BUILD = "2026.08.23.1.0.53.0";
+const APP_BUILD = "2026.08.23.1.0.53.1";
 const CACHE = `dcarela-pos-shell-${APP_BUILD}`;
 const SHELL = [
   `./panel.css?v=${APP_BUILD}`,
@@ -19,7 +19,8 @@ const SHELL = [
   "./app-version.json",
   "./config.js",
   "./firebase-config.js",
-  "./firebase-adapter.js"
+  "./firebase-adapter.js",
+  "./assistant-local.js"
 ];
 
 self.addEventListener("install", event => {

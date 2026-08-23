@@ -21,7 +21,7 @@
     document.body?.classList.add("is-embedded");
   }
   const THEME_KEY = "dcarela.ui.theme";
-  const APP_BUILD = "1.0.48";
+  const APP_BUILD = "1.0.49";
 
   window.cargarFinanzas = async function(force = false) {
     try {
@@ -816,6 +816,18 @@
   }
 
   async function iaRequest(mode, data = {}) {
+    if (authProvider === "firebase") {
+      if (!window.DcarelaLocalAssistant?.request) {
+        throw new Error("El cerebro local no termino de cargar. Recarga el panel e intentalo nuevamente.");
+      }
+      return window.DcarelaLocalAssistant.request(mode, {
+        adapter: window.DcarelaFirebase,
+        businessId: BUSINESS,
+        role: memberRole,
+        user: { id: session?.user?.id, uid: session?.user?.id, email: session?.user?.email || "" },
+        storage: localStorage,
+      }, data);
+    }
     const response = await fetch(`${cfg.url.replace(/\/$/, "")}/functions/v1/pos-assistant`, {
       method: "POST",
       headers: await authenticatedHeaders(true),
@@ -1008,16 +1020,18 @@
       const raw = localStorage.getItem(IA_MEMORY_KEY);
       if (raw) {
         const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed) && parsed.length) return parsed;
+        if (Array.isArray(parsed) && parsed.length) {
+          const real = parsed.filter(rule => !["mem_seed_1", "mem_seed_2", "mem_seed_3"].includes(String(rule?.id || "")));
+          if (real.length !== parsed.length) saveIaLearnedRules(real);
+          if (real.length) return real;
+        }
       }
     } catch {}
-    const seed = [
-      { id: "mem_seed_1", content: "Regla de pago: 'Comercial Rosa' (papelería/suministros) se paga habitualmente con Tarjeta de Crédito Qik.", summary: "Comercial Rosa ➔ Tarjeta Qik", category: "finance_rules" },
-      { id: "mem_seed_2", content: "Compromiso mensual: 'ChatGPT' es una suscripción mensual de US$ 28.00 vinculada a la cuenta Banco Popular.", summary: "ChatGPT ➔ US$28 Banco Popular", category: "finance_commitments" },
-      { id: "mem_seed_3", content: "Regla fiscal: Los precios en ventas se capturan con ITBIS (18%) incluido. Desglose exacto hacia atrás.", summary: "ITBIS 18% incluido", category: "fiscal_rules" }
-    ];
-    saveIaLearnedRules(seed);
-    return seed;
+    // La memoria comienza vacia. Las versiones antiguas sembraban proveedores,
+    // suscripciones y cuentas de ejemplo que podian parecer datos comerciales
+    // reales. Solo se conserva lo que el operador ensena de forma explicita.
+    saveIaLearnedRules([]);
+    return [];
   }
 
   function saveIaLearnedRules(rules) {
@@ -1257,7 +1271,7 @@
 
   function renderIaStatus(status) {
     iaStatusCache = status;
-    $("iaStatus").textContent = status.configured ? "IA conectada" : "Falta configuracion";
+    $("iaStatus").textContent = status.local_engine ? "Cerebro local activo" : status.configured ? "IA conectada" : "Falta configuracion";
     $("iaStatus").classList.toggle("bad", !status.configured || !status.capabilities?.can_use);
     $("iaRole").textContent = status.full_admin_access ? `${status.role} · control total` : status.role;
     $("iaAccessSummary").textContent = status.full_admin_access ? "Acceso completo por rol administrativo" : "Acceso delegado por capacidades";
@@ -1314,7 +1328,7 @@
   function renderIaClaves(status) {
     const caja = $("iaClaves");
     if (!caja) return;
-    if (!status.full_admin_access) { caja.innerHTML = ""; caja.classList.add("oculto"); return; }
+    if (!status.full_admin_access || status.local_engine) { caja.innerHTML = ""; caja.classList.add("oculto"); return; }
     caja.classList.remove("oculto");
     const origen = status.claves || {};
     const etiqueta = { panel: "puesta desde aqui", entorno: "en Supabase", "sin clave": "sin clave" };
@@ -3007,6 +3021,16 @@
   }
 
   async function loadSaleBankAccounts() {
+    if (authProvider === "firebase") {
+      const accounts = await window.DcarelaFirebase.getFinanceAccounts(BUSINESS);
+      saleBankAccounts = (accounts || []).filter(account => {
+        const type = String(account.tipo || "").toLowerCase();
+        const state = String(account.estado || "activa").toLowerCase();
+        return type === "banco" && state === "activa" && account.oculta !== true;
+      }).sort((a, b) => String(a.nombre || "").localeCompare(String(b.nombre || ""), "es"));
+      $("saleBankAccount").innerHTML = '<option value="">Seleccionar</option>' + saleBankAccounts.map(account => `<option value="${esc(account.id)}">${esc(account.nombre)}</option>`).join("");
+      return;
+    }
     const { data, error } = await sb.from("fin_cuentas").select("id,nombre,tipo,estado,oculta")
       .eq("business_id", BUSINESS).eq("tipo", "banco").eq("estado", "activa").eq("oculta", false).order("nombre");
     saleBankAccounts = error ? [] : (data || []);
@@ -3169,6 +3193,19 @@
     $("saleOverlay").setAttribute("aria-hidden", "true");
     document.body.style.overflow = "";
     if ((location.hash.slice(1) || "dashboard") === "caja-virtual") location.hash = "dashboard";
+  }
+
+  async function openVirtualCommand(action) {
+    await openSaleConsole(false);
+    if (action === "price") { openSalePriceVerifier(); return; }
+    if (!saleShift?.id) {
+      toast("Abre el turno antes de usar este modulo de la caja.");
+      $("saleOpening")?.focus();
+      return;
+    }
+    if (action === "common") { openCommonSale(); return; }
+    if (action === "wholesale") { toggleSaleWholesale(); return; }
+    if (action === "checkout") { setSaleStage("checkout", true); }
   }
 
   async function latestActiveSaleEvent() {
@@ -7298,6 +7335,12 @@
     on("btnVirtualCashOut", "click", () => openVirtualCashMovement("salida"));
     on("btnVirtualClose", "click", openSaleCloseShift);
     on("btnVirtualRefresh", "click", () => cargarCajaVirtual().catch(error => { $("virtualCashError").textContent = error.message; }));
+    document.querySelectorAll("[data-virtual-route]").forEach(button => button.addEventListener("click", () => {
+      location.hash = `#${button.dataset.virtualRoute}`;
+    }));
+    document.querySelectorAll("[data-virtual-action]").forEach(button => button.addEventListener("click", () => {
+      openVirtualCommand(button.dataset.virtualAction).catch(error => toast(error.message));
+    }));
     document.querySelectorAll("[data-virtual-open-sale]").forEach(button => button.addEventListener("click", () => openSaleConsole(false).catch(error => toast(error.message))));
     document.querySelectorAll("[data-inventory-focus]").forEach(link => link.addEventListener("click", () => sessionStorage.setItem("dcarela.inventory.focus", link.dataset.inventoryFocus)));
     on("btnCerrarVenta", "click", closeSaleConsole);

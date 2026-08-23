@@ -96,6 +96,34 @@
     };
   }
 
+  const WEB_SALE_CAPABILITIES = Object.freeze([
+    'ventas', 'pagos_mixtos', 'credito', 'pendientes', 'cotizaciones',
+    'anulaciones', 'entradas_salidas', 'arqueo', 'impresion', 'clientes',
+    'productos', 'inventario', 'reportes', 'finanzas', 'atajos_f1_f12',
+    'seguimiento_transferencias'
+  ]);
+
+  function webShiftSummary(shift) {
+    const opening = Number(shift?.montoAperturaCentavos || 0);
+    const cash = Number(shift?.cashSalesCentavos || 0);
+    const entries = Number(shift?.entriesCentavos || 0);
+    const exits = Number(shift?.exitsCentavos || 0);
+    const refunds = Number(shift?.cashRefundsCentavos || 0);
+    const customerPayments = Number(shift?.customerCashPaymentsCentavos || 0);
+    const deliver = cash + customerPayments + entries - exits - refunds;
+    return {
+      saleCount: Number(shift?.saleCount || 0),
+      grossSalesCentavos: Number(shift?.grossSalesCentavos || 0),
+      cashSalesCentavos: cash,
+      customerCashPaymentsCentavos: customerPayments,
+      entriesCentavos: entries,
+      exitsCentavos: exits,
+      cashRefundsCentavos: refunds,
+      cashToDeliverCentavos: deliver,
+      expectedCashCentavos: opening + deliver,
+    };
+  }
+
   async function firebaseContext(businessId, role) {
     const { auth: a, db: d } = initFirebase();
     const user = a?.currentUser;
@@ -246,6 +274,14 @@
       transaction.set(counterRef, { business_id: ctx.businessId, next: folio + 1, updated_at: soldAt }, { merge: true });
       transaction.create(eventRef, eventDocument(ctx, requestId, 'VentaCobrada', 'ventas', saleId, salePayload, soldAt));
       transaction.create(saleRef, { ...salePayload, business_id: ctx.businessId, status: 'closed', created_at: soldAt, created_by_uid: ctx.user.uid });
+      transaction.update(shiftRef, {
+        saleCount: firebase.firestore.FieldValue.increment(1),
+        grossSalesCentavos: firebase.firestore.FieldValue.increment(total),
+        cashSalesCentavos: firebase.firestore.FieldValue.increment(
+          payments.filter(item => item.metodo === 'efectivo').reduce((sum, item) => sum + item.montoCentavos, 0)
+        ),
+        updated_at: soldAt,
+      });
       stockUpdates.forEach(item => transaction.update(d.collection('products').doc(item.id), { stock: item.stock, updated_at: soldAt }));
       if (credit && clientId) transaction.update(d.collection('clients').doc(clientId), { saldoCentavos: debt + credit, updated_at: soldAt });
     });
@@ -1036,7 +1072,12 @@
       const permissions = permissionsForRole(ctx.role);
       if (action === 'status') {
         const shift = await openWebShift(ctx);
-        return { ok: true, role: ctx.role, permissions, shift };
+        return {
+          ok: true, role: ctx.role, permissions, shift,
+          summary: webShiftSummary(shift),
+          capabilities: [...WEB_SALE_CAPABILITIES],
+          device_id: `web-${ctx.user.uid}`,
+        };
       }
       if (!permissions.canUse) throw new Error('Tu cuenta no tiene permiso para usar la Caja virtual.');
       const id = text(requestId, 80) || uuid();
@@ -1052,6 +1093,9 @@
           cajaId: `web-${ctx.user.uid}`, cajaNombre: 'Caja web',
           opened_by_uid: ctx.user.uid, opened_by_email: ctx.user.email || '',
           montoAperturaCentavos: integer(data.montoAperturaCentavos || 0, 'monto de apertura', 0),
+          saleCount: 0, grossSalesCentavos: 0, cashSalesCentavos: 0,
+          customerCashPaymentsCentavos: 0, entriesCentavos: 0,
+          exitsCentavos: 0, cashRefundsCentavos: 0,
           abiertoEn: openedAt, opened_at: openedAt, updated_at: openedAt
         };
         const payload = {
@@ -1083,7 +1127,16 @@
           motivo: text(data.motivo, 500) || (type === 'SalidaEfectivo' ? 'Salida desde caja web' : 'Entrada desde caja web'),
           fecha: createdAt, usuarioId: ctx.user.uid, usuarioNombre: ctx.user.email || 'Caja web Firebase'
         };
-        await eventRef.set(eventDocument(ctx, id, type, 'movimientos_caja', movementId, payload, createdAt));
+        await ctx.d.runTransaction(async transaction => {
+          const previous = await transaction.get(eventRef);
+          if (previous.exists) return;
+          transaction.create(eventRef, eventDocument(ctx, id, type, 'movimientos_caja', movementId, payload, createdAt));
+          transaction.update(ctx.d.collection('cash_shifts').doc(shift.id), {
+            [type === 'SalidaEfectivo' ? 'exitsCentavos' : 'entriesCentavos']:
+              firebase.firestore.FieldValue.increment(amount),
+            updated_at: createdAt,
+          });
+        });
         return { ok: true, movement: payload };
       }
 
@@ -1170,6 +1223,16 @@
             usuarioId: ctx.user.uid, usuarioNombre: ctx.user.email || 'Caja web Firebase'
           };
           transaction.update(saleRef, { status: 'cancelled', cancel_reason: reason, cancelled_at: createdAt, updated_at: createdAt });
+          if (sale.turnoId) {
+            transaction.update(ctx.d.collection('cash_shifts').doc(sale.turnoId), {
+              saleCount: firebase.firestore.FieldValue.increment(-1),
+              grossSalesCentavos: firebase.firestore.FieldValue.increment(-Number(sale.totalCobradoCentavos || 0)),
+              cashSalesCentavos: firebase.firestore.FieldValue.increment(-Number((sale.pagos || [])
+                .filter(item => item.metodo === 'efectivo')
+                .reduce((sum, item) => sum + Number(item.montoCentavos || 0), 0))),
+              updated_at: createdAt,
+            });
+          }
           transaction.create(eventRef, eventDocument(ctx, id, 'VentaCancelada', 'ventas', saleId, payload, createdAt));
         });
         return { ok: true, message: 'Venta anulada y enviada a sincronizacion.' };

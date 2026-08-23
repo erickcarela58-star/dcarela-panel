@@ -751,6 +751,111 @@ tbody tr:hover { background: color-mix(in srgb, var(--ui-accent) 7%, transparent
   }
 }
 
+
+/* Caja virtual como modulo operativo, no como pantalla de enlace. */
+.virtual-workspace {
+  min-height: calc(100dvh - 118px);
+  padding-bottom: 28px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.virtual-desktop-entry {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 18px;
+  background: color-mix(in srgb, var(--ui-canvas) 90%, transparent);
+  border-block: 1px solid var(--ui-border);
+  backdrop-filter: blur(24px);
+}
+.virtual-command-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 1px;
+  margin-top: 16px;
+  background: var(--ui-border);
+  border-block: 1px solid var(--ui-border);
+}
+.virtual-command {
+  min-width: 0;
+  min-height: 104px;
+  padding: 14px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-content: center;
+  gap: 4px 9px;
+  color: var(--ui-text);
+  text-align: left;
+  background: var(--ui-surface);
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+.virtual-command:hover:not(:disabled) { background: var(--ui-surface-strong); transform: translateY(-1px); }
+.virtual-command.primary { color: #fff; background: linear-gradient(135deg, #18181b, #27272a); }
+.virtual-command kbd {
+  grid-row: span 2;
+  align-self: start;
+  min-width: 30px;
+  padding: 4px 5px;
+  color: inherit;
+  text-align: center;
+  background: color-mix(in srgb, currentColor 10%, transparent);
+  border: 1px solid color-mix(in srgb, currentColor 24%, transparent);
+  border-radius: 5px;
+  font: 800 10px/1 system-ui, sans-serif;
+}
+.virtual-command strong { overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.virtual-command small { color: var(--ui-muted); font-size: 9px; line-height: 1.35; }
+.virtual-command.primary small { color: #d4d4d8; }
+.virtual-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 1px;
+  margin: 18px 0;
+  background: var(--ui-border);
+  border-block: 1px solid var(--ui-border);
+}
+.virtual-metrics-grid .metric-item {
+  min-height: 92px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  background: var(--ui-surface);
+}
+.virtual-metrics-grid .metric-item span { color: var(--ui-muted); font-size: 9px; text-transform: uppercase; letter-spacing: .06em; }
+.virtual-metrics-grid .metric-item strong { margin-top: 6px; color: var(--ui-text); font-size: 17px; }
+.virtual-metrics-grid .metric-item small { margin-top: 3px; color: var(--ui-muted); font-size: 8px; }
+.virtual-detail-grid { display: grid; grid-template-columns: minmax(280px, .72fr) minmax(0, 1.28fr); gap: 14px; }
+.virtual-capabilities { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; background: var(--ui-border); }
+.virtual-capabilities > div { min-height: 48px; padding: 10px; display: flex; align-items: center; gap: 8px; background: var(--ui-surface-strong); }
+.virtual-capabilities > div span { color: var(--ui-success); font-weight: 900; }
+.virtual-capabilities > div strong { color: var(--ui-text); font-size: 9px; line-height: 1.35; }
+.virtual-activity-surface { min-width: 0; }
+.virtual-footer-actions { min-height: 58px; margin-top: 14px; display: flex; align-items: center; justify-content: space-between; gap: 12px; border-top: 1px solid var(--ui-border); }
+.virtual-footer-actions .error { flex: 1 1 auto; margin: 0; }
+
+@media (max-width: 1180px) {
+  .virtual-command-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .virtual-metrics-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 760px) {
+  .virtual-workspace { min-height: auto; padding: 0 0 110px; overflow: visible; }
+  .virtual-desktop-entry { position: static; grid-template-columns: auto minmax(0, 1fr); padding-inline: 12px; }
+  .virtual-desktop-entry .status-pill, .virtual-desktop-entry > button { width: 100%; }
+  .virtual-command-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .virtual-command { min-height: 92px; padding: 11px; }
+  .virtual-metrics-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .virtual-detail-grid { grid-template-columns: 1fr; }
+  .virtual-capabilities { grid-template-columns: 1fr; }
+  .virtual-footer-actions { align-items: stretch; flex-direction: column; padding: 12px; }
+}
+
 @media (max-width: 480px) {
   .web-sale-results,
   .web-sale-mixed-grid {
