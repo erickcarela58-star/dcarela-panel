@@ -54,8 +54,8 @@ test("Finanzas 623 y los dos CRM se publican por dominios oficiales", () => {
   assert.match(finance.url, /DCarelaFinanzas-.*\.ipa$/);
   const crm = manifest.apps.find(app => app.id === "crm");
   const photos = manifest.apps.find(app => app.id === "crm-fotos");
-  assert.equal(crm.url, "https://dcarelacompufoto.com/crm/");
-  assert.equal(photos.url, "https://dcarelacompufoto.com/crm-fotos/");
+  assert.equal(crm.url, "https://crm.dcarelacompufoto.com/");
+  assert.equal(photos.url, "https://fotos.dcarelacompufoto.com/");
   assert.notEqual(crm.url, photos.url);
   assert.match(crm.notes, /Meta\/Cloud/);
   assert.match(photos.notes, /WhatsApp Web/);
