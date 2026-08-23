@@ -271,7 +271,8 @@
       const haystack = normalize([item.payee, item.descripcion, item.nota, item.referencia, item.tipo, item.fecha].join(' '));
       return terms.length && terms.every(term => haystack.includes(term));
     }).slice(0, 12);
-    if (!matches.length && rows.partial_error) return 'No pude completar la búsqueda: **Firebase no entregó la fuente del ledger Windows**. El evento puede estar sincronizado aunque la lectura esté limitada; vuelve a intentar después de restablecerse la cuota. No crearé un gasto duplicado.';
+    const hasWindowsLedger = (rows || []).some(item => item?.source === 'pos_sync_event');
+    if (!matches.length && (rows.partial_error || !hasWindowsLedger)) return 'No pude completar la búsqueda: **Firebase no entregó una vista verificable del ledger Windows**. El evento puede estar sincronizado aunque la lectura esté limitada o todavía no sea visible para el panel; vuelve a intentar después de restablecerse la cuota. No crearé un gasto duplicado.';
     if (!matches.length) return `No encontre movimientos confirmados que coincidan con **${text(query, 160)}**. No creare un gasto para rellenar ese vacio.`;
     return `### Movimientos encontrados (${matches.length})\n\n` + matches.map(item =>
       `- ${movementDate(item) || '--'} · ${text(item.descripcion || item.payee || item.tipo, 140)} · **${money(movementAmount(item))}**`

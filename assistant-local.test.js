@@ -105,3 +105,10 @@ test('una cuota agotada se informa como consulta parcial y no como dato inexiste
   assert.match(result.message.content, /no pude completar la búsqueda/i);
   assert.match(result.message.content, /no crearé un gasto duplicado/i);
 });
+
+test('una colección vacía sin evidencia del ledger Windows tampoco afirma ausencia', async () => {
+  const ctx = context(adapter({ getFinanceMovements: async () => [] }));
+  const result = await assistant.request('chat', ctx, { message: 'Busca el gasto Ladron amigo de Carela.' });
+  assert.match(result.message.content, /vista verificable del ledger Windows/i);
+  assert.match(result.message.content, /no crearé un gasto duplicado/i);
+});
