@@ -96,3 +96,12 @@ test('si Firestore no permite guardar, conserva el historial local sin pantalla 
   const conversations = await assistant.request('conversations', ctx);
   assert.equal(conversations.conversations.length, 1);
 });
+
+test('una cuota agotada se informa como consulta parcial y no como dato inexistente', async () => {
+  const rows = [];
+  rows.partial_error = 'ledger no disponible';
+  const ctx = context(adapter({ getFinanceMovements: async () => rows }));
+  const result = await assistant.request('chat', ctx, { message: 'Busca el gasto de enmarcado.' });
+  assert.match(result.message.content, /no pude completar la búsqueda/i);
+  assert.match(result.message.content, /no crearé un gasto duplicado/i);
+});

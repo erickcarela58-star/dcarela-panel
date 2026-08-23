@@ -1,15 +1,15 @@
 {
   "schema": 1,
-  "build": "2026.08.23.1.0.53.3",
+  "build": "2026.08.23.1.0.53.4",
   "web_version": "1.0.50",
   "pwa_version": "1.0.50",
   "desktop_version": "1.0.53",
   "ios_version": "5.1.3",
   "ios_build": "485",
   "ios_release_url": "https://github.com/erickcarela58-star/dcarela-panel/releases/download/ios-20260823-brujula-5.1.3-finanzas-6.2.0/Brujula-5.1.3-485-QA.ipa",
-  "published_at": "2026-08-23T07:04:07Z",
+  "published_at": "2026-08-23T07:15:45Z",
   "channel": "stable",
-  "notes": "Panel web y PWA 1.0.50: Asistente con cerebro local y Caja virtual leen el ledger Windows desde eventos Firebase filtrados, sin endpoint caído ni escaneo del histórico completo. Canal stable POS 1.0.53 preservado.",
+  "notes": "Panel web y PWA 1.0.50: Asistente con cerebro local y Caja virtual leen el ledger Windows desde eventos Firebase filtrados y advierten cuando la cuota deja una consulta parcial. Canal stable POS 1.0.53 preservado.",
   "release_page_url": "https://panel.dcarelacompufoto.com/#descargar",
   "desktop_release": {
     "version": "1.0.53",

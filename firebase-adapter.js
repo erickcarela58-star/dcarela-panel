@@ -1084,6 +1084,11 @@
       const merged = new Map();
       [...rows, ...ledgerRows].forEach(item => merged.set(item.id, item));
       const filtered = month ? [...merged.values()].filter(item => String(item.fecha || '').startsWith(`${month}-`)) : [...merged.values()];
+      if (ledgerResult.status === 'rejected') {
+        Object.defineProperty(filtered, 'partial_error', {
+          value: 'La fuente del ledger Windows no estuvo disponible en Firebase.', enumerable: false
+        });
+      }
       return filtered.sort((a, b) => String(b.fecha || '').localeCompare(String(a.fecha || '')));
     },
 

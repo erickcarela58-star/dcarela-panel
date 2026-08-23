@@ -15,4 +15,5 @@ test('la lectura financiera conserva fallback parcial y deduplica por id', () =>
   assert.match(adapter, /Promise\.allSettled/);
   assert.match(adapter, /const merged = new Map\(\)/);
   assert.match(adapter, /merged\.set\(item\.id, item\)/);
+  assert.match(adapter, /partial_error/);
 });

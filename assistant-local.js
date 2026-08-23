@@ -205,7 +205,8 @@
     ]);
     const value = index => settled[index].status === 'fulfilled' ? (settled[index].value || []) : [];
     const sales = value(0).filter(item => saleDate(item) === requestedDay && normalize(item.status) !== 'cancelled');
-    const expenses = value(1).filter(item => movementDate(item) === requestedDay && isExpense(item) && normalize(item.estado) !== 'anulado');
+    const financeRows = value(1);
+    const expenses = financeRows.filter(item => movementDate(item) === requestedDay && isExpense(item) && normalize(item.estado) !== 'anulado');
     const accounts = value(2).filter(item => item.oculta !== true && normalize(item.estado || 'activa') !== 'inactiva');
     const shifts = value(3);
     const salesCents = sales.reduce((sum, item) => sum + saleTotal(item), 0);
@@ -216,7 +217,9 @@
       + `- Ventas confirmadas: **${sales.length}** por **${money(salesCents)}**.\n`
       + `- Gastos registrados: **${expenses.length}** por **${money(expenseCents)}**.\n`
       + `- Saldo visible en ${accounts.length} cuenta(s): **${money(accountCents)}**.\n`
-      + `- Caja web: **${openShift ? 'turno abierto' : 'sin turno abierto'}**.\n\n`
+      + `- Caja web: **${openShift ? 'turno abierto' : 'sin turno abierto'}**.\n`
+      + (financeRows.partial_error ? '- Advertencia: **consulta financiera parcial**; Firebase no entregó el ledger Windows.\n' : '')
+      + '\n'
       + 'Los valores provienen de Firebase y no incluyen datos inventados ni estimaciones.';
   }
 
@@ -268,6 +271,7 @@
       const haystack = normalize([item.payee, item.descripcion, item.nota, item.referencia, item.tipo, item.fecha].join(' '));
       return terms.length && terms.every(term => haystack.includes(term));
     }).slice(0, 12);
+    if (!matches.length && rows.partial_error) return 'No pude completar la búsqueda: **Firebase no entregó la fuente del ledger Windows**. El evento puede estar sincronizado aunque la lectura esté limitada; vuelve a intentar después de restablecerse la cuota. No crearé un gasto duplicado.';
     if (!matches.length) return `No encontre movimientos confirmados que coincidan con **${text(query, 160)}**. No creare un gasto para rellenar ese vacio.`;
     return `### Movimientos encontrados (${matches.length})\n\n` + matches.map(item =>
       `- ${movementDate(item) || '--'} · ${text(item.descripcion || item.payee || item.tipo, 140)} · **${money(movementAmount(item))}**`
