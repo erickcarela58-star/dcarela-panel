@@ -154,7 +154,7 @@
       "status": "published",
       "url": "https://crm.dcarelacompufoto.com/",
       "action": "Abrir CRM",
-      "notes": "CRM principal con controles de bot y promociones, exclusiones permanentes y biblioteca de 39 combos oficiales por categoría, imagen e información comercial."
+      "notes": "CRM principal Meta/Cloud con controles de bot y promociones, exclusiones permanentes y biblioteca de 39 combos oficiales por categoría, imagen e información comercial."
     },
     {
       "id": "crm-fotos",
@@ -164,7 +164,7 @@
       "status": "published",
       "url": "https://fotos.dcarelacompufoto.com/",
       "action": "Abrir CRM Fotos",
-      "notes": "CRM Fotos independiente con controles de bot, exclusiones permanentes y la misma biblioteca de 39 combos oficiales por categoría, imagen e información comercial."
+      "notes": "CRM Fotos independiente por WhatsApp Web y código telefónico, con controles de bot, exclusiones permanentes y la misma biblioteca de 39 combos oficiales por categoría, imagen e información comercial."
     }
   ]
 }
