@@ -1,13 +1,13 @@
 {
   "schema": 1,
-  "build": "2026.08.24.1.0.57.0",
+  "build": "2026.08.24.1.0.57.1",
   "web_version": "1.0.50",
   "pwa_version": "1.0.50",
   "desktop_version": "1.0.57",
   "ios_version": "5.1.4",
   "ios_build": "486",
   "ios_release_url": "https://github.com/erickcarela58-star/dcarela-panel/releases/download/ios-20260823-final-5.1.4-6.2.1/Brujula-5.1.4-486-AltStore.ipa",
-  "published_at": "2026-08-24T06:37:15Z",
+  "published_at": "2026-08-24T16:20:00Z",
   "channel": "stable",
   "notes": "Panel web y PWA 1.0.50: lecturas Firebase acotadas para proteger la cuota. POS 1.0.57 conserva CARELA CURRENT y añade respaldo completo compacto, verificable y reemplazable.",
   "release_page_url": "https://panel.dcarelacompufoto.com/#descargar",
@@ -149,22 +149,22 @@
     {
       "id": "crm",
       "name": "CRM multicaja",
-      "version": "2026-08-22-client-bank-v28",
+      "version": "2026-08-24-combo-library-v32",
       "platform": "Web y m\u00f3vil",
       "status": "published",
       "url": "https://crm.dcarelacompufoto.com/",
       "action": "Abrir CRM",
-      "notes": "CRM principal del canal oficial Meta/Cloud, separado del número conectado por WhatsApp Web."
+      "notes": "CRM principal con controles de bot y promociones, exclusiones permanentes y biblioteca de 39 combos oficiales por categoría, imagen e información comercial."
     },
     {
       "id": "crm-fotos",
       "name": "CRM Fotos / WhatsApp",
-      "version": "2026-08-22-client-bank-v28",
+      "version": "2026-08-24-combo-library-v32",
       "platform": "Web y m\u00f3vil",
       "status": "published",
       "url": "https://fotos.dcarelacompufoto.com/",
       "action": "Abrir CRM Fotos",
-      "notes": "Panel independiente del segundo n\u00famero por WhatsApp Web, fijado al canal fotogr\u00e1fico y vinculado por c\u00f3digo telef\u00f3nico."
+      "notes": "CRM Fotos independiente con controles de bot, exclusiones permanentes y la misma biblioteca de 39 combos oficiales por categoría, imagen e información comercial."
     }
   ]
 }
