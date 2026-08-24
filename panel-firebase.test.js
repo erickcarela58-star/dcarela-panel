@@ -71,6 +71,19 @@ test("Caja web y conciliacion usan operaciones Firebase transaccionales y audita
   assert.match(panelJs, /DcarelaFirebase\.adminAction/);
 });
 
+test("una anulacion administrativa no exige turno abierto y acepta ventas sincronizadas desde Windows", () => {
+  const start = firebaseAdapter.indexOf("async webSaleAction");
+  const end = firebaseAdapter.indexOf("async adminAction", start);
+  const action = firebaseAdapter.slice(start, end);
+  assert.match(action, /requiresOpenShift = action === 'cash\.move' \|\| action === 'shift\.close'/);
+  assert.match(action, /if \(requiresOpenShift && !shift\)/);
+  assert.match(action, /sourceEventRef \? transaction\.get\(sourceEventRef\)/);
+  assert.match(action, /source\.event_type !== 'VentaCobrada'/);
+  assert.match(action, /materializedWebSale \? sale\.lineas \|\| \[\] : \[\]/);
+  assert.match(panelJs, /motivo: reason, sourceEventId/);
+  assert.match(panelJs, /data-cancel-event=/);
+});
+
 test("todas las herramientas administrativas visibles tienen implementacion Firebase", () => {
   const actions = [...panelJs.matchAll(/"((?:expense|cost|receipt|fin|device|business|product|category|client|combo|inventory|sale)[a-z_.]+)":\s*"/g)]
     .map(match => match[1]);

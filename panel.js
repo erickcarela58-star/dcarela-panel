@@ -3242,7 +3242,7 @@
     const payload = P(event);
     const id = event.entity_id || payload.ventaId || payload.venta_id || payload.id;
     if (!id) { toast("La ultima venta no tiene un identificador anulable."); return; }
-    cancelSaleWeb(id, payload.folio || "--");
+    cancelSaleWeb(id, payload.folio || "--", event.id || event.event_id || "");
   }
 
   async function reprintLastSaleFromConsole() {
@@ -3761,12 +3761,12 @@
     }, "Agregar a la cuenta");
   }
 
-  function cancelSaleWeb(saleId, folio) {
+  function cancelSaleWeb(saleId, folio, sourceEventId = "") {
     if (!saleAccess.canCancelSale) { toast("Tu cuenta no puede anular ventas desde la caja web."); return; }
     abrirEditor(`Anular venta #${folio || "--"}`, "La venta se conservara en auditoria; inventario y credito se revertiran al sincronizar.", '<label class="field-wide"><span>Motivo de anulacion</span><textarea name="motivo" rows="3" required maxlength="500"></textarea></label>', async form => {
       const reason = String(form.get("motivo") || "").trim();
       if (!reason) throw new Error("El motivo es obligatorio.");
-      await saleApi("sale.cancel", { ventaId: saleId, motivo: reason }, saleUuid());
+      await saleApi("sale.cancel", { ventaId: saleId, motivo: reason, sourceEventId }, saleUuid());
       cerrarEditor();
       cancelCache.at = 0;
       toast(`Venta #${folio || "--"} anulada y enviada a sincronizacion.`);
@@ -4210,7 +4210,8 @@
       const referenciaPago = payload.referencia || (Array.isArray(payload.pagos)
         ? payload.pagos.map(pago => pago?.referencia).find(Boolean) : null);
       const saleId = event.entity_id || payload.ventaId || payload.venta_id;
-      return `<tr><td>${esc(fecha(fechaEventoIso(event)))}</td><td>#${esc(payload.folio ?? "--")}</td><td>${esc(nombreCajero(payload, userCatalog))}</td><td><button class="turn-link" data-turno="${esc(turnoId)}">${esc(etiquetaTurno)}</button></td><td>${esc(metodoConCuentaDe(payload))}</td><td>${esc(payload.clienteNombre || "Consumidor final")}</td><td class="amount">${money(totalDe(payload))}</td><td><div class="button-row"><button class="secondary detail-toggle" data-detail="sale-${index}">Detalle</button>${saleAccess.canCancelSale && saleId ? `<button class="secondary" data-cancel-sale="${esc(saleId)}" data-cancel-folio="${esc(payload.folio ?? "")}">Anular</button>` : ""}</div></td></tr>
+      const sourceEventId = event.id || event.event_id || "";
+      return `<tr><td>${esc(fecha(fechaEventoIso(event)))}</td><td>#${esc(payload.folio ?? "--")}</td><td>${esc(nombreCajero(payload, userCatalog))}</td><td><button class="turn-link" data-turno="${esc(turnoId)}">${esc(etiquetaTurno)}</button></td><td>${esc(metodoConCuentaDe(payload))}</td><td>${esc(payload.clienteNombre || "Consumidor final")}</td><td class="amount">${money(totalDe(payload))}</td><td><div class="button-row"><button class="secondary detail-toggle" data-detail="sale-${index}">Detalle</button>${saleAccess.canCancelSale && saleId ? `<button class="secondary" data-cancel-sale="${esc(saleId)}" data-cancel-event="${esc(sourceEventId)}" data-cancel-folio="${esc(payload.folio ?? "")}">Anular</button>` : ""}</div></td></tr>
         <tr id="sale-${index}" class="detail-row oculto"><td colspan="8"><div class="detail-box">${lines || "Sin lineas sincronizadas"}<br>Subtotal: ${money(payload.subtotalSinItbisCentavos)} | ITBIS: ${money(itbisDe(payload))} | Ajuste: ${money(payload.ajusteRedondeoCentavos)}${cuentasTransferencia.length ? `<br>Cuenta receptora: ${esc(cuentasTransferencia.join(" / "))}` : ""}${referenciaPago ? `<br>Referencia: ${esc(referenciaPago)}` : ""}${payload.nota ? `<br>Nota: ${esc(payload.nota)}` : ""}</div></td></tr>`;
     }).join("");
     $("ventasTabla").innerHTML = `<table><thead><tr><th>Fecha</th><th>Folio</th><th>Cajero</th><th>Turno</th><th>Metodo</th><th>Cliente</th><th class="amount">Total</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
@@ -4219,7 +4220,7 @@
       sessionStorage.setItem("dcarela.turno.focus", button.dataset.turno);
       location.hash = "turnos";
     }));
-    $("ventasTabla").querySelectorAll("[data-cancel-sale]").forEach(button => button.addEventListener("click", () => cancelSaleWeb(button.dataset.cancelSale, button.dataset.cancelFolio)));
+    $("ventasTabla").querySelectorAll("[data-cancel-sale]").forEach(button => button.addEventListener("click", () => cancelSaleWeb(button.dataset.cancelSale, button.dataset.cancelFolio, button.dataset.cancelEvent || "")));
   }
 
   async function cargarCaja() {

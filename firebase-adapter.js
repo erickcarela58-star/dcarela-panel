@@ -1159,8 +1159,13 @@
 
       if (action === 'sale.create') return createFirebaseSale(ctx, data, id);
 
-      const shift = await openWebShift(ctx);
-      if (!shift) throw new Error('No hay un turno web abierto.');
+      // Solo los movimientos de efectivo y el cierre pertenecen al turno que
+      // esta abierto ahora. Una anulacion administrativa pertenece a la venta
+      // original y debe poder ejecutarse aunque ese turno ya haya cerrado o la
+      // venta provenga de una caja Windows.
+      const requiresOpenShift = action === 'cash.move' || action === 'shift.close';
+      const shift = requiresOpenShift ? await openWebShift(ctx) : null;
+      if (requiresOpenShift && !shift) throw new Error('No hay un turno web abierto.');
 
       if (action === 'cash.move') {
         const type = data.tipo === 'salida' ? 'SalidaEfectivo' : 'EntradaEfectivo';
@@ -1238,24 +1243,53 @@
         const reason = text(data.motivo, 500);
         if (!saleId || !reason) throw new Error('La venta y el motivo de anulacion son obligatorios.');
         const saleRef = ctx.d.collection('sales').doc(saleId);
+        const sourceEventId = text(data.sourceEventId, 160);
+        const sourceEventRef = sourceEventId ? ctx.d.collection('sync_events').doc(sourceEventId) : null;
         const createdAt = nowIso();
         await ctx.d.runTransaction(async transaction => {
-          const [previous, saleDoc] = await Promise.all([transaction.get(eventRef), transaction.get(saleRef)]);
+          const [previous, saleDoc, sourceEventDoc] = await Promise.all([
+            transaction.get(eventRef),
+            transaction.get(saleRef),
+            sourceEventRef ? transaction.get(sourceEventRef) : Promise.resolve(null)
+          ]);
           if (previous.exists) return;
-          if (!saleDoc.exists || saleDoc.data().business_id !== ctx.businessId) throw new Error('La venta no existe en esta sucursal.');
-          const sale = saleDoc.data();
+          let sale = null;
+          let materializedWebSale = false;
+          if (saleDoc.exists) {
+            if (saleDoc.data().business_id !== ctx.businessId) throw new Error('La venta no existe en esta sucursal.');
+            sale = saleDoc.data();
+            materializedWebSale = true;
+          } else if (sourceEventDoc?.exists) {
+            const source = sourceEventDoc.data();
+            if (source.business_id !== ctx.businessId || source.event_type !== 'VentaCobrada'
+              || String(source.entity_id || source.payload?.ventaId || '') !== saleId) {
+              throw new Error('El evento original no corresponde a esta venta.');
+            }
+            sale = source.payload || {};
+          }
+          if (!sale) throw new Error('No se encontro la venta sincronizada. Recarga Ventas e intenta nuevamente.');
           if (sale.status === 'cancelled') throw new Error('La venta ya esta anulada.');
-          const inventoryLines = (sale.lineas || []).filter(line => line.usaInventario
+          // Solo una venta creada en la Caja web altero directamente estas
+          // proyecciones Firestore. Las ventas Windows se revierten en cada
+          // terminal al aplicar el evento VentaCancelada, sin inflar stock o
+          // reducir credito dos veces en la nube.
+          const inventoryLines = (materializedWebSale ? sale.lineas || [] : []).filter(line => line.usaInventario
             && !String(line.productoId || '').startsWith('comun-'));
           const productRefs = inventoryLines.map(line => ctx.d.collection('products').doc(line.productoId));
-          const credit = (sale.pagos || []).filter(item => item.metodo === 'credito')
+          const credit = (materializedWebSale ? sale.pagos || [] : []).filter(item => item.metodo === 'credito')
             .reduce((sum, item) => sum + Number(item.montoCentavos || 0), 0);
           const clientRef = credit && sale.clienteId ? ctx.d.collection('clients').doc(sale.clienteId) : null;
+          const saleShiftRef = materializedWebSale && sale.turnoId
+            ? ctx.d.collection('cash_shifts').doc(sale.turnoId)
+            : null;
           // Firestore exige completar todas las lecturas antes de la primera
           // escritura dentro de una transaccion. Esto evita anulaciones
           // parciales cuando la venta mezcla inventario y credito.
-          const productDocs = await Promise.all(productRefs.map(ref => transaction.get(ref)));
-          const clientDoc = clientRef ? await transaction.get(clientRef) : null;
+          const [productDocs, clientDoc, saleShiftDoc] = await Promise.all([
+            Promise.all(productRefs.map(ref => transaction.get(ref))),
+            clientRef ? transaction.get(clientRef) : Promise.resolve(null),
+            saleShiftRef ? transaction.get(saleShiftRef) : Promise.resolve(null)
+          ]);
           productDocs.forEach((productDoc, index) => {
             if (!productDoc.exists) return;
             transaction.update(productRefs[index], {
@@ -1269,11 +1303,22 @@
           }
           const payload = {
             ventaId: saleId, folio: sale.folio, motivo: reason, anuladaEn: createdAt,
+            turnoId: sale.turnoId || null, cajeroNombre: sale.cajeroNombre || sale.usuarioNombre || null,
+            totalCobradoCentavos: Number(sale.totalCobradoCentavos || 0),
+            vendidaEn: sale.vendidaEn || sale.created_at || null,
+            sourceEventId: sourceEventId || null,
             usuarioId: ctx.user.uid, usuarioNombre: ctx.user.email || 'Caja web Firebase'
           };
-          transaction.update(saleRef, { status: 'cancelled', cancel_reason: reason, cancelled_at: createdAt, updated_at: createdAt });
-          if (sale.turnoId) {
-            transaction.update(ctx.d.collection('cash_shifts').doc(sale.turnoId), {
+          if (materializedWebSale) {
+            transaction.update(saleRef, { status: 'cancelled', cancel_reason: reason, cancelled_at: createdAt, updated_at: createdAt });
+          }
+          // Un turno cerrado conserva intacto su arqueo historico. Si la venta
+          // era del turno web actualmente abierto por este mismo usuario,
+          // mantenemos tambien sus acumulados en vivo.
+          if (saleShiftRef && saleShiftDoc?.exists
+            && saleShiftDoc.data().status === 'open'
+            && saleShiftDoc.data().opened_by_uid === ctx.user.uid) {
+            transaction.update(saleShiftRef, {
               saleCount: firebase.firestore.FieldValue.increment(-1),
               grossSalesCentavos: firebase.firestore.FieldValue.increment(-Number(sale.totalCobradoCentavos || 0)),
               cashSalesCentavos: firebase.firestore.FieldValue.increment(-Number((sale.pagos || [])

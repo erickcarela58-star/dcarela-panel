@@ -1,15 +1,15 @@
 {
   "schema": 1,
-  "build": "2026.08.24.1.0.57.1",
+  "build": "2026.08.24.1.0.57.2",
   "web_version": "1.0.50",
   "pwa_version": "1.0.50",
   "desktop_version": "1.0.57",
   "ios_version": "5.1.4",
   "ios_build": "486",
   "ios_release_url": "https://github.com/erickcarela58-star/dcarela-panel/releases/download/ios-20260823-final-5.1.4-6.2.1/Brujula-5.1.4-486-AltStore.ipa",
-  "published_at": "2026-08-24T09:52:37Z",
+  "published_at": "2026-08-24T17:48:55Z",
   "channel": "stable",
-  "notes": "Panel web y PWA 1.0.50: lecturas Firebase acotadas para proteger la cuota. POS 1.0.57 conserva CARELA CURRENT y añade respaldo completo compacto, verificable y reemplazable.",
+  "notes": "Panel web y PWA 1.0.50: la anulacion administrativa funciona sin turno web abierto y acepta ventas sincronizadas desde Windows con auditoria e idempotencia. POS 1.0.57 conserva CARELA CURRENT y respaldo compacto verificable.",
   "release_page_url": "https://panel.dcarelacompufoto.com/#descargar",
   "desktop_release": {
     "version": "1.0.57",
