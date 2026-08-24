@@ -5,6 +5,7 @@ const path = require('node:path');
 
 const adapter = fs.readFileSync(path.join(__dirname, 'firebase-adapter.js'), 'utf8');
 const panel = fs.readFileSync(path.join(__dirname, 'panel.js'), 'utf8');
+const firestoreIndexes = JSON.parse(fs.readFileSync(path.join(__dirname, 'firestore.indexes.json'), 'utf8'));
 
 test('Firebase limita sync_events en servidor y usa el indice temporal publicado', () => {
   const start = adapter.indexOf("async getSyncEvents");
@@ -15,6 +16,13 @@ test('Firebase limita sync_events en servidor y usa el indice temporal publicado
   assert.match(method, /where\('received_at_cloud', '>=', String\(options\.from\)\)/);
   assert.match(method, /orderBy\('received_at_cloud', 'desc'\)\.limit\(maximum\)/);
   assert.doesNotMatch(method, /this\.getCollection\('sync_events'/);
+
+  const temporalIndex = firestoreIndexes.indexes.find(index =>
+    index.collectionGroup === 'sync_events'
+    && index.queryScope === 'COLLECTION'
+    && index.fields.some(field => field.fieldPath === 'business_id' && field.order === 'ASCENDING')
+    && index.fields.some(field => field.fieldPath === 'received_at_cloud' && field.order === 'DESCENDING'));
+  assert.ok(temporalIndex, 'el índice versionado debe coincidir con orderBy desc');
 });
 
 test('las vistas Firebase nunca solicitan el historial completo sin ventana ni limite', () => {

@@ -1,0 +1,19 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "sync_events",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "business_id",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "received_at_cloud",
+          "order": "DESCENDING"
+        }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}
