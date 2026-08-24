@@ -272,8 +272,8 @@
         usuarioId: ctx.user.uid, usuarioNombre: ctx.user.email || 'Caja web Firebase', origen: 'caja_web'
       };
       transaction.set(counterRef, { business_id: ctx.businessId, next: folio + 1, updated_at: soldAt }, { merge: true });
-      transaction.create(eventRef, eventDocument(ctx, requestId, 'VentaCobrada', 'ventas', saleId, salePayload, soldAt));
-      transaction.create(saleRef, { ...salePayload, business_id: ctx.businessId, status: 'closed', created_at: soldAt, created_by_uid: ctx.user.uid });
+      transaction.set(eventRef, eventDocument(ctx, requestId, 'VentaCobrada', 'ventas', saleId, salePayload, soldAt));
+      transaction.set(saleRef, { ...salePayload, business_id: ctx.businessId, status: 'closed', created_at: soldAt, created_by_uid: ctx.user.uid });
       transaction.update(shiftRef, {
         saleCount: firebase.firestore.FieldValue.increment(1),
         grossSalesCentavos: firebase.firestore.FieldValue.increment(total),
@@ -444,11 +444,11 @@
         const balance = current - amount;
         const payload = { ...data, pagoId: paymentId, obligacionId: obligationId, montoCentavos: amount,
           saldoCentavos: balance, estado: balance === 0 ? 'pagada' : 'parcial', pagadoEn: createdAt };
-        transaction.create(d.collection('cost_payments').doc(paymentId), {
+        transaction.set(d.collection('cost_payments').doc(paymentId), {
           ...payload, business_id: ctx.businessId, created_at: createdAt, ...actor
         });
         transaction.update(obligationRef, { saldoCentavos: balance, estado: payload.estado, updated_at: createdAt });
-        transaction.create(d.collection('sync_events').doc(eventId),
+        transaction.set(d.collection('sync_events').doc(eventId),
           eventDocument(ctx, eventId, 'CostoPagoRegistrado', 'costos_pagos', paymentId, payload, createdAt));
       });
       return { ok: true, id: paymentId, event: { id: eventId, entity_id: paymentId }, message: 'Pago aplicado una sola vez.' };
@@ -517,7 +517,7 @@
         if (!accountDoc.exists || accountDoc.data().business_id !== ctx.businessId) throw new Error('La cuenta financiera no existe.');
         const current = Number(accountDoc.data().saldo_actual_centavos ?? accountDoc.data().saldo_inicial_centavos ?? 0);
         difference = target - current;
-        transaction.create(movementRef, {
+        transaction.set(movementRef, {
           business_id: ctx.businessId, tipo: difference >= 0 ? 'ajuste_positivo' : 'ajuste_negativo',
           fecha: text(data.fecha, 10) || createdAt.slice(0, 10), hora: createdAt.slice(11, 19),
           monto_centavos: Math.abs(difference), cuenta_id: accountId,
@@ -544,7 +544,7 @@
         const accountDoc = await transaction.get(accountRef);
         if (!accountDoc.exists || accountDoc.data().business_id !== ctx.businessId) throw new Error('La cuenta financiera no existe.');
         const current = Number(accountDoc.data().saldo_actual_centavos ?? accountDoc.data().saldo_inicial_centavos ?? 0);
-        transaction.create(movementRef, {
+        transaction.set(movementRef, {
           business_id: ctx.businessId, tipo: type, fecha: text(data.fecha, 10) || createdAt.slice(0, 10),
           hora: createdAt.slice(11, 19), monto_centavos: amount, cuenta_id: accountId,
           categoria_id: text(data.categoriaId, 160) || null, payee: text(data.payee, 180) || null,
@@ -575,7 +575,7 @@
         }
         const sourceBalance = Number(sourceDoc.data().saldo_actual_centavos ?? sourceDoc.data().saldo_inicial_centavos ?? 0);
         const targetBalance = Number(targetDoc.data().saldo_actual_centavos ?? targetDoc.data().saldo_inicial_centavos ?? 0);
-        transaction.create(d.collection('fin_movements').doc(movementId), {
+        transaction.set(d.collection('fin_movements').doc(movementId), {
           business_id: ctx.businessId, tipo: 'transferencia', fecha: text(data.fecha, 10) || createdAt.slice(0, 10),
           hora: createdAt.slice(11, 19), monto_centavos: amount, comision_centavos: fee,
           cuenta_id: sourceId, cuenta_destino_id: targetId,
@@ -747,7 +747,7 @@
           accountBalance = Number(account.data().saldo_actual_centavos || 0);
         }
         const balance = Math.max(0, Number(commitment.data().saldo_pendiente_centavos || 0) - Number(data.capitalCentavos || amount));
-        transaction.create(d.collection('fin_commitment_payments').doc(id), {
+        transaction.set(d.collection('fin_commitment_payments').doc(id), {
           business_id: ctx.businessId, compromiso_id: commitmentId, monto_centavos: amount,
           capital_centavos: Number(data.capitalCentavos || 0), interes_centavos: Number(data.interesCentavos || 0),
           cargos_centavos: Number(data.cargosCentavos || 0), cuenta_id: text(data.cuentaId, 160) || null,
@@ -1151,8 +1151,8 @@
         await ctx.d.runTransaction(async transaction => {
           const previous = await transaction.get(eventRef);
           if (previous.exists) return;
-          transaction.create(ctx.d.collection('cash_shifts').doc(shiftId), shift);
-          transaction.create(eventRef, eventDocument(ctx, id, 'CajaAbierta', 'turnos', shiftId, payload, openedAt));
+          transaction.set(ctx.d.collection('cash_shifts').doc(shiftId), shift);
+          transaction.set(eventRef, eventDocument(ctx, id, 'CajaAbierta', 'turnos', shiftId, payload, openedAt));
         });
         return { ok: true, shift };
       }
@@ -1180,7 +1180,7 @@
         await ctx.d.runTransaction(async transaction => {
           const previous = await transaction.get(eventRef);
           if (previous.exists) return;
-          transaction.create(eventRef, eventDocument(ctx, id, type, 'movimientos_caja', movementId, payload, createdAt));
+          transaction.set(eventRef, eventDocument(ctx, id, type, 'movimientos_caja', movementId, payload, createdAt));
           transaction.update(ctx.d.collection('cash_shifts').doc(shift.id), {
             [type === 'SalidaEfectivo' ? 'exitsCentavos' : 'entriesCentavos']:
               firebase.firestore.FieldValue.increment(amount),
@@ -1232,7 +1232,7 @@
             efectivoEsperadoCentavos: expected, efectivoContadoCentavos: counted,
             diferenciaCentavos: counted - expected, updated_at: closedAt
           });
-          transaction.create(eventRef, eventDocument(ctx, id, 'CajaCerrada', 'turnos', shift.id, payload, closedAt));
+          transaction.set(eventRef, eventDocument(ctx, id, 'CajaCerrada', 'turnos', shift.id, payload, closedAt));
         });
         return { ok: true, summary: payload };
       }
@@ -1245,27 +1245,43 @@
         const saleRef = ctx.d.collection('sales').doc(saleId);
         const sourceEventId = text(data.sourceEventId, 160);
         const sourceEventRef = sourceEventId ? ctx.d.collection('sync_events').doc(sourceEventId) : null;
+        // Los eventos que nacen en Windows no tienen un documento espejo en
+        // sales/. Leer ese documento inexistente hace que Firestore rechace la
+        // operacion antes de evaluar la creacion de VentaCancelada. El evento
+        // VentaCobrada es inmutable y contiene todo lo necesario para validar
+        // y construir la anulacion sin ampliar las reglas de seguridad.
+        const sourceEventDoc = sourceEventRef ? await sourceEventRef.get() : null;
+        let sourceSale = null;
+        let sourceIsWebSale = false;
+        if (sourceEventRef) {
+          if (!sourceEventDoc?.exists) throw new Error('No se encontro el evento original de la venta. Recarga Ventas e intenta nuevamente.');
+          const source = sourceEventDoc.data();
+          if (source.business_id !== ctx.businessId || source.event_type !== 'VentaCobrada'
+            || String(source.entity_id || source.payload?.ventaId || '') !== saleId) {
+            throw new Error('El evento original no corresponde a esta venta.');
+          }
+          sourceSale = source.payload || {};
+          sourceIsWebSale = source.source === 'caja_web_firebase'
+            || String(source.device_id || '').startsWith('web-');
+        }
         const createdAt = nowIso();
-        await ctx.d.runTransaction(async transaction => {
-          const [previous, saleDoc, sourceEventDoc] = await Promise.all([
-            transaction.get(eventRef),
-            transaction.get(saleRef),
-            sourceEventRef ? transaction.get(sourceEventRef) : Promise.resolve(null)
-          ]);
-          if (previous.exists) return;
+        let deduplicated = false;
+        try {
+          await ctx.d.runTransaction(async transaction => {
+          // Solo las ventas creadas por la Caja web tienen proyeccion sales/.
+          // Para ventas Windows omitimos por completo esa lectura inexistente.
+          const shouldReadSaleDocument = !sourceEventRef || sourceIsWebSale;
+          const saleDoc = shouldReadSaleDocument ? await transaction.get(saleRef) : null;
           let sale = null;
           let materializedWebSale = false;
-          if (saleDoc.exists) {
+          if (saleDoc?.exists) {
             if (saleDoc.data().business_id !== ctx.businessId) throw new Error('La venta no existe en esta sucursal.');
             sale = saleDoc.data();
             materializedWebSale = true;
-          } else if (sourceEventDoc?.exists) {
-            const source = sourceEventDoc.data();
-            if (source.business_id !== ctx.businessId || source.event_type !== 'VentaCobrada'
-              || String(source.entity_id || source.payload?.ventaId || '') !== saleId) {
-              throw new Error('El evento original no corresponde a esta venta.');
-            }
-            sale = source.payload || {};
+          } else if (sourceIsWebSale) {
+            throw new Error('La venta web no tiene su proyeccion materializada. Recarga Ventas e intenta nuevamente.');
+          } else if (sourceSale) {
+            sale = sourceSale;
           }
           if (!sale) throw new Error('No se encontro la venta sincronizada. Recarga Ventas e intenta nuevamente.');
           if (sale.status === 'cancelled') throw new Error('La venta ya esta anulada.');
@@ -1327,9 +1343,25 @@
               updated_at: createdAt,
             });
           }
-          transaction.create(eventRef, eventDocument(ctx, id, 'VentaCancelada', 'ventas', saleId, payload, createdAt));
-        });
-        return { ok: true, message: 'Venta anulada y enviada a sincronizacion.' };
+          transaction.set(eventRef, eventDocument(ctx, id, 'VentaCancelada', 'ventas', saleId, payload, createdAt));
+          });
+        } catch (error) {
+          // transaction.set preserva la idempotencia sin leer previamente
+          // un eventRef inexistente (lectura que las reglas deben denegar). Si
+          // el mismo request_id ya fue confirmado, solo ese evento exacto se
+          // acepta como reintento exitoso.
+          let previous = null;
+          try { previous = await eventRef.get(); } catch { /* conserva el error original */ }
+          const row = previous?.exists ? previous.data() : null;
+          if (row?.business_id === ctx.businessId && row.event_type === 'VentaCancelada'
+            && String(row.entity_id || row.payload?.ventaId || '') === saleId
+            && row.created_by_uid === ctx.user.uid) {
+            deduplicated = true;
+          } else {
+            throw error;
+          }
+        }
+        return { ok: true, deduplicated, message: 'Venta anulada y enviada a sincronizacion.' };
       }
 
       throw new Error(`Operacion de Caja virtual no admitida: ${action}.`);

@@ -1,15 +1,15 @@
 {
   "schema": 1,
-  "build": "2026.08.24.1.0.58.0",
+  "build": "2026.08.24.1.0.58.1",
   "web_version": "1.0.50",
   "pwa_version": "1.0.50",
   "desktop_version": "1.0.58",
   "ios_version": "5.1.4",
   "ios_build": "486",
   "ios_release_url": "https://github.com/erickcarela58-star/dcarela-panel/releases/download/ios-20260823-final-5.1.4-6.2.1/Brujula-5.1.4-486-AltStore.ipa",
-  "published_at": "2026-08-24T18:19:50Z",
+  "published_at": "2026-08-24T20:46:50Z",
   "channel": "stable",
-  "notes": "Panel web y PWA 1.0.50: anulacion administrativa sin turno web para ventas sincronizadas. POS 1.0.58 aplica la reversion completa e idempotente y presenta el directorio de clientes en fichas legibles.",
+  "notes": "Panel web y PWA 1.0.50 build 2026.08.24.1.0.58.1: la anulacion administrativa de ventas Windows ya no consulta proyecciones inexistentes; conserva permisos estrictos y publica VentaCancelada de forma idempotente. POS 1.0.58 aplica la reversion completa y presenta el directorio de clientes en fichas legibles.",
   "release_page_url": "https://panel.dcarelacompufoto.com/#descargar",
   "desktop_release": {
     "version": "1.0.58",

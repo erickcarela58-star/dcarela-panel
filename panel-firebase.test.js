@@ -69,17 +69,28 @@ test("Caja web y conciliacion usan operaciones Firebase transaccionales y audita
   assert.doesNotMatch(firebaseAdapter, /collection\('fin_movements'\)[\s\S]{0,250}\.delete\(/);
   assert.match(panelJs, /DcarelaFirebase\.webSaleAction/);
   assert.match(panelJs, /DcarelaFirebase\.adminAction/);
+  assert.doesNotMatch(firebaseAdapter, /transaction\.create\(/);
+  assert.match(firebaseAdapter, /transaction\.set\(/);
 });
 
 test("una anulacion administrativa no exige turno abierto y acepta ventas sincronizadas desde Windows", () => {
   const start = firebaseAdapter.indexOf("async webSaleAction");
   const end = firebaseAdapter.indexOf("async adminAction", start);
   const action = firebaseAdapter.slice(start, end);
+  const cancelStart = action.indexOf("if (action === 'sale.cancel')");
+  const cancelAction = action.slice(cancelStart);
   assert.match(action, /requiresOpenShift = action === 'cash\.move' \|\| action === 'shift\.close'/);
   assert.match(action, /if \(requiresOpenShift && !shift\)/);
-  assert.match(action, /sourceEventRef \? transaction\.get\(sourceEventRef\)/);
-  assert.match(action, /source\.event_type !== 'VentaCobrada'/);
-  assert.match(action, /materializedWebSale \? sale\.lineas \|\| \[\] : \[\]/);
+  assert.match(cancelAction, /sourceEventRef \? await sourceEventRef\.get\(\) : null/);
+  assert.match(cancelAction, /source\.event_type !== 'VentaCobrada'/);
+  assert.match(cancelAction, /sourceIsWebSale = source\.source === 'caja_web_firebase'/);
+  assert.match(cancelAction, /shouldReadSaleDocument = !sourceEventRef \|\| sourceIsWebSale/);
+  assert.doesNotMatch(cancelAction, /transaction\.get\(eventRef\)/);
+  assert.doesNotMatch(cancelAction, /transaction\.get\(sourceEventRef\)/);
+  assert.match(cancelAction, /materializedWebSale \? sale\.lineas \|\| \[\] : \[\]/);
+  assert.match(cancelAction, /transaction\.set\(eventRef, eventDocument/);
+  assert.match(cancelAction, /previous = await eventRef\.get\(\)/);
+  assert.match(cancelAction, /row\.event_type === 'VentaCancelada'/);
   assert.match(panelJs, /motivo: reason, sourceEventId/);
   assert.match(panelJs, /data-cancel-event=/);
 });
