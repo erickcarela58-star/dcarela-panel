@@ -7,9 +7,10 @@ const panelJs = fs.readFileSync("panel.js", "utf8");
 const panelHtml = fs.readFileSync("panel.html", "utf8");
 const mobileHtml = fs.readFileSync("mobile/index.html", "utf8");
 const indexHtml = fs.readFileSync("index.html", "utf8");
+const appVersion = JSON.parse(fs.readFileSync("app-version.json", "utf8"));
 
 test("las metricas y graficos cargan la capa visual unificada en escritorio y movil", () => {
-  assert.match(panelHtml, /panel-theme\.css\?v=2026\.08\.23\.1\.0\.55\.\d+/);
+  assert.ok(panelHtml.includes(`panel-theme.css?v=${appVersion.build}`));
   assert.match(indexHtml, /shell-assets\/index-[^"']+\.css/);
   assert.match(mobileHtml, /assets\/index-[^"']+\.css/);
 });

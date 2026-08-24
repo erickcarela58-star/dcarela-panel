@@ -508,7 +508,11 @@
     if (authProvider === "firebase") {
       if (!window.DcarelaFirebase?.isAvailable) throw new Error("Firebase no está disponible.");
       const [rawEvents, rawDevices, rawAlerts, products] = await Promise.all([
-        window.DcarelaFirebase.getSyncEvents(branchId),
+        window.DcarelaFirebase.getSyncEvents(branchId, {
+          from: start.toISOString(),
+          to: new Date().toISOString(),
+          limit: 5000,
+        }),
         window.DcarelaFirebase.getCollection("devices", [["business_id", "==", branchId]]),
         window.DcarelaFirebase.getCollection("system_alerts", [["business_id", "==", branchId]]),
         window.DcarelaFirebase.getProducts(branchId),
@@ -652,7 +656,13 @@
   async function eventos(types, from, to, limit = 400) {
     if (authProvider === "firebase") {
       if (!window.DcarelaFirebase?.isAvailable) throw new Error("Firebase no está disponible.");
-      let items = await window.DcarelaFirebase.getSyncEvents(BUSINESS);
+      const requested = Math.max(1, Number(limit || 400));
+      const fetchLimit = Math.min(5000, types?.length ? Math.max(800, requested * 4) : requested);
+      let items = await window.DcarelaFirebase.getSyncEvents(BUSINESS, {
+        from: from || null,
+        to: to || null,
+        limit: fetchLimit,
+      });
       if (types?.length) items = items.filter(item => types.includes(item.event_type));
       if (from) items = items.filter(item => String(item.created_at_local || "") >= from);
       if (to) items = items.filter(item => String(item.created_at_local || "") <= to);

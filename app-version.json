@@ -1,15 +1,15 @@
 {
   "schema": 1,
-  "build": "2026.08.23.1.0.55.0",
+  "build": "2026.08.24.1.0.55.1",
   "web_version": "1.0.50",
   "pwa_version": "1.0.50",
   "desktop_version": "1.0.55",
   "ios_version": "5.1.4",
   "ios_build": "486",
   "ios_release_url": "https://github.com/erickcarela58-star/dcarela-panel/releases/download/ios-20260823-final-5.1.4-6.2.1/Brujula-5.1.4-486-AltStore.ipa",
-  "published_at": "2026-08-23T13:58:06Z",
+  "published_at": "2026-08-24T04:55:00Z",
   "channel": "stable",
-  "notes": "Panel web y PWA 1.0.50: Asistente, Caja virtual y SaleAds conectados. Canal stable POS 1.0.55 restaura CARELA CURRENT y conserva Firebase, scroll y mantenimiento seguro.",
+  "notes": "Panel web y PWA 1.0.50: lecturas Firebase acotadas para proteger la cuota, Asistente, Caja virtual y SaleAds conectados. Canal stable POS 1.0.55 conserva CARELA CURRENT, scroll y mantenimiento seguro.",
   "release_page_url": "https://panel.dcarelacompufoto.com/#descargar",
   "desktop_release": {
     "version": "1.0.55",

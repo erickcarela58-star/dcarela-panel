@@ -989,8 +989,19 @@
       return this.getCollection('clients', [['business_id', '==', businessId]]);
     },
 
-    async getSyncEvents(businessId = 'dcarela') {
-      const current = await this.getCollection('sync_events', [['business_id', '==', businessId]]);
+    async getSyncEvents(businessId = 'dcarela', options = {}) {
+      const { db: d } = initFirebase();
+      if (!d) throw new Error('Firestore no inicializado.');
+      const maximum = Math.max(1, Math.min(5000, Number(options.limit || 500)));
+      let query = d.collection('sync_events').where('business_id', '==', businessId);
+      // received_at_cloud es ISO-8601 en los eventos POS/Firebase y el indice
+      // business_id + received_at_cloud ya esta publicado. El limite evita
+      // releer decenas de miles de documentos en cada vista del panel.
+      if (options.from) query = query.where('received_at_cloud', '>=', String(options.from));
+      if (options.to) query = query.where('received_at_cloud', '<=', String(options.to));
+      query = query.orderBy('received_at_cloud', 'desc').limit(maximum);
+      const currentSnapshot = await query.get();
+      const current = currentSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       let archived = eventArchiveCache.get(businessId);
       if (!archived || Date.now() - archived.at > 5 * 60 * 1000) {
         const chunks = await this.getCollection('sync_event_archives', [['business_id', '==', businessId]]);
@@ -1001,10 +1012,13 @@
         eventArchiveCache.set(businessId, archived);
       }
       const merged = new Map();
-      archived.events.forEach(event => merged.set(event.event_id || event.id, event));
+      archived.events
+        .filter(event => !options.from || String(event.received_at_cloud || event.created_at_local || '') >= String(options.from))
+        .filter(event => !options.to || String(event.received_at_cloud || event.created_at_local || '') <= String(options.to))
+        .forEach(event => merged.set(event.event_id || event.id, event));
       current.forEach(event => merged.set(event.event_id || event.id, event));
       return [...merged.values()].sort((a, b) => String(b.received_at_cloud || b.created_at_local || '')
-        .localeCompare(String(a.received_at_cloud || a.created_at_local || '')));
+        .localeCompare(String(a.received_at_cloud || a.created_at_local || ''))).slice(0, maximum);
     },
 
     async getSales(businessId = 'dcarela', limit = 100) {
@@ -1172,7 +1186,11 @@
       }
 
       if (action === 'shift.close') {
-        const events = await this.getSyncEvents(ctx.businessId);
+        const events = await this.getSyncEvents(ctx.businessId, {
+          from: shift.abiertoEn || shift.opened_at,
+          to: nowIso(),
+          limit: 5000,
+        });
         const shiftEvents = events.filter(item => item.payload?.turnoId === shift.id);
         const sales = shiftEvents.filter(item => item.event_type === 'VentaCobrada');
         const cancelled = new Set(shiftEvents.filter(item => item.event_type === 'VentaCancelada')
