@@ -7,7 +7,7 @@
   "ios_version": "5.1.4",
   "ios_build": "486",
   "ios_release_url": "https://github.com/erickcarela58-star/dcarela-panel/releases/download/ios-20260823-final-5.1.4-6.2.1/Brujula-5.1.4-486-AltStore.ipa",
-  "published_at": "2026-08-24T16:20:00Z",
+  "published_at": "2026-08-24T09:52:37Z",
   "channel": "stable",
   "notes": "Panel web y PWA 1.0.50: lecturas Firebase acotadas para proteger la cuota. POS 1.0.57 conserva CARELA CURRENT y añade respaldo completo compacto, verificable y reemplazable.",
   "release_page_url": "https://panel.dcarelacompufoto.com/#descargar",
