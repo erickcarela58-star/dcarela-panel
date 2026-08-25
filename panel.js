@@ -657,7 +657,7 @@
     if (authProvider === "firebase") {
       if (!window.DcarelaFirebase?.isAvailable) throw new Error("Firebase no está disponible.");
       const requested = Math.max(1, Number(limit || 400));
-      const fetchLimit = Math.min(1600, types?.length ? Math.max(400, requested * 2) : requested);
+      const fetchLimit = Math.min(5000, types?.length ? Math.max(400, requested * 2) : requested);
       let items = await window.DcarelaFirebase.getSyncEvents(BUSINESS, {
         from: from || null,
         to: to || null,
@@ -4207,7 +4207,7 @@
     const queryTo = to;
     // Una sola lectura acotada alimenta ventas, anulaciones y turnos. Antes
     // esta vista podía disparar tres consultas de 5,000 documentos cada una.
-    let sourceEvents = await eventos(null, extendedFrom, queryTo, 1600);
+    let sourceEvents = await eventos(null, extendedFrom, queryTo, 5000);
     // Al consultar un periodo historico, añade únicamente las anulaciones
     // posteriores; así no oculta ventas anuladas después ni relee el historial
     // completo durante la vista cotidiana.

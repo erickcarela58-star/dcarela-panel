@@ -12,7 +12,8 @@ test('Firebase limita sync_events en servidor y usa el indice temporal publicado
   const end = adapter.indexOf("async getSales", start);
   assert.ok(start >= 0 && end > start);
   const method = adapter.slice(start, end);
-  assert.match(adapter, /const SYNC_EVENT_MAX_BATCH = 1600/);
+  assert.match(adapter, /const SYNC_EVENT_MAX_BATCH = 5000/);
+  assert.match(adapter, /const SYNC_EVENT_DELTA_BATCH = 250/);
   assert.match(adapter, /const SYNC_EVENT_QUERY_TTL_MS = 2 \* 60 \* 1000/);
   assert.match(method, /where\('business_id', '==', businessId\)/);
   assert.match(method, /where\('received_at_cloud', '>=', from\)/);
@@ -21,6 +22,10 @@ test('Firebase limita sync_events en servidor y usa el indice temporal publicado
   assert.match(method, /syncEventQueryCache\.get\(queryKey\)/);
   assert.match(method, /cachedQuery\.promise/);
   assert.match(method, /syncEventQueryCache\.delete\(queryKey\)/);
+  assert.match(method, /query\.get\(\{ source: 'cache' \}\)/);
+  assert.match(method, /hasSyncQueryMarker\(queryKey\)/);
+  assert.match(method, /Math\.min\(SYNC_EVENT_DELTA_BATCH, maximum\)/);
+  assert.match(method, /if \(!cached\.length\) throw error/);
   assert.doesNotMatch(method, /this\.getCollection\('sync_events'/);
 
   const temporalIndex = firestoreIndexes.indexes.find(index =>
@@ -35,8 +40,8 @@ test('las vistas Firebase nunca solicitan el historial completo sin ventana ni l
   assert.doesNotMatch(panel, /DcarelaFirebase\.getSyncEvents\((?:branchId|BUSINESS)\)/);
   assert.match(panel, /getSyncEvents\(branchId, \{[\s\S]{0,220}limit: 1600/);
   assert.match(panel, /getSyncEvents\(BUSINESS, \{[\s\S]{0,180}limit: fetchLimit/);
-  assert.match(panel, /fetchLimit = Math\.min\(1600/);
-  assert.match(panel, /sourceEvents = await eventos\(null, extendedFrom, queryTo, 1600\)/);
+  assert.match(panel, /fetchLimit = Math\.min\(5000/);
+  assert.match(panel, /sourceEvents = await eventos\(null, extendedFrom, queryTo, 5000\)/);
   assert.match(panel, /ventasActivas\(from, to, 1600, sourceEvents\)/);
   assert.match(panel, /turnosDelRango\(from, to, active, sourceEvents\)/);
 });

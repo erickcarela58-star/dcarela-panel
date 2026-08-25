@@ -16,8 +16,23 @@
   let initialized = false;
   const eventArchiveCache = new Map();
   const syncEventQueryCache = new Map();
-  const SYNC_EVENT_MAX_BATCH = 1600;
+  const SYNC_EVENT_MAX_BATCH = 5000;
+  const SYNC_EVENT_DELTA_BATCH = 250;
   const SYNC_EVENT_QUERY_TTL_MS = 2 * 60 * 1000;
+
+  function syncQueryMarkerKey(queryKey) {
+    return `dcarela:sync-events-primed:v1:${queryKey}`;
+  }
+
+  function hasSyncQueryMarker(queryKey) {
+    try { return localStorage.getItem(syncQueryMarkerKey(queryKey)) === '1'; }
+    catch (_) { return false; }
+  }
+
+  function markSyncQueryPrimed(queryKey) {
+    try { localStorage.setItem(syncQueryMarkerKey(queryKey), '1'); }
+    catch (_) { /* Firebase mantiene la cache aunque localStorage no este disponible. */ }
+  }
 
   function initFirebase() {
     if (initialized) return { app, auth, db };
@@ -1005,14 +1020,50 @@
       if (from) query = query.where('received_at_cloud', '>=', from);
       if (to) query = query.where('received_at_cloud', '<=', to);
       query = query.orderBy('received_at_cloud', 'desc').limit(maximum);
-      const queryKey = `${businessId}|${from}|${to}`;
+      const queryKey = `${businessId}|${from}|${to}|${maximum}`;
       let cachedQuery = syncEventQueryCache.get(queryKey);
       if (!cachedQuery || Date.now() - cachedQuery.at > SYNC_EVENT_QUERY_TTL_MS
         || cachedQuery.limit < maximum) {
         cachedQuery = {
           at: Date.now(),
           limit: maximum,
-          promise: query.get().then(snapshot => snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })))
+          promise: (async () => {
+            let cached = [];
+            try {
+              const snapshot = await query.get({ source: 'cache' });
+              cached = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            } catch (_) {
+              // Primera visita o persistencia no disponible: se completa desde servidor.
+            }
+            let serverQuery = query;
+            const primed = cached.length > 0 && hasSyncQueryMarker(queryKey);
+            if (primed) {
+              const latest = cached.reduce((value, event) => {
+                const received = String(event.received_at_cloud || '');
+                return received > value ? received : value;
+              }, from);
+              serverQuery = d.collection('sync_events').where('business_id', '==', businessId);
+              if (latest) serverQuery = serverQuery.where('received_at_cloud', '>=', latest);
+              if (to) serverQuery = serverQuery.where('received_at_cloud', '<=', to);
+              serverQuery = serverQuery.orderBy('received_at_cloud', 'desc')
+                .limit(Math.min(SYNC_EVENT_DELTA_BATCH, maximum));
+            }
+            let fresh;
+            try {
+              const snapshot = await serverQuery.get();
+              fresh = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+              markSyncQueryPrimed(queryKey);
+            } catch (error) {
+              if (!cached.length) throw error;
+              console.warn('getSyncEvents(): se usa cache local por fallo de cuota o red.', error?.message || error);
+              fresh = [];
+            }
+            const merged = new Map();
+            cached.forEach(event => merged.set(event.event_id || event.id, event));
+            fresh.forEach(event => merged.set(event.event_id || event.id, event));
+            return [...merged.values()].sort((a, b) => String(b.received_at_cloud || b.created_at_local || '')
+              .localeCompare(String(a.received_at_cloud || a.created_at_local || ''))).slice(0, maximum);
+          })()
         };
         syncEventQueryCache.set(queryKey, cachedQuery);
       }
