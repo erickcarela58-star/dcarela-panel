@@ -15,6 +15,9 @@
   let db = null;
   let initialized = false;
   const eventArchiveCache = new Map();
+  const syncEventQueryCache = new Map();
+  const SYNC_EVENT_MAX_BATCH = 1600;
+  const SYNC_EVENT_QUERY_TTL_MS = 2 * 60 * 1000;
 
   function initFirebase() {
     if (initialized) return { app, auth, db };
@@ -992,16 +995,34 @@
     async getSyncEvents(businessId = 'dcarela', options = {}) {
       const { db: d } = initFirebase();
       if (!d) throw new Error('Firestore no inicializado.');
-      const maximum = Math.max(1, Math.min(5000, Number(options.limit || 500)));
+      const maximum = Math.max(1, Math.min(SYNC_EVENT_MAX_BATCH, Number(options.limit || 500)));
+      const from = options.from ? String(options.from) : '';
+      const to = options.to ? String(options.to) : '';
       let query = d.collection('sync_events').where('business_id', '==', businessId);
       // received_at_cloud es ISO-8601 en los eventos POS/Firebase y el indice
-      // business_id + received_at_cloud ya esta publicado. El limite evita
-      // releer decenas de miles de documentos en cada vista del panel.
-      if (options.from) query = query.where('received_at_cloud', '>=', String(options.from));
-      if (options.to) query = query.where('received_at_cloud', '<=', String(options.to));
+      // business_id + received_at_cloud ya esta publicado. El tope y la cache
+      // compartida evitan que cada modulo vuelva a facturar miles de lecturas.
+      if (from) query = query.where('received_at_cloud', '>=', from);
+      if (to) query = query.where('received_at_cloud', '<=', to);
       query = query.orderBy('received_at_cloud', 'desc').limit(maximum);
-      const currentSnapshot = await query.get();
-      const current = currentSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const queryKey = `${businessId}|${from}|${to}`;
+      let cachedQuery = syncEventQueryCache.get(queryKey);
+      if (!cachedQuery || Date.now() - cachedQuery.at > SYNC_EVENT_QUERY_TTL_MS
+        || cachedQuery.limit < maximum) {
+        cachedQuery = {
+          at: Date.now(),
+          limit: maximum,
+          promise: query.get().then(snapshot => snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })))
+        };
+        syncEventQueryCache.set(queryKey, cachedQuery);
+      }
+      let current;
+      try {
+        current = (await cachedQuery.promise).slice(0, maximum);
+      } catch (error) {
+        if (syncEventQueryCache.get(queryKey) === cachedQuery) syncEventQueryCache.delete(queryKey);
+        throw error;
+      }
       let archived = eventArchiveCache.get(businessId);
       if (!archived || Date.now() - archived.at > 5 * 60 * 1000) {
         const chunks = await this.getCollection('sync_event_archives', [['business_id', '==', businessId]]);
@@ -1013,8 +1034,8 @@
       }
       const merged = new Map();
       archived.events
-        .filter(event => !options.from || String(event.received_at_cloud || event.created_at_local || '') >= String(options.from))
-        .filter(event => !options.to || String(event.received_at_cloud || event.created_at_local || '') <= String(options.to))
+        .filter(event => !from || String(event.received_at_cloud || event.created_at_local || '') >= from)
+        .filter(event => !to || String(event.received_at_cloud || event.created_at_local || '') <= to)
         .forEach(event => merged.set(event.event_id || event.id, event));
       current.forEach(event => merged.set(event.event_id || event.id, event));
       return [...merged.values()].sort((a, b) => String(b.received_at_cloud || b.created_at_local || '')
@@ -1194,7 +1215,7 @@
         const events = await this.getSyncEvents(ctx.businessId, {
           from: shift.abiertoEn || shift.opened_at,
           to: nowIso(),
-          limit: 5000,
+          limit: 1600,
         });
         const shiftEvents = events.filter(item => item.payload?.turnoId === shift.id);
         const sales = shiftEvents.filter(item => item.event_type === 'VentaCobrada');

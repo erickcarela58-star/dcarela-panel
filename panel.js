@@ -511,7 +511,7 @@
         window.DcarelaFirebase.getSyncEvents(branchId, {
           from: start.toISOString(),
           to: new Date().toISOString(),
-          limit: 5000,
+          limit: 1600,
         }),
         window.DcarelaFirebase.getCollection("devices", [["business_id", "==", branchId]]),
         window.DcarelaFirebase.getCollection("system_alerts", [["business_id", "==", branchId]]),
@@ -657,7 +657,7 @@
     if (authProvider === "firebase") {
       if (!window.DcarelaFirebase?.isAvailable) throw new Error("Firebase no está disponible.");
       const requested = Math.max(1, Number(limit || 400));
-      const fetchLimit = Math.min(5000, types?.length ? Math.max(800, requested * 4) : requested);
+      const fetchLimit = Math.min(1600, types?.length ? Math.max(400, requested * 2) : requested);
       let items = await window.DcarelaFirebase.getSyncEvents(BUSINESS, {
         from: from || null,
         to: to || null,
@@ -698,6 +698,15 @@
       throw e;
     }
     throw new Error("No existe un backend autenticado para consultar eventos.");
+  }
+
+  function eventosDesde(items, types, from, to, limit = 1600) {
+    let output = Array.isArray(items) ? [...items] : [];
+    if (types?.length) output = output.filter(item => types.includes(item.event_type));
+    if (from) output = output.filter(item => String(item.created_at_local || "") >= from);
+    if (to) output = output.filter(item => String(item.created_at_local || "") <= to);
+    output.sort((a, b) => String(b.created_at_local || "").localeCompare(String(a.created_at_local || "")));
+    return output.slice(0, Math.max(1, limit));
   }
 
   async function cargarRolEdicion() {
@@ -1828,20 +1837,22 @@
       .filter(Boolean).map(value => String(value).trim().toLowerCase());
   }
 
-  async function idsVentasAnuladas(force = false) {
-    if (!force && Date.now() - cancelCache.at < 30000) return cancelCache.ids;
-    const cancellations = await eventos(["VentaCancelada"], null, null, 50000);
+  async function idsVentasAnuladas(force = false, sourceEvents = null) {
+    if (!sourceEvents && !force && Date.now() - cancelCache.at < 2 * 60 * 1000) return cancelCache.ids;
+    const cancellations = sourceEvents
+      ? eventosDesde(sourceEvents, ["VentaCancelada"], null, null, 1600)
+      : await eventos(["VentaCancelada"], null, null, 1600);
     const ids = new Set();
     cancellations.forEach(event => clavesVenta(event).forEach(id => ids.add(id)));
     cancelCache = { at: Date.now(), ids };
     return ids;
   }
 
-  async function ventasActivas(from, to, limit = 50000) {
-    const [sales, cancelled] = await Promise.all([
-      eventos(["VentaCobrada"], from, to, limit),
-      idsVentasAnuladas()
-    ]);
+  async function ventasActivas(from, to, limit = 1600, sourceEvents = null) {
+    const sales = sourceEvents
+      ? eventosDesde(sourceEvents, ["VentaCobrada"], from, to, limit)
+      : await eventos(["VentaCobrada"], from, to, limit);
+    const cancelled = await idsVentasAnuladas(Boolean(sourceEvents), sourceEvents);
     const active = sales.filter(sale => !clavesVenta(sale).some(id => cancelled.has(id)));
     return { active, excluded: sales.length - active.length, raw: sales };
   }
@@ -1851,11 +1862,13 @@
     return String(payload.turnoId || payload.turno_id || event?.entity_id || "").trim();
   }
 
-  async function turnosDelRango(from, to, ventas = null) {
+  async function turnosDelRango(from, to, ventas = null, sourceEvents = null) {
     const desdeExtendido = new Date(new Date(from).getTime() - 86400000).toISOString();
     const [resultadoVentas, eventosCaja, usuarios] = await Promise.all([
-      ventas ? Promise.resolve({ active: ventas }) : ventasActivas(from, to, 50000),
-      eventos(["CajaAbierta", "CajaCerrada", "CierreConDiferencia", "TurnoCambiado"], desdeExtendido, to, 10000),
+      ventas ? Promise.resolve({ active: ventas }) : ventasActivas(from, to, 1600, sourceEvents),
+      sourceEvents
+        ? Promise.resolve(eventosDesde(sourceEvents, ["CajaAbierta", "CajaCerrada", "CierreConDiferencia", "TurnoCambiado"], desdeExtendido, to, 1600))
+        : eventos(["CajaAbierta", "CajaCerrada", "CierreConDiferencia", "TurnoCambiado"], desdeExtendido, to, 1600),
       cargarUsuariosCloud()
     ]);
     const grupos = new Map();
@@ -4190,8 +4203,20 @@
     }
     const from = inicioDia($("venDesde").value);
     const to = finDia($("venHasta").value);
-    const { active, excluded } = await ventasActivas(from, to, 50000);
-    const turnos = await turnosDelRango(from, to, active);
+    const extendedFrom = new Date(new Date(from).getTime() - 86400000).toISOString();
+    const queryTo = to;
+    // Una sola lectura acotada alimenta ventas, anulaciones y turnos. Antes
+    // esta vista podía disparar tres consultas de 5,000 documentos cada una.
+    let sourceEvents = await eventos(null, extendedFrom, queryTo, 1600);
+    // Al consultar un periodo historico, añade únicamente las anulaciones
+    // posteriores; así no oculta ventas anuladas después ni relee el historial
+    // completo durante la vista cotidiana.
+    if (new Date(to).getTime() < Date.now()) {
+      const laterCancellations = await eventos(["VentaCancelada"], to, new Date().toISOString(), 1600);
+      sourceEvents = [...sourceEvents, ...laterCancellations];
+    }
+    const { active, excluded } = await ventasActivas(from, to, 1600, sourceEvents);
+    const turnos = await turnosDelRango(from, to, active, sourceEvents);
     const turnosPorId = new Map(turnos.map(turno => [turno.id, turno]));
     const total = active.reduce((sum, event) => sum + totalDe(P(event)), 0);
     const tax = active.reduce((sum, event) => sum + itbisDe(P(event)), 0);

@@ -1,15 +1,15 @@
 {
   "schema": 1,
-  "build": "2026.08.24.1.0.58.1",
+  "build": "2026.08.25.1.0.58.2",
   "web_version": "1.0.50",
   "pwa_version": "1.0.50",
   "desktop_version": "1.0.58",
   "ios_version": "5.1.4",
   "ios_build": "486",
   "ios_release_url": "https://github.com/erickcarela58-star/dcarela-panel/releases/download/ios-20260823-final-5.1.4-6.2.1/Brujula-5.1.4-486-AltStore.ipa",
-  "published_at": "2026-08-24T20:46:50Z",
+  "published_at": "2026-08-25T12:03:35Z",
   "channel": "stable",
-  "notes": "Panel web y PWA 1.0.50 build 2026.08.24.1.0.58.1: la anulacion administrativa de ventas Windows ya no consulta proyecciones inexistentes; conserva permisos estrictos y publica VentaCancelada de forma idempotente. POS 1.0.58 aplica la reversion completa y presenta el directorio de clientes en fichas legibles.",
+  "notes": "Panel web y PWA 1.0.50 build 2026.08.25.1.0.58.2: la vista de Ventas comparte una sola lectura Firebase con limite de 1,600 eventos y cache de 2 minutos para evitar agotar la cuota. Conserva la anulacion idempotente de ventas Windows, permisos estrictos y el POS 1.0.58 estable.",
   "release_page_url": "https://panel.dcarelacompufoto.com/#descargar",
   "desktop_release": {
     "version": "1.0.58",
