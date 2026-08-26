@@ -1,15 +1,15 @@
 {
   "schema": 1,
-  "build": "2026.08.25.1.0.58.3",
+  "build": "2026.08.26.1.0.58.4",
   "web_version": "1.0.50",
   "pwa_version": "1.0.50",
   "desktop_version": "1.0.58",
   "ios_version": "5.1.4",
   "ios_build": "486",
   "ios_release_url": "https://github.com/erickcarela58-star/dcarela-panel/releases/download/ios-20260823-final-5.1.4-6.2.1/Brujula-5.1.4-486-AltStore.ipa",
-  "published_at": "2026-08-25T12:03:35Z",
+  "published_at": "2026-08-26T04:32:00Z",
   "channel": "stable",
-  "notes": "Panel web y PWA 1.0.50 build 2026.08.25.1.0.58.3: la vista de Ventas comparte una carga inicial completa y luego consulta solo hasta 250 eventos nuevos usando la cache persistente Firebase. Evita tres lecturas historicas repetidas, conserva todas las ventas y mantiene la anulacion idempotente de ventas Windows.",
+  "notes": "Panel web y PWA: consultas simultaneas deduplicadas, pausa de lecturas ante cuota Firebase y errores financieros parciales explicitos. Conserva historial, anulacion idempotente y estetica actual. No modifica facturacion ni elimina datos.",
   "release_page_url": "https://panel.dcarelacompufoto.com/#descargar",
   "desktop_release": {
     "version": "1.0.58",

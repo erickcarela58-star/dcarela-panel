@@ -19,6 +19,36 @@
   const SYNC_EVENT_MAX_BATCH = 5000;
   const SYNC_EVENT_DELTA_BATCH = 250;
   const SYNC_EVENT_QUERY_TTL_MS = 2 * 60 * 1000;
+  const collectionReadRequests = new Map();
+  let firestoreReadRetryAt = 0;
+  const FIRESTORE_QUOTA_PAUSE_MS = 15 * 60 * 1000;
+
+  function firestoreQuotaError() {
+    const error = new Error('Cuota de lecturas Firebase agotada. Las consultas se pausaron temporalmente; no se borraron datos.');
+    error.code = 'resource-exhausted';
+    error.retryAt = firestoreReadRetryAt;
+    return error;
+  }
+
+  async function readFirestoreQuery(query, key) {
+    // Deduplicate concurrent consumers only: do not cache balances or mutable
+    // collections after completion, nor substitute empty rows for read errors.
+    const owner = auth?.currentUser?.uid || 'signed-out';
+    const requestKey = `${owner}|${key}`;
+    if (collectionReadRequests.has(requestKey)) return collectionReadRequests.get(requestKey);
+    if (Date.now() < firestoreReadRetryAt) throw firestoreQuotaError();
+    const pending = Promise.resolve().then(() => query.get()).catch(error => {
+      if (error?.code === 'resource-exhausted' || error?.code === 'firestore/resource-exhausted'
+        || /quota exceeded|RESOURCE_EXHAUSTED/i.test(String(error?.message || ''))) {
+        firestoreReadRetryAt = Date.now() + FIRESTORE_QUOTA_PAUSE_MS;
+        throw firestoreQuotaError();
+      }
+      throw error;
+    });
+    collectionReadRequests.set(requestKey, pending);
+    try { return await pending; }
+    finally { if (collectionReadRequests.get(requestKey) === pending) collectionReadRequests.delete(requestKey); }
+  }
 
   function syncQueryMarkerKey(queryKey) {
     return `dcarela:sync-events-primed:v1:${queryKey}`;
@@ -886,14 +916,14 @@
           q = q.where(cond[0], cond[1], cond[2]);
         }
       }
-      const snap = await q.get();
+      const snap = await readFirestoreQuery(q, JSON.stringify([collectionName, conditions]));
       return snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     },
 
     async getDocument(collectionName, docId) {
       const { db: d } = initFirebase();
       if (!d) throw new Error('Firestore no inicializado.');
-      const doc = await d.collection(collectionName).doc(docId).get();
+      const doc = await readFirestoreQuery(d.collection(collectionName).doc(docId), JSON.stringify([collectionName, docId]));
       if (!doc.exists) return null;
       return { id: doc.id, ...doc.data() };
     },
@@ -1050,7 +1080,7 @@
             }
             let fresh;
             try {
-              const snapshot = await serverQuery.get();
+              const snapshot = await readFirestoreQuery(serverQuery, `sync-events|${queryKey}|${primed}`);
               fresh = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
               markSyncQueryPrimed(queryKey);
             } catch (error) {
@@ -1170,9 +1200,15 @@
       const merged = new Map();
       [...rows, ...ledgerRows].forEach(item => merged.set(item.id, item));
       const filtered = month ? [...merged.values()].filter(item => String(item.fecha || '').startsWith(`${month}-`)) : [...merged.values()];
-      if (ledgerResult.status === 'rejected') {
+      if (financeResult.status === 'rejected' && ledgerResult.status === 'rejected') {
+        throw financeResult.reason;
+      }
+      if (financeResult.status === 'rejected' || ledgerResult.status === 'rejected') {
         Object.defineProperty(filtered, 'partial_error', {
-          value: 'La fuente del ledger Windows no estuvo disponible en Firebase.', enumerable: false
+          value: financeResult.status === 'rejected'
+            ? 'La fuente financiera web no estuvo disponible en Firebase; el resultado es parcial.'
+            : 'La fuente del ledger Windows no estuvo disponible en Firebase; el resultado es parcial.',
+          enumerable: false
         });
       }
       return filtered.sort((a, b) => String(b.fecha || '').localeCompare(String(a.fecha || '')));
