@@ -8,6 +8,7 @@ const panelHtml = fs.readFileSync(path.join(root, "panel.html"), "utf8");
 const panelJs = fs.readFileSync(path.join(root, "panel.js"), "utf8");
 const shellHtml = fs.readFileSync(path.join(root, "index.html"), "utf8");
 const manifest = JSON.parse(fs.readFileSync(path.join(root, "app-version.json"), "utf8"));
+const altStore = JSON.parse(fs.readFileSync(path.join(root, "ios-releases", "altstore-source.json"), "utf8"));
 
 test("Actualizaciones contiene un bloque visible de archivos descargables", () => {
   assert.match(panelHtml, />Actualizaciones<\/a>/);
@@ -62,5 +63,15 @@ test("Finanzas vigente y los dos CRM se publican por dominios oficiales", () => 
   assert.match(photos.notes, /código telefónico/);
   for (const app of manifest.apps) {
     assert.doesNotMatch(app.url || "", /netlify\.app|github\.io|raw\.githubusercontent\.com/i);
+  }
+});
+
+test("AltStore solo anuncia los dos IPA vigentes", () => {
+  assert.equal(altStore.apps.length, 2);
+  for (const app of altStore.apps) {
+    assert.equal(app.versions.length, 1);
+    assert.equal(app.versions[0].downloadURL, app.downloadURL);
+    assert.equal(app.versions[0].sha256, app.sha256);
+    assert.match(app.downloadURL, /releases\/download\/ios-20260823-final-5\.1\.4-6\.2\.1\//);
   }
 });

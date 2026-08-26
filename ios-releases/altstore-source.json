@@ -28,86 +28,6 @@
           "sha256": "01da16e9bf4199acc63ff8e36449c3ade1a65b4d97e36bc00a0d642388abbd4f",
           "localizedDescription": "v5.1.4 (Build 486): versión final AltStore con contador social de 120 minutos, widgets de inicio y bloqueo, lectura visible de 1,024 páginas y OCR que rechaza importaciones parciales.",
           "minOSVersion": "17.0"
-        },
-        {
-          "version": "5.1.3",
-          "buildVersion": "485",
-          "date": "2026-08-23",
-          "downloadURL": "https://github.com/erickcarela58-star/dcarela-panel/releases/download/ios-20260823-brujula-5.1.3-finanzas-6.2.0/Brujula-5.1.3-485-QA.ipa",
-          "size": 17664995,
-          "sha256": "04ac081f3de21a9dd1baa1c4bc9682fbdae4e68d87e9554f941e4526fb402501",
-          "localizedDescription": "v5.1.3 (Build 485): restaura el contador social de 120 minutos, corrige los controles blancos y el paquete de widgets, endurece la importación OCR para no guardar libros parciales y valida lectura visible de 1,024 páginas.",
-          "minOSVersion": "17.0"
-        },
-        {
-          "version": "5.1.2",
-          "buildVersion": "484",
-          "date": "2026-08-20",
-          "downloadURL": "https://github.com/erickcarela58-star/dcarela-panel/releases/download/ios-20260820-brujula-5.1.2/Brujula-5.1.2-484-QA.ipa",
-          "size": 17690008,
-          "sha256": "8dbdc07cab7ece660f833851899e6816ba277957f30c5af488ac297a02213a78",
-          "localizedDescription": "v5.1.2 (Build 484): corrige el bloqueo total de la cuota Jomo, conserva el contador social de Brújula, repara controles y widgets, añade OCR ordenado de capturas con solapamiento seguro y verifica lectura completa de 1,024 páginas.",
-          "minOSVersion": "17.0"
-        },
-        {
-          "version": "5.1.1",
-          "buildVersion": "483",
-          "date": "2026-08-20",
-          "downloadURL": "https://github.com/erickcarela58-star/dcarela-panel/releases/download/ios-20260820-brujula-5.1.1/Brujula-5.1.1-483-QA.ipa",
-          "size": 17615877,
-          "sha256": "d166eb0962a93eff575534b3585b5b30cbcbc887ee5550fc566816cbf83e489e",
-          "localizedDescription": "v5.1.1 (Build 483): reconoce enlaces compartidos de Kindle como ASIN protegido, evita atribuirles páginas no recibidas, limpia índices falsos anteriores y abre el libro en Kindle; la lectura completa permanece disponible para PDF/TXT autorizados.",
-          "minOSVersion": "17.0"
-        },
-        {
-          "version": "5.1.0",
-          "buildVersion": "482",
-          "date": "2026-08-20",
-          "downloadURL": "https://github.com/erickcarela58-star/dcarela-panel/releases/download/ios-20260820-brujula-5.1.0/Brujula-5.1.0-482-QA.ipa",
-          "size": 17600642,
-          "sha256": "ef430bd65f17301232c2f8df9908c621849bb96e1d751e134e13797076a2c3ff",
-          "localizedDescription": "v5.1.0 (Build 482): Jomo y Modo estricto guiados, widgets reales, y lector completo sin tope artificial con avance visible, OCR, índice persistente y cobertura verificada página por página.",
-          "minOSVersion": "17.0"
-        },
-        {
-          "version": "5.0.4",
-          "buildVersion": "481",
-          "date": "2026-08-20",
-          "downloadURL": "https://github.com/erickcarela58-star/dcarela-panel/releases/download/ios-20260820-firebase-hosting/Brujula-5.0.4-481-QA.ipa",
-          "size": 17617859,
-          "sha256": "20f8e7a690c2f7f434046fe77470aefa269a35e5d443a2d84290b91b4f410beb",
-          "localizedDescription": "v5.0.4 (Build 481): atajos URL robustos sin Acción desconocida, deep links brujula:// para bloqueo social, entrada/cierre de redes, enfoque, lectura y plan del día, con validación de bloqueo real en simulador y canal AltStore limpio.",
-          "minOSVersion": "17.0"
-        },
-        {
-          "version": "5.0.3",
-          "buildVersion": "480",
-          "date": "2026-08-20",
-          "downloadURL": "https://github.com/erickcarela58-star/dcarela-panel/releases/download/ios-20260820-firebase-hosting/Brujula-5.0.3-480-QA.ipa",
-          "size": 17612731,
-          "sha256": "3c5bc212ca3f7aaca2a50b00ff4510b94580fc0dc03914878d35c6a48da6c6df",
-          "localizedDescription": "v5.0.3 (Build 480): atajos finales reinyectables, 18 acciones disponibles en Atajos, lectura visible con scroll/página/bloque, manifiesto de cobertura completa por libro y cerebro de lecturas con export del índice real para analizar libros completos.",
-          "minOSVersion": "17.0"
-        },
-        {
-          "version": "5.0.2",
-          "buildVersion": "479",
-          "date": "2026-08-20",
-          "downloadURL": "https://github.com/erickcarela58-star/dcarela-panel/releases/download/ios-20260820-firebase-hosting/Brujula-5.0.2-479-QA.ipa",
-          "size": 17497373,
-          "sha256": "83fb6f2408c5fc5da951c3911696500c880b75ff68ac0f21405a49cc5ede90f8",
-          "localizedDescription": "v5.0.2 (Build 479): final AltStore con bloqueo Focus/Social separado, reconciliación al volver al foreground, banco de recursos con hashes válidos, atajos sincronizados (#4 entrada, #11 cierre) y paquete ARM64 sin firma para instalación por AltStore.",
-          "minOSVersion": "17.0"
-        },
-        {
-          "version": "5.0.1",
-          "buildVersion": "478",
-          "date": "2026-08-18",
-          "downloadURL": "https://raw.githubusercontent.com/erickcarela58-star/dcarela-panel/main/ios-releases/Brujula-5.0.1-478-QA.ipa",
-          "size": 17391854,
-          "sha256": "dcf0a3968068efd18ac31f26d171ad0aa090afee69699b438439419df8811882",
-          "localizedDescription": "v5.0.1 (Build 478): Cerebro Local 100% autónomo offline para libros y productividad, sin bloqueo por API remota, motor de lectura web progresiva con barra roja de 2pt, 14 App Intents y 4 modos de respuesta (Coqueto, Seductor, Retador, Sarcástico).",
-          "minOSVersion": "17.0"
         }
       ]
     },
@@ -135,46 +55,6 @@
           "size": 980854,
           "sha256": "c9488bde7c75e62012a11b1e74787b1ee9cb47c1548393abe892832a8dff4666",
           "localizedDescription": "v6.2.1 (Build 625): restaura la estética real de D' Carela con presentación negra y Panel del Punto de Venta a pantalla completa, sesión web persistente y navegación móvil verificada.",
-          "minOSVersion": "16.4"
-        },
-        {
-          "version": "6.2.0",
-          "buildVersion": "624",
-          "date": "2026-08-23",
-          "downloadURL": "https://github.com/erickcarela58-star/dcarela-panel/releases/download/ios-20260823-brujula-5.1.3-finanzas-6.2.0/DCarelaFinanzas-6.2.0-624-QA.ipa",
-          "size": 1006399,
-          "sha256": "cd0b39faaa817cb179c0fed047012cc49691f175e0007bedc610de22b0f4e730",
-          "localizedDescription": "v6.2.0 (Build 624): migra Finanzas a Firebase Auth y Firestore, valida membresías y negocios activos, restringe escrituras por rol y corrige los controles y selectores móviles.",
-          "minOSVersion": "16.4"
-        },
-        {
-          "version": "6.1.2",
-          "buildVersion": "623",
-          "date": "2026-08-20",
-          "downloadURL": "https://github.com/erickcarela58-star/dcarela-panel/releases/download/ios-20260820-firebase-hosting/DCarelaFinanzas-6.1.2-623-QA.ipa",
-          "size": 1302850,
-          "sha256": "cf5fd827223d2f5ddd637981407d6bafa22cc956cb003db7b4007e851993d835",
-          "localizedDescription": "v6.1.2 (Build 623): auditoría final de Finanzas, contratos móviles verificados, versión/build nativos alineados y canal AltStore sincronizado con el paquete corregido.",
-          "minOSVersion": "16.4"
-        },
-        {
-          "version": "6.1.2",
-          "buildVersion": "622",
-          "date": "2026-08-20",
-          "downloadURL": "https://github.com/erickcarela58-star/dcarela-panel/releases/download/ios-20260820-firebase-hosting/DCarelaFinanzas-6.1.2-622-QA.ipa",
-          "size": 1302858,
-          "sha256": "2068fac0a9ef138440e9a1a01d96ba80c42907ea6c4565522d7cbf3592d88f71",
-          "localizedDescription": "v6.1.2 (Build 622): paquete AltStore ARM64 sin firma Apple propia, versión elevada para actualización, normalización de audio sin warnings Sendable y canal de actualización sincronizado con la fuente oficial.",
-          "minOSVersion": "16.4"
-        },
-        {
-          "version": "6.1.2",
-          "buildVersion": "621",
-          "date": "2026-08-17",
-          "downloadURL": "https://github.com/erickcarela58-star/dcarela-panel/releases/download/ios-20260820-firebase-hosting/DCarelaFinanzas-5.0.2-QA.ipa",
-          "size": 1934704,
-          "sha256": "b985bdf48c848ced0d0aee778732ab06aa311582b7e6eb195a3d06b833b2a38d",
-          "localizedDescription": "Build 621: AudioNormalizationService WAV PCM 16kHz, SessionStore Keychain seguro y asistente autónomo actualizado.",
           "minOSVersion": "16.4"
         }
       ]
