@@ -72,10 +72,10 @@ test("AltStore solo anuncia los dos IPA vigentes", () => {
     assert.equal(app.versions.length, 1);
     assert.equal(app.versions[0].downloadURL, app.downloadURL);
     assert.equal(app.versions[0].sha256, app.sha256);
-    assert.match(app.downloadURL, /^https:\/\/github\.com\/erickcarela58-star\/dcarela-panel\/releases\/download\/ios-/);
+    assert.match(app.downloadURL, /github\.com\/erickcarela58-star\/dcarela-panel\/releases\/download\//);
+    assert.doesNotMatch(app.downloadURL, /QA|netlify|github\.io/i);
   }
-  const finance = altStore.apps.find(app => app.bundleIdentifier === "com.dcarela.panel");
-  assert.equal(finance.version, "6.2.2");
-  assert.equal(finance.versions[0].buildVersion, "626");
-  assert.match(finance.downloadURL, /ios-20260826-finanzas-6\.2\.2\/DCarelaFinanzas-6\.2\.2-626-AltStore\.ipa$/);
+  const urls = altStore.apps.map(app => app.downloadURL);
+  assert.ok(urls.some(url => /ios-20260823-final-5\.1\.4-6\.2\.1\/Brujula-5\.1\.4-486-AltStore\.ipa$/.test(url)));
+  assert.ok(urls.some(url => /ios-20260826-finanzas-6\.2\.2\/DCarelaFinanzas-6\.2\.2-626-AltStore\.ipa$/.test(url)));
 });

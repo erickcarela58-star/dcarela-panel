@@ -19,6 +19,9 @@
   const SYNC_EVENT_MAX_BATCH = 5000;
   const SYNC_EVENT_DELTA_BATCH = 250;
   const SYNC_EVENT_QUERY_TTL_MS = 2 * 60 * 1000;
+  // Tope duro de documentos por consulta acotada (ventas, turnos). Existe para
+  // que ningun modulo pueda volver a pedir la coleccion historica completa.
+  const SALES_MAX_BATCH = 500;
   const collectionReadRequests = new Map();
   let firestoreReadRetryAt = 0;
   const FIRESTORE_QUOTA_PAUSE_MS = 15 * 60 * 1000;
@@ -920,6 +923,33 @@
       return snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     },
 
+    // Lectura acotada en el servidor: ordena por la fecha indicada y corta en
+    // `maximum` ANTES de facturar lecturas. Si el indice compuesto todavia no
+    // esta publicado, Firestore responde failed-precondition; en ese caso se
+    // reintenta sin ordenar pero CONSERVANDO el tope, para que el panel siga
+    // abriendo sin volver a descargar la coleccion entera.
+    async getLimitedCollection(collectionName, businessId, orderField, maximum) {
+      const { db: d } = initFirebase();
+      if (!d) throw new Error('Firestore no inicializado.');
+      const base = d.collection(collectionName).where('business_id', '==', businessId);
+      const ordered = base.orderBy(orderField, 'desc').limit(maximum);
+      const key = JSON.stringify([collectionName, businessId, orderField, maximum]);
+      try {
+        const snap = await readFirestoreQuery(ordered, key);
+        return snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      } catch (error) {
+        const code = String(error?.code || '');
+        const failedPrecondition = code === 'failed-precondition'
+          || code === 'firestore/failed-precondition'
+          || /requires an index|FAILED_PRECONDITION/i.test(String(error?.message || ''));
+        if (!failedPrecondition) throw error;
+        console.warn(`[dcarela] Falta el indice ${collectionName}(business_id, ${orderField}). `
+          + 'Se devuelve un lote sin ordenar hasta publicarlo.', error?.message || '');
+        const snap = await readFirestoreQuery(base.limit(maximum), `${key}|sin-orden`);
+        return snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      }
+    },
+
     async getDocument(collectionName, docId) {
       const { db: d } = initFirebase();
       if (!d) throw new Error('Firestore no inicializado.');
@@ -1123,16 +1153,22 @@
         .localeCompare(String(a.received_at_cloud || a.created_at_local || ''))).slice(0, maximum);
     },
 
+    // El tope se aplica EN EL SERVIDOR. La version anterior descargaba la
+    // coleccion completa y recortaba en el navegador: cada carga del panel
+    // facturaba una lectura por venta historica y agotaba la cuota diaria de
+    // Firestore, dejando el panel inaccesible desde el telefono.
+    // Requiere el indice compuesto business_id + created_at (firestore.indexes.json).
     async getSales(businessId = 'dcarela', limit = 100) {
-      const rows = await this.getCollection('sales', [['business_id', '==', businessId]]);
-      return rows.sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')))
-        .slice(0, limit);
+      const maximum = Math.max(1, Math.min(SALES_MAX_BATCH, Number(limit) || 100));
+      const rows = await this.getLimitedCollection('sales', businessId, 'created_at', maximum);
+      return rows.sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
     },
 
+    // Mismo problema y misma correccion; indice business_id + opened_at.
     async getCashShifts(businessId = 'dcarela', limit = 50) {
-      const rows = await this.getCollection('cash_shifts', [['business_id', '==', businessId]]);
-      return rows.sort((a, b) => String(b.opened_at || '').localeCompare(String(a.opened_at || '')))
-        .slice(0, limit);
+      const maximum = Math.max(1, Math.min(SALES_MAX_BATCH, Number(limit) || 50));
+      const rows = await this.getLimitedCollection('cash_shifts', businessId, 'opened_at', maximum);
+      return rows.sort((a, b) => String(b.opened_at || '').localeCompare(String(a.opened_at || '')));
     },
 
     async getFinanceAccounts(businessId = 'dcarela') {
