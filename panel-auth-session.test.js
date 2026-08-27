@@ -53,3 +53,9 @@ test("propaga el error de autenticacion en vez de fabricar acceso", async () => 
     /RLS denied/,
   );
 });
+
+test("el formulario de acceso abandona Validando cuando Firebase no responde", () => {
+  assert.match(source, /async function esperarConLimite\(promise, timeoutMs, message\)/);
+  assert.match(source, /window\.DcarelaFirebase\.signIn\(email, password\),\s*12000,/);
+  assert.match(source, /finally \{\s*button\.disabled = false;\s*button\.textContent = "Entrar";/);
+});

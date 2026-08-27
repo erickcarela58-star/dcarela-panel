@@ -315,6 +315,18 @@
     return fallback;
   }
 
+  async function esperarConLimite(promise, timeoutMs, message) {
+    let timer;
+    const timeout = new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error(message)), timeoutMs);
+    });
+    try {
+      return await Promise.race([promise, timeout]);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
   const loaders = {
     dashboard: cargarDashboard,
     sucursales: cargarSucursales,
@@ -7179,7 +7191,11 @@
         }
 
         if (!window.DcarelaFirebase?.isAvailable) throw new Error("Firebase no está disponible. Recarga el panel e inténtalo de nuevo.");
-        const credential = await window.DcarelaFirebase.signIn(email, password);
+        const credential = await esperarConLimite(
+          window.DcarelaFirebase.signIn(email, password),
+          12000,
+          "Tiempo de espera agotado al autenticar."
+        );
         const firebaseSession = sesionFirebase(credential?.user);
         if (!firebaseSession) throw new Error("No se recibió una sesión válida de Firebase.");
         await iniciarConSesion(firebaseSession);

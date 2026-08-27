@@ -11,16 +11,22 @@ function memoryStorage() {
   };
 }
 
+function localDay() {
+  const now = new Date();
+  return new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+}
+
 function adapter(overrides = {}) {
   const remote = new Map();
+  const day = localDay();
   return {
     getCurrentUser: () => ({ uid: 'user-1', email: 'owner@example.test' }),
     getCollection: async path => [...remote.values()].filter(item => item.__path === path),
     setDocument: async (path, id, data) => { remote.set(id, { ...data, id, __path: path }); },
-    getSales: async () => [{ id: 'sale-1', vendidaEn: new Date().toISOString(), totalCobradoCentavos: 125000, status: 'closed' }],
-    getFinanceMovements: async () => [{ id: 'expense-1', fecha: new Date().toISOString().slice(0, 10), tipo: 'gasto', monto_centavos: 25000, descripcion: 'Comida' }],
+    getSales: async () => [{ id: 'sale-1', vendidaEn: `${day}T12:00:00`, totalCobradoCentavos: 125000, status: 'closed' }],
+    getFinanceMovements: async () => [{ id: 'expense-1', fecha: day, tipo: 'gasto', monto_centavos: 25000, descripcion: 'Comida' }],
     getFinanceAccounts: async () => [{ id: 'cash', nombre: 'Efectivo', tipo: 'efectivo', estado: 'activa', saldo_actual_centavos: 461500 }],
-    getCashShifts: async () => [{ id: 'shift-1', status: 'open', abiertoEn: new Date().toISOString(), cajaNombre: 'Caja web' }],
+    getCashShifts: async () => [{ id: 'shift-1', status: 'open', abiertoEn: `${day}T08:00:00`, cajaNombre: 'Caja web' }],
     getProducts: async () => [
       { id: 'p1', nombre: 'Producto correcto', activo: true, precioFinalCentavos: 5000, categoriaId: 'c1', stock: 8 },
       { id: 'p2', nombre: 'Producto sin precio', activo: true, precioFinalCentavos: 0, categoriaId: null, stock: -1 },
