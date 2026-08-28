@@ -1514,6 +1514,22 @@
     async adminAction(action, businessId, role, entityId = null, data = {}) {
       const ctx = await firebaseContext(businessId, role);
       return firebaseAdminAction(ctx, action, entityId, data);
+    },
+
+    async assistantRequest(body = {}) {
+      const user = auth?.currentUser;
+      if (!user) throw new Error('La sesion Firebase vencio. Inicia sesion nuevamente.');
+      const response = await fetch('https://crmapi-o2uqjp6fra-uc.a.run.app', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${await user.getIdToken()}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || result.ok === false) throw new Error(result.error || `Google IA no respondio (HTTP ${response.status}).`);
+      return result;
     }
   };
 

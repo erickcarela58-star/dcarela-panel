@@ -857,6 +857,7 @@
         role: memberRole,
         user: { id: session?.user?.id, uid: session?.user?.id, email: session?.user?.email || "" },
         storage: localStorage,
+        remoteAssistant: body => window.DcarelaFirebase.assistantRequest(body),
       }, data);
     }
     const response = await fetch(`${cfg.url.replace(/\/$/, "")}/functions/v1/pos-assistant`, {

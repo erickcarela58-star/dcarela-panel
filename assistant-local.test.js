@@ -91,6 +91,56 @@ test('una escritura financiera queda pendiente hasta aprobacion explicita', asyn
   assert.equal(history.actions[0].status, 'executed');
 });
 
+test('conserva los centavos y selecciona la tarjeta Qik indicada por el usuario', async () => {
+  const ctx = context(adapter({
+    getFinanceAccounts: async () => [
+      { id: 'cash', nombre: 'Efectivo', tipo: 'efectivo', estado: 'activa' },
+      { id: 'qik-card', nombre: 'Tarjeta de credito Qik', tipo: 'tarjeta_credito', estado: 'activa' },
+    ]
+  }));
+  const proposed = await assistant.request('chat', ctx, {
+    message: 'registra un gasto de 3712.63 en la tarjeta de credito qik con motivo de comida'
+  });
+  const action = proposed.conversation.actions[0];
+  assert.equal(action.payload.montoCentavos, 371263);
+  assert.equal(action.payload.cuentaId, 'qik-card');
+  assert.equal(action.payload.descripcion, 'comida');
+  assert.match(proposed.message.content, /RD\$3,712\.63/);
+  assert.match(proposed.message.content, /Tarjeta de credito Qik/);
+});
+
+test('una correccion cambia la cuenta de la propuesta pendiente sin desviarse a creditos', async () => {
+  const ctx = context(adapter({
+    getFinanceAccounts: async () => [
+      { id: 'cash', nombre: 'Efectivo', tipo: 'efectivo', estado: 'activa' },
+      { id: 'qik-card', nombre: 'Tarjeta de credito Qik', tipo: 'tarjeta_credito', estado: 'activa' },
+    ]
+  }));
+  const first = await assistant.request('chat', ctx, {
+    message: 'registra un gasto de 3712.63 en efectivo con motivo de comida'
+  });
+  const corrected = await assistant.request('chat', ctx, {
+    conversation_id: first.conversation.id,
+    message: 'no fue en efectivo. claramente fue con la tarjeta de credito qik'
+  });
+  assert.equal(corrected.conversation.actions.length, 1);
+  assert.equal(corrected.conversation.actions[0].payload.cuentaId, 'qik-card');
+  assert.equal(corrected.conversation.actions[0].payload.montoCentavos, 371263);
+  assert.match(corrected.message.content, /Corregi la propuesta pendiente/);
+  assert.doesNotMatch(corrected.message.content, /Creditos y clientes/);
+});
+
+test('ofrece Google cuando el servidor confirma la API y conserva el cerebro local', async () => {
+  const ctx = { ...context(), remoteAssistant: async body => body.action === 'assistantStatus'
+    ? { ok: true, configured: true }
+    : { ok: true, content: 'Respuesta real de Gemini.', effective_model: 'Google Gemini 2.5 Flash' } };
+  const status = await assistant.request('status', ctx);
+  assert.deepEqual(status.models.map(item => item.id), ['local-pos', 'google-gemini']);
+  const reply = await assistant.request('chat', ctx, { message: 'Hola, ayudame a planificar mi semana.', model: 'google-gemini' });
+  assert.equal(reply.message.content, 'Respuesta real de Gemini.');
+  assert.match(reply.effective_model, /Google Gemini/);
+});
+
 test('si Firestore no permite guardar, conserva el historial local sin pantalla en blanco', async () => {
   const offline = adapter({
     getCollection: async () => { throw new Error('offline'); },

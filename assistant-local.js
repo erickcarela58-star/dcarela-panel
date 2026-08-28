@@ -70,6 +70,7 @@
       businessId,
       role: text(raw.role || 'viewer', 40).toLowerCase(),
       storage: raw.storage || root?.localStorage || null,
+      remoteAssistant: typeof raw.remoteAssistant === 'function' ? raw.remoteAssistant : null,
     };
   }
 
@@ -288,32 +289,119 @@
     ).join('\n');
   }
 
+  function parseMoneyCents(raw) {
+    let value = String(raw || '').replace(/\s+/g, '').replace(/^(?:RD\$|DOP\$?)/i, '');
+    if (!/^\d[\d.,]*$/.test(value)) return null;
+    const lastComma = value.lastIndexOf(',');
+    const lastDot = value.lastIndexOf('.');
+    const separator = Math.max(lastComma, lastDot);
+    let integer = value;
+    let fraction = '';
+    if (separator >= 0) {
+      const tail = value.slice(separator + 1);
+      const separatorCount = (value.match(/[.,]/g) || []).length;
+      const decimal = tail.length >= 1 && tail.length <= 2;
+      if (decimal) {
+        integer = value.slice(0, separator).replace(/[.,]/g, '');
+        fraction = tail.padEnd(2, '0');
+      } else if (separatorCount >= 1) {
+        integer = value.replace(/[.,]/g, '');
+      }
+    }
+    const units = Number(integer || '0');
+    const cents = Number(fraction || '0');
+    if (!Number.isSafeInteger(units) || !Number.isInteger(cents)) return null;
+    const total = units * 100 + cents;
+    return Number.isSafeInteger(total) && total > 0 ? total : null;
+  }
+
+  function extractMoneyAmounts(prompt) {
+    return [...text(prompt).matchAll(/(?:RD\$\s*|DOP\s*)?(\d[\d.,]*)/gi)]
+      .map(match => ({ raw: match[0], index: match.index || 0, cents: parseMoneyCents(match[1]) }))
+      .filter(item => item.cents !== null);
+  }
+
+  function activeFinanceAccounts(rows) {
+    return (rows || []).filter(item => item.oculta !== true
+      && normalize(item.estado || 'activa') !== 'inactiva');
+  }
+
+  function accountScore(account, prompt) {
+    const query = normalize(prompt);
+    const name = normalize(account.nombre || account.name);
+    const kind = normalize(`${account.tipo || ''} ${account.subtipo || ''} ${name}`);
+    let score = 0;
+    for (const token of name.split(' ').filter(word => word.length >= 3)) {
+      if (query.split(' ').includes(token)) score += 8;
+    }
+    if (/\bqik\b/.test(query) && /\bqik\b/.test(name)) score += 100;
+    if (/\bpopular\b/.test(query) && /\bpopular\b/.test(name)) score += 100;
+    if (/tarjeta( de)? credito/.test(query) && /tarjeta|credito/.test(kind)) score += 35;
+    if (/cuenta corriente/.test(query) && /corriente/.test(kind)) score += 35;
+    if (/\befectivo\b|\bcaja\b/.test(query) && /efectivo|caja/.test(kind)) score += 35;
+    if (/transferencia/.test(query) && /banco|corriente|ahorro/.test(kind)) score += 15;
+    return score;
+  }
+
+  async function resolveExpenseAccount(ctx, prompt) {
+    const accounts = activeFinanceAccounts(await ctx.adapter.getFinanceAccounts(ctx.businessId));
+    const ranked = accounts.map(account => ({ account, score: accountScore(account, prompt) }))
+      .sort((a, b) => b.score - a.score);
+    if (ranked[0]?.score > 0 && ranked[0].score > (ranked[1]?.score || 0)) return ranked[0].account;
+    if (accounts.length === 1) return accounts[0];
+    return null;
+  }
+
+  function expenseDescription(prompt, amountRaw, account) {
+    const explicit = String(prompt).match(/(?:con\s+motivo\s+de|por\s+concepto\s+de|concepto\s*:?|motivo\s*:?)\s+(.+)$/i)
+      || String(prompt).match(/\bpor\s+(?!RD\$|DOP|\d)(.+)$/i);
+    if (explicit?.[1]) return text(explicit[1], 500).replace(/[.\s]+$/g, '').trim();
+    let cleaned = String(prompt).replace(amountRaw, ' ');
+    if (account?.nombre) cleaned = cleaned.replace(new RegExp(String(account.nombre).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'ig'), ' ');
+    return text(cleaned
+      .replace(/\b(registra(?:r)?|anota(?:r)?|un|una|gasto|de|en|hoy|pesos?|rd|dop|tarjeta|credito|cuenta|efectivo|con|motivo|concepto)\b/gi, ' ')
+      .replace(/\s+/g, ' '), 500).trim();
+  }
+
+  async function revisePendingExpense(ctx, prompt, conversation) {
+    const normalized = normalize(prompt);
+    if (!/no fue|fue (con|en)|cambia|corrige|correcto|realmente|tarjeta|cuenta/.test(normalized)) return null;
+    const action = [...(conversation?.actions || [])].reverse()
+      .find(item => item.status === 'pending' && item.action === 'fin.movement.create');
+    if (!action) return null;
+    const account = await resolveExpenseAccount(ctx, prompt);
+    if (!account) return null;
+    action.payload.cuentaId = account.id;
+    action.payload.cuentaNombre = text(account.nombre, 120);
+    action.summary = `Registrar gasto de ${money(action.payload.montoCentavos)} desde ${text(account.nombre, 120)}: ${text(action.payload.descripcion, 300)}`;
+    return {
+      content: `Corregi la propuesta pendiente: **${money(action.payload.montoCentavos)}** se registrara desde **${text(account.nombre, 120)}** por “${text(action.payload.descripcion, 300)}”. No se aplico ningun movimiento; revisa y pulsa Aplicar solo si ahora esta correcto.`,
+      action,
+      revised: true,
+    };
+  }
+
   async function buildExpenseProposal(ctx, prompt) {
     if (!roleAdmin(ctx.role)) return null;
     const normalized = normalize(prompt);
     if (!/registr(ar|a).*gasto|anota.*gasto/.test(normalized)) return null;
-    const amounts = [...text(prompt).matchAll(/(?:RD\$\s*)?(\d{1,3}(?:[.,]\d{3})+|\d+)(?:[.,](\d{1,2}))?/gi)]
-      .map(match => Number(String(match[1]).replace(/[.,](?=\d{3}(?:\D|$))/g, '').replace(',', '.')))
-      .filter(value => Number.isFinite(value) && value > 0);
+    const amounts = extractMoneyAmounts(prompt);
     if (amounts.length !== 1) return { message: 'Para registrar un gasto necesito **un solo monto**, una descripcion y la cuenta. Si son varios, los reviso como lote antes de proponer cambios.', action: null };
-    const accounts = (await ctx.adapter.getFinanceAccounts(ctx.businessId)).filter(item => {
-      const kind = normalize(`${item.tipo || ''} ${item.nombre || ''}`);
-      return item.oculta !== true && (kind.includes('efectivo') || kind.includes('caja'));
-    });
-    if (accounts.length !== 1) return { message: `Encontre ${accounts.length} cuentas de efectivo. Indica cual cuenta debe usarse antes de preparar el gasto.`, action: null };
-    const description = text(prompt.replace(/(?:RD\$\s*)?\d[\d.,]*/i, '').replace(/registr(ar|a)|anota|gasto|en efectivo|hoy/gi, ' '), 500).replace(/\s+/g, ' ').trim();
+    const account = await resolveExpenseAccount(ctx, prompt);
+    if (!account) return { message: 'No pude identificar una sola cuenta. Indica el nombre exacto, por ejemplo **Efectivo**, **Popular** o **Tarjeta de credito Qik**, antes de preparar el gasto.', action: null };
+    const description = expenseDescription(prompt, amounts[0].raw, account);
     if (description.length < 3) return { message: 'Indica el concepto del gasto antes de registrarlo.', action: null };
-    const amountCents = Math.round(amounts[0] * 100);
+    const amountCents = amounts[0].cents;
     const id = uuid();
     return {
-      message: `Prepare una propuesta reversible antes de aplicar: **${money(amountCents)}** desde **${text(accounts[0].nombre, 100)}** por “${description}”. Revisa y pulsa Aplicar solo si los datos son correctos.`,
+      message: `Prepare una propuesta reversible antes de aplicar: **${money(amountCents)}** desde **${text(account.nombre, 100)}** por “${description}”. Revisa y pulsa Aplicar solo si los datos son correctos.`,
       action: sanitizeAction({
         id, action: 'fin.movement.create', status: 'pending', risk_level: 'high',
         required_capability: 'can_manage_finance', requires_admin_approval: true,
         reversible: false,
-        summary: `Registrar gasto de ${money(amountCents)}: ${description}`,
+        summary: `Registrar gasto de ${money(amountCents)} desde ${text(account.nombre, 120)}: ${description}`,
         payload: {
-          cuentaId: accounts[0].id, tipo: 'gasto', montoCentavos: amountCents,
+          cuentaId: account.id, cuentaNombre: text(account.nombre, 120), tipo: 'gasto', montoCentavos: amountCents,
           fecha: today(), descripcion: description, nota: 'Propuesto por cerebro local; aprobado manualmente.',
           conciliado: false, afectaResultado: true,
         }
@@ -321,8 +409,10 @@
     };
   }
 
-  async function answer(ctx, prompt) {
+  async function answer(ctx, prompt, conversation = null, data = {}) {
     const query = normalize(prompt);
+    const revised = await revisePendingExpense(ctx, prompt, conversation);
+    if (revised) return revised;
     const proposal = await buildExpenseProposal(ctx, prompt);
     if (proposal) return { content: proposal.message, action: proposal.action };
     if (/consumo.*api|api.*consumo|que motor|motor.*usas|modulos.*consult|que.*puedes/.test(query)) {
@@ -340,6 +430,11 @@
     if (/cliente|credito|deud|cuenta por cobrar/.test(query)) return { content: await auditClients(ctx) };
     if (/caja|turno|corte|arqueo|efectivo esperado/.test(query)) return { content: await auditCash(ctx) };
     if (/pion|motor|gasto|pago|movimiento|factura/.test(query)) return { content: await searchFinance(ctx, prompt) };
+    if (data.model && data.model !== 'local-pos' && ctx.remoteAssistant) {
+      const recent = (conversation?.messages || []).slice(-8).map(item => ({ role: item.role, content: text(item.content, 1800) }));
+      const remote = await ctx.remoteAssistant({ action: 'assistantGenerate', message: prompt, model: data.model, history: recent });
+      if (remote?.content) return { content: text(remote.content), effectiveModel: text(remote.effective_model, 120) || 'Google Gemini' };
+    }
     return {
       content: 'Estoy funcionando con el **cerebro local del POS**, sin depender de una API generativa. Puedo consultar ventas, gastos, cuentas, clientes, creditos, inventario, caja y turnos con datos reales. Para escribir, preparo una propuesta y exijo aprobacion antes de afectar Finanzas.',
     };
@@ -349,11 +444,15 @@
     const ctx = ensureContext(rawContext);
     const all = await readConversations(ctx);
     if (mode === 'status') {
+      let remote = null;
+      try { remote = ctx.remoteAssistant ? await ctx.remoteAssistant({ action: 'assistantStatus' }) : null; } catch {}
+      const models = [{ id: 'local-pos', label: 'Cerebro local POS', level: 'Sin consumo de API' }];
+      if (remote?.configured) models.push({ id: 'google-gemini', label: 'Google Gemini', level: 'API protegida del servidor' });
       return {
         ok: true, configured: true, local_engine: true,
         role: ctx.role, full_admin_access: roleAdmin(ctx.role),
         capabilities: capabilities(ctx.role), providers_down: {}, claves: {},
-        models: [{ id: 'local-pos', label: 'Cerebro local POS', level: 'Sin consumo de API' }],
+        models,
         active_documents: [{
           id: 'local-pos-contract', name: 'Reglas operativas POS 1.0.54',
           kind: 'system_rules', version: '1.0.54', active: true, persisted: true,
@@ -387,8 +486,8 @@
         role: 'user', content: text(data.message) || 'Analiza los archivos adjuntos.',
         metadata: { attachments: data.attachments || [] }
       });
-      const response = await answer(ctx, userMessage.content);
-      if (response.action) conversation.actions.push(response.action);
+      const response = await answer(ctx, userMessage.content, conversation, data);
+      if (response.action && !response.revised) conversation.actions.push(response.action);
       const assistantMessage = sanitizeMessage({
         role: 'assistant', content: response.content,
         metadata: {
@@ -403,7 +502,7 @@
       conversation.messages = conversation.messages.slice(-MAX_MESSAGES);
       if (conversation.title === 'Nueva conversacion') conversation.title = text(userMessage.content, 70);
       conversation = await saveConversation(ctx, conversation);
-      return { ok: true, conversation, message: assistantMessage, effective_model: 'Cerebro local POS · Firebase' };
+      return { ok: true, conversation, message: assistantMessage, effective_model: response.effectiveModel || 'Cerebro local POS · Firebase' };
     }
     if (mode === 'pending_approvals') {
       return { ok: true, actions: all.flatMap(item => item.actions || []).filter(item => item.status === 'pending') };
@@ -442,5 +541,5 @@
     throw new Error(`Operacion del asistente local no admitida: ${mode}.`);
   }
 
-  return { request, _test: { normalize, money, answer, sanitizeConversation, readLocal, writeLocal } };
+  return { request, _test: { normalize, money, parseMoneyCents, answer, sanitizeConversation, readLocal, writeLocal } };
 });
