@@ -184,3 +184,68 @@ test('la consulta financiera ignora instrucciones de solo lectura y encuentra el
   assert.match(result.message.content, /RD\$2,500\.00/);
   assert.doesNotMatch(result.message.content, /No encontre|No pude completar/i);
 });
+
+test('una correccion sin nombrar la tarjeta usa la unica cuenta que queda viva', async () => {
+  const ctx = context(adapter({
+    getFinanceAccounts: async () => [
+      { id: 'cash', nombre: 'Efectivo', tipo: 'efectivo', estado: 'activa' },
+      { id: 'qik-card', nombre: 'Tarjeta de credito Qik', tipo: 'tarjeta_credito', estado: 'activa' },
+    ]
+  }));
+  const first = await assistant.request('chat', ctx, {
+    message: 'registra un gasto de 3712.63 en efectivo con motivo de comida'
+  });
+  const corrected = await assistant.request('chat', ctx, {
+    conversation_id: first.conversation.id,
+    message: 'no fue en efectivo. claramente fue con la tarjeta de credito'
+  });
+  assert.equal(corrected.conversation.actions.length, 1);
+  assert.equal(corrected.conversation.actions[0].payload.cuentaId, 'qik-card');
+  assert.equal(corrected.conversation.actions[0].payload.montoCentavos, 371263);
+  assert.doesNotMatch(corrected.message.content, /Creditos y clientes/);
+});
+
+test('con varias tarjetas la correccion ambigua pregunta y jamas conserva la cuenta negada', async () => {
+  const ctx = context(adapter({
+    getFinanceAccounts: async () => [
+      { id: 'cash', nombre: 'Efectivo', tipo: 'efectivo', estado: 'activa' },
+      { id: 'qik-card', nombre: 'Tarjeta de credito Qik', tipo: 'tarjeta_credito', estado: 'activa' },
+      { id: 'visa-card', nombre: 'Tarjeta de credito Visa Popular', tipo: 'tarjeta_credito', estado: 'activa' },
+    ]
+  }));
+  const first = await assistant.request('chat', ctx, {
+    message: 'registra un gasto de 3712.63 en efectivo con motivo de comida'
+  });
+  const corrected = await assistant.request('chat', ctx, {
+    conversation_id: first.conversation.id,
+    message: 'no fue en efectivo. claramente fue con la tarjeta de credito'
+  });
+  const pending = corrected.conversation.actions[0];
+  assert.equal(corrected.conversation.actions.length, 1);
+  assert.equal(pending.status, 'pending');
+  assert.equal(pending.payload.cuentaId, 'cash');
+  assert.match(corrected.message.content, /no era la cuenta correcta/);
+  assert.match(corrected.message.content, /pendiente y sin aplicar/);
+  assert.match(corrected.message.content, /Tarjeta de credito Qik/);
+  assert.doesNotMatch(corrected.message.content, /Creditos y clientes/);
+});
+
+test('una negacion sin alternativa nunca reconfirma la cuenta rechazada', async () => {
+  const ctx = context(adapter({
+    getFinanceAccounts: async () => [
+      { id: 'cash', nombre: 'Efectivo', tipo: 'efectivo', estado: 'activa' },
+      { id: 'qik-card', nombre: 'Tarjeta de credito Qik', tipo: 'tarjeta_credito', estado: 'activa' },
+      { id: 'visa-card', nombre: 'Tarjeta de credito Visa Popular', tipo: 'tarjeta_credito', estado: 'activa' },
+    ]
+  }));
+  const first = await assistant.request('chat', ctx, {
+    message: 'registra un gasto de 3712.63 en efectivo con motivo de comida'
+  });
+  const corrected = await assistant.request('chat', ctx, {
+    conversation_id: first.conversation.id,
+    message: 'no fue efectivo'
+  });
+  assert.equal(corrected.conversation.actions[0].payload.cuentaId, 'cash');
+  assert.equal(corrected.conversation.actions[0].status, 'pending');
+  assert.match(corrected.message.content, /Dime el nombre exacto de la cuenta/);
+});

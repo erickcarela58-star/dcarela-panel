@@ -363,14 +363,49 @@
       .replace(/\s+/g, ' '), 500).trim();
   }
 
+  // Separa una correccion en lo que el usuario NIEGA y lo que AFIRMA.
+  // "no fue en efectivo. claramente fue con la tarjeta de credito" ->
+  // negada: "efectivo" · afirmada: "claramente fue con la tarjeta de credito".
+  function splitCorrection(prompt) {
+    const raw = String(prompt ?? '');
+    const matches = [...raw.matchAll(/\bno\s+(?:fue|es|era|iba)\s+(?:en\s+|con\s+(?:la\s+|el\s+)?|de\s+|desde\s+)?([^.,;]+)/gi)];
+    let affirmed = raw;
+    for (const match of matches) affirmed = affirmed.replace(match[0], ' ');
+    return {
+      negated: matches.map(match => match[1].trim()).filter(Boolean).join(' '),
+      affirmed: affirmed.replace(/\s+/g, ' ').trim(),
+    };
+  }
+
   async function revisePendingExpense(ctx, prompt, conversation) {
     const normalized = normalize(prompt);
-    if (!/no fue|fue (con|en)|cambia|corrige|correcto|realmente|tarjeta|cuenta/.test(normalized)) return null;
+    if (!/no fue|no es|fue (con|en)|cambia|corrige|correcto|realmente|tarjeta|cuenta/.test(normalized)) return null;
     const action = [...(conversation?.actions || [])].reverse()
       .find(item => item.status === 'pending' && item.action === 'fin.movement.create');
     if (!action) return null;
-    const account = await resolveExpenseAccount(ctx, prompt);
-    if (!account) return null;
+    const accounts = activeFinanceAccounts(await ctx.adapter.getFinanceAccounts(ctx.businessId));
+    const { negated, affirmed } = splitCorrection(prompt);
+    // Una cuenta negada por el usuario nunca puede volver a ganar el ranking.
+    const rejected = new Set(negated
+      ? accounts.filter(item => accountScore(item, negated) > 0).map(item => item.id)
+      : []);
+    const candidates = accounts.filter(item => !rejected.has(item.id));
+    const ranked = candidates.map(item => ({ account: item, score: accountScore(item, affirmed) }))
+      .sort((a, b) => b.score - a.score);
+    let account = null;
+    if (ranked[0]?.score > 0 && ranked[0].score > (ranked[1]?.score || 0)) account = ranked[0].account;
+    else if (candidates.length === 1) account = candidates[0];
+    if (!account) {
+      // Si la cuenta negada es justo la de la propuesta, no se puede dejar como
+      // estaba ni adivinar: se pregunta y el gasto sigue pendiente sin aplicar.
+      if (!rejected.has(action.payload.cuentaId)) return null;
+      const options = candidates.slice(0, 6).map(item => text(item.nombre, 60)).filter(Boolean);
+      return {
+        content: `Entendi que **${text(action.payload.cuentaNombre || 'esa cuenta', 120)}** no era la cuenta correcta, pero no puedo deducir cual es sin ambiguedad. La propuesta sigue **pendiente y sin aplicar**. Dime el nombre exacto de la cuenta${options.length ? `, por ejemplo: ${options.map(name => `**${name}**`).join(', ')}` : ''}.`,
+        action: null,
+        revised: true,
+      };
+    }
     action.payload.cuentaId = account.id;
     action.payload.cuentaNombre = text(account.nombre, 120);
     action.summary = `Registrar gasto de ${money(action.payload.montoCentavos)} desde ${text(account.nombre, 120)}: ${text(action.payload.descripcion, 300)}`;

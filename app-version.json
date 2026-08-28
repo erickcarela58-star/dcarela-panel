@@ -1,15 +1,15 @@
 {
   "schema": 1,
-  "build": "2026.08.27.1.0.60.0",
+  "build": "2026.08.28.1.0.60.2",
   "web_version": "1.0.50",
   "pwa_version": "1.0.50",
   "desktop_version": "1.0.60",
   "ios_version": "5.1.4",
   "ios_build": "486",
   "ios_release_url": "https://github.com/erickcarela58-star/dcarela-panel/releases/download/ios-20260823-final-5.1.4-6.2.1/Brujula-5.1.4-486-AltStore.ipa",
-  "published_at": "2026-08-27T23:35:00Z",
+  "published_at": "2026-08-28T07:40:00Z",
   "channel": "stable",
-  "notes": "Panel web y PWA: manifiesto estable para POS 1.0.60, asistente financiero local corregido, consultas Firebase acotadas y registro actualizado de CRM y SaleAds. Conserva historial, estetica y datos comerciales.",
+  "notes": "Panel web y PWA: el asistente ya no conserva una cuenta que el dueno rechazo; si la correccion es ambigua pregunta y deja el gasto pendiente sin aplicar, conservando centavos y concepto.",
   "release_page_url": "https://panel.dcarelacompufoto.com/#descargar",
   "desktop_release": {
     "version": "1.0.60",
