@@ -17,3 +17,18 @@ test('la lectura financiera conserva fallback parcial y deduplica por id', () =>
   assert.match(adapter, /merged\.set\(item\.id, item\)/);
   assert.match(adapter, /partial_error/);
 });
+
+test('los movimientos creados en web publican un evento idempotente al ledger global', () => {
+  const createStart = adapter.indexOf("if (action === 'fin.movement.create')");
+  const publishStart = adapter.indexOf("if (action === 'fin.movement.publish')", createStart);
+  const transferStart = adapter.indexOf("if (action === 'fin.transfer.create')", publishStart);
+  const create = adapter.slice(createStart, publishStart);
+  const publish = adapter.slice(publishStart, transferStart);
+  assert.match(create, /eventId = `ledger-\$\{movementId\}`/);
+  assert.match(create, /'LedgerMovimientoRegistrado'/);
+  assert.match(create, /sync_event_id: eventId/);
+  assert.match(create, /transaction\.set\(eventRef, eventDocument/);
+  assert.match(publish, /eventId = `ledger-\$\{id\}`/);
+  assert.match(publish, /if \(eventDoc\.exists\)/);
+  assert.match(publish, /Movimiento enviado al ledger global/);
+});

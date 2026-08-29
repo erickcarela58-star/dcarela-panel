@@ -347,6 +347,25 @@
     return amount;
   };
 
+  function financeLedgerPayload(movement, account = {}, category = {}) {
+    return {
+      ledgerId: movement.id,
+      tipo: text(movement.tipo, 40).toUpperCase(),
+      categoriaId: movement.categoria_id || null,
+      categoria: text(category.nombre, 120) || '',
+      descripcion: text(movement.descripcion, 500),
+      importeDopCentavos: Number(movement.monto_centavos || 0),
+      monedaOriginal: 'DOP',
+      estado: movement.estado || 'registrado',
+      fechaEfectiva: movement.fecha || movement.created_at,
+      cuentaId: movement.cuenta_id || null,
+      cuentaNombre: text(account.nombre, 120) || '',
+      payee: text(movement.payee, 180) || null,
+      observaciones: text(movement.nota, 1200) || '',
+      origen: 'panel',
+    };
+  }
+
   async function firebaseAdminAction(ctx, action, entityId, data) {
     if (!['owner', 'admin'].includes(ctx.role)) throw new Error('Tu cuenta no tiene permiso de administracion.');
     const d = ctx.d;
@@ -591,23 +610,68 @@
       const accountRef = d.collection('fin_accounts').doc(accountId);
       const movementId = text(entityId, 160) || uuid();
       const movementRef = d.collection('fin_movements').doc(movementId);
+      const eventId = `ledger-${movementId}`;
+      const eventRef = d.collection('sync_events').doc(eventId);
+      const categoryId = text(data.categoriaId, 160) || null;
+      const categoryRef = categoryId ? d.collection('fin_categories').doc(categoryId) : null;
       await d.runTransaction(async transaction => {
-        const accountDoc = await transaction.get(accountRef);
+        const [accountDoc, categoryDoc] = await Promise.all([
+          transaction.get(accountRef),
+          categoryRef ? transaction.get(categoryRef) : Promise.resolve(null),
+        ]);
         if (!accountDoc.exists || accountDoc.data().business_id !== ctx.businessId) throw new Error('La cuenta financiera no existe.');
+        if (categoryRef && (!categoryDoc?.exists || categoryDoc.data().business_id !== ctx.businessId)) throw new Error('La categoria financiera no existe.');
         const current = Number(accountDoc.data().saldo_actual_centavos ?? accountDoc.data().saldo_inicial_centavos ?? 0);
-        transaction.set(movementRef, {
+        const movement = {
+          id: movementId,
           business_id: ctx.businessId, tipo: type, fecha: text(data.fecha, 10) || createdAt.slice(0, 10),
           hora: createdAt.slice(11, 19), monto_centavos: amount, cuenta_id: accountId,
-          categoria_id: text(data.categoriaId, 160) || null, payee: text(data.payee, 180) || null,
+          categoria_id: categoryId, payee: text(data.payee, 180) || null,
           descripcion: text(data.descripcion, 500) || type, nota: text(data.nota, 1200) || null,
           referencia: text(data.referencia, 180) || null, origen: 'panel', estado: 'registrado',
           conciliado: data.conciliado === true, afecta_resultado: data.afectaResultado !== false,
           saldo_anterior_centavos: current, saldo_resultante_centavos: current + signed,
-          created_at: createdAt, updated_at: createdAt, ...actor
-        });
+          sync_event_id: eventId, created_at: createdAt, updated_at: createdAt, ...actor
+        };
+        transaction.set(movementRef, movement);
+        transaction.set(eventRef, eventDocument(ctx, eventId, 'LedgerMovimientoRegistrado',
+          'fin_movements', movementId, financeLedgerPayload(movement, accountDoc.data(), categoryDoc?.data()), createdAt));
         transaction.update(accountRef, { saldo_actual_centavos: current + signed, updated_at: createdAt });
       });
-      return { ok: true, id: movementId, message: 'Movimiento financiero registrado.' };
+      return { ok: true, id: movementId, event: { id: eventId, entity_id: movementId },
+        message: 'Movimiento financiero registrado y enviado a sincronizacion.' };
+    }
+
+    if (action === 'fin.movement.publish') {
+      const id = text(entityId, 160);
+      if (!id) throw new Error('Selecciona el movimiento que deseas sincronizar.');
+      const movementRef = d.collection('fin_movements').doc(id);
+      const eventId = `ledger-${id}`;
+      const eventRef = d.collection('sync_events').doc(eventId);
+      let alreadyPublished = false;
+      await d.runTransaction(async transaction => {
+        const [movementDoc, eventDoc] = await Promise.all([transaction.get(movementRef), transaction.get(eventRef)]);
+        if (!movementDoc.exists || movementDoc.data().business_id !== ctx.businessId) throw new Error('El movimiento no existe.');
+        const movement = { id, ...movementDoc.data() };
+        if (movement.estado === 'anulado') throw new Error('No se puede publicar un movimiento anulado.');
+        if (eventDoc.exists) {
+          alreadyPublished = true;
+          if (!movement.sync_event_id) transaction.update(movementRef, { sync_event_id: eventId, updated_at: createdAt });
+          return;
+        }
+        const accountRef = d.collection('fin_accounts').doc(movement.cuenta_id);
+        const categoryRef = movement.categoria_id ? d.collection('fin_categories').doc(movement.categoria_id) : null;
+        const [accountDoc, categoryDoc] = await Promise.all([
+          transaction.get(accountRef),
+          categoryRef ? transaction.get(categoryRef) : Promise.resolve(null),
+        ]);
+        if (!accountDoc.exists || accountDoc.data().business_id !== ctx.businessId) throw new Error('La cuenta financiera no existe.');
+        transaction.set(eventRef, eventDocument(ctx, eventId, 'LedgerMovimientoRegistrado',
+          'fin_movements', id, financeLedgerPayload(movement, accountDoc.data(), categoryDoc?.data()), createdAt));
+        transaction.update(movementRef, { sync_event_id: eventId, updated_at: createdAt });
+      });
+      return { ok: true, id, event: { id: eventId, entity_id: id }, deduplicated: alreadyPublished,
+        message: alreadyPublished ? 'El movimiento ya estaba sincronizado.' : 'Movimiento enviado al ledger global.' };
     }
 
     if (action === 'fin.transfer.create') {
@@ -995,7 +1059,7 @@
       return d.collection(collectionName).doc(docId).delete();
     },
 
-    listenCollection(collectionName, conditions = [], callback) {
+    listenCollection(collectionName, conditions = [], callback, options = {}) {
       const { db: d } = initFirebase();
       if (!d) return () => {};
       let q = d.collection(collectionName);
@@ -1004,6 +1068,10 @@
           q = q.where(cond[0], cond[1], cond[2]);
         }
       }
+      if (Array.isArray(options.orderBy) && options.orderBy[0]) {
+        q = q.orderBy(options.orderBy[0], options.orderBy[1] === 'asc' ? 'asc' : 'desc');
+      }
+      if (Number(options.limit) > 0) q = q.limit(Math.max(1, Math.min(500, Number(options.limit))));
       return q.onSnapshot(snap => {
         const items = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         callback(items);
@@ -1229,12 +1297,20 @@
           moneda: payload.monedaOriginal || 'DOP',
           estado: payload.estado || 'confirmado',
           fecha: payload.fechaEfectiva || event.created_at_local || event.received_at_cloud || '',
+          cuenta_id: payload.cuentaId || payload.cuenta_id || null,
+          categoria_id: payload.categoriaId || payload.categoria_id || null,
+          payee: payload.payee || null,
+          nota: payload.observaciones || '',
+          origen: payload.origen || 'pos',
+          sync_event_id: event.event_id || event.id,
           observaciones: payload.observaciones || '',
           source: 'pos_sync_event'
         };
       }) : [];
       const merged = new Map();
-      [...rows, ...ledgerRows].forEach(item => merged.set(item.id, item));
+      // La proyeccion materializada conserva los campos completos del panel;
+      // el evento cubre movimientos que solo existen en el POS Windows.
+      [...ledgerRows, ...rows].forEach(item => merged.set(item.id, item));
       const filtered = month ? [...merged.values()].filter(item => String(item.fecha || '').startsWith(`${month}-`)) : [...merged.values()];
       if (financeResult.status === 'rejected' && ledgerResult.status === 'rejected') {
         throw financeResult.reason;

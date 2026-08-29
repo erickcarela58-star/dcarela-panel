@@ -68,6 +68,37 @@ test('resumen y auditorias usan exclusivamente datos entregados por Firebase', a
   assert.match(stock.message.content, /Stock negativo: \*\*1\*\*/);
 });
 
+test('el resumen integra las ventas Windows del ledger y excluye sus anulaciones', async () => {
+  const day = localDay();
+  const ctx = context(adapter({
+    getSales: async () => [],
+    getSyncEvents: async (_businessId, options) => {
+      assert.match(options.from, new RegExp(`^${day}T`));
+      assert.ok(new Date(options.to).getTime() > new Date(options.from).getTime());
+      assert.equal(options.limit, 2000);
+      return [
+        { event_id: 'event-1', entity_id: 'sale-1', event_type: 'VentaCobrada', created_at_local: `${day}T10:00:00`, payload: { ventaId: 'sale-1', totalCobradoCentavos: 15000 } },
+        { event_id: 'event-2', entity_id: 'sale-2', event_type: 'VentaCobrada', created_at_local: `${day}T11:00:00`, payload: { ventaId: 'sale-2', totalCobradoCentavos: 25000 } },
+        { event_id: 'event-3', entity_id: 'sale-2', event_type: 'VentaCancelada', created_at_local: `${day}T12:00:00`, payload: { ventaId: 'sale-2' } },
+      ];
+    },
+  }));
+  const summary = await assistant.request('chat', ctx, { message: 'Dame el resumen de ventas de hoy.' });
+  assert.match(summary.message.content, /Ventas confirmadas: \*\*1\*\*/);
+  assert.match(summary.message.content, /RD\$\s?150\.00/);
+  assert.doesNotMatch(summary.message.content, /consulta de ventas parcial/i);
+});
+
+test('el resumen advierte cuando no puede verificar el ledger POS Windows', async () => {
+  const ctx = context(adapter({
+    getSales: async () => [],
+    getSyncEvents: async () => { throw new Error('offline'); },
+  }));
+  const summary = await assistant.request('chat', ctx, { message: 'Dame el resumen de ventas de hoy.' });
+  assert.match(summary.message.content, /consulta de ventas parcial/i);
+  assert.match(summary.message.content, /ledger POS Windows/i);
+});
+
 test('explica el motor local y el flujo seguro de varias ordenes sin confundirlos con gastos', async () => {
   const ctx = context();
   const engine = await assistant.request('chat', ctx, { message: 'Que motor usas, cuanto consumo de API y que modulos puedes consultar?' });

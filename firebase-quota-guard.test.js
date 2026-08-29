@@ -53,3 +53,12 @@ test('el cierre de caja limita sus eventos al turno abierto', () => {
   assert.match(method, /from: shift\.abiertoEn \|\| shift\.opened_at/);
   assert.match(method, /limit: 1600/);
 });
+
+test('el listener en vivo solo observa eventos recientes y no interrumpe formularios', () => {
+  assert.match(adapter, /listenCollection\(collectionName, conditions = \[\], callback, options = \{\}\)/);
+  assert.match(adapter, /Math\.min\(500, Number\(options\.limit\)\)/);
+  assert.match(panel, /orderBy: \["received_at_cloud", "desc"\], limit: 80/);
+  assert.match(panel, /function liveRefreshBlocked\(\)/);
+  assert.match(panel, /editorOpen \|\| saleOpen \|\| editing/);
+  assert.match(panel, /if \(!syncListenerReady\) \{ syncListenerReady = true; return; \}/);
+});

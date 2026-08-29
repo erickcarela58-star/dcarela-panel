@@ -21,7 +21,7 @@
     document.body?.classList.add("is-embedded");
   }
   const THEME_KEY = "dcarela.ui.theme";
-  const APP_BUILD = "1.0.50";
+  const APP_BUILD = "1.0.51";
 
   window.cargarFinanzas = async function(force = false) {
     try {
@@ -902,6 +902,7 @@
     "fin.account.reconcile": "Conciliar saldo de cuenta",
     "fin.category.upsert": "Guardar categoria financiera",
     "fin.movement.create": "Registrar movimiento financiero",
+    "fin.movement.publish": "Sincronizar movimiento financiero",
     "fin.movement.cancel": "Anular movimiento financiero",
     "fin.movement.restore": "Restaurar movimiento financiero",
     "fin.transfer.create": "Registrar transferencia",
@@ -5462,14 +5463,26 @@
         ? `${movement.descripcion || movement.payee || ""} (comision ${money(movement.comision_centavos)})`
         : movement.descripcion || movement.payee || "Sin descripcion";
       const canCancel = canEdit && ["panel", "asistente", "movil"].includes(movement.origen);
+      const canPublish = canEdit && movement.origen === "panel" && movement.estado !== "anulado" && !movement.sync_event_id;
+      const actions = `${canPublish ? `<button class="mini" data-fin-publish="${esc(movement.id)}" title="Enviar al ledger global">Sincronizar</button>` : ""}${canCancel ? `<button class="mini danger" data-fin-cancel="${esc(movement.id)}" title="Anular sin borrar historial">Anular</button>` : ""}`;
       return [esc(dateOnly(movement.fecha)), typeText, accountText, esc(categories.get(movement.categoria_id) || "--"),
         `<span class="cost-name">${esc(detail)}</span><small class="cost-sub">${esc(movement.nota || movement.venta_folio ? `${movement.nota || ""}${movement.venta_folio ? ` Folio #${movement.venta_folio}` : ""}` : movement.origen || "")}</small>`,
         `<span class="amount ${expense ? "neg" : movement.tipo === "ingreso" ? "pos" : ""}">${sign}${money(movement.monto_centavos)}</span>`,
-        canCancel ? `<button class="mini danger" data-fin-cancel="${esc(movement.id)}" title="Anular sin borrar historial">Anular</button>` : ""];
+        actions ? `<div class="row-actions">${actions}</div>` : ""];
     }, headers);
     $("finMovimientosTabla").querySelectorAll("[data-fin-cancel]").forEach(button => button.addEventListener("click", () => {
       const movement = state.movements.find(item => item.id === button.dataset.finCancel);
       if (movement) confirmarAnularMovimientoFin(movement);
+    }));
+    $("finMovimientosTabla").querySelectorAll("[data-fin-publish]").forEach(button => button.addEventListener("click", async () => {
+      button.disabled = true;
+      try {
+        await adminWrite("fin.movement.publish", button.dataset.finPublish, {});
+        await cargarProveedores(true);
+      } catch (error) {
+        button.disabled = false;
+        toast(error?.message || String(error));
+      }
     }));
   }
 
@@ -6936,28 +6949,46 @@
     doc.save(`DCARELA_RECALCULO_${data.desde}_${data.hasta}.pdf`);
   }
 
+  function liveRefreshBlocked() {
+    const editorOpen = $("editorOverlay") && !$("editorOverlay").classList.contains("oculto");
+    const saleOpen = $("saleOverlay") && !$("saleOverlay").classList.contains("oculto");
+    const active = document.activeElement;
+    const editing = active && active !== document.body
+      && active.matches?.("input, textarea, select, [contenteditable]:not([contenteditable='false'])");
+    return Boolean(editorOpen || saleOpen || editing);
+  }
+
   function scheduleLiveRefresh() {
     clearTimeout(liveRefreshTimer);
-    liveRefreshTimer = setTimeout(() => {
+    const refreshWhenIdle = () => {
+      if (liveRefreshBlocked()) {
+        liveRefreshTimer = setTimeout(refreshWhenIdle, 1200);
+        return;
+      }
       const view = location.hash.slice(1) || "dashboard";
       if (view === "dashboard") cargarDashboard().catch(() => {});
       if (view === "notificaciones") cargarNotificaciones().catch(() => {});
       if (["ventas", "caja-virtual", "caja", "turnos", "recalcular", "reportes", "inventario", "clientes", "finanzas", "asistente", "configuracion"].includes(view)) loaders[view]?.().catch(() => {});
-    }, 700);
+    };
+    liveRefreshTimer = setTimeout(refreshWhenIdle, 1200);
   }
 
   function conectarRealtime() {
     if (authProvider === "firebase") {
       if (typeof liveChannel === "function") liveChannel();
+      let syncListenerReady = false;
+      let alertsListenerReady = false;
       const unsubscribers = [
         window.DcarelaFirebase.listenCollection("sync_events", [["business_id", "==", BUSINESS]], items => {
+          if (!syncListenerReady) { syncListenerReady = true; return; }
           const newest = items.sort((a, b) => String(b.received_at_cloud || b.created_at_local || "").localeCompare(String(a.received_at_cloud || a.created_at_local || "")))[0];
           if (newest?.event_type === "VentaCancelada") cancelCache.at = 0;
           if (newest && COST_EVENTS.includes(newest.event_type)) costStateCache = null;
           alertasCache = null;
           scheduleLiveRefresh();
-        }),
+        }, { orderBy: ["received_at_cloud", "desc"], limit: 80 }),
         window.DcarelaFirebase.listenCollection("system_alerts", [["business_id", "==", BUSINESS]], () => {
+          if (!alertsListenerReady) { alertsListenerReady = true; return; }
           alertasCache = null;
           obtenerAlertas(true).then(renderAlertPreview).catch(() => {});
           scheduleLiveRefresh();

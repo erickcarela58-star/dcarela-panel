@@ -6,9 +6,9 @@
   <meta name="theme-color" content="#09090b">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <meta name="apple-mobile-web-app-title" content="D' Carela POS 1.0.50">
-  <meta name="description" content="Panel web POS 1.0.50 de D' Carela Compufoto con operación responsive, cerebro local y Caja virtual completa.">
-  <title>D' Carela Compufoto | Panel POS 1.0.50</title>
+  <meta name="apple-mobile-web-app-title" content="D' Carela POS 1.0.51">
+  <meta name="description" content="Panel web POS 1.0.51 de D' Carela Compufoto con operación responsive, cerebro local y Caja virtual completa.">
+  <title>D' Carela Compufoto | Panel POS 1.0.51</title>
   <script>
     (() => {
       const panelParams = new URLSearchParams(location.search);
@@ -31,9 +31,9 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="favicon.svg">
   <link rel="apple-touch-icon" href="dcarela-logo.png">
-  <link rel="stylesheet" href="panel.css?v=2026.08.28.1.0.60.2">
-  <link rel="stylesheet" href="panel-theme.css?v=2026.08.28.1.0.60.2">
-  <link rel="stylesheet" href="visual-fidelity.css?v=2026.08.28.1.0.60.2">
+  <link rel="stylesheet" href="panel.css?v=2026.08.28.1.0.60.3">
+  <link rel="stylesheet" href="panel-theme.css?v=2026.08.28.1.0.60.3">
+  <link rel="stylesheet" href="visual-fidelity.css?v=2026.08.28.1.0.60.3">
 </head>
 <body>
   <section id="access" class="access-shell">
@@ -81,7 +81,7 @@
     <aside class="sidebar">
       <div class="brand">
         <img src="dcarela-logo.png" alt="" class="brand-logo">
-        <div><strong>D' Carela Compufoto</strong><span>Punto de Venta 1.0.50</span></div>
+        <div><strong>D' Carela Compufoto</strong><span>Punto de Venta 1.0.51</span></div>
       </div>
       <nav id="menu" aria-label="Navegacion principal">
         <a href="#dashboard" data-title="Resumen operativo">Resumen</a>
@@ -112,7 +112,7 @@
     <div class="workspace">
       <header class="topbar">
         <button id="btnVolver" class="topbar-back" type="button" title="Volver" aria-label="Volver">&#8592;</button>
-        <div class="topbar-title"><p class="eyebrow" id="branchEyebrow">D' Carela POS 1.0.50</p><h1 id="pageTitle">Resumen operativo</h1></div>
+        <div class="topbar-title"><p class="eyebrow" id="branchEyebrow">D' Carela POS 1.0.51</p><h1 id="pageTitle">Resumen operativo</h1></div>
         <div class="top-actions">
           <label class="branch-switcher" for="branchSelector">
             <span>Sucursal</span>
@@ -469,7 +469,7 @@
             <section class="surface"><div class="surface-title"><div><h3>Preferencias</h3><p>Moneda, cuentas predeterminadas y periodo de inicio.</p></div></div><form id="finSettingsForm" class="form-grid"><label><span>Moneda principal</span><select id="finPrefCurrency" name="monedaPrincipal"></select></label><label><span>Periodo inicial</span><select id="finPrefPeriod" name="periodoDashboard"><option value="dia">Dia</option><option value="semana">Semana</option><option value="mes">Mes</option></select></label><label><span>Cuenta habitual para gastos</span><select id="finPrefExpenseAccount" name="cuentaGastoDefaultId"></select></label><label><span>Cuenta habitual para ingresos</span><select id="finPrefIncomeAccount" name="cuentaIngresoDefaultId"></select></label><div class="field-wide button-row"><button type="submit" class="primary admin-only oculto">Guardar preferencias</button></div></form></section>
             <section class="surface"><div class="surface-title"><div><h3>Categorias</h3><p>Estructura padre e hijo para ingresos y gastos.</p></div><button id="btnNuevaCategoriaGasto" class="secondary admin-only oculto">Agregar categoria</button></div><div id="finCategoriasTabla" class="table-wrap"></div></section>
             <section class="surface"><div class="surface-title"><div><h3>Divisas</h3><p>Tasas manuales respecto a la moneda principal.</p></div><button id="btnFinNuevaDivisa" class="secondary admin-only oculto">Agregar divisa</button></div><div id="finDivisasTabla" class="table-wrap"></div></section>
-            <section class="surface"><div class="surface-title"><div><h3>Respaldo y portabilidad</h3><p>Supabase guarda el libro. Tambien puedes descargar o compartir una copia compatible con iCloud Drive y Google Drive.</p></div></div><div class="button-row"><button id="btnFinBackupSettings" class="primary">Descargar / compartir copia</button><button id="btnFinRestorePreview" class="secondary">Validar archivo</button><input id="finRestoreFile" class="visually-hidden" type="file" accept="application/json,.json"></div><p id="finBackupStatus" class="field-hint">La restauracion nunca se ejecuta sin una revision previa.</p></section>
+            <section class="surface"><div class="surface-title"><div><h3>Respaldo y portabilidad</h3><p>Firebase guarda el libro. Tambien puedes descargar o compartir una copia compatible con iCloud Drive y Google Drive.</p></div></div><div class="button-row"><button id="btnFinBackupSettings" class="primary">Descargar / compartir copia</button><button id="btnFinRestorePreview" class="secondary">Validar archivo</button><input id="finRestoreFile" class="visually-hidden" type="file" accept="application/json,.json"></div><p id="finBackupStatus" class="field-hint">La restauracion nunca se ejecuta sin una revision previa.</p></section>
           </section>
         </section>
 
@@ -1052,14 +1052,14 @@
   <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
-  <script src="firebase-adapter.js?v=2026.08.28.1.0.60.2"></script>
-  <script src="assistant-local.js?v=2026.08.28.1.0.60.2"></script>
+  <script src="firebase-adapter.js?v=2026.08.28.1.0.60.3"></script>
+  <script src="assistant-local.js?v=2026.08.28.1.0.60.3"></script>
   <script src="jspdf.umd.min.js"></script>
   <script src="jspdf.plugin.autotable.min.js"></script>
-  <script src="ticket-termico.js?v=2026.08.28.1.0.60.2"></script>
-  <script src="panel-sale-pending.js?v=2026.08.28.1.0.60.2"></script>
-  <script src="panel.js?v=2026.08.28.1.0.60.2"></script>
-  <script src="visual-fidelity.js?v=2026.08.28.1.0.60.2"></script>
+  <script src="ticket-termico.js?v=2026.08.28.1.0.60.3"></script>
+  <script src="panel-sale-pending.js?v=2026.08.28.1.0.60.3"></script>
+  <script src="panel.js?v=2026.08.28.1.0.60.3"></script>
+  <script src="visual-fidelity.js?v=2026.08.28.1.0.60.3"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));

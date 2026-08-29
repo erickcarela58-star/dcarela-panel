@@ -193,6 +193,9 @@
     sale?.totalCalculadoCentavos, sale?.total_centavos, sale?.total
   );
   const saleDate = sale => dayOf(sale?.vendidaEn || sale?.created_at || sale?.created_at_local);
+  const saleKeys = sale => [
+    sale?.id, sale?.ventaId, sale?.venta_id, sale?.saleId, sale?.sale_id, sale?.entity_id,
+  ].filter(Boolean).map(value => normalize(value));
   const movementAmount = item => number(
     item?.monto_centavos, item?.montoCentavos,
     item?.importe_dop_centavos, item?.importeDopCentavos,
@@ -202,14 +205,38 @@
   const isExpense = item => ['gasto', 'egreso', 'salida', 'ajuste_negativo'].includes(normalize(item?.tipo));
 
   async function loadSummary(ctx, requestedDay = today()) {
+    const start = new Date(`${requestedDay}T00:00:00`);
+    const end = new Date(`${requestedDay}T23:59:59.999`);
+    const canReadLedger = typeof ctx.adapter.getSyncEvents === 'function';
     const settled = await Promise.allSettled([
       ctx.adapter.getSales(ctx.businessId, 2000),
       ctx.adapter.getFinanceMovements(ctx.businessId),
       ctx.adapter.getFinanceAccounts(ctx.businessId),
       ctx.adapter.getCashShifts(ctx.businessId, 80),
+      canReadLedger ? ctx.adapter.getSyncEvents(ctx.businessId, {
+        from: start.toISOString(), to: end.toISOString(), limit: 2000,
+      }) : Promise.resolve(null),
     ]);
     const value = index => settled[index].status === 'fulfilled' ? (settled[index].value || []) : [];
-    const sales = value(0).filter(item => saleDate(item) === requestedDay && normalize(item.status) !== 'cancelled');
+    const directSales = value(0);
+    const syncEvents = Array.isArray(value(4)) ? value(4) : [];
+    const cancelled = new Set(syncEvents.filter(item => item?.event_type === 'VentaCancelada')
+      .flatMap(item => saleKeys({ ...(item.payload || {}), entity_id: item.entity_id })));
+    const mergedSales = new Map();
+    directSales.forEach(item => mergedSales.set(saleKeys(item)[0] || `direct:${mergedSales.size}`, item));
+    syncEvents.filter(item => item?.event_type === 'VentaCobrada').forEach(event => {
+      const item = {
+        ...(event.payload || {}),
+        id: event.entity_id || event.payload?.ventaId || event.payload?.id || event.event_id || event.id,
+        created_at_local: event.created_at_local || event.received_at_cloud,
+        source_event_id: event.event_id || event.id,
+        status: 'closed',
+      };
+      mergedSales.set(saleKeys(item)[0] || `event:${item.source_event_id}`, item);
+    });
+    const sales = [...mergedSales.values()].filter(item => saleDate(item) === requestedDay
+      && !['cancelled', 'anulado'].includes(normalize(item.status))
+      && !saleKeys(item).some(key => cancelled.has(key)));
     const financeRows = value(1);
     const expenses = financeRows.filter(item => movementDate(item) === requestedDay && isExpense(item) && normalize(item.estado) !== 'anulado');
     const accounts = value(2).filter(item => item.oculta !== true && normalize(item.estado || 'activa') !== 'inactiva');
@@ -223,6 +250,7 @@
       + `- Gastos registrados: **${expenses.length}** por **${money(expenseCents)}**.\n`
       + `- Saldo visible en ${accounts.length} cuenta(s): **${money(accountCents)}**.\n`
       + `- Caja web: **${openShift ? 'turno abierto' : 'sin turno abierto'}**.\n`
+      + (canReadLedger && settled[4].status === 'rejected' ? '- Advertencia: **consulta de ventas parcial**; Firebase no entregó el ledger POS Windows.\n' : '')
       + (financeRows.partial_error ? '- Advertencia: **consulta financiera parcial**; Firebase no entregó el ledger Windows.\n' : '')
       + '\n'
       + 'Los valores provienen de Firebase y no incluyen datos inventados ni estimaciones.';

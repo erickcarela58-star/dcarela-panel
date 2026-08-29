@@ -131,4 +131,5 @@ test("panel.html vincula firebase-config y firebase-adapter", () => {
   assert.match(panelHtml, /id="btnTemaAcceso"/);
   assert.match(panelJs, /on\("btnTemaAcceso", "click", cambiarTema\)/);
   assert.match(fs.readFileSync(path.join(root, "panel-theme.css"), "utf8"), /html\.is-embedded \.auth-theme-toggle \{ display: none; \}/);
+  assert.doesNotMatch(panelHtml, /Supabase guarda el libro/);
 });
