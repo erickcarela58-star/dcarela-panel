@@ -649,27 +649,37 @@
       const eventId = `ledger-${id}`;
       const eventRef = d.collection('sync_events').doc(eventId);
       let alreadyPublished = false;
-      await d.runTransaction(async transaction => {
-        const [movementDoc, eventDoc] = await Promise.all([transaction.get(movementRef), transaction.get(eventRef)]);
-        if (!movementDoc.exists || movementDoc.data().business_id !== ctx.businessId) throw new Error('El movimiento no existe.');
-        const movement = { id, ...movementDoc.data() };
-        if (movement.estado === 'anulado') throw new Error('No se puede publicar un movimiento anulado.');
-        if (eventDoc.exists) {
+      try {
+        await d.runTransaction(async transaction => {
+          // Las reglas no permiten leer un sync_event inexistente. Se intenta
+          // crearlo de forma inmutable y solo se consulta tras un conflicto.
+          const movementDoc = await transaction.get(movementRef);
+          if (!movementDoc.exists || movementDoc.data().business_id !== ctx.businessId) throw new Error('El movimiento no existe.');
+          const movement = { id, ...movementDoc.data() };
+          if (movement.estado === 'anulado') throw new Error('No se puede publicar un movimiento anulado.');
+          const accountRef = d.collection('fin_accounts').doc(movement.cuenta_id);
+          const categoryRef = movement.categoria_id ? d.collection('fin_categories').doc(movement.categoria_id) : null;
+          const [accountDoc, categoryDoc] = await Promise.all([
+            transaction.get(accountRef),
+            categoryRef ? transaction.get(categoryRef) : Promise.resolve(null),
+          ]);
+          if (!accountDoc.exists || accountDoc.data().business_id !== ctx.businessId) throw new Error('La cuenta financiera no existe.');
+          transaction.set(eventRef, eventDocument(ctx, eventId, 'LedgerMovimientoRegistrado',
+            'fin_movements', id, financeLedgerPayload(movement, accountDoc.data(), categoryDoc?.data()), createdAt));
+          transaction.update(movementRef, { sync_event_id: eventId, updated_at: createdAt });
+        });
+      } catch (error) {
+        let existing = null;
+        try { existing = await eventRef.get(); } catch { /* conserva el error original */ }
+        const row = existing?.exists ? existing.data() : null;
+        if (row?.business_id === ctx.businessId && row.event_type === 'LedgerMovimientoRegistrado'
+          && String(row.entity_id || row.payload?.ledgerId || '') === id) {
           alreadyPublished = true;
-          if (!movement.sync_event_id) transaction.update(movementRef, { sync_event_id: eventId, updated_at: createdAt });
-          return;
+          await movementRef.set({ sync_event_id: eventId, updated_at: createdAt }, { merge: true });
+        } else {
+          throw error;
         }
-        const accountRef = d.collection('fin_accounts').doc(movement.cuenta_id);
-        const categoryRef = movement.categoria_id ? d.collection('fin_categories').doc(movement.categoria_id) : null;
-        const [accountDoc, categoryDoc] = await Promise.all([
-          transaction.get(accountRef),
-          categoryRef ? transaction.get(categoryRef) : Promise.resolve(null),
-        ]);
-        if (!accountDoc.exists || accountDoc.data().business_id !== ctx.businessId) throw new Error('La cuenta financiera no existe.');
-        transaction.set(eventRef, eventDocument(ctx, eventId, 'LedgerMovimientoRegistrado',
-          'fin_movements', id, financeLedgerPayload(movement, accountDoc.data(), categoryDoc?.data()), createdAt));
-        transaction.update(movementRef, { sync_event_id: eventId, updated_at: createdAt });
-      });
+      }
       return { ok: true, id, event: { id: eventId, entity_id: id }, deduplicated: alreadyPublished,
         message: alreadyPublished ? 'El movimiento ya estaba sincronizado.' : 'Movimiento enviado al ledger global.' };
     }

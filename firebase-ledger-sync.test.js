@@ -29,6 +29,8 @@ test('los movimientos creados en web publican un evento idempotente al ledger gl
   assert.match(create, /sync_event_id: eventId/);
   assert.match(create, /transaction\.set\(eventRef, eventDocument/);
   assert.match(publish, /eventId = `ledger-\$\{id\}`/);
-  assert.match(publish, /if \(eventDoc\.exists\)/);
+  assert.doesNotMatch(publish, /transaction\.get\(eventRef\)/);
+  assert.match(publish, /existing = await eventRef\.get\(\)/);
+  assert.match(publish, /row\.event_type === 'LedgerMovimientoRegistrado'/);
   assert.match(publish, /Movimiento enviado al ledger global/);
 });
