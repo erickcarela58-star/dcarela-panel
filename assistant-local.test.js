@@ -11,6 +11,13 @@ function memoryStorage() {
   };
 }
 
+function quotaStorage() {
+  return {
+    getItem: () => null,
+    setItem: () => { throw new Error('QuotaExceededError'); },
+  };
+}
+
 function localDay() {
   const now = new Date();
   return new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
@@ -140,6 +147,55 @@ test('conserva los centavos y selecciona la tarjeta Qik indicada por el usuario'
   assert.match(proposed.message.content, /Tarjeta de credito Qik/);
 });
 
+test('convierte una conciliacion larga en un lote financiero completo y revisable', async () => {
+  const executed = [];
+  const ctx = context(adapter({
+    getFinanceAccounts: async () => [
+      { id: 'cash', nombre: 'Efectivo', tipo: 'efectivo', estado: 'activa' },
+      { id: 'popular', nombre: 'Banco Popular', tipo: 'banco', estado: 'activa' },
+      { id: 'qik-card', nombre: 'Tarjeta de credito Qik', tipo: 'tarjeta_credito', estado: 'activa' },
+      { id: 'current', nombre: 'Cuenta corriente', tipo: 'cuenta_corriente', estado: 'activa' },
+    ],
+    getFinanceCards: async () => [{ cuenta_id: 'qik-card', limite_credito_centavos: 1000000 }],
+    adminAction: async (action, businessId, role, entityId, payload) => {
+      executed.push({ action, businessId, role, entityId, payload });
+      return { ok: true, message: 'Aplicado.' };
+    },
+  }));
+  const message = 'gaste en efectivo las siguientes cantidades>>> 260 en cafe, 500 en comida, 500 en pasaje para comida y todos los gastos del mes, solo quedando pendiente el viajante. pague las vacaciones de genesis que en total hicieron 9,900 pesos. pague la nomina pendiente de 8500. pague la luz edeeste de 4755.53. el internet wind telecom de 2981.05. transferi 3mil pesos a la cuenta del popular, de el dinero transferido y ventas abone 5mil pesos a la tarjeta de credito qik desde el popular. he realizado multiples gastos pero esta es la conciliacion total de mis cuentas> en el banco popular 3,329.13. en efectivo tengo la cantidad de 12,820. en qik tengo la suma de 5814.09 disponible en la tarjeta de credito, en la cuenta corriente tengo 33.83.';
+  const proposed = await assistant.request('chat', ctx, { message });
+  const actions = proposed.conversation.actions;
+  assert.equal(actions.length, 13);
+  assert.match(proposed.message.content, /13 propuestas pendientes/i);
+  assert.match(proposed.message.content, /No aplique ningun movimiento/i);
+
+  const expenses = actions.filter(item => item.action === 'fin.movement.create');
+  assert.equal(expenses.length, 7);
+  assert.deepEqual(expenses.map(item => item.payload.montoCentavos), [26000, 50000, 50000, 990000, 850000, 475553, 298105]);
+  assert.ok(expenses.some(item => /Internet Wind Telecom/i.test(item.payload.descripcion)));
+
+  const transfer = actions.find(item => item.action === 'fin.transfer.create');
+  assert.equal(transfer.payload.montoCentavos, 300000);
+  assert.equal(transfer.payload.cuentaOrigenId, 'cash');
+  assert.equal(transfer.payload.cuentaDestinoId, 'popular');
+  const cardPayment = actions.find(item => item.action === 'fin.card.payment');
+  assert.equal(cardPayment.payload.montoCentavos, 500000);
+  assert.equal(cardPayment.payload.cuentaOrigenId, 'popular');
+  assert.equal(cardPayment.payload.cuentaDestinoId, 'qik-card');
+
+  const reconciliations = actions.filter(item => item.action === 'fin.account.reconcile');
+  assert.equal(reconciliations.length, 4);
+  assert.equal(reconciliations.find(item => item.payload.cuentaId === 'popular').payload.saldoObjetivoCentavos, 332913);
+  assert.equal(reconciliations.find(item => item.payload.cuentaId === 'cash').payload.saldoObjetivoCentavos, 1282000);
+  assert.equal(reconciliations.find(item => item.payload.cuentaId === 'qik-card').payload.saldoObjetivoCentavos, -418591);
+  assert.equal(reconciliations.find(item => item.payload.cuentaId === 'current').payload.saldoObjetivoCentavos, 3383);
+
+  await assistant.request('confirm_action', ctx, { action_id: transfer.id });
+  assert.equal(executed.length, 1);
+  assert.equal(executed[0].action, 'fin.transfer.create');
+  assert.equal(executed[0].payload.montoCentavos, 300000);
+});
+
 test('una correccion cambia la cuenta de la propuesta pendiente sin desviarse a creditos', async () => {
   const ctx = context(adapter({
     getFinanceAccounts: async () => [
@@ -172,6 +228,21 @@ test('ofrece Google cuando el servidor confirma la API y conserva el cerebro loc
   assert.match(reply.effective_model, /Google Gemini/);
 });
 
+test('si Gemini agota cuota informa la caida y responde con el cerebro local', async () => {
+  const ctx = { ...context(), remoteAssistant: async () => {
+    throw new Error('RESOURCE_EXHAUSTED: quota exceeded');
+  } };
+  const status = await assistant.request('status', ctx);
+  assert.deepEqual(status.models.map(item => item.id), ['local-pos']);
+  assert.match(status.providers_down.google, /limite temporal/i);
+  const reply = await assistant.request('chat', ctx, {
+    message: 'Hola, ayudame a planificar mi semana.', model: 'google-gemini'
+  });
+  assert.match(reply.message.content, /Google Gemini alcanzo su limite temporal/i);
+  assert.match(reply.message.content, /Puedo seguir trabajando localmente/i);
+  assert.match(reply.effective_model, /Cerebro local POS/i);
+});
+
 test('si Firestore no permite guardar, conserva el historial local sin pantalla en blanco', async () => {
   const offline = adapter({
     getCollection: async () => { throw new Error('offline'); },
@@ -182,6 +253,23 @@ test('si Firestore no permite guardar, conserva el historial local sin pantalla 
   assert.match(result.message.content, /Cliente real/);
   const conversations = await assistant.request('conversations', ctx);
   assert.equal(conversations.conversations.length, 1);
+});
+
+test('si localStorage agota cuota, la memoria mantiene chats nuevos separados y actuales', async () => {
+  const offline = adapter({
+    getCollection: async () => { throw new Error('offline'); },
+    setDocument: async () => { throw new Error('offline'); },
+  });
+  const ctx = { ...context(offline), storage: quotaStorage() };
+  const first = await assistant.request('chat', ctx, { message: 'Primer chat independiente.' });
+  const second = await assistant.request('chat', ctx, { message: 'Segundo chat independiente.' });
+  assert.notEqual(first.conversation.id, second.conversation.id);
+  const conversations = await assistant.request('conversations', ctx);
+  assert.equal(conversations.conversations.length, 2);
+  const firstHistory = await assistant.request('history', ctx, { conversation_id: first.conversation.id });
+  const secondHistory = await assistant.request('history', ctx, { conversation_id: second.conversation.id });
+  assert.match(firstHistory.messages[0].content, /Primer chat/);
+  assert.match(secondHistory.messages[0].content, /Segundo chat/);
 });
 
 test('una cuota agotada se informa como consulta parcial y no como dato inexistente', async () => {

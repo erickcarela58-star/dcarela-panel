@@ -15,6 +15,7 @@
   'use strict';
 
   const MEMORY = new Map();
+  const STORAGE_MEMORY = new WeakMap();
   const MAX_CONVERSATIONS = 80;
   const MAX_MESSAGES = 160;
   const MAX_CONTENT = 16000;
@@ -82,6 +83,25 @@
     return `assistant_users/${ctx.user.uid}/conversations`;
   }
 
+  function memoryBucket(ctx) {
+    if (ctx.storage && (typeof ctx.storage === 'object' || typeof ctx.storage === 'function')) {
+      if (!STORAGE_MEMORY.has(ctx.storage)) STORAGE_MEMORY.set(ctx.storage, new Map());
+      return STORAGE_MEMORY.get(ctx.storage);
+    }
+    return MEMORY;
+  }
+
+  function preferConversation(current, candidate) {
+    if (!current) return candidate;
+    const currentUpdated = String(current.updated_at || '');
+    const candidateUpdated = String(candidate.updated_at || '');
+    if (candidateUpdated > currentUpdated) return candidate;
+    if (candidateUpdated < currentUpdated) return current;
+    const currentWeight = (current.messages?.length || 0) * 100 + (current.actions?.length || 0);
+    const candidateWeight = (candidate.messages?.length || 0) * 100 + (candidate.actions?.length || 0);
+    return candidateWeight > currentWeight ? candidate : current;
+  }
+
   function sanitizeMessage(message) {
     const metadata = message?.metadata && typeof message.metadata === 'object'
       ? { ...message.metadata } : {};
@@ -136,15 +156,21 @@
 
   function readLocal(ctx) {
     const key = storageKey(ctx);
-    if (!ctx.storage && MEMORY.has(key)) return MEMORY.get(key);
-    let parsed = [];
+    const bucket = memoryBucket(ctx);
+    const memory = bucket.get(key) || [];
+    let stored = [];
     try {
       const raw = ctx.storage?.getItem?.(key);
       const value = raw ? JSON.parse(raw) : [];
-      if (Array.isArray(value)) parsed = value.map(item => sanitizeConversation(item, ctx));
+      if (Array.isArray(value)) stored = value.map(item => sanitizeConversation(item, ctx));
     } catch {}
-    if (!ctx.storage) MEMORY.set(key, parsed);
-    return parsed;
+    const merged = new Map(stored.map(item => [item.id, item]));
+    memory.forEach(item => merged.set(item.id, preferConversation(merged.get(item.id), item)));
+    const conversations = [...merged.values()]
+      .sort((a, b) => String(b.updated_at).localeCompare(String(a.updated_at)))
+      .slice(0, MAX_CONVERSATIONS);
+    bucket.set(key, conversations);
+    return conversations;
   }
 
   function writeLocal(ctx, conversations) {
@@ -152,7 +178,7 @@
       .map(item => sanitizeConversation(item, ctx))
       .sort((a, b) => String(b.updated_at).localeCompare(String(a.updated_at)))
       .slice(0, MAX_CONVERSATIONS);
-    if (!ctx.storage) MEMORY.set(storageKey(ctx), clean);
+    memoryBucket(ctx).set(storageKey(ctx), clean);
     try { ctx.storage?.setItem?.(storageKey(ctx), JSON.stringify(clean)); } catch {}
     return clean;
   }
@@ -167,7 +193,7 @@
         .forEach(item => {
           const clean = sanitizeConversation(item, ctx);
           const previous = merged.get(clean.id);
-          if (!previous || String(clean.updated_at) >= String(previous.updated_at)) merged.set(clean.id, clean);
+          merged.set(clean.id, preferConversation(previous, clean));
         });
       return writeLocal(ctx, [...merged.values()]);
     } catch {
@@ -318,7 +344,8 @@
   }
 
   function parseMoneyCents(raw) {
-    let value = String(raw || '').replace(/\s+/g, '').replace(/^(?:RD\$|DOP\$?)/i, '');
+    let value = String(raw || '').replace(/\s+/g, '').replace(/^(?:RD\$|DOP\$?)/i, '')
+      .replace(/[.,]+$/g, '');
     if (!/^\d[\d.,]*$/.test(value)) return null;
     const lastComma = value.lastIndexOf(',');
     const lastDot = value.lastIndexOf('.');
@@ -344,14 +371,29 @@
   }
 
   function extractMoneyAmounts(prompt) {
-    return [...text(prompt).matchAll(/(?:RD\$\s*|DOP\s*)?(\d[\d.,]*)/gi)]
-      .map(match => ({ raw: match[0], index: match.index || 0, cents: parseMoneyCents(match[1]) }))
+    return [...text(prompt).matchAll(/(?:RD\$\s*|DOP\s*)?(\d[\d.,]*)(?:\s*(mil))?/gi)]
+      .map(match => {
+        const base = parseMoneyCents(match[1]);
+        const cents = base !== null && match[2] ? base * 1000 : base;
+        return { raw: match[0], index: match.index || 0, cents };
+      })
       .filter(item => item.cents !== null);
+  }
+
+  function parseMoneyExpression(raw) {
+    return extractMoneyAmounts(raw)[0]?.cents ?? null;
   }
 
   function activeFinanceAccounts(rows) {
     return (rows || []).filter(item => item.oculta !== true
       && normalize(item.estado || 'activa') !== 'inactiva');
+  }
+
+  function resolveNamedAccount(accounts, hint) {
+    const ranked = accounts.map(account => ({ account, score: accountScore(account, hint) }))
+      .sort((a, b) => b.score - a.score);
+    if (ranked[0]?.score > 0 && ranked[0].score > (ranked[1]?.score || 0)) return ranked[0].account;
+    return null;
   }
 
   function accountScore(account, prompt) {
@@ -472,8 +514,189 @@
     };
   }
 
+  function pendingFinanceAction(action, summary, payload) {
+    return sanitizeAction({
+      id: uuid(), action, summary, status: 'pending', risk_level: 'high',
+      required_capability: 'can_manage_finance', requires_admin_approval: true,
+      reversible: false, payload,
+    });
+  }
+
+  function cleanBatchDescription(value) {
+    const cleaned = text(value, 300)
+      .replace(/\s+y\s+todos\s+los\s+gastos[\s\S]*$/i, '')
+      .replace(/^[\s:>,-]+|[\s:>,-]+$/g, '')
+      .replace(/\s+/g, ' ');
+    return cleaned ? cleaned.charAt(0).toUpperCase() + cleaned.slice(1) : '';
+  }
+
+  async function buildFinanceBatchProposal(ctx, prompt) {
+    if (!roleAdmin(ctx.role)) return null;
+    const raw = String(prompt || '');
+    const query = normalize(raw);
+    const amounts = extractMoneyAmounts(raw);
+    if (amounts.length < 2 || !/(gaste|pague|transferi|abone|conciliacion|multiples gastos)/.test(query)) return null;
+    if (/solo consulta|no registres|no crear|no apliques/.test(query)) return null;
+
+    const accounts = activeFinanceAccounts(await ctx.adapter.getFinanceAccounts(ctx.businessId));
+    const cash = resolveNamedAccount(accounts, 'efectivo caja');
+    const actions = [];
+    const warnings = [];
+    const seenExpenses = new Set();
+    let inferredCash = false;
+
+    const addExpense = (description, amountCents, account = cash, inferred = false) => {
+      const concept = cleanBatchDescription(description);
+      const key = `${normalize(concept)}:${amountCents}`;
+      if (!concept || !amountCents || seenExpenses.has(key)) return;
+      if (!account) {
+        warnings.push(`No pude identificar la cuenta del gasto **${concept}** por **${money(amountCents)}**.`);
+        return;
+      }
+      seenExpenses.add(key);
+      inferredCash = inferredCash || inferred;
+      actions.push(pendingFinanceAction(
+        'fin.movement.create',
+        `Registrar gasto de ${money(amountCents)} desde ${text(account.nombre, 120)}: ${concept}`,
+        {
+          cuentaId: account.id, cuentaNombre: text(account.nombre, 120), tipo: 'gasto',
+          montoCentavos: amountCents, fecha: today(), descripcion: concept,
+          nota: 'Propuesto como parte de un lote por el cerebro local; requiere aprobacion individual.',
+          conciliado: false, afectaResultado: true,
+        }
+      ));
+    };
+
+    const cashBlock = raw.match(/gast(?:e|\u00e9)\s+en\s+efectivo[\s\S]*?(?=(?:[.;]\s*pag(?:ue|u\u00e9))|$)/i)?.[0] || '';
+    for (const match of cashBlock.matchAll(/(\d[\d.,]*(?:\s*mil)?)\s*(?:pesos?)?\s+en\s+([^,.;]+)/gi)) {
+      addExpense(match[2], parseMoneyExpression(match[1]), cash, false);
+    }
+
+    const clauses = raw.split(/[.;](?=\s|$)|\n+/).map(value => value.trim()).filter(Boolean);
+    for (const clause of clauses) {
+      const paid = /^pag(?:ue|u\u00e9)\b/i.test(clause);
+      const continuedUtility = /^(?:el|la)\s+(?:internet|luz)\b/i.test(clause);
+      if (!paid && !continuedUtility) continue;
+      const clauseAmounts = extractMoneyAmounts(clause);
+      const amount = clauseAmounts[clauseAmounts.length - 1];
+      if (!amount) continue;
+      let description = clause.slice(0, amount.index)
+        .replace(/^pag(?:ue|u\u00e9)\s+/i, '')
+        .replace(/\s+(?:que\s+en\s+total\s+(?:hicieron|fueron)|por\s+(?:un\s+)?total\s+de|de)\s*$/i, '');
+      addExpense(description, amount.cents, cash, true);
+    }
+
+    const transfer = raw.match(/transfer(?:i|\u00ed)\s+(\d[\d.,]*(?:\s*mil)?)\s*(?:pesos?)?\s+a\s+(?:la\s+)?cuenta\s+(?:del?|de\s+la)?\s*([^,.;]+)/i);
+    if (transfer) {
+      const amountCents = parseMoneyExpression(transfer[1]);
+      const target = resolveNamedAccount(accounts, transfer[2]);
+      if (cash && target && cash.id !== target.id && amountCents) {
+        inferredCash = true;
+        actions.push(pendingFinanceAction(
+          'fin.transfer.create',
+          `Transferir ${money(amountCents)} de ${text(cash.nombre, 120)} a ${text(target.nombre, 120)}`,
+          {
+            cuentaOrigenId: cash.id, cuentaDestinoId: target.id, montoCentavos: amountCents,
+            comisionCentavos: 0, fecha: today(), descripcion: `Transferencia a ${text(target.nombre, 120)}`,
+            nota: 'Propuesta por el cerebro local; requiere aprobacion individual.',
+          }
+        ));
+      } else {
+        warnings.push('No pude identificar con seguridad las dos cuentas de la transferencia al Popular.');
+      }
+    }
+
+    const cardPayment = raw.match(/abon(?:e|\u00e9)\s+(\d[\d.,]*(?:\s*mil)?)\s*(?:pesos?)?\s+a\s+(?:la\s+)?tarjeta(?:\s+de\s+credito)?\s+(.+?)\s+desde\s+(?:el|la)?\s*([^,.;]+)/i);
+    if (cardPayment) {
+      const amountCents = parseMoneyExpression(cardPayment[1]);
+      const target = resolveNamedAccount(accounts, cardPayment[2]);
+      const source = resolveNamedAccount(accounts, cardPayment[3]);
+      if (source && target && source.id !== target.id && amountCents) {
+        actions.push(pendingFinanceAction(
+          'fin.card.payment',
+          `Pagar ${money(amountCents)} a ${text(target.nombre, 120)} desde ${text(source.nombre, 120)}`,
+          {
+            cuentaOrigenId: source.id, cuentaDestinoId: target.id, montoCentavos: amountCents,
+            fecha: today(), nota: `Pago a ${text(target.nombre, 120)} propuesto por el cerebro local.`,
+          }
+        ));
+      } else {
+        warnings.push('No pude identificar con seguridad la cuenta Popular y la tarjeta Qik para el abono.');
+      }
+    }
+
+    const reconciliation = raw.match(/conciliaci(?:on|\u00f3n)\s+total[\s\S]*$/i)?.[0] || '';
+    const reconciliationPatterns = [
+      { hint: 'banco popular', label: 'Banco Popular', regex: /\ben\s+(?:el\s+)?banco\s+popular\s+(\d[\d.,]*(?:\s*mil)?)/i },
+      { hint: 'efectivo caja', label: 'Efectivo', regex: /\ben\s+efectivo(?:\s+tengo)?(?:\s+la\s+cantidad\s+de)?\s+(\d[\d.,]*(?:\s*mil)?)/i },
+      { hint: 'tarjeta de credito qik', label: 'Qik', creditAvailable: true, regex: /\ben\s+qik(?:\s+tengo)?(?:\s+la\s+suma\s+de)?\s+(\d[\d.,]*(?:\s*mil)?)/i },
+      { hint: 'cuenta corriente', label: 'Cuenta corriente', regex: /\ben\s+(?:la\s+)?cuenta\s+corriente(?:\s+tengo)?\s+(\d[\d.,]*(?:\s*mil)?)/i },
+    ];
+    const reconciled = new Set();
+    let cards = [];
+    if (reconciliation && typeof ctx.adapter.getFinanceCards === 'function') {
+      try { cards = await ctx.adapter.getFinanceCards(ctx.businessId); } catch {}
+    }
+    for (const item of reconciliationPatterns) {
+      const match = reconciliation.match(item.regex);
+      if (!match) continue;
+      const account = resolveNamedAccount(accounts, item.hint);
+      let targetCents = parseMoneyExpression(match[1]);
+      if (!account || targetCents === null) {
+        warnings.push(`No pude identificar la cuenta de conciliacion **${item.label}**.`);
+        continue;
+      }
+      if (item.creditAvailable) {
+        const nearby = reconciliation.slice(match.index || 0, (match.index || 0) + 140);
+        const card = (cards || []).find(value => String(value.cuenta_id || value.cuentaId) === String(account.id));
+        const limit = number(card?.limite_credito_centavos, card?.limiteCreditoCentavos);
+        if (!/disponible/i.test(nearby) || limit <= 0 || targetCents > limit) {
+          warnings.push('Qik fue expresado como credito disponible; falta un limite de tarjeta valido para convertirlo en deuda y conciliar sin falsear el saldo.');
+          continue;
+        }
+        targetCents -= limit;
+      }
+      if (reconciled.has(account.id)) {
+        warnings.push(`La cuenta **${text(account.nombre, 120)}** aparece con mas de un saldo; no prepare una conciliacion duplicada.`);
+        continue;
+      }
+      reconciled.add(account.id);
+      actions.push(pendingFinanceAction(
+        'fin.account.reconcile',
+        `Conciliar ${text(account.nombre, 120)} a ${money(targetCents)}`,
+        {
+          cuentaId: account.id, cuentaNombre: text(account.nombre, 120), saldoObjetivoCentavos: targetCents,
+          fecha: today(), motivo: 'Conciliacion total informada al asistente; requiere aprobacion individual.',
+        }
+      ));
+    }
+
+    if (!actions.length && !warnings.length) return null;
+    const lines = actions.map((action, index) => `${index + 1}. ${action.summary}`).join('\n');
+    const warningText = [
+      ...(inferredCash ? ['Tome **Efectivo** como origen de los pagos sin cuenta explicita y de la transferencia porque el mensaje abre el bloque indicando efectivo. Corrige cualquier propuesta si esa inferencia no corresponde.'] : []),
+      ...warnings,
+    ];
+    const content = `Prepare **${actions.length} propuestas pendientes** a partir del mensaje completo. No aplique ningun movimiento. Cada propuesta requiere aprobacion individual.\n\n${lines || 'No hubo propuestas ejecutables.'}`
+      + (warningText.length ? `\n\n### Revisar antes de aplicar\n\n${warningText.map(value => `- ${value}`).join('\n')}` : '');
+    return { content, actions };
+  }
+
+  function remoteFailureMessage(error) {
+    const message = normalize(error?.message || error);
+    if (/quota|resource exhausted|limite|429|spend cap/.test(message)) {
+      return 'Google Gemini alcanzo su limite temporal. El cerebro local sigue activo.';
+    }
+    if (/sesion|token|401|403|autoriz/.test(message)) {
+      return 'Google Gemini no pudo validar la sesion. El cerebro local sigue activo.';
+    }
+    return 'Google Gemini no esta disponible temporalmente. El cerebro local sigue activo.';
+  }
+
   async function answer(ctx, prompt, conversation = null, data = {}) {
     const query = normalize(prompt);
+    const batch = await buildFinanceBatchProposal(ctx, prompt);
+    if (batch) return batch;
     const revised = await revisePendingExpense(ctx, prompt, conversation);
     if (revised) return revised;
     const proposal = await buildExpenseProposal(ctx, prompt);
@@ -493,13 +716,21 @@
     if (/cliente|credito|deud|cuenta por cobrar/.test(query)) return { content: await auditClients(ctx) };
     if (/caja|turno|corte|arqueo|efectivo esperado/.test(query)) return { content: await auditCash(ctx) };
     if (/pion|motor|gasto|pago|movimiento|factura/.test(query)) return { content: await searchFinance(ctx, prompt) };
+    let remoteWarning = '';
     if (data.model && data.model !== 'local-pos' && ctx.remoteAssistant) {
-      const recent = (conversation?.messages || []).slice(-8).map(item => ({ role: item.role, content: text(item.content, 1800) }));
-      const remote = await ctx.remoteAssistant({ action: 'assistantGenerate', message: prompt, model: data.model, history: recent });
-      if (remote?.content) return { content: text(remote.content), effectiveModel: text(remote.effective_model, 120) || 'Google Gemini' };
+      try {
+        const recent = (conversation?.messages || []).slice(-8).map(item => ({ role: item.role, content: text(item.content, 1800) }));
+        const remote = await ctx.remoteAssistant({ action: 'assistantGenerate', message: prompt, model: data.model, history: recent });
+        if (remote?.content) return { content: text(remote.content), effectiveModel: text(remote.effective_model, 120) || 'Google Gemini' };
+        remoteWarning = remoteFailureMessage('respuesta vacia');
+      } catch (error) {
+        remoteWarning = remoteFailureMessage(error);
+      }
     }
+    const localContent = 'Puedo seguir trabajando localmente con datos reales del POS: ventas, gastos, cuentas, clientes, creditos, inventario, caja y turnos. Para una pregunta abierta que requiera generacion libre, vuelve a intentar Gemini mas tarde; para una operacion concreta, escribe el modulo y el resultado que necesitas.';
     return {
-      content: 'Estoy funcionando con el **cerebro local del POS**, sin depender de una API generativa. Puedo consultar ventas, gastos, cuentas, clientes, creditos, inventario, caja y turnos con datos reales. Para escribir, preparo una propuesta y exijo aprobacion antes de afectar Finanzas.',
+      content: `${remoteWarning ? `**${remoteWarning}**\n\n` : ''}${localContent}`,
+      effectiveModel: 'Cerebro local POS · Firebase',
     };
   }
 
@@ -508,13 +739,15 @@
     const all = await readConversations(ctx);
     if (mode === 'status') {
       let remote = null;
-      try { remote = ctx.remoteAssistant ? await ctx.remoteAssistant({ action: 'assistantStatus' }) : null; } catch {}
+      let remoteError = '';
+      try { remote = ctx.remoteAssistant ? await ctx.remoteAssistant({ action: 'assistantStatus' }) : null; }
+      catch (error) { remoteError = remoteFailureMessage(error); }
       const models = [{ id: 'local-pos', label: 'Cerebro local POS', level: 'Sin consumo de API' }];
       if (remote?.configured) models.push({ id: 'google-gemini', label: 'Google Gemini', level: 'API protegida del servidor' });
       return {
         ok: true, configured: true, local_engine: true,
         role: ctx.role, full_admin_access: roleAdmin(ctx.role),
-        capabilities: capabilities(ctx.role), providers_down: {}, claves: {},
+        capabilities: capabilities(ctx.role), providers_down: remoteError ? { google: remoteError } : {}, claves: {},
         models,
         active_documents: [{
           id: 'local-pos-contract', name: 'Reglas operativas POS 1.0.54',
@@ -550,11 +783,14 @@
         metadata: { attachments: data.attachments || [] }
       });
       const response = await answer(ctx, userMessage.content, conversation, data);
-      if (response.action && !response.revised) conversation.actions.push(response.action);
+      const responseActions = Array.isArray(response.actions)
+        ? response.actions.map(sanitizeAction)
+        : (response.action ? [sanitizeAction(response.action)] : []);
+      if (!response.revised) conversation.actions.push(...responseActions);
       const assistantMessage = sanitizeMessage({
         role: 'assistant', content: response.content,
         metadata: {
-          action_ids: response.action ? [response.action.id] : [],
+          action_ids: responseActions.map(action => action.id),
           quick_actions: [
             { label: 'Abrir Finanzas', destination: 'finanzas' },
             { label: 'Abrir Caja virtual', destination: 'caja-virtual' },
