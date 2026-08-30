@@ -31,9 +31,9 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="favicon.svg">
   <link rel="apple-touch-icon" href="dcarela-logo.png">
-  <link rel="stylesheet" href="panel.css?v=2026.08.28.1.0.60.4">
-  <link rel="stylesheet" href="panel-theme.css?v=2026.08.28.1.0.60.4">
-  <link rel="stylesheet" href="visual-fidelity.css?v=2026.08.28.1.0.60.4">
+  <link rel="stylesheet" href="panel.css?v=2026.08.30.1.0.60.5">
+  <link rel="stylesheet" href="panel-theme.css?v=2026.08.30.1.0.60.5">
+  <link rel="stylesheet" href="visual-fidelity.css?v=2026.08.30.1.0.60.5">
 </head>
 <body>
   <section id="access" class="access-shell">
@@ -89,7 +89,7 @@
         <a href="#ventas" data-title="Ventas">Ventas</a>
         <a href="#caja-virtual" data-title="Caja virtual">Caja virtual</a>
         <a href="#caja" data-title="Caja y arqueos">Caja</a>
-        <a href="#turnos" data-title="Ventas por turnos">Turnos</a>
+        <a href="#turnos" data-title="Turnos y arqueos">Turnos</a>
         <a href="#recalcular" data-title="Recalcular incongruencias">Recalcular</a>
         <a href="#reportes" data-title="Reportes">Reportes</a>
         <a href="#inventario" data-title="Inventario">Inventario</a>
@@ -248,7 +248,7 @@
         </section>
 
         <section id="v-turnos" class="vista oculto">
-          <div class="section-heading"><div><h2>Ventas por turnos</h2><p>Cada apertura se conserva separada por cajero, hora de entrada, salida y arqueo.</p></div></div>
+          <div class="section-heading"><div><h2>Turnos y arqueos</h2><p>Cada apertura se conserva separada por cajero, hora de entrada, salida y arqueo; esta vista no revela cantidades de ventas.</p></div></div>
           <div class="filter-bar">
             <div><label for="turDesde">Desde</label><input type="date" id="turDesde"></div>
             <div><label for="turHasta">Hasta</label><input type="date" id="turHasta"></div>
@@ -1052,14 +1052,14 @@
   <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
-  <script src="firebase-adapter.js?v=2026.08.28.1.0.60.4"></script>
-  <script src="assistant-local.js?v=2026.08.28.1.0.60.4"></script>
+  <script src="firebase-adapter.js?v=2026.08.30.1.0.60.5"></script>
+  <script src="assistant-local.js?v=2026.08.30.1.0.60.5"></script>
   <script src="jspdf.umd.min.js"></script>
   <script src="jspdf.plugin.autotable.min.js"></script>
-  <script src="ticket-termico.js?v=2026.08.28.1.0.60.4"></script>
-  <script src="panel-sale-pending.js?v=2026.08.28.1.0.60.4"></script>
-  <script src="panel.js?v=2026.08.28.1.0.60.4"></script>
-  <script src="visual-fidelity.js?v=2026.08.28.1.0.60.4"></script>
+  <script src="ticket-termico.js?v=2026.08.30.1.0.60.5"></script>
+  <script src="panel-sale-pending.js?v=2026.08.30.1.0.60.5"></script>
+  <script src="panel.js?v=2026.08.30.1.0.60.5"></script>
+  <script src="visual-fidelity.js?v=2026.08.30.1.0.60.5"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));

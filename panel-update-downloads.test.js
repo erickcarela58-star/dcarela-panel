@@ -51,7 +51,7 @@ test("Finanzas vigente y los dos CRM se publican por dominios oficiales", () => 
   const finance = manifest.apps.find(app => app.id === "finanzas-ios" || app.id === "com.dcarela.panel");
   assert.ok(finance);
   assert.equal(finance.status, "published");
-  assert.equal(finance.version, "6.2.2 (build 626)");
+  assert.equal(finance.version, "6.2.3 (build 627)");
   assert.match(finance.url, /DCarelaFinanzas-.*\.ipa$/);
   const crm = manifest.apps.find(app => app.id === "crm");
   const photos = manifest.apps.find(app => app.id === "crm-fotos");
@@ -72,10 +72,10 @@ test("AltStore solo anuncia los dos IPA vigentes", () => {
     assert.equal(app.versions.length, 1);
     assert.equal(app.versions[0].downloadURL, app.downloadURL);
     assert.equal(app.versions[0].sha256, app.sha256);
-    assert.match(app.downloadURL, /github\.com\/erickcarela58-star\/dcarela-panel\/releases\/download\//);
+    assert.match(app.downloadURL, /^https:\/\/panel\.dcarelacompufoto\.com\/ios-releases\//);
     assert.doesNotMatch(app.downloadURL, /QA|netlify|github\.io/i);
   }
   const urls = altStore.apps.map(app => app.downloadURL);
-  assert.ok(urls.some(url => /ios-20260823-final-5\.1\.4-6\.2\.1\/Brujula-5\.1\.4-486-AltStore\.ipa$/.test(url)));
-  assert.ok(urls.some(url => /ios-20260826-finanzas-6\.2\.2\/DCarelaFinanzas-6\.2\.2-626-AltStore\.ipa$/.test(url)));
+  assert.ok(urls.some(url => /Brujula-5\.1\.5-487-AltStore\.ipa$/.test(url)));
+  assert.ok(urls.some(url => /DCarelaFinanzas-6\.2\.3-627-AltStore\.ipa$/.test(url)));
 });

@@ -161,6 +161,8 @@
     const exits = Number(shift?.exitsCentavos || 0);
     const refunds = Number(shift?.cashRefundsCentavos || 0);
     const customerPayments = Number(shift?.customerCashPaymentsCentavos || 0);
+    const previousSalesCash = Number(shift?.previousSalesCashEntriesCentavos || 0);
+    const customerDeposits = Number(shift?.customerDepositsCentavos || 0);
     const deliver = cash + customerPayments + entries - exits - refunds;
     return {
       saleCount: Number(shift?.saleCount || 0),
@@ -168,6 +170,8 @@
       cashSalesCentavos: cash,
       customerCashPaymentsCentavos: customerPayments,
       entriesCentavos: entries,
+      previousSalesCashEntriesCentavos: previousSalesCash,
+      customerDepositsCentavos: customerDeposits,
       exitsCentavos: exits,
       cashRefundsCentavos: refunds,
       cashToDeliverCentavos: deliver,
@@ -1370,6 +1374,7 @@
           montoAperturaCentavos: integer(data.montoAperturaCentavos || 0, 'monto de apertura', 0),
           saleCount: 0, grossSalesCentavos: 0, cashSalesCentavos: 0,
           customerCashPaymentsCentavos: 0, entriesCentavos: 0,
+          previousSalesCashEntriesCentavos: 0, customerDepositsCentavos: 0,
           exitsCentavos: 0, cashRefundsCentavos: 0,
           abiertoEn: openedAt, opened_at: openedAt, updated_at: openedAt
         };
@@ -1400,11 +1405,22 @@
       if (action === 'cash.move') {
         const type = data.tipo === 'salida' ? 'SalidaEfectivo' : 'EntradaEfectivo';
         const amount = integer(data.montoCentavos, 'monto', 1);
+        const entryOrigin = type === 'EntradaEfectivo'
+          ? text(data.origenEntrada, 80) || 'traslado_ventas_anteriores'
+          : null;
+        if (entryOrigin && !['traslado_ventas_anteriores', 'dinero_cliente'].includes(entryOrigin))
+          throw new Error('Selecciona un tipo de entrada valido.');
+        const customerId = type === 'EntradaEfectivo' && entryOrigin === 'dinero_cliente'
+          ? text(data.clienteId, 160) : null;
+        const customerName = customerId ? text(data.clienteNombre, 240) : null;
+        if (entryOrigin === 'dinero_cliente' && !customerId)
+          throw new Error('Selecciona el cliente que dejo el dinero.');
         const createdAt = nowIso();
         const movementId = uuid();
         const payload = {
           movimientoId: movementId, turnoId: shift.id, montoCentavos: amount,
           motivo: text(data.motivo, 500) || (type === 'SalidaEfectivo' ? 'Salida desde caja web' : 'Entrada desde caja web'),
+          origenEntrada: entryOrigin, clienteId: customerId, clienteNombre: customerName,
           fecha: createdAt, usuarioId: ctx.user.uid, usuarioNombre: ctx.user.email || 'Caja web Firebase'
         };
         await ctx.d.runTransaction(async transaction => {
@@ -1414,6 +1430,12 @@
           transaction.update(ctx.d.collection('cash_shifts').doc(shift.id), {
             [type === 'SalidaEfectivo' ? 'exitsCentavos' : 'entriesCentavos']:
               firebase.firestore.FieldValue.increment(amount),
+            ...(type === 'EntradaEfectivo' ? {
+              [entryOrigin === 'dinero_cliente'
+                ? 'customerDepositsCentavos'
+                : 'previousSalesCashEntriesCentavos']:
+                firebase.firestore.FieldValue.increment(amount),
+            } : {}),
             updated_at: createdAt,
           });
         });

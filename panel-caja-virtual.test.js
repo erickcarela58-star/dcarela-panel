@@ -9,6 +9,7 @@ const shellAsset = index.match(/shell-assets\/(index-[^"']+\.js)/)?.[1];
 assert.ok(shellAsset, "La portada debe referenciar el shell compilado");
 const shell = fs.readFileSync(`shell-assets/${shellAsset}`, "utf8");
 const sw = fs.readFileSync("sw.js", "utf8");
+const adapter = fs.readFileSync("firebase-adapter.js", "utf8");
 
 test("Caja virtual es un modulo visible en shell, panel y movil", () => {
   assert.match(shell, /id:`caja-virtual`,label:`Caja virtual`,caption:`Terminal web completa`/);
@@ -24,6 +25,28 @@ test("Caja virtual consume el resumen real y movimientos auditados", () => {
   assert.match(panel, /summary\.expectedCashCentavos/);
   assert.match(sw, /const APP_BUILD = "2026\.\d{2}\.\d{2}\.1\.0\.\d+\.\d+"/);
   assert.match(sw, new RegExp(shellAsset.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+});
+
+test("las entradas exigen clasificar efectivo anterior o dinero de cliente sin crear ventas", () => {
+  assert.match(panel, /name="origenEntrada"/);
+  assert.match(panel, /value="traslado_ventas_anteriores"/);
+  assert.match(panel, /value="dinero_cliente"/);
+  assert.match(panel, /Selecciona el cliente que dejo el dinero/);
+  assert.match(adapter, /previousSalesCashEntriesCentavos/);
+  assert.match(adapter, /customerDepositsCentavos/);
+  const movement = adapter.slice(adapter.indexOf("if (action === 'cash.move')"), adapter.indexOf("if (action === 'shift.close')"));
+  assert.match(movement, /entryOrigin === 'dinero_cliente'/);
+  assert.doesNotMatch(movement, /grossSalesCentavos|saleCount/);
+});
+
+test("el panel y el PDF de corte no revelan conteos ni montos de ventas", () => {
+  const turns = panel.slice(panel.indexOf("async function cargarTurnos()"), panel.indexOf("const RECON_EVENT_TYPES"));
+  assert.doesNotMatch(turns, /Ventas validas|Total vendido|Ventas en efectivo|Folios de este turno|>Ventas</);
+  assert.doesNotMatch(turns, /turno\.ventas\.length|money\(turno\.total\)|money\(turno\.efectivo\)/);
+  const pdf = panel.slice(panel.indexOf("function descargarTurnosPdf()"), panel.indexOf("function descargarRecalculoPdf()"));
+  assert.match(pdf, /Turnos y arqueos/);
+  assert.doesNotMatch(pdf, /turno\.ventas\.length|money\(turno\.total\)|money\(turno\.efectivo\)|"Ventas"|"Total"|"Efectivo"/);
+  assert.match(html, /esta vista no revela cantidades de ventas/);
 });
 
 test("Caja virtual replica F1-F12 y protege el esperado durante el conteo", () => {

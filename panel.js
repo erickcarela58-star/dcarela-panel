@@ -2001,41 +2001,26 @@
     const { active } = await ventasActivas(from, to, 50000);
     const turnos = await turnosDelRango(from, to, active);
     lastTurnExport = { desde: $("turDesde").value, hasta: $("turHasta").value, turnos };
-    const total = turnos.reduce((sum, turno) => sum + turno.total, 0);
-    const efectivo = turnos.reduce((sum, turno) => sum + turno.efectivo, 0);
     const diferencias = turnos.filter(turno => turno.diferencia !== null && turno.diferencia !== 0);
     const diferenciaTotal = diferencias.reduce((sum, turno) => sum + turno.diferencia, 0);
-    const sinTurno = turnos.find(turno => turno.id === "sin-turno")?.ventas.length || 0;
     $("turnosResumen").innerHTML = metric("Turnos", String(turnos.filter(t => t.id !== "sin-turno").length))
-      + metric("Ventas validas", String(active.length))
-      + metric("Total vendido", money(total))
-      + metric("Ventas en efectivo", money(efectivo))
+      + metric("En curso", String(turnos.filter(t => t.id !== "sin-turno" && t.estado !== "cerrado").length))
       + metric("Arqueos con diferencia", String(diferencias.length))
-      + metric("Diferencia fisica", money(diferenciaTotal))
-      + (sinTurno ? metric("Ventas sin turno", String(sinTurno)) : "");
+      + metric("Diferencia fisica", money(diferenciaTotal));
 
     if (!turnos.length) {
-      $("turnosTabla").innerHTML = '<div class="empty-state">No hay turnos ni ventas en el rango seleccionado.</div>';
+      $("turnosTabla").innerHTML = '<div class="empty-state">No hay turnos ni arqueos en el rango seleccionado.</div>';
       return;
     }
-    const rows = turnos.map((turno, index) => {
+    const rows = turnos.map(turno => {
       const diferencia = turno.diferencia;
       const diferenciaTexto = diferencia === null ? "Pendiente" : diferencia === 0 ? "Exacto" : money(diferencia);
       const diferenciaClase = diferencia === 0 ? "difference-ok" : diferencia === null
         ? "muted" : diferencia > 0 ? "difference-surplus" : "difference-bad";
       const pista = pistaDiferencia(turno);
-      const detalle = turno.ventas.length
-        ? turno.ventas.map(venta => {
-            const payload = P(venta);
-            const hora = new Date(fechaEventoIso(venta)).toLocaleTimeString("es-DO", { hour: "2-digit", minute: "2-digit" });
-            return `<div class="turn-sale"><span>#${esc(payload.folio ?? "--")}</span><span>${esc(hora)}</span><span>${esc(nombreCajero(payload, userCatalog))}</span><span>${esc(metodoConCuentaDe(payload))}</span><strong>${money(totalDe(payload))}</strong></div>`;
-          }).join("")
-        : '<div class="empty-state">Este turno no tiene ventas sincronizadas.</div>';
-      return `<tr class="turn-row" id="turn-${esc(turno.id)}"><td>${esc(fecha(turno.inicio))}</td><td>${turno.fin ? esc(fecha(turno.fin)) : "En curso"}</td><td>${esc(turno.cajero)}</td><td>${esc(turno.caja)}</td><td>${turno.ventas.length}</td><td class="amount">${money(turno.total)}</td><td class="amount">${money(turno.efectivo)}</td><td class="amount">${turno.apertura === null ? "--" : money(turno.apertura)}</td><td class="amount">${turno.entregar === null ? "--" : money(turno.entregar)}</td><td class="amount">${turno.esperado === null ? "--" : money(turno.esperado)}</td><td class="amount">${turno.contado === null ? "--" : money(turno.contado)}</td><td class="amount ${diferenciaClase}" title="${esc(turno.motivo)}">${esc(diferenciaTexto)}</td><td><span class="tag ${turno.estado === "cerrado" ? "ok" : "warn"}">${esc(turno.estado)}</span></td><td><button class="secondary turn-toggle" data-detail="turn-detail-${index}">Ventas</button></td></tr>
-        <tr id="turn-detail-${index}" class="detail-row oculto"><td colspan="14"><div class="detail-box turn-detail"><div class="turn-detail-head"><strong>Folios de este turno</strong><span>${turno.motivo ? `Nota del arqueo: ${esc(turno.motivo)}` : "Sin nota de diferencia"}</span></div>${pista ? `<div class="cash-clue ${diferencia > 0 ? "surplus" : "shortage"}">${esc(pista)}</div>` : ""}${detalle}</div></td></tr>`;
+      return `<tr class="turn-row" id="turn-${esc(turno.id)}"><td>${esc(fecha(turno.inicio))}</td><td>${turno.fin ? esc(fecha(turno.fin)) : "En curso"}</td><td>${esc(turno.cajero)}</td><td>${esc(turno.caja)}</td><td class="amount">${turno.apertura === null ? "--" : money(turno.apertura)}</td><td class="amount">${turno.entregar === null ? "--" : money(turno.entregar)}</td><td class="amount">${turno.esperado === null ? "--" : money(turno.esperado)}</td><td class="amount">${turno.contado === null ? "--" : money(turno.contado)}</td><td class="amount ${diferenciaClase}" title="${esc(turno.motivo)}">${esc(diferenciaTexto)}</td><td><span class="tag ${turno.estado === "cerrado" ? "ok" : "warn"}">${esc(turno.estado)}</span></td><td>${pista ? `<span class="cash-clue ${diferencia > 0 ? "surplus" : "shortage"}">${esc(pista)}</span>` : esc(turno.motivo || "Sin observaciones")}</td></tr>`;
     }).join("");
-    $("turnosTabla").innerHTML = `<table><thead><tr><th>Entrada</th><th>Salida</th><th>Cajero(s)</th><th>Caja</th><th>Ventas</th><th class="amount">Total</th><th class="amount">Efectivo</th><th class="amount">Apertura</th><th class="amount">A entregar</th><th class="amount">Esperado fisico</th><th class="amount">Contado</th><th class="amount">Diferencia</th><th>Estado</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
-    document.querySelectorAll(".turn-toggle").forEach(button => button.addEventListener("click", () => $(button.dataset.detail).classList.toggle("oculto")));
+    $("turnosTabla").innerHTML = `<table><thead><tr><th>Entrada</th><th>Salida</th><th>Cajero(s)</th><th>Caja</th><th class="amount">Apertura</th><th class="amount">A entregar</th><th class="amount">Esperado fisico</th><th class="amount">Contado</th><th class="amount">Diferencia</th><th>Estado</th><th>Observacion</th></tr></thead><tbody>${rows}</tbody></table>`;
     const focus = sessionStorage.getItem("dcarela.turno.focus");
     if (focus) {
       sessionStorage.removeItem("dcarela.turno.focus");
@@ -3126,6 +3111,8 @@
       ["Efectivo vendido", money(summary.cashSalesCentavos || 0), "sin duplicar propinas"],
       ["Abonos de clientes", money(summary.customerCashPaymentsCentavos || 0), "incluidos una sola vez"],
       ["Entradas", money(summary.entriesCentavos || 0), "movimientos del turno"],
+      ["Efectivo de ventas anteriores", money(summary.previousSalesCashEntriesCentavos || 0), "traslado; no es una venta nueva"],
+      ["Dinero dejado por clientes", money(summary.customerDepositsCentavos || 0), "entrada identificada; no es una venta"],
       ["Salidas", money(summary.exitsCentavos || 0), "movimientos del turno"],
       ["Devoluciones", money(summary.cashRefundsCentavos || 0), "reembolsos en efectivo"],
       ["A entregar", money(summary.cashToDeliverCentavos || 0), "sin contar el fondo de apertura"],
@@ -3154,16 +3141,27 @@
   function openVirtualCashMovement(kind) {
     const outgoing = kind === "salida";
     if (!saleShift?.id) { toast("Abre un turno de Caja virtual primero."); return; }
+    const clientes = (clientCatalog || []).filter(client => client.activo !== false)
+      .map(client => `<option value="${esc(client.id)}">${esc(client.nombre)}</option>`).join("");
+    const entrada = outgoing ? "" : `<label class="field-wide"><span>Tipo de entrada</span><select name="origenEntrada" required><option value="traslado_ventas_anteriores">Efectivo de ventas anteriores trasladado a esta caja</option><option value="dinero_cliente">Dinero dejado por un cliente</option></select><small>Ninguna de estas opciones crea una venta nueva.</small></label><label class="field-wide"><span>Cliente (obligatorio si dejó el dinero)</span><select name="clienteId"><option value="">Seleccionar cliente</option>${clientes}</select></label>`;
     abrirEditor(
       outgoing ? "Salida de efectivo" : "Entrada de efectivo",
       "El movimiento quedara ligado al turno de Caja virtual, con auditoria y sincronizacion.",
-      '<label><span>Monto</span><input name="monto" inputmode="decimal" required></label><label class="field-wide"><span>Motivo</span><input name="motivo" maxlength="500" required></label><label class="field-wide"><span>Nota adicional</span><textarea name="nota" rows="3" maxlength="1000"></textarea></label>',
+      `${entrada}<label><span>Monto</span><input name="monto" inputmode="decimal" required></label><label class="field-wide"><span>Motivo</span><input name="motivo" maxlength="500" required></label><label class="field-wide"><span>Nota adicional</span><textarea name="nota" rows="3" maxlength="1000"></textarea></label>`,
       async form => {
+        const origenEntrada = outgoing ? null : String(form.get("origenEntrada") || "");
+        const clienteId = outgoing ? null : String(form.get("clienteId") || "");
+        const cliente = clienteId ? (clientCatalog || []).find(item => item.id === clienteId) : null;
+        if (!outgoing && origenEntrada === "dinero_cliente" && !cliente)
+          throw new Error("Selecciona el cliente que dejo el dinero.");
         const result = await saleApi("cash.move", {
           tipo: kind,
           montoCentavos: centavosInput(form.get("monto")),
           motivo: String(form.get("motivo") || "").trim(),
           nota: String(form.get("nota") || "").trim() || null,
+          origenEntrada,
+          clienteId: cliente?.id || null,
+          clienteNombre: cliente?.nombre || null,
         }, saleUuid());
         cerrarEditor();
         toast(`${outgoing ? "Salida" : "Entrada"} registrada: ${money(result.movement.montoCentavos)}.`);
@@ -6892,21 +6890,21 @@
   function descargarTurnosPdf() {
     const data = lastTurnExport;
     if (!data) throw new Error("Consulta primero los turnos que deseas descargar.");
-    const doc = nuevoPdf("Ventas por turnos", `Periodo: ${data.desde} a ${data.hasta}`);
+    const doc = nuevoPdf("Turnos y arqueos", `Periodo: ${data.desde} a ${data.hasta}`);
     const body = data.turnos.map(turno => [
       fecha(turno.inicio), turno.fin ? fecha(turno.fin) : "En curso", turno.cajero, turno.caja,
-      turno.ventas.length, money(turno.total), money(turno.efectivo),
       turno.apertura === null ? "--" : money(turno.apertura),
+      turno.entregar === null ? "--" : money(turno.entregar),
       turno.esperado === null ? "--" : money(turno.esperado),
       turno.contado === null ? "--" : money(turno.contado),
       turno.diferencia === null ? "Pendiente" : turno.diferencia === 0 ? "Exacto" : money(turno.diferencia)
     ]);
     doc.autoTable({
       ...opcionesTablaPdf(), startY: 34,
-      head: [["Entrada", "Salida", "Cajero", "Caja", "Ventas", "Total", "Efectivo", "Apertura", "Esperado", "Contado", "Diferencia"]],
+      head: [["Entrada", "Salida", "Cajero", "Caja", "Apertura", "A entregar", "Esperado", "Contado", "Diferencia"]],
       body,
       didParseCell: hook => {
-        if (hook.section !== "body" || hook.column.index !== 10) return;
+        if (hook.section !== "body" || hook.column.index !== 8) return;
         const turno = data.turnos[hook.row.index];
         if (turno?.diferencia > 0) hook.cell.styles.textColor = [183, 90, 0];
         if (turno?.diferencia < 0) hook.cell.styles.textColor = [197, 63, 72];
