@@ -6319,18 +6319,19 @@
     let integratedSales = [];
     if (finStateCache) {
       const salesAccount = finStateCache.accounts.find(item => item.ligada_ventas && !item.oculta && item.estado !== "eliminada");
-      const baseMovements = finStateCache.movements.filter(item => item.origen !== "pos_venta");
-      const representedSales = new Set(baseMovements
-        .filter(item => item.tipo === "ingreso" && numero(item.monto_centavos) > 0)
-        .flatMap(item => [item.sync_event_id, item.venta_id, item.sale_id, item.venta_folio]
-          .filter(Boolean).map(value => String(value).trim().toLocaleLowerCase("es"))));
+      const activeSaleIdentifiers = new Set(salesResult.active.flatMap(event => financeCore.saleIdentifiers(event)));
+      const baseMovements = finStateCache.movements.filter(item => {
+        if (item.origen === "pos_venta") return false;
+        const identifiers = [item.sync_event_id, item.venta_id, item.sale_id, item.venta_folio]
+          .filter(Boolean).map(value => String(value).trim().toLocaleLowerCase("es"));
+        return !identifiers.some(id => activeSaleIdentifiers.has(id));
+      });
       integratedSales = salesResult.active.flatMap((event, index) => {
         const payload = P(event);
         const identifiers = financeCore.saleIdentifiers(event);
         const amount = totalDe(payload);
         const saleDate = financeCore.businessDay(fechaEventoIso(event));
-        if (!amount || !saleDate || identifiers.some(id => representedSales.has(id))) return [];
-        identifiers.forEach(id => representedSales.add(id));
+        if (!amount || !saleDate) return [];
         const folio = payload.folio ?? payload.numero ?? payload.ticket ?? "";
         return [financeCore.normalizeMovement({
           id: `pos-sale:${identifiers[0] || `${saleDate}-${index}`}`,

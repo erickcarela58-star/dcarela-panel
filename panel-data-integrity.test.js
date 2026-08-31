@@ -50,6 +50,7 @@ test("Money Manager limita el ledger al mes y tolera modulos secundarios", () =>
 test("Finanzas integra las ventas activas del POS y muestra su procedencia", () => {
   assert.match(panel, /const amount = totalDe\(payload\)/);
   assert.match(panel, /origen: "pos_venta"/);
+  assert.match(panel, /const activeSaleIdentifiers = new Set\(salesResult\.active\.flatMap/);
   assert.match(panel, /finStateCache\.movements = \[\.\.\.baseMovements, \.\.\.integratedSales\]/);
   assert.match(panel, /movement\.origen === "pos_venta" \? "POS Windows"/);
   assert.match(panel, /venta\(s\) integrada\(s\) en Finanzas/);
