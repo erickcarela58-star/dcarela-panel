@@ -175,6 +175,7 @@
     const refunds = Number(shift?.cashRefundsCentavos || 0);
     const customerPayments = Number(shift?.customerCashPaymentsCentavos || 0);
     const previousSalesCash = Number(shift?.previousSalesCashEntriesCentavos || 0);
+    const pettyCashEntries = Number(shift?.pettyCashEntriesCentavos || 0);
     const customerDeposits = Number(shift?.customerDepositsCentavos || 0);
     const deliver = cash + customerPayments + entries - exits - refunds;
     return {
@@ -184,6 +185,7 @@
       customerCashPaymentsCentavos: customerPayments,
       entriesCentavos: entries,
       previousSalesCashEntriesCentavos: previousSalesCash,
+      pettyCashEntriesCentavos: pettyCashEntries,
       customerDepositsCentavos: customerDeposits,
       exitsCentavos: exits,
       cashRefundsCentavos: refunds,
@@ -1397,7 +1399,7 @@
           montoAperturaCentavos: integer(data.montoAperturaCentavos || 0, 'monto de apertura', 0),
           saleCount: 0, grossSalesCentavos: 0, cashSalesCentavos: 0,
           customerCashPaymentsCentavos: 0, entriesCentavos: 0,
-          previousSalesCashEntriesCentavos: 0, customerDepositsCentavos: 0,
+          previousSalesCashEntriesCentavos: 0, pettyCashEntriesCentavos: 0, customerDepositsCentavos: 0,
           exitsCentavos: 0, cashRefundsCentavos: 0,
           abiertoEn: openedAt, opened_at: openedAt, updated_at: openedAt
         };
@@ -1431,7 +1433,7 @@
         const entryOrigin = type === 'EntradaEfectivo'
           ? text(data.origenEntrada, 80) || 'traslado_ventas_anteriores'
           : null;
-        if (entryOrigin && !['traslado_ventas_anteriores', 'dinero_cliente'].includes(entryOrigin))
+        if (entryOrigin && !['traslado_ventas_anteriores', 'caja_chica', 'dinero_cliente'].includes(entryOrigin))
           throw new Error('Selecciona un tipo de entrada valido.');
         const customerId = type === 'EntradaEfectivo' && entryOrigin === 'dinero_cliente'
           ? text(data.clienteId, 160) : null;
@@ -1456,7 +1458,9 @@
             ...(type === 'EntradaEfectivo' ? {
               [entryOrigin === 'dinero_cliente'
                 ? 'customerDepositsCentavos'
-                : 'previousSalesCashEntriesCentavos']:
+                : entryOrigin === 'caja_chica'
+                  ? 'pettyCashEntriesCentavos'
+                  : 'previousSalesCashEntriesCentavos']:
                 firebase.firestore.FieldValue.increment(amount),
             } : {}),
             updated_at: createdAt,

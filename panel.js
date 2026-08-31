@@ -3126,6 +3126,7 @@
       ["Abonos de clientes", money(summary.customerCashPaymentsCentavos || 0), "incluidos una sola vez"],
       ["Entradas", money(summary.entriesCentavos || 0), "movimientos del turno"],
       ["Efectivo de ventas anteriores", money(summary.previousSalesCashEntriesCentavos || 0), "traslado; no es una venta nueva"],
+      ["Caja chica o reposicion", money(summary.pettyCashEntriesCentavos || 0), "fondo operativo; no es una venta nueva"],
       ["Dinero dejado por clientes", money(summary.customerDepositsCentavos || 0), "entrada identificada; no es una venta"],
       ["Salidas", money(summary.exitsCentavos || 0), "movimientos del turno"],
       ["Devoluciones", money(summary.cashRefundsCentavos || 0), "reembolsos en efectivo"],
@@ -3157,7 +3158,7 @@
     if (!saleShift?.id) { toast("Abre un turno de Caja virtual primero."); return; }
     const clientes = (clientCatalog || []).filter(client => client.activo !== false)
       .map(client => `<option value="${esc(client.id)}">${esc(client.nombre)}</option>`).join("");
-    const entrada = outgoing ? "" : `<label class="field-wide"><span>Tipo de entrada</span><select name="origenEntrada" required><option value="traslado_ventas_anteriores">Efectivo de ventas anteriores trasladado a esta caja</option><option value="dinero_cliente">Dinero dejado por un cliente</option></select><small>Ninguna de estas opciones crea una venta nueva.</small></label><label class="field-wide"><span>Cliente (obligatorio si dejó el dinero)</span><select name="clienteId"><option value="">Seleccionar cliente</option>${clientes}</select></label>`;
+    const entrada = outgoing ? "" : `<label class="field-wide"><span>Tipo de entrada</span><select name="origenEntrada" required><option value="traslado_ventas_anteriores">Efectivo de ventas anteriores trasladado a esta caja</option><option value="caja_chica">Fondo o reposicion de caja chica</option><option value="dinero_cliente">Dinero dejado por un cliente</option></select><small>Ninguna de estas opciones crea una venta nueva ni infla los ingresos.</small></label><label class="field-wide"><span>Cliente (obligatorio si dejó el dinero)</span><select name="clienteId"><option value="">Seleccionar cliente</option>${clientes}</select></label>`;
     abrirEditor(
       outgoing ? "Salida de efectivo" : "Entrada de efectivo",
       "El movimiento quedara ligado al turno de Caja virtual, con auditoria y sincronizacion.",

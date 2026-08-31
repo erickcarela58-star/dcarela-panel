@@ -27,12 +27,14 @@ test("Caja virtual consume el resumen real y movimientos auditados", () => {
   assert.match(sw, new RegExp(shellAsset.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
 });
 
-test("las entradas exigen clasificar efectivo anterior o dinero de cliente sin crear ventas", () => {
+test("las entradas exigen clasificar efectivo anterior, caja chica o dinero de cliente sin crear ventas", () => {
   assert.match(panel, /name="origenEntrada"/);
   assert.match(panel, /value="traslado_ventas_anteriores"/);
+  assert.match(panel, /value="caja_chica"/);
   assert.match(panel, /value="dinero_cliente"/);
   assert.match(panel, /Selecciona el cliente que dejo el dinero/);
   assert.match(adapter, /previousSalesCashEntriesCentavos/);
+  assert.match(adapter, /pettyCashEntriesCentavos/);
   assert.match(adapter, /customerDepositsCentavos/);
   const movement = adapter.slice(adapter.indexOf("if (action === 'cash.move')"), adapter.indexOf("if (action === 'shift.close')"));
   assert.match(movement, /entryOrigin === 'dinero_cliente'/);
