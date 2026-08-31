@@ -76,6 +76,24 @@ test("Nueva venta muestra el turno antes de terminar el catalogo historico", () 
   assert.doesNotMatch(panel, /await Promise\.all\(\[cargarCatalogoCloud\(\), cargarClientesCloud\(\)/);
 });
 
+test("cambiar de modulo desde el shell cierra la consola de Caja virtual", () => {
+  const route = panel.slice(panel.indexOf("function mostrarVista(name)"), panel.indexOf("function mostrarError(module"));
+  assert.match(route, /selected !== "caja-virtual"\) hideSaleConsoleForRouteChange\(\)/);
+  const hide = panel.slice(panel.indexOf("function hideSaleConsoleForRouteChange()"), panel.indexOf("function closeSaleConsole()"));
+  assert.match(hide, /overlay\.classList\.add\("oculto"\)/);
+  assert.match(hide, /overlay\.setAttribute\("aria-hidden", "true"\)/);
+  assert.match(hide, /document\.body\.style\.overflow = ""/);
+});
+
+test("Caja virtual conserva todos los elementos requeridos durante la apertura", () => {
+  const open = panel.slice(panel.indexOf("async function openSaleConsole"), panel.indexOf("function hideSaleConsoleForRouteChange"));
+  const requiredIds = [...open.matchAll(/\$\("([^"]+)"\)/g)].map(match => match[1]);
+  assert.ok(requiredIds.length > 8, "la apertura debe validar su contrato DOM completo");
+  for (const id of new Set(requiredIds)) {
+    assert.match(html, new RegExp(`id=["']${id}["']`), `falta #${id} requerido por openSaleConsole`);
+  }
+});
+
 test("Cuentas y tarjetas exponen signo, jerarquia y contraste en ambos temas", () => {
   assert.match(panel, /fin-account-sign/);
   assert.match(panel, /Disponible/);

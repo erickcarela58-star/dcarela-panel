@@ -370,6 +370,11 @@
       history.replaceState(null, "", `${location.pathname}${location.search}#finanzas`);
     }
     const selected = loaders[name] ? name : "dashboard";
+    // La Caja virtual vive en un overlay de pantalla completa dentro del iframe.
+    // Cuando el shell exterior cambia de modulo solo actualiza el hash; sin este
+    // cierre el titulo cambia, pero la consola de venta sigue cubriendo Clientes,
+    // Finanzas, Caja y el resto del panel.
+    if (selected !== "caja-virtual") hideSaleConsoleForRouteChange();
     document.querySelectorAll(".vista").forEach(view => view.classList.add("oculto"));
     $("v-" + selected).classList.remove("oculto");
     document.querySelectorAll("#menu a").forEach(link => {
@@ -3236,12 +3241,18 @@
     setTimeout(() => (saleShift ? (saleCart.length ? $("saleCart") : $("saleSearch")) : $("saleOpening"))?.focus(), 0);
   }
 
+  function hideSaleConsoleForRouteChange() {
+    const overlay = $("saleOverlay");
+    if (!overlay || overlay.classList.contains("oculto")) return;
+    closeSalePriceVerifier();
+    overlay.classList.add("oculto");
+    overlay.setAttribute("aria-hidden", "true");
+    document.body.style.overflow = "";
+  }
+
   function closeSaleConsole() {
     if (saleSubmitting) return;
-    closeSalePriceVerifier();
-    $("saleOverlay").classList.add("oculto");
-    $("saleOverlay").setAttribute("aria-hidden", "true");
-    document.body.style.overflow = "";
+    hideSaleConsoleForRouteChange();
     if ((location.hash.slice(1) || "dashboard") === "caja-virtual") location.hash = "dashboard";
   }
 
