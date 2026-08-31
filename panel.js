@@ -2638,6 +2638,10 @@
   }
 
   async function getDevices() {
+    if (authProvider === "firebase") {
+      const rows = await window.DcarelaFirebase.getLimitedCollection("devices", BUSINESS, "last_seen_at", 200);
+      return (rows || []).sort((a, b) => String(b.last_seen_at || "").localeCompare(String(a.last_seen_at || "")));
+    }
     const { data, error } = await sb.from("devices")
       .select("id,device_name,cash_register_id,status,last_seen_at,installed_version")
       .eq("business_id", BUSINESS).order("last_seen_at", { ascending: false });
@@ -2646,6 +2650,10 @@
   }
 
   async function getBackups(limit = 60) {
+    if (authProvider === "firebase") {
+      const rows = await window.DcarelaFirebase.getLimitedCollection("backup_snapshots", BUSINESS, "created_at", limit);
+      return (rows || []).sort((a, b) => String(b.created_at || "").localeCompare(String(a.created_at || "")));
+    }
     const { data, error } = await sb.from("backup_snapshots")
       .select("id,device_id,storage_path,backup_type,size,status,created_at,verified_at")
       .eq("business_id", BUSINESS).order("created_at", { ascending: false }).limit(limit);
@@ -6480,15 +6488,19 @@
 
   async function obtenerAlertas(force = false) {
     if (!force && alertasCache) return alertasCache;
-    if (Date.now() - costAlertsAt > 60000) {
+    if (authProvider !== "firebase" && Date.now() - costAlertsAt > 60000) {
       costAlertsAt = Date.now();
       await fetch(`${cfg.url.replace(/\/$/, "")}/functions/v1/pos-alerts?business_id=${encodeURIComponent(BUSINESS)}&limit=1`, {
         headers: await authenticatedHeaders()
       }).catch(() => null);
     }
+    const systemAlertsQuery = authProvider === "firebase"
+      ? window.DcarelaFirebase.getLimitedCollection("system_alerts", BUSINESS, "created_at", 250)
+        .then(data => ({ data, error: null }))
+      : sb.from("system_alerts").select("id,severity,alert_type,title,message,payload,acknowledged_at,created_at,device_id")
+        .eq("business_id", BUSINESS).order("created_at", { ascending: false }).limit(250);
     const [systemResult, eventResult] = await Promise.allSettled([
-      sb.from("system_alerts").select("id,severity,alert_type,title,message,payload,acknowledged_at,created_at,device_id")
-        .eq("business_id", BUSINESS).order("created_at", { ascending: false }).limit(250),
+      systemAlertsQuery,
       eventos(RELEVANT_EVENTS, null, null, 400)
     ]);
     const localRead = readSet();
@@ -6545,8 +6557,12 @@
     localStorage.setItem(READ_KEY, JSON.stringify([...read].slice(-1200)));
     alert.read = true;
     if (alert.source === "system" && alert.sourceId && session?.user?.id) {
-      await sb.from("system_alerts").update({ acknowledged_at: new Date().toISOString(), acknowledged_by: session.user.id })
-        .eq("id", alert.sourceId).eq("business_id", BUSINESS).then(() => {});
+      if (authProvider === "firebase") {
+        await window.DcarelaFirebase.acknowledgeAlerts([alert.sourceId], BUSINESS);
+      } else {
+        await sb.from("system_alerts").update({ acknowledged_at: new Date().toISOString(), acknowledged_by: session.user.id })
+          .eq("id", alert.sourceId).eq("business_id", BUSINESS).then(() => {});
+      }
     }
     actualizarContadorAlertas();
   }

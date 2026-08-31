@@ -95,6 +95,19 @@ test("una anulacion administrativa no exige turno abierto y acepta ventas sincro
   assert.match(panelJs, /data-cancel-event=/);
 });
 
+test("Notificaciones, Dispositivos y Respaldos usan Firestore cuando la sesion es Firebase", () => {
+  const devices = panelJs.slice(panelJs.indexOf("async function getDevices()"), panelJs.indexOf("async function getBackups"));
+  const backups = panelJs.slice(panelJs.indexOf("async function getBackups"), panelJs.indexOf("async function cargarDashboard"));
+  const alerts = panelJs.slice(panelJs.indexOf("async function obtenerAlertas"), panelJs.indexOf("function actualizarContadorAlertas"));
+  const acknowledge = panelJs.slice(panelJs.indexOf("async function marcarAlerta"), panelJs.indexOf("async function cargarNotificaciones"));
+
+  assert.match(devices, /authProvider === "firebase"[\s\S]*DcarelaFirebase\.getLimitedCollection\("devices", BUSINESS, "last_seen_at", 200\)/);
+  assert.match(backups, /authProvider === "firebase"[\s\S]*DcarelaFirebase\.getLimitedCollection\("backup_snapshots", BUSINESS, "created_at", limit\)/);
+  assert.match(alerts, /authProvider !== "firebase" && Date\.now\(\) - costAlertsAt/);
+  assert.match(alerts, /DcarelaFirebase\.getLimitedCollection\("system_alerts", BUSINESS, "created_at", 250\)/);
+  assert.match(acknowledge, /authProvider === "firebase"[\s\S]*DcarelaFirebase\.acknowledgeAlerts\(\[alert\.sourceId\], BUSINESS\)/);
+});
+
 test("todas las herramientas administrativas visibles tienen implementacion Firebase", () => {
   const actions = [...panelJs.matchAll(/"((?:expense|cost|receipt|fin|device|business|product|category|client|combo|inventory|sale)[a-z_.]+)":\s*"/g)]
     .map(match => match[1]);
