@@ -80,6 +80,65 @@
     return { movements, ingresos_centavos, gastos_centavos };
   }
 
+  function saleIdentifiers(event) {
+    const payload = event?.payload || {};
+    return [event?.id, event?.event_id, event?.entity_id, payload.id, payload.ventaId,
+      payload.venta_id, payload.saleId, payload.sale_id, payload.folio]
+      .filter(value => value !== null && value !== undefined && String(value).trim())
+      .map(value => String(value).trim().toLocaleLowerCase("es"));
+  }
+
+  function movementSaleIdentifiers(movement) {
+    const metadata = movement?.metadata || {};
+    return [movement?.sync_event_id, movement?.venta_id, movement?.sale_id, movement?.venta_folio,
+      metadata.ventaId, metadata.venta_id, metadata.saleId, metadata.sale_id, metadata.folio]
+      .filter(value => value !== null && value !== undefined && String(value).trim())
+      .map(value => String(value).trim().toLocaleLowerCase("es"));
+  }
+
+  function saleAmount(event) {
+    const payload = event?.payload || {};
+    return Math.abs(finiteNumber(payload.totalCobradoCentavos ?? payload.total_cobrado_centavos
+      ?? payload.totalCentavos ?? payload.total_centavos ?? payload.total));
+  }
+
+  function projectSalesAsMovements(sales, options = {}) {
+    const accountId = options.accountId || null;
+    return (sales || []).map((event, index) => {
+      const payload = event?.payload || {};
+      const ids = saleIdentifiers(event);
+      const folio = payload.folio ?? payload.numero ?? payload.ticket ?? "";
+      return normalizeMovement({
+        id: `pos-sale:${ids[0] || `${eventDay(event)}-${index}`}`,
+        business_id: event?.business_id || options.businessId || "",
+        tipo: "ingreso",
+        estado: "confirmado",
+        fecha: eventDay(event),
+        monto_centavos: saleAmount(event),
+        cuenta_id: accountId,
+        descripcion: folio ? `Venta POS #${folio}` : "Venta sincronizada del POS",
+        nota: payload.clienteNombre || payload.cliente_nombre || "Venta confirmada en la caja Windows",
+        origen: "pos_venta",
+        venta_folio: folio ? String(folio) : "",
+        sync_event_id: event?.event_id || event?.id || "",
+        metadata: { sale_identifiers: ids },
+        solo_lectura: true,
+      });
+    }).filter(item => item.fecha && item.monto_centavos > 0);
+  }
+
+  function mergeSalesIntoMovements(movements, sales, options = {}) {
+    const current = (movements || []).map(normalizeMovement);
+    const represented = new Set(current.flatMap(movementSaleIdentifiers));
+    const additions = projectSalesAsMovements(sales, options).filter(movement => {
+      const ids = [...movementSaleIdentifiers(movement), ...(movement.metadata?.sale_identifiers || [])];
+      if (ids.some(id => represented.has(id))) return false;
+      ids.forEach(id => represented.add(id));
+      return true;
+    });
+    return [...current, ...additions].sort((a, b) => String(b.fecha || "").localeCompare(String(a.fecha || "")));
+  }
+
   return {
     BUSINESS_TIME_ZONE,
     businessDay,
@@ -89,5 +148,9 @@
     isActiveMovement,
     movementInRange,
     summarizeMovements,
+    saleIdentifiers,
+    saleAmount,
+    projectSalesAsMovements,
+    mergeSalesIntoMovements,
   };
 });

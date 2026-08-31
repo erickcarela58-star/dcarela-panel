@@ -5477,7 +5477,7 @@
       const sign = expense ? "-" : movement.tipo === "ingreso" ? "+" : "";
       const accountText = movement.tipo === "transferencia"
         ? `${esc(accounts.get(movement.cuenta_id) || "--")} &rarr; ${esc(accounts.get(movement.cuenta_destino_id) || "--")}`
-        : esc(accounts.get(movement.cuenta_id) || "--");
+        : esc(accounts.get(movement.cuenta_id) || (movement.origen === "pos_venta" ? "POS Windows" : "--"));
       const typeText = movement.conciliado && movement.afecta_resultado === false
         ? "Conciliacion"
         : movement.es_propina ? "Propina" : movement.tipo.charAt(0).toUpperCase() + movement.tipo.slice(1);
@@ -6316,6 +6316,22 @@
     const dueTotal = monthObligations.reduce((sum, item) => sum + numero(item.saldoCentavos), 0);
     const overdueTotal = overdue.reduce((sum, item) => sum + numero(item.saldoCentavos), 0);
     const salesTotal = salesResult.active.reduce((sum, item) => sum + totalDe(P(item)), 0);
+    if (finStateCache) {
+      const salesAccount = finStateCache.accounts.find(item => item.ligada_ventas && !item.oculta && item.estado !== "eliminada");
+      finStateCache.movements = financeCore.mergeSalesIntoMovements(finStateCache.movements, salesResult.active, {
+        accountId: salesAccount?.id || null,
+        businessId: BUSINESS,
+      });
+      renderFinMovements();
+      await renderFinDashboard();
+    }
+    const syncStatus = $("finPosSyncStatus");
+    if (syncStatus) {
+      syncStatus.classList.toggle("warn", !salesResult.raw.length);
+      syncStatus.textContent = salesResult.raw.length
+        ? `${salesResult.active.length.toLocaleString("es-DO")} venta(s) activa(s) integradas · ${money(salesTotal)} · ${salesResult.excluded} anulada(s) excluida(s)`
+        : "Aún no se recibieron ventas para este mes; el panel no las presenta como cero confirmado.";
+    }
     const committed = expensesTotal + paidTotal + dueTotal;
     const net = salesTotal - expensesTotal - paidTotal;
     const activeRecurring = state.recurrents.filter(item => item.activo);

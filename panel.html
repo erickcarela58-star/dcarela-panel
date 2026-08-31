@@ -31,9 +31,9 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="favicon.svg">
   <link rel="apple-touch-icon" href="dcarela-logo.png">
-  <link rel="stylesheet" href="panel.css?v=2026.08.30.1.0.60.7">
-  <link rel="stylesheet" href="panel-theme.css?v=2026.08.30.1.0.60.7">
-  <link rel="stylesheet" href="visual-fidelity.css?v=2026.08.30.1.0.60.7">
+  <link rel="stylesheet" href="panel.css?v=2026.08.30.1.0.60.8">
+  <link rel="stylesheet" href="panel-theme.css?v=2026.08.30.1.0.60.8">
+  <link rel="stylesheet" href="visual-fidelity.css?v=2026.08.30.1.0.60.8">
 </head>
 <body>
   <section id="access" class="access-shell">
@@ -351,7 +351,7 @@
 
         <section id="v-finanzas" class="vista oculto finance-view">
           <div class="section-heading finance-heading">
-            <div><h2>Finanzas</h2><p>Tu dinero organizado por cuentas, categorias y movimientos. Las ventas del POS se registran solas.</p></div>
+            <div class="finance-brand-copy"><span class="finance-brand-kicker">D' Carela · Control financiero</span><h2>Finanzas</h2><p>Tu dinero organizado por cuentas, categorias y movimientos. Las ventas confirmadas de la caja se integran sin duplicarse.</p><span id="finPosSyncStatus" class="finance-pos-sync" role="status">Comprobando ventas del POS…</span></div>
             <div class="button-row admin-only oculto">
               <button id="btnFinQuick" class="primary">Registrar movimiento</button>
               <button id="btnFinTransferTop" class="secondary">Transferir</button>
@@ -1052,15 +1052,15 @@
   <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
-  <script src="finance-core.js?v=2026.08.30.1.0.60.7"></script>
-  <script src="firebase-adapter.js?v=2026.08.30.1.0.60.7"></script>
-  <script src="assistant-local.js?v=2026.08.30.1.0.60.7"></script>
+  <script src="finance-core.js?v=2026.08.30.1.0.60.8"></script>
+  <script src="firebase-adapter.js?v=2026.08.30.1.0.60.8"></script>
+  <script src="assistant-local.js?v=2026.08.30.1.0.60.8"></script>
   <script src="jspdf.umd.min.js"></script>
   <script src="jspdf.plugin.autotable.min.js"></script>
-  <script src="ticket-termico.js?v=2026.08.30.1.0.60.7"></script>
-  <script src="panel-sale-pending.js?v=2026.08.30.1.0.60.7"></script>
-  <script src="panel.js?v=2026.08.30.1.0.60.7"></script>
-  <script src="visual-fidelity.js?v=2026.08.30.1.0.60.7"></script>
+  <script src="ticket-termico.js?v=2026.08.30.1.0.60.8"></script>
+  <script src="panel-sale-pending.js?v=2026.08.30.1.0.60.8"></script>
+  <script src="panel.js?v=2026.08.30.1.0.60.8"></script>
+  <script src="visual-fidelity.js?v=2026.08.30.1.0.60.8"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));
