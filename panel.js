@@ -2638,7 +2638,7 @@
   }
 
   async function getDevices() {
-    if (authProvider === "firebase") {
+    if (authProvider === "firebase" || (!sb && window.DcarelaFirebase?.isAvailable)) {
       const rows = await window.DcarelaFirebase.getLimitedCollection("devices", BUSINESS, "last_seen_at", 200);
       return (rows || []).sort((a, b) => String(b.last_seen_at || "").localeCompare(String(a.last_seen_at || "")));
     }
@@ -2650,7 +2650,7 @@
   }
 
   async function getBackups(limit = 60) {
-    if (authProvider === "firebase") {
+    if (authProvider === "firebase" || (!sb && window.DcarelaFirebase?.isAvailable)) {
       const rows = await window.DcarelaFirebase.getLimitedCollection("backup_snapshots", BUSINESS, "created_at", limit);
       return (rows || []).sort((a, b) => String(b.created_at || "").localeCompare(String(a.created_at || "")));
     }
@@ -6488,17 +6488,20 @@
 
   async function obtenerAlertas(force = false) {
     if (!force && alertasCache) return alertasCache;
-    if (authProvider !== "firebase" && Date.now() - costAlertsAt > 60000) {
+    const useFirebaseAlerts = authProvider === "firebase" || (!sb && window.DcarelaFirebase?.isAvailable);
+    if (!useFirebaseAlerts && authProvider === "supabase" && Date.now() - costAlertsAt > 60000) {
       costAlertsAt = Date.now();
       await fetch(`${cfg.url.replace(/\/$/, "")}/functions/v1/pos-alerts?business_id=${encodeURIComponent(BUSINESS)}&limit=1`, {
         headers: await authenticatedHeaders()
       }).catch(() => null);
     }
-    const systemAlertsQuery = authProvider === "firebase"
+    const systemAlertsQuery = useFirebaseAlerts
       ? window.DcarelaFirebase.getLimitedCollection("system_alerts", BUSINESS, "created_at", 250)
         .then(data => ({ data, error: null }))
-      : sb.from("system_alerts").select("id,severity,alert_type,title,message,payload,acknowledged_at,created_at,device_id")
-        .eq("business_id", BUSINESS).order("created_at", { ascending: false }).limit(250);
+      : sb
+        ? sb.from("system_alerts").select("id,severity,alert_type,title,message,payload,acknowledged_at,created_at,device_id")
+          .eq("business_id", BUSINESS).order("created_at", { ascending: false }).limit(250)
+        : Promise.resolve({ data: [], error: null });
     const [systemResult, eventResult] = await Promise.allSettled([
       systemAlertsQuery,
       eventos(RELEVANT_EVENTS, null, null, 400)
@@ -6557,9 +6560,9 @@
     localStorage.setItem(READ_KEY, JSON.stringify([...read].slice(-1200)));
     alert.read = true;
     if (alert.source === "system" && alert.sourceId && session?.user?.id) {
-      if (authProvider === "firebase") {
+      if (authProvider === "firebase" || (!sb && window.DcarelaFirebase?.isAvailable)) {
         await window.DcarelaFirebase.acknowledgeAlerts([alert.sourceId], BUSINESS);
-      } else {
+      } else if (sb) {
         await sb.from("system_alerts").update({ acknowledged_at: new Date().toISOString(), acknowledged_by: session.user.id })
           .eq("id", alert.sourceId).eq("business_id", BUSINESS).then(() => {});
       }
@@ -7210,7 +7213,7 @@
       authProvider = nextSession.provider === "firebase" ? "firebase" : "supabase";
       try {
         const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error("Tiempo de espera agotado al conectar.")), 6000)
+          setTimeout(() => reject(new Error("Tiempo de espera agotado al conectar.")), 20000)
         );
         const started = await Promise.race([iniciar(generation), timeoutPromise]);
         if (!started) return;
@@ -7218,6 +7221,11 @@
       } catch (error) {
         console.warn("iniciarConSesion error:", error);
         if (generation !== authGeneration) return;
+        // Invalida el iniciar() que perdio la carrera. Sin esto, la promesa
+        // continuaba en segundo plano y podia mostrar el panel con proveedor
+        // "none", cerrar Firebase y ejecutar consultas del backend anterior.
+        authGeneration++;
+        session = null;
         sesionOk = false;
         activeUserId = "";
         authProvider = "none";
@@ -7239,7 +7247,7 @@
       if (generation === authGeneration && !sesionOk) {
         mostrarAcceso("v-login");
       }
-    }, 4000);
+    }, 20000);
 
     try {
       const firebaseSession = await sesionFirebaseActual(2500).catch(() => null);

@@ -59,3 +59,12 @@ test("el formulario de acceso abandona Validando cuando Firebase no responde", (
   assert.match(source, /window\.DcarelaFirebase\.signIn\(email, password\),\s*12000,/);
   assert.match(source, /finally \{\s*button\.disabled = false;\s*button\.textContent = "Entrar";/);
 });
+
+test("un arranque Firebase vencido se invalida antes de que pueda abrir el panel", () => {
+  const start = source.indexOf("async function iniciarConSesion");
+  const end = source.indexOf("async function restaurarSesion", start);
+  const startup = source.slice(start, end);
+  assert.match(startup, /Tiempo de espera agotado al conectar[\s\S]*20000/);
+  assert.match(startup, /if \(generation !== authGeneration\) return;[\s\S]*authGeneration\+\+;[\s\S]*session = null;/);
+  assert.match(source, /if \(generation !== authGeneration \|\| session\?\.user\?\.id !== expectedUserId\) return false;[\s\S]*sesionOk = true/);
+});

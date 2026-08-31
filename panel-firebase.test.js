@@ -101,11 +101,12 @@ test("Notificaciones, Dispositivos y Respaldos usan Firestore cuando la sesion e
   const alerts = panelJs.slice(panelJs.indexOf("async function obtenerAlertas"), panelJs.indexOf("function actualizarContadorAlertas"));
   const acknowledge = panelJs.slice(panelJs.indexOf("async function marcarAlerta"), panelJs.indexOf("async function cargarNotificaciones"));
 
-  assert.match(devices, /authProvider === "firebase"[\s\S]*DcarelaFirebase\.getLimitedCollection\("devices", BUSINESS, "last_seen_at", 200\)/);
-  assert.match(backups, /authProvider === "firebase"[\s\S]*DcarelaFirebase\.getLimitedCollection\("backup_snapshots", BUSINESS, "created_at", limit\)/);
-  assert.match(alerts, /authProvider !== "firebase" && Date\.now\(\) - costAlertsAt/);
+  assert.match(devices, /authProvider === "firebase" \|\| \(!sb && window\.DcarelaFirebase\?\.isAvailable\)[\s\S]*DcarelaFirebase\.getLimitedCollection\("devices", BUSINESS, "last_seen_at", 200\)/);
+  assert.match(backups, /authProvider === "firebase" \|\| \(!sb && window\.DcarelaFirebase\?\.isAvailable\)[\s\S]*DcarelaFirebase\.getLimitedCollection\("backup_snapshots", BUSINESS, "created_at", limit\)/);
+  assert.match(alerts, /useFirebaseAlerts = authProvider === "firebase" \|\| \(!sb && window\.DcarelaFirebase\?\.isAvailable\)/);
+  assert.match(alerts, /!useFirebaseAlerts && authProvider === "supabase" && Date\.now\(\) - costAlertsAt/);
   assert.match(alerts, /DcarelaFirebase\.getLimitedCollection\("system_alerts", BUSINESS, "created_at", 250\)/);
-  assert.match(acknowledge, /authProvider === "firebase"[\s\S]*DcarelaFirebase\.acknowledgeAlerts\(\[alert\.sourceId\], BUSINESS\)/);
+  assert.match(acknowledge, /authProvider === "firebase" \|\| \(!sb && window\.DcarelaFirebase\?\.isAvailable\)[\s\S]*DcarelaFirebase\.acknowledgeAlerts\(\[alert\.sourceId\], BUSINESS\)/);
 });
 
 test("todas las herramientas administrativas visibles tienen implementacion Firebase", () => {
