@@ -8,7 +8,8 @@ test('integra el ledger Windows desde eventos Firebase sin escanear todo el hist
   assert.match(adapter, /payload\.importeDopCentavos/);
   assert.match(adapter, /source: 'pos_sync_event'/);
   const method = adapter.slice(adapter.indexOf('async getFinanceMovements'), adapter.indexOf('async webSaleAction'));
-  assert.doesNotMatch(method, /this\.getSyncEvents/);
+  assert.match(method, /this\.getSyncEvents\(businessId, \{ from, to, limit: SYNC_EVENT_MAX_BATCH \}\)/);
+  assert.match(method, /events\.filter\(event => event\.event_type === 'LedgerMovimientoRegistrado'\)/);
 });
 
 test('la lectura financiera conserva fallback parcial y deduplica por id', () => {

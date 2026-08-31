@@ -99,6 +99,19 @@
   initFirebase();
 
   const nowIso = () => new Date().toISOString();
+  const businessDay = value => {
+    if (!value) return '';
+    if (window.DcarelaFinanceCore?.businessDay) return window.DcarelaFinanceCore.businessDay(value);
+    const raw = String(value);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+    const date = new Date(raw);
+    if (Number.isNaN(date.getTime())) return raw.slice(0, 10);
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Santo_Domingo', year: 'numeric', month: '2-digit', day: '2-digit'
+    }).formatToParts(date);
+    const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
+    return `${values.year}-${values.month}-${values.day}`;
+  };
   const uuid = () => (globalThis.crypto?.randomUUID?.() ||
     'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
       const r = Math.random() * 16 | 0;
@@ -1216,6 +1229,9 @@
         if (syncEventQueryCache.get(queryKey) === cachedQuery) syncEventQueryCache.delete(queryKey);
         throw error;
       }
+      const recentWindow = from && Number.isFinite(Date.parse(from))
+        && Date.parse(from) >= Date.now() - 45 * 24 * 60 * 60 * 1000;
+      if (recentWindow) return current;
       let archived = eventArchiveCache.get(businessId);
       if (!archived || Date.now() - archived.at > 5 * 60 * 1000) {
         const chunks = await this.getCollection('sync_event_archives', [['business_id', '==', businessId]]);
@@ -1290,12 +1306,19 @@
     },
 
     async getFinanceMovements(businessId = 'dcarela', month = null) {
+      const ledgerRequest = month ? (() => {
+        const [year, monthNumber] = String(month).split('-').map(Number);
+        const from = new Date(year, monthNumber - 1, 1, 0, 0, 0, 0).toISOString();
+        const to = new Date(year, monthNumber, 1, 0, 0, 0, 0).toISOString();
+        return this.getSyncEvents(businessId, { from, to, limit: SYNC_EVENT_MAX_BATCH })
+          .then(events => events.filter(event => event.event_type === 'LedgerMovimientoRegistrado'));
+      })() : this.getCollection('sync_events', [
+        ['business_id', '==', businessId],
+        ['event_type', '==', 'LedgerMovimientoRegistrado']
+      ]);
       const [financeResult, ledgerResult] = await Promise.allSettled([
         this.getCollection('fin_movements', [['business_id', '==', businessId]]),
-        this.getCollection('sync_events', [
-          ['business_id', '==', businessId],
-          ['event_type', '==', 'LedgerMovimientoRegistrado']
-        ])
+        ledgerRequest
       ]);
       const rows = financeResult.status === 'fulfilled' ? financeResult.value : [];
       const ledgerRows = ledgerResult.status === 'fulfilled' ? ledgerResult.value.map(event => {
@@ -1303,14 +1326,14 @@
         return {
           id: payload.ledgerId || event.entity_id || event.event_id || event.id,
           business_id: event.business_id || businessId,
-          tipo: payload.tipo || 'GASTO',
+          tipo: String(payload.tipo || 'gasto').trim().toLowerCase(),
           categoria: payload.categoria || '',
           descripcion: payload.descripcion || event.event_type || 'Movimiento de caja Windows',
           monto_centavos: Number(payload.importeDopCentavos ?? payload.importe_dop_centavos ?? 0),
           importe_dop_centavos: Number(payload.importeDopCentavos ?? payload.importe_dop_centavos ?? 0),
           moneda: payload.monedaOriginal || 'DOP',
-          estado: payload.estado || 'confirmado',
-          fecha: payload.fechaEfectiva || event.created_at_local || event.received_at_cloud || '',
+          estado: String(payload.estado || 'confirmado').trim().toLowerCase(),
+          fecha: businessDay(payload.fechaEfectiva || event.created_at_local || event.received_at_cloud || ''),
           cuenta_id: payload.cuentaId || payload.cuenta_id || null,
           categoria_id: payload.categoriaId || payload.categoria_id || null,
           payee: payload.payee || null,

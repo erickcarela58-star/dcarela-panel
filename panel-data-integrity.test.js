@@ -1,0 +1,42 @@
+const fs = require("node:fs");
+const test = require("node:test");
+const assert = require("node:assert/strict");
+
+const panel = fs.readFileSync(__dirname + "/panel.js", "utf8");
+const adapter = fs.readFileSync(__dirname + "/firebase-adapter.js", "utf8");
+const shell = fs.readFileSync(__dirname + "/shell-assets/index-a8e27158.js", "utf8");
+const mobile = fs.readFileSync(__dirname + "/mobile/assets/index-7e44ede9.js", "utf8");
+
+test("el resumen solicita la ventana completa y agrupa ventas por el dia comercial", () => {
+  for (const bundle of [shell, mobile]) {
+    assert.match(bundle, /getSyncEvents\(o,\{from:c\.toISOString\(\),to:\(new Date\)\.toISOString\(\),limit:5e3\}\)/);
+    assert.match(bundle, /DcarelaFinanceCore\.eventDay\(e\)/);
+    assert.doesNotMatch(bundle, /getSyncEvents\(o\)/);
+  }
+});
+
+test("el panel compara fechas como instantes y no como textos local contra UTC", () => {
+  const eventsMethod = panel.slice(panel.indexOf("async function eventos("), panel.indexOf("async function cargarRolEdicion"));
+  assert.match(eventsMethod, /eventoEnRango\(item, from, to\)/);
+  assert.doesNotMatch(eventsMethod, /String\(item\.created_at_local \|\| ""\) >= from/);
+});
+
+test("finanzas normaliza estados y no usa RPC de otro proveedor en sesion Firebase", () => {
+  assert.match(panel, /movements: movs\.map\(item => financeCore\.normalizeMovement\(item\)\)/);
+  assert.match(panel, /financeCore\.summarizeMovements\(state\.movements, range\.from, range\.to\)/);
+  assert.match(panel, /if \(authProvider !== "firebase" && sb\)/);
+  assert.match(adapter, /String\(payload\.tipo \|\| 'gasto'\)\.trim\(\)\.toLowerCase\(\)/);
+});
+
+test("las consultas recientes no vuelven a descargar archivos historicos", () => {
+  const method = adapter.slice(adapter.indexOf("async getSyncEvents"), adapter.indexOf("async getSales"));
+  assert.match(method, /if \(recentWindow\) return current/);
+});
+
+test("Money Manager limita el ledger al mes y tolera modulos secundarios", () => {
+  const financeMethod = adapter.slice(adapter.indexOf("async getFinanceMovements"), adapter.indexOf("async webSaleAction"));
+  assert.match(financeMethod, /getSyncEvents\(businessId, \{ from, to, limit: SYNC_EVENT_MAX_BATCH \}\)/);
+  assert.match(panel, /const results = await Promise\.allSettled\(\[/);
+  assert.match(panel, /const accounts = required\(0, "las cuentas financieras"\)/);
+  assert.match(panel, /const budgets = optional\(4, \[\]\)/);
+});

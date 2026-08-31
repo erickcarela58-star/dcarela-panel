@@ -22,6 +22,7 @@
   }
   const THEME_KEY = "dcarela.ui.theme";
   const APP_BUILD = "1.0.51";
+  const financeCore = window.DcarelaFinanceCore;
 
   window.cargarFinanzas = async function(force = false) {
     try {
@@ -231,6 +232,15 @@
     return d.toISOString();
   };
   const fechaEventoIso = event => event?.created_at_local || P(event).vendidaEn || P(event).fecha || event?.received_at_cloud || event?.created_at;
+  const eventoEnRango = (event, from, to) => {
+    const value = fechaEventoIso(event);
+    const timestamp = value ? new Date(value).getTime() : Number.NaN;
+    const fromTimestamp = from ? new Date(from).getTime() : Number.NEGATIVE_INFINITY;
+    const toTimestamp = to ? new Date(to).getTime() : Number.POSITIVE_INFINITY;
+    if (Number.isFinite(timestamp)) return timestamp >= fromTimestamp && timestamp <= toTimestamp;
+    const text = String(value || "");
+    return (!from || text >= from) && (!to || text <= to);
+  };
   const totalDe = payload => numero(payload?.totalCobradoCentavos, payload?.total_cobrado_centavos, payload?.totalCentavos, payload?.total_centavos, payload?.total);
   const itbisDe = payload => numero(payload?.itbisCentavos, payload?.itbis_centavos, payload?.impuestoCentavos, payload?.impuesto_centavos);
   const montoDe = payload => numero(payload?.montoCentavos, payload?.monto_centavos, payload?.totalCentavos, payload?.total_centavos, payload?.efectivoContadoCentavos);
@@ -676,9 +686,8 @@
         limit: fetchLimit,
       });
       if (types?.length) items = items.filter(item => types.includes(item.event_type));
-      if (from) items = items.filter(item => String(item.created_at_local || "") >= from);
-      if (to) items = items.filter(item => String(item.created_at_local || "") <= to);
-      items.sort((a, b) => String(b.created_at_local || "").localeCompare(String(a.created_at_local || "")));
+      if (from || to) items = items.filter(item => eventoEnRango(item, from, to));
+      items.sort((a, b) => String(fechaEventoIso(b) || "").localeCompare(String(fechaEventoIso(a) || "")));
       verEstado(true, "Firebase autenticado");
       return items.slice(0, Math.max(1, limit));
     }
@@ -715,9 +724,8 @@
   function eventosDesde(items, types, from, to, limit = 1600) {
     let output = Array.isArray(items) ? [...items] : [];
     if (types?.length) output = output.filter(item => types.includes(item.event_type));
-    if (from) output = output.filter(item => String(item.created_at_local || "") >= from);
-    if (to) output = output.filter(item => String(item.created_at_local || "") <= to);
-    output.sort((a, b) => String(b.created_at_local || "").localeCompare(String(a.created_at_local || "")));
+    if (from || to) output = output.filter(item => eventoEnRango(item, from, to));
+    output.sort((a, b) => String(fechaEventoIso(b) || "").localeCompare(String(fechaEventoIso(a) || "")));
     return output.slice(0, Math.max(1, limit));
   }
 
@@ -5031,8 +5039,7 @@
     try {
       if (authProvider === "firebase") {
         if (!window.DcarelaFirebase?.isAvailable) throw new Error("Firebase no está disponible.");
-        const [accounts, categories, movements, cards, budgets, preferences, currencies,
-          commitments, commitmentPayments, pendingTransfers] = await Promise.all([
+        const results = await Promise.allSettled([
           window.DcarelaFirebase.getFinanceAccounts(BUSINESS),
           window.DcarelaFirebase.getFinanceCategories(BUSINESS),
           cargarMovimientosFinMes(month),
@@ -5044,6 +5051,23 @@
           window.DcarelaFirebase.getFinanceCommitmentPayments(BUSINESS),
           window.DcarelaFirebase.getFinancePendingTransfers(BUSINESS)
         ]);
+        const required = (index, label) => {
+          if (results[index].status === "rejected") {
+            throw new Error(`No se pudo cargar ${label}: ${results[index].reason?.message || results[index].reason}`);
+          }
+          return results[index].value;
+        };
+        const optional = (index, fallback) => results[index].status === "fulfilled" ? results[index].value : fallback;
+        const accounts = required(0, "las cuentas financieras");
+        const movements = required(2, "los movimientos financieros");
+        const categories = optional(1, []);
+        const cards = optional(3, []);
+        const budgets = optional(4, []);
+        const preferences = optional(5, null);
+        const currencies = optional(6, []);
+        const commitments = optional(7, []);
+        const commitmentPayments = optional(8, []);
+        const pendingTransfers = optional(9, []);
         cuentasRes = { data: accounts || [] };
         accountVisualsRes = { data: [] };
         catsRes = { data: categories || [] };
@@ -5082,7 +5106,7 @@
     finStateCache = {
       accounts: cuentas,
       categories: catsRows,
-      movements: movs,
+      movements: movs.map(item => financeCore.normalizeMovement(item)),
       cards: cardsRes.data || [],
       budgets: budgetsRes.data || [],
       preferences: preferencesRes.data || null,
@@ -5460,7 +5484,8 @@
       const detail = movement.comision_centavos
         ? `${movement.descripcion || movement.payee || ""} (comision ${money(movement.comision_centavos)})`
         : movement.descripcion || movement.payee || "Sin descripcion";
-      const canCancel = canEdit && ["panel", "asistente", "movil"].includes(movement.origen);
+      const canCancel = canEdit && financeCore.isActiveMovement(movement)
+        && ["panel", "asistente", "movil"].includes(movement.origen);
       const canPublish = canEdit && movement.origen === "panel" && movement.estado !== "anulado" && !movement.sync_event_id;
       const actions = `${canPublish ? `<button class="mini" data-fin-publish="${esc(movement.id)}" title="Enviar al ledger global">Sincronizar</button>` : ""}${canCancel ? `<button class="mini danger" data-fin-cancel="${esc(movement.id)}" title="Anular sin borrar historial">Anular</button>` : ""}`;
       return [esc(dateOnly(movement.fecha)), typeText, accountText, esc(categories.get(movement.categoria_id) || "--"),
@@ -5488,21 +5513,32 @@
     const state = finStateCache;
     if (!state) return;
     const categories = new Map(state.categories.map(item => [item.id, item.nombre]));
-    const rangeQueries = new Map();
-    for (const budget of state.budgets) {
-      const range = finBudgetRange(budget);
-      const key = `${range.from}|${range.to}`;
-      if (!rangeQueries.has(key)) rangeQueries.set(key, sb.rpc("fin_category_totals", {
-        p_business_id: BUSINESS, p_from: range.from, p_to: range.to, p_type: "gasto",
-      }));
-    }
-    const entries = [...rangeQueries.entries()];
-    const results = await Promise.all(entries.map(([, request]) => request));
     const totalsByRange = new Map();
-    results.forEach((result, index) => {
-      if (result.error) throw result.error;
-      totalsByRange.set(entries[index][0], new Map((result.data || []).map(row => [row.categoria_id, numero(row.total_centavos)])));
-    });
+    const ranges = [...new Set(state.budgets.map(budget => {
+      const range = finBudgetRange(budget);
+      return `${range.from}|${range.to}`;
+    }))];
+    if (authProvider === "firebase" || !sb) {
+      ranges.forEach(key => {
+        const [from, to] = key.split("|");
+        const totals = new Map();
+        financeCore.summarizeMovements(state.movements, from, to).movements
+          .filter(item => item.tipo === "gasto")
+          .forEach(item => totals.set(item.categoria_id, (totals.get(item.categoria_id) || 0) + numero(item.monto_centavos)));
+        totalsByRange.set(key, totals);
+      });
+    } else {
+      const results = await Promise.all(ranges.map(key => {
+        const [from, to] = key.split("|");
+        return sb.rpc("fin_category_totals", {
+          p_business_id: BUSINESS, p_from: from, p_to: to, p_type: "gasto",
+        });
+      }));
+      results.forEach((result, index) => {
+        if (result.error) throw result.error;
+        totalsByRange.set(ranges[index], new Map((result.data || []).map(row => [row.categoria_id, numero(row.total_centavos)])));
+      });
+    }
     state.budgetProgress = state.budgets.map(budget => {
       const range = finBudgetRange(budget);
       const spent = totalsByRange.get(`${range.from}|${range.to}`)?.get(budget.categoria_id) || 0;
@@ -5638,7 +5674,7 @@
     
     let summary = null, dailyRows = [], categoryRows = [];
     try {
-      if (sb) {
+      if (authProvider !== "firebase" && sb) {
         const [summaryRes, dailyRes, categoryRes] = await Promise.all([
           sb.rpc("fin_period_summary", { p_business_id: BUSINESS, p_from: range.from, p_to: range.to }).catch(() => ({ data: null })),
           sb.rpc("fin_daily_totals", { p_business_id: BUSINESS, p_from: range.from, p_to: range.to }).catch(() => ({ data: null })),
@@ -5653,7 +5689,7 @@
     }
 
     // Client-side financial analytics computation from state.movements
-    const periodMovements = (state.movements || []).filter(m => m.fecha >= range.from && m.fecha <= range.to);
+    const periodMovements = financeCore.summarizeMovements(state.movements, range.from, range.to).movements;
     if (!summary) {
       const inc = periodMovements.filter(m => m.tipo === "ingreso").reduce((sum, m) => sum + numero(m.monto_centavos), 0);
       const exp = periodMovements.filter(m => m.tipo === "gasto").reduce((sum, m) => sum + numero(m.monto_centavos), 0);
@@ -5783,7 +5819,8 @@
   function renderFinRecent(range) {
     const state = finStateCache;
     const accounts = new Map(state.accounts.map(item => [item.id, item.nombre]));
-    const rows = state.movements.filter(item => item.fecha >= range.from && item.fecha <= range.to).slice(0, 8);
+    const rows = state.movements.filter(item => financeCore.isActiveMovement(item)
+      && financeCore.movementInRange(item, range.from, range.to)).slice(0, 8);
     $("finRecentList").innerHTML = rows.length ? rows.map(item => {
       const expense = item.tipo === "gasto";
       return `<article><i class="${esc(item.tipo)}"></i><span><strong>${esc(item.descripcion || item.payee || (item.tipo === "transferencia" ? "Transferencia" : "Movimiento"))}</strong><small>${esc(accounts.get(item.cuenta_id) || "--")} &middot; ${esc(dateOnly(item.fecha))}</small></span><b class="${expense ? "neg" : item.tipo === "ingreso" ? "pos" : ""}">${expense ? "-" : item.tipo === "ingreso" ? "+" : ""}${money(item.monto_centavos)}</b></article>`;
