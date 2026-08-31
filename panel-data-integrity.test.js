@@ -15,6 +15,12 @@ test("el resumen solicita la ventana completa y agrupa ventas por el dia comerci
   }
 });
 
+test("una caja atrasada no se presenta como un dia sin ventas", () => {
+  for (const bundle of [shell, mobile]) {
+    assert.match(bundle, /ge\?`Todavia no hay ventas validas hoy\.`:`No hay datos de ventas sincronizados para hoy\.`/);
+  }
+});
+
 test("el panel compara fechas como instantes y no como textos local contra UTC", () => {
   const eventsMethod = panel.slice(panel.indexOf("async function eventos("), panel.indexOf("async function cargarRolEdicion"));
   assert.match(eventsMethod, /eventoEnRango\(item, from, to\)/);

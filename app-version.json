@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "build": "2026.08.30.1.0.60.6",
+  "build": "2026.08.30.1.0.60.7",
   "web_version": "1.0.53",
   "pwa_version": "1.0.53",
   "desktop_version": "1.0.60",
@@ -9,7 +9,7 @@
   "ios_release_url": "https://panel.dcarelacompufoto.com/ios-releases/Brujula-5.1.7-489-AltStore.ipa",
   "published_at": "2026-08-31T02:26:00Z",
   "channel": "stable",
-  "notes": "Panel web y PWA 1.0.53: recupera todas las ventas de la ventana actual, respeta el día comercial de Santo Domingo y corrige sumas, presupuestos y carga de Finanzas.",
+  "notes": "Panel web y PWA 1.0.53: recupera todas las ventas de la ventana actual, respeta el día comercial de Santo Domingo, corrige sumas y distingue un cero real de datos de caja pendientes de sincronizar.",
   "release_page_url": "https://panel.dcarelacompufoto.com/#descargar",
   "desktop_release": {
     "version": "1.0.60",
