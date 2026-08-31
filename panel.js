@@ -6316,12 +6316,22 @@
     const dueTotal = monthObligations.reduce((sum, item) => sum + numero(item.saldoCentavos), 0);
     const overdueTotal = overdue.reduce((sum, item) => sum + numero(item.saldoCentavos), 0);
     const salesTotal = salesResult.active.reduce((sum, item) => sum + totalDe(P(item)), 0);
+    let integratedSales = [];
     if (finStateCache) {
       const salesAccount = finStateCache.accounts.find(item => item.ligada_ventas && !item.oculta && item.estado !== "eliminada");
-      finStateCache.movements = financeCore.mergeSalesIntoMovements(finStateCache.movements, salesResult.active, {
+      const normalizedSales = salesResult.active.map(event => ({
+        ...event,
+        payload: {
+          ...P(event),
+          totalCobradoCentavos: totalDe(P(event)),
+          vendidaEn: P(event).vendidaEn || P(event).vendida_en || fechaEventoIso(event),
+        },
+      }));
+      finStateCache.movements = financeCore.mergeSalesIntoMovements(finStateCache.movements, normalizedSales, {
         accountId: salesAccount?.id || null,
         businessId: BUSINESS,
       });
+      integratedSales = finStateCache.movements.filter(item => item.origen === "pos_venta");
       renderFinMovements();
       await renderFinDashboard();
     }
@@ -6329,7 +6339,7 @@
     if (syncStatus) {
       syncStatus.classList.toggle("warn", !salesResult.raw.length);
       syncStatus.textContent = salesResult.raw.length
-        ? `${salesResult.active.length.toLocaleString("es-DO")} venta(s) activa(s) integradas · ${money(salesTotal)} · ${salesResult.excluded} anulada(s) excluida(s)`
+        ? `${integratedSales.length.toLocaleString("es-DO")} venta(s) integrada(s) en Finanzas · ${money(salesTotal)} · ${salesResult.excluded} anulada(s) excluida(s)`
         : "Aún no se recibieron ventas para este mes; el panel no las presenta como cero confirmado.";
     }
     const committed = expensesTotal + paidTotal + dueTotal;

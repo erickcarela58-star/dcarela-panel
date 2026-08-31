@@ -48,7 +48,8 @@ test("Money Manager limita el ledger al mes y tolera modulos secundarios", () =>
 });
 
 test("Finanzas integra las ventas activas del POS y muestra su procedencia", () => {
-  assert.match(panel, /financeCore\.mergeSalesIntoMovements\(finStateCache\.movements, salesResult\.active/);
+  assert.match(panel, /totalCobradoCentavos: totalDe\(P\(event\)\)/);
+  assert.match(panel, /financeCore\.mergeSalesIntoMovements\(finStateCache\.movements, normalizedSales/);
   assert.match(panel, /movement\.origen === "pos_venta" \? "POS Windows"/);
-  assert.match(panel, /venta\(s\) activa\(s\) integradas/);
+  assert.match(panel, /venta\(s\) integrada\(s\) en Finanzas/);
 });

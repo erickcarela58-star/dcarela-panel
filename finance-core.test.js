@@ -86,3 +86,12 @@ test("lee ventas Firebase cuando payload llega serializado como JSON", () => {
   assert.equal(movements[0].monto_centavos, 6651000);
   assert.equal(movements[0].fecha, "2026-08-30");
 });
+
+test("una recarga reemplaza la proyeccion anterior sin conservar ventas obsoletas", () => {
+  const previous = [{ id: "pos-sale:vieja", tipo: "ingreso", fecha: "2026-08-01", monto_centavos: 99900, origen: "pos_venta" }];
+  const fresh = [{ event_id: "nueva", entity_id: "venta-nueva", created_at_local: "2026-08-30T18:00:00-04:00", payload: { folio: 20, totalCentavos: 45015 } }];
+  const merged = core.mergeSalesIntoMovements(previous, fresh);
+  assert.equal(merged.length, 1);
+  assert.equal(merged[0].monto_centavos, 45015);
+  assert.equal(merged[0].id.includes("nueva"), true);
+});

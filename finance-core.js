@@ -139,7 +139,7 @@
   }
 
   function mergeSalesIntoMovements(movements, sales, options = {}) {
-    const current = (movements || []).map(normalizeMovement);
+    const current = (movements || []).map(normalizeMovement).filter(item => item.origen !== "pos_venta");
     const represented = new Set(current.flatMap(movementSaleIdentifiers));
     const additions = projectSalesAsMovements(sales, options).filter(movement => {
       const ids = [...movementSaleIdentifiers(movement), ...(movement.metadata?.sale_identifiers || [])];
