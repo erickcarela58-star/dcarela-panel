@@ -140,14 +140,24 @@
 
   function mergeSalesIntoMovements(movements, sales, options = {}) {
     const current = (movements || []).map(normalizeMovement).filter(item => item.origen !== "pos_venta");
-    const represented = new Set(current.flatMap(movementSaleIdentifiers));
-    const additions = projectSalesAsMovements(sales, options).filter(movement => {
+    const projected = projectSalesAsMovements(sales, options);
+    const projectedIds = new Set(projected.flatMap(movement => [
+      ...movementSaleIdentifiers(movement), ...(movement.metadata?.sale_identifiers || [])
+    ]));
+    const base = current.filter(movement => {
+      const collidesWithSale = movementSaleIdentifiers(movement).some(id => projectedIds.has(id));
+      return !collidesWithSale || (movement.tipo === "ingreso" && movement.monto_centavos > 0);
+    });
+    const represented = new Set(base
+      .filter(movement => movement.tipo === "ingreso" && movement.monto_centavos > 0)
+      .flatMap(movementSaleIdentifiers));
+    const additions = projected.filter(movement => {
       const ids = [...movementSaleIdentifiers(movement), ...(movement.metadata?.sale_identifiers || [])];
       if (ids.some(id => represented.has(id))) return false;
       ids.forEach(id => represented.add(id));
       return true;
     });
-    return [...current, ...additions].sort((a, b) => String(b.fecha || "").localeCompare(String(a.fecha || "")));
+    return [...base, ...additions].sort((a, b) => String(b.fecha || "").localeCompare(String(a.fecha || "")));
   }
 
   return {

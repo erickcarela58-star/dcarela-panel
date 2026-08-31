@@ -95,3 +95,18 @@ test("una recarga reemplaza la proyeccion anterior sin conservar ventas obsoleta
   assert.equal(merged[0].monto_centavos, 45015);
   assert.equal(merged[0].id.includes("nueva"), true);
 });
+
+test("sustituye un marcador ledger sin importe por la venta POS completa", () => {
+  const marker = [{
+    id: "ledger-vacio", sync_event_id: "evt-sale", tipo: "gasto", fecha: "2026-08-30",
+    monto_centavos: 0, origen: "pos", descripcion: "Marcador de sincronizacion"
+  }];
+  const sales = [{
+    event_id: "evt-sale", entity_id: "sale-500", created_at_local: "2026-08-30T18:00:00-04:00",
+    payload: { folio: 500, totalCentavos: 4501500 }
+  }];
+  const merged = core.mergeSalesIntoMovements(marker, sales);
+  assert.equal(merged.length, 1);
+  assert.equal(merged[0].origen, "pos_venta");
+  assert.equal(merged[0].monto_centavos, 4501500);
+});
