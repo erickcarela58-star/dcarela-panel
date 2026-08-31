@@ -48,6 +48,10 @@ test("Money Manager limita el ledger al mes y tolera modulos secundarios", () =>
 });
 
 test("Finanzas integra las ventas activas del POS y muestra su procedencia", () => {
+  const loadAccountsAt = panel.indexOf("await cargarCuentasFin(month);");
+  const projectSalesAt = panel.indexOf("integratedSales = salesResult.active.flatMap");
+  assert.ok(loadAccountsAt >= 0 && projectSalesAt > loadAccountsAt,
+    "Money Manager debe cargar antes de proyectar ventas");
   assert.match(panel, /const amount = totalDe\(payload\)/);
   assert.match(panel, /origen: "pos_venta"/);
   assert.match(panel, /const activeSaleIdentifiers = new Set\(salesResult\.active\.flatMap/);

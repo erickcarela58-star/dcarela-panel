@@ -27,10 +27,6 @@
   window.cargarFinanzas = async function(force = false) {
     try {
       if (typeof cargarProveedores === "function") await cargarProveedores(force);
-      if (typeof cargarCuentasFin === "function") {
-        const m = document.getElementById("provMes")?.value || new Date().toISOString().slice(0, 7);
-        await cargarCuentasFin(m);
-      }
     } catch (err) {
       console.warn("cargarFinanzas:", err);
     }
@@ -194,7 +190,17 @@
   const esc = value => textoSeguro(value).replace(/[&<>"']/g, char => ({
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
   })[char]);
-  const P = event => event?.payload || {};
+  const P = event => {
+    const payload = event?.payload;
+    if (payload && typeof payload === "object") return payload;
+    if (typeof payload === "string") {
+      try {
+        const parsed = JSON.parse(payload);
+        return parsed && typeof parsed === "object" ? parsed : {};
+      } catch (_) { return {}; }
+    }
+    return {};
+  };
   const numero = (...values) => {
     for (const value of values) {
       if (value === null || value === undefined || value === "") continue;
@@ -6307,6 +6313,15 @@
     const endDate = new Date(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0);
     const to = finDia(inputDate(endDate));
     const [state, salesResult] = await Promise.all([cargarCostosCloud(force), ventasActivas(from, to, 20000)]);
+    try {
+      // Money Manager debe existir antes de proyectar las ventas. Antes se
+      // intentaba integrar contra null y luego esta carga borraba la proyeccion.
+      await cargarCuentasFin(month);
+    } catch (error) {
+      $("finCuentasCards").innerHTML = "";
+      $("finMovimientosTabla").innerHTML = `<div class="empty-state"><strong>No se pudo cargar Finanzas.</strong><p>${esc(error?.message || error)}</p></div>`;
+      throw error;
+    }
     const monthExpenses = state.expenses.filter(item => item.activo && monthOf(item.fecha || item._latestAt) === month);
     const monthPayments = state.payments.filter(item => monthOf(item.fecha) === month);
     const monthObligations = state.obligations.filter(item => monthOf(item.venceEn) === month && !["anulada", "pagada"].includes(item.estado));
@@ -6408,18 +6423,11 @@
     wireCostActions(state);
     setCostTab(costTab);
     $("provPanelRecurrentes").querySelector(".surface-title p").textContent = `${activeRecurring.length} plan(es) activo(s). Genera obligaciones hasta el mes siguiente sin duplicados.`;
-    try {
-      await cargarCuentasFin(month);
-      const quickRequested = new URLSearchParams(location.search).get("quick") === "1";
-      if (quickRequested && !sessionStorage.getItem("dcarela.fin.quick.opened")) {
-        sessionStorage.setItem("dcarela.fin.quick.opened", "1");
-        setCostTab("movimientos");
-        setTimeout(() => abrirMovimientoFin("gasto"), 120);
-      }
-    } catch (error) {
-      $("finCuentasCards").innerHTML = "";
-      $("finMovimientosTabla").innerHTML = `<div class="empty-state"><strong>No se pudo cargar Finanzas.</strong><p>${esc(error?.message || error)}</p></div>`;
-      throw error;
+    const quickRequested = new URLSearchParams(location.search).get("quick") === "1";
+    if (quickRequested && !sessionStorage.getItem("dcarela.fin.quick.opened")) {
+      sessionStorage.setItem("dcarela.fin.quick.opened", "1");
+      setCostTab("movimientos");
+      setTimeout(() => abrirMovimientoFin("gasto"), 120);
     }
   }
 
