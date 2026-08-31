@@ -76,3 +76,13 @@ test("integra ventas distintas y evita duplicarlas en recargas sucesivas", () =>
   assert.equal(twice.length, 2);
   assert.equal(core.summarizeMovements(twice).ingresos_centavos, 30505);
 });
+
+test("lee ventas Firebase cuando payload llega serializado como JSON", () => {
+  const movements = core.projectSalesAsMovements([{
+    event_id: "evt-json", entity_id: "sale-json", created_at_local: "2026-08-30T20:00:00-04:00",
+    payload: JSON.stringify({ folio: 27356, totalCobradoCentavos: 6651000, vendidaEn: "2026-08-30T20:00:00-04:00" })
+  }]);
+  assert.equal(movements.length, 1);
+  assert.equal(movements[0].monto_centavos, 6651000);
+  assert.equal(movements[0].fecha, "2026-08-30");
+});

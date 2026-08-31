@@ -14,6 +14,17 @@
     const parsed = Number(value);
     return Number.isFinite(parsed) ? parsed : 0;
   };
+  const eventPayload = event => {
+    const value = event?.payload;
+    if (value && typeof value === "object") return value;
+    if (typeof value === "string") {
+      try {
+        const parsed = JSON.parse(value);
+        return parsed && typeof parsed === "object" ? parsed : {};
+      } catch (_) { return {}; }
+    }
+    return {};
+  };
 
   function businessDay(value, timeZone = BUSINESS_TIME_ZONE) {
     if (!value) return "";
@@ -29,7 +40,7 @@
   }
 
   function eventDay(event, timeZone = BUSINESS_TIME_ZONE) {
-    const payload = event?.payload || {};
+    const payload = eventPayload(event);
     return businessDay(
       payload.vendidaEn || payload.vendida_en || payload.fecha || payload.fechaEfectiva
         || event?.created_at_local || event?.received_at_cloud || event?.created_at,
@@ -81,7 +92,7 @@
   }
 
   function saleIdentifiers(event) {
-    const payload = event?.payload || {};
+    const payload = eventPayload(event);
     return [event?.id, event?.event_id, event?.entity_id, payload.id, payload.ventaId,
       payload.venta_id, payload.saleId, payload.sale_id, payload.folio]
       .filter(value => value !== null && value !== undefined && String(value).trim())
@@ -97,7 +108,7 @@
   }
 
   function saleAmount(event) {
-    const payload = event?.payload || {};
+    const payload = eventPayload(event);
     return Math.abs(finiteNumber(payload.totalCobradoCentavos ?? payload.total_cobrado_centavos
       ?? payload.totalCentavos ?? payload.total_centavos ?? payload.total));
   }
@@ -105,7 +116,7 @@
   function projectSalesAsMovements(sales, options = {}) {
     const accountId = options.accountId || null;
     return (sales || []).map((event, index) => {
-      const payload = event?.payload || {};
+      const payload = eventPayload(event);
       const ids = saleIdentifiers(event);
       const folio = payload.folio ?? payload.numero ?? payload.ticket ?? "";
       return normalizeMovement({
@@ -148,6 +159,7 @@
     isActiveMovement,
     movementInRange,
     summarizeMovements,
+    eventPayload,
     saleIdentifiers,
     saleAmount,
     projectSalesAsMovements,
