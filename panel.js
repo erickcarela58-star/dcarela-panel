@@ -6319,19 +6319,37 @@
     let integratedSales = [];
     if (finStateCache) {
       const salesAccount = finStateCache.accounts.find(item => item.ligada_ventas && !item.oculta && item.estado !== "eliminada");
-      const normalizedSales = salesResult.active.map(event => ({
-        ...event,
-        payload: {
-          ...P(event),
-          totalCobradoCentavos: totalDe(P(event)),
-          vendidaEn: P(event).vendidaEn || P(event).vendida_en || fechaEventoIso(event),
-        },
-      }));
-      finStateCache.movements = financeCore.mergeSalesIntoMovements(finStateCache.movements, normalizedSales, {
-        accountId: salesAccount?.id || null,
-        businessId: BUSINESS,
+      const baseMovements = finStateCache.movements.filter(item => item.origen !== "pos_venta");
+      const representedSales = new Set(baseMovements
+        .filter(item => item.tipo === "ingreso" && numero(item.monto_centavos) > 0)
+        .flatMap(item => [item.sync_event_id, item.venta_id, item.sale_id, item.venta_folio]
+          .filter(Boolean).map(value => String(value).trim().toLocaleLowerCase("es"))));
+      integratedSales = salesResult.active.flatMap((event, index) => {
+        const payload = P(event);
+        const identifiers = financeCore.saleIdentifiers(event);
+        const amount = totalDe(payload);
+        const saleDate = financeCore.businessDay(fechaEventoIso(event));
+        if (!amount || !saleDate || identifiers.some(id => representedSales.has(id))) return [];
+        identifiers.forEach(id => representedSales.add(id));
+        const folio = payload.folio ?? payload.numero ?? payload.ticket ?? "";
+        return [financeCore.normalizeMovement({
+          id: `pos-sale:${identifiers[0] || `${saleDate}-${index}`}`,
+          business_id: BUSINESS,
+          tipo: "ingreso",
+          estado: "confirmado",
+          fecha: saleDate,
+          monto_centavos: amount,
+          cuenta_id: salesAccount?.id || null,
+          descripcion: folio ? `Venta POS #${folio}` : "Venta sincronizada del POS",
+          nota: payload.clienteNombre || payload.cliente_nombre || "Venta confirmada en la caja Windows",
+          origen: "pos_venta",
+          venta_folio: folio ? String(folio) : "",
+          sync_event_id: event.event_id || event.id || "",
+          solo_lectura: true,
+        })];
       });
-      integratedSales = finStateCache.movements.filter(item => item.origen === "pos_venta");
+      finStateCache.movements = [...baseMovements, ...integratedSales]
+        .sort((a, b) => String(b.fecha || "").localeCompare(String(a.fecha || "")));
       renderFinMovements();
       await renderFinDashboard();
     }
