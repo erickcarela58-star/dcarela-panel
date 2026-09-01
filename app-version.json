@@ -43,21 +43,21 @@
     {
       "product": "D' Carela Finanzas",
       "label": "Aplicación oficial para iPhone y iPad",
-      "name": "DCarelaFinanzas-6.2.4-628-AltStore.ipa",
+      "name": "DCarelaFinanzas-6.2.5-629-AltStore.ipa",
       "extension": "IPA",
-      "version": "6.2.4",
-      "build": "628",
+      "version": "6.2.5",
+      "build": "629",
       "platform": "iOS / iPadOS 16.4+",
       "channel": "stable",
       "publisher_signature": "not_signed",
       "signature_label": "Artefacto verificado para AltStore / iOS",
-      "published_at": "2026-08-30T00:05:00Z",
-      "size_bytes": 930533,
-      "sha256": "15db667ef5fc3ac8ada5f3a42103e56f96af7c6d6391b7cd97b062fb8fac49c3",
-      "url": "https://github.com/erickcarela58-star/dcarela-panel/releases/download/ios-20260830-final-5.1.7-6.2.4/DCarelaFinanzas-6.2.4-628-AltStore.ipa",
+      "published_at": "2026-08-31T22:50:00Z",
+      "size_bytes": 939299,
+      "sha256": "a2ce3bbcc547fc2a112dd23cc3bfe13b2906d39a40fc70c42b7ec0c1cdbc876f",
+      "url": "https://panel.dcarelacompufoto.com/ios-releases/DCarelaFinanzas-6.2.5-629-AltStore.ipa",
       "checksums_url": "https://panel.dcarelacompufoto.com/ios-releases/manifest.json",
       "action": "Descargar IPA Finanzas",
-      "notes": "Build 628 conserva el panel actual sin zoom ni desborde, mantiene la sesion WebKit y corrige la carga inicial bloqueada.",
+      "notes": "Build 629 abre el panel web actualizado, renueva la cache de la app y conserva el formulario sin zoom ni desbordes.",
       "installation_method": "Instalar mediante AltStore desde el iPhone o sincronizar con AltServer."
     },
     {
@@ -123,12 +123,12 @@
       "localizedDescription": "Control financiero y administrativo oficial para D' Carela Estudio Fotográfico.",
       "iconURL": "https://panel.dcarelacompufoto.com/assets/finanzas-icon.png",
       "tintColor": "#1D4ED8",
-      "version": "6.2.4 (build 628)",
+      "version": "6.2.5 (build 629)",
       "platform": "iPhone / iPad",
       "status": "published",
-      "url": "https://panel.dcarelacompufoto.com/ios-releases/DCarelaFinanzas-6.2.4-628-AltStore.ipa",
+      "url": "https://panel.dcarelacompufoto.com/ios-releases/DCarelaFinanzas-6.2.5-629-AltStore.ipa",
       "action": "Descargar IPA Finanzas",
-      "notes": "Build 628 conserva el panel actual sin zoom ni desborde, la sesion WebKit y la carga inicial reparada."
+      "notes": "Build 629 abre el panel web actualizado, renueva la cache de la app y conserva el formulario sin zoom ni desbordes."
     },
     {
       "id": "com.dcarela.panel.7FL6SHN9DV",
@@ -139,12 +139,12 @@
       "localizedDescription": "Control financiero y administrativo oficial para D' Carela Estudio Fotográfico.",
       "iconURL": "https://panel.dcarelacompufoto.com/assets/finanzas-icon.png",
       "tintColor": "#1D4ED8",
-      "version": "6.2.4 (build 628)",
+      "version": "6.2.5 (build 629)",
       "platform": "iPhone / iPad",
       "status": "published",
-      "url": "https://panel.dcarelacompufoto.com/ios-releases/DCarelaFinanzas-6.2.4-628-AltStore.ipa",
+      "url": "https://panel.dcarelacompufoto.com/ios-releases/DCarelaFinanzas-6.2.5-629-AltStore.ipa",
       "action": "Descargar IPA Finanzas",
-      "notes": "Alias de bundle conservado para instalaciones existentes; mismo build 628 estable, sin mantener un segundo IPA obsoleto."
+      "notes": "Alias de bundle conservado para instalaciones existentes; mismo build 629 estable, sin mantener un segundo IPA obsoleto."
     },
     {
       "id": "crm",

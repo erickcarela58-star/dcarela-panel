@@ -51,7 +51,7 @@ test("Finanzas vigente y los dos CRM se publican por dominios oficiales", () => 
   const finance = manifest.apps.find(app => app.id === "finanzas-ios" || app.id === "com.dcarela.panel");
   assert.ok(finance);
   assert.equal(finance.status, "published");
-  assert.equal(finance.version, "6.2.4 (build 628)");
+  assert.equal(finance.version, "6.2.5 (build 629)");
   assert.match(finance.url, /DCarelaFinanzas-.*\.ipa$/);
   const crm = manifest.apps.find(app => app.id === "crm");
   const photos = manifest.apps.find(app => app.id === "crm-fotos");
@@ -77,5 +77,5 @@ test("AltStore solo anuncia los dos IPA vigentes", () => {
   }
   const urls = altStore.apps.map(app => app.downloadURL);
   assert.ok(urls.some(url => /Brujula-5\.1\.8-490-AltStore\.ipa$/.test(url)));
-  assert.ok(urls.some(url => /DCarelaFinanzas-6\.2\.4-628-AltStore\.ipa$/.test(url)));
+  assert.ok(urls.some(url => /DCarelaFinanzas-6\.2\.5-629-AltStore\.ipa$/.test(url)));
 });
