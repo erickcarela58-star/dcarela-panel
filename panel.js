@@ -4638,6 +4638,53 @@
 
   async function cargarCostosCloud(force = false) {
     if (!force && costStateCache) return costStateCache;
+    if (authProvider === "firebase") {
+      if (!window.DcarelaFirebase?.isAvailable) throw new Error("Firebase no está disponible.");
+      const [categoryDocs, expenseDocs, recurringDocs, obligationDocs, paymentDocs, receiptDocs] = await Promise.all([
+        window.DcarelaFirebase.getCollection("expense_categories", [["business_id", "==", BUSINESS]]),
+        window.DcarelaFirebase.getCollection("expenses", [["business_id", "==", BUSINESS]]),
+        window.DcarelaFirebase.getCollection("cost_recurrents", [["business_id", "==", BUSINESS]]),
+        window.DcarelaFirebase.getCollection("cost_obligations", [["business_id", "==", BUSINESS]]),
+        window.DcarelaFirebase.getCollection("cost_payments", [["business_id", "==", BUSINESS]]),
+        window.DcarelaFirebase.getCollection("payment_receipts", [["business_id", "==", BUSINESS]]),
+      ]);
+      const categories = categoryDocs.filter(item => item.nombre && item.activo !== false)
+        .sort((a, b) => String(a.nombre).localeCompare(String(b.nombre), "es"));
+      const categoryMap = new Map(categories.map(item => [item.id, item.nombre]));
+      const expenses = expenseDocs.filter(item => item.descripcion).map(item => ({
+        ...item,
+        categoria: item.categoria || categoryMap.get(item.categoriaId) || "Sin categoria",
+        activo: item.activo !== false && item.estado !== "anulado",
+      })).sort((a, b) => String(b.fecha || b.updated_at || b.created_at || "")
+        .localeCompare(String(a.fecha || a.updated_at || a.created_at || "")));
+      const recurrents = recurringDocs.filter(item => item.nombre).map(item => ({
+        ...item,
+        categoria: item.categoria || categoryMap.get(item.categoriaId) || "Sin categoria",
+        activo: item.activo !== false,
+      })).sort((a, b) => String(a.proximaFecha || "").localeCompare(String(b.proximaFecha || "")));
+      const obligations = obligationDocs.filter(item => item.concepto).map(item => ({
+        ...item,
+        categoria: item.categoria || categoryMap.get(item.categoriaId) || "Sin categoria",
+      }));
+      obligations.forEach(item => { item.estado = statusCost(item); });
+      obligations.sort((a, b) => {
+        const rank = { vencida: 0, pendiente: 1, parcial: 2, pagada: 3, anulada: 4 };
+        return (rank[a.estado] ?? 9) - (rank[b.estado] ?? 9)
+          || String(a.venceEn || "").localeCompare(String(b.venceEn || ""));
+      });
+      const payments = paymentDocs.map(item => ({
+        ...item,
+        fecha: item.pagadoEn || item.fecha || item.created_at || item.updated_at || "",
+      })).sort((a, b) => String(b.fecha).localeCompare(String(a.fecha)));
+      const receipts = receiptDocs.filter(item => item.beneficiario && item.concepto).map(item => ({
+        ...item,
+        estado: item.estado === "anulado" ? "anulado" : "emitido",
+        firmado: item.firmado === true,
+      })).sort((a, b) => String(b.pagadoEn || b.creadoEn || b.updated_at || "")
+        .localeCompare(String(a.pagadoEn || a.creadoEn || a.updated_at || "")));
+      costStateCache = { categories, expenses, recurrents, obligations, payments, receipts };
+      return costStateCache;
+    }
     const items = await eventos(COST_EVENTS, null, null, 20000);
     const categoryEvents = items.filter(item => item.event_type === "CategoriaGastoCreada");
     const categories = consolidateNamed(mergeEvents(categoryEvents, ["CategoriaGastoCreada"]))

@@ -79,6 +79,10 @@ test("Finanzas integra las ventas activas del POS y muestra su procedencia", () 
 });
 
 test("Compromisos recupera las obligaciones historicas sin duplicarlas", () => {
+  assert.match(panel, /getCollection\("cost_obligations"/);
+  assert.match(panel, /getCollection\("cost_payments"/);
+  assert.match(panel, /getCollection\("cost_recurrents"/);
+  assert.match(panel, /getCollection\("expenses"/);
   assert.match(panel, /const legacyRows = \(state\.costObligations \|\| \[\]\)\.map/);
   assert.match(panel, /No estan borradas ni se duplicaron como compromisos nuevos/);
   assert.match(panel, /finStateCache\.costObligations = state\.obligations \|\| \[\]/);
