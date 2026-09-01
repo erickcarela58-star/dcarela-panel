@@ -47,6 +47,13 @@ test("Money Manager limita el ledger al mes y tolera modulos secundarios", () =>
   assert.match(panel, /const budgets = optional\(4, \[\]\)/);
 });
 
+test("cada escritura de Money Manager recarga tambien las ventas proyectadas", () => {
+  const rawLoads = [...panel.matchAll(/await cargarCuentasFin\(/g)];
+  assert.equal(rawLoads.length, 1, "solo cargarProveedores puede invocar la carga base de Money Manager");
+  assert.match(panel, /await adminWrite\("fin\.transfer\.create"[\s\S]{0,700}await cargarProveedores\(true\)/);
+  assert.match(panel, /await adminWrite\("fin\.movement\.create"[\s\S]{0,700}await cargarProveedores\(true\)/);
+});
+
 test("Finanzas abre en el dia comercial de Santo Domingo y no en UTC", () => {
   assert.match(panel, /let finReferenceDate = "";/);
   assert.match(panel, /finReferenceDate = financeCore\?\.businessDay\(new Date\(\)\) \|\| inputDate\(new Date\(\)\);/);

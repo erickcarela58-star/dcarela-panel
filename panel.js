@@ -21,7 +21,7 @@
     document.body?.classList.add("is-embedded");
   }
   const THEME_KEY = "dcarela.ui.theme";
-  const APP_BUILD = "1.0.59";
+  const APP_BUILD = "1.0.60";
   const financeCore = window.DcarelaFinanceCore;
 
   window.cargarFinanzas = async function(force = false) {
@@ -5290,7 +5290,7 @@
       });
       cerrarEditor();
       toast("Transferencia pendiente registrada sin alterar el saldo.");
-      await cargarCuentasFin(finStateCache?.month || inputDate(new Date()).slice(0, 7));
+      await cargarProveedores(true);
     }, "Guardar seguimiento");
   }
 
@@ -5303,7 +5303,7 @@
         await adminWrite(confirmed ? "fin.pending_transfer.confirm" : "fin.pending_transfer.cancel", id, { nota: form.get("nota") });
         cerrarEditor();
         toast(confirmed ? "Transferencia confirmada y documentada." : "Seguimiento cancelado.");
-        await cargarCuentasFin(finStateCache?.month || inputDate(new Date()).slice(0, 7));
+        await cargarProveedores(true);
       }, confirmed ? "Confirmar" : "Cancelar seguimiento");
   }
 
@@ -5672,7 +5672,7 @@
         descripcion: form.get("descripcion"), nota: form.get("nota"), origen: "panel",
       });
       cerrarEditor();
-      await cargarCuentasFin($("provMes").value);
+      await cargarProveedores(true);
     });
   }
 
@@ -5931,7 +5931,7 @@
         visualMascara: form.get("visualMascara"),
       });
       cerrarEditor();
-      await cargarCuentasFin($("provMes").value);
+      await cargarProveedores(true);
     });
     const tipoSel = $("finAccountTipo");
     const saldoLabel = $("finAccountSaldoLabel");
@@ -5984,7 +5984,6 @@
       cerrarEditor();
       toast(`Saldo conciliado. Diferencia registrada: ${difference >= 0 ? "+" : "-"}${money(Math.abs(difference))}`);
       await cargarProveedores(true);
-      if (typeof cargarCuentasFin === "function") await cargarCuentasFin($("provMes")?.value);
     }, "Conciliar saldo");
   }
 
@@ -6008,7 +6007,7 @@
         fecha: form.get("fecha"), descripcion: form.get("descripcion"), nota: form.get("nota"),
       });
       cerrarEditor();
-      await cargarCuentasFin($("provMes").value);
+      await cargarProveedores(true);
     });
   }
 
@@ -6067,7 +6066,6 @@
         });
         cerrarEditor();
         await cargarProveedores(true);
-        if (typeof cargarCuentasFin === "function") await cargarCuentasFin($("provMes")?.value);
         return;
       }
       await adminWrite("fin.movement.create", null, {
@@ -7717,20 +7715,20 @@
     on("btnNuevaCuentaFin", "click", () => abrirCuentaFin());
     on("btnNuevaTransferencia", "click", async () => {
       try {
-        if (!finStateCache) await cargarCuentasFin($("provMes").value || inputDate(new Date()).slice(0, 7));
+        if (!finStateCache) await cargarProveedores(true);
         abrirTransferenciaFin();
       } catch (error) { toast(error.message); }
     });
     const openTransfer = async () => {
       try {
-        if (!finStateCache) await cargarCuentasFin($("provMes").value || inputDate(new Date()).slice(0, 7));
+        if (!finStateCache) await cargarProveedores(true);
         abrirTransferenciaFin();
       } catch (error) { toast(error.message); }
     };
     on("btnFinTransferTop", "click", openTransfer);
     on("btnFinNuevaPendiente", "click", async () => {
       try {
-        if (!finStateCache) await cargarCuentasFin($("provMes").value || inputDate(new Date()).slice(0, 7));
+        if (!finStateCache) await cargarProveedores(true);
         openPendingTransfer();
       } catch (error) { toast(error.message); }
     });
