@@ -21,7 +21,7 @@
     document.body?.classList.add("is-embedded");
   }
   const THEME_KEY = "dcarela.ui.theme";
-  const APP_BUILD = "1.0.61";
+  const APP_BUILD = "1.0.62";
   const financeCore = window.DcarelaFinanceCore;
 
   window.cargarFinanzas = async function(force = false) {
@@ -107,6 +107,7 @@
   let categoryCatalog = null;
   let comboCatalog = null;
   let clientCatalog = null;
+  let clientPeriodSalesCache = { key: "", at: 0, rows: [] };
   let userCatalog = null;
   let businessConfig = null;
   let costStateCache = null;
@@ -1069,6 +1070,7 @@
   }
 
   const IA_MEMORY_KEY = "dcarela.ia.memory.v2";
+  const IA_MODEL_KEY = `dcarela.ia.model.v3.${BUSINESS}`;
 
   function getIaLearnedRules() {
     try {
@@ -1326,7 +1328,10 @@
 
   function renderIaStatus(status) {
     iaStatusCache = status;
-    $("iaStatus").textContent = status.local_engine ? "Cerebro local activo" : status.configured ? "IA conectada" : "Falta configuracion";
+    const hasGoogle = (status.models || []).some(model => model.id === "google-gemini");
+    $("iaStatus").textContent = status.local_engine && hasGoogle
+      ? "Modo automatico activo" : status.local_engine ? "Cerebro local activo"
+        : status.configured ? "IA conectada" : "Falta configuracion";
     $("iaStatus").classList.toggle("bad", !status.configured || !status.capabilities?.can_use);
     $("iaRole").textContent = status.full_admin_access ? `${status.role} · control total` : status.role;
     $("iaAccessSummary").textContent = status.full_admin_access ? "Acceso completo por rol administrativo" : "Acceso delegado por capacidades";
@@ -1337,7 +1342,7 @@
     renderIaClaves(status);
     const current = $("iaModel").value;
     $("iaModel").innerHTML = (status.models || []).map(model => `<option value="${esc(model.id)}">${esc(model.label)} · ${esc(model.level)}</option>`).join("");
-    const preferred = localStorage.getItem(`dcarela.ia.model.v2.${BUSINESS}`) || current || status.models?.[0]?.id;
+    const preferred = localStorage.getItem(IA_MODEL_KEY) || current || status.models?.[0]?.id;
     if (preferred && [...$("iaModel").options].some(option => option.value === preferred)) $("iaModel").value = preferred;
     else if ($("iaModel").options.length) $("iaModel").selectedIndex = 0;
     // El servidor ya no ofrece modelos de un proveedor caido. Si desaparecio
@@ -4555,16 +4560,85 @@
     });
   }
 
+  function rangoClientesSeleccionado() {
+    const mode = $("cliPeriodo").value || "all";
+    if (mode === "all") return { mode, from: "", to: "", active: false, label: "Todos los periodos" };
+    const reference = new Date(`${financeCore?.businessDay(new Date()) || inputDate(new Date())}T12:00:00`);
+    if (mode === "month") {
+      const from = inputDate(new Date(reference.getFullYear(), reference.getMonth(), 1, 12));
+      return { mode, from, to: inputDate(reference), active: true, label: "Este mes" };
+    }
+    if (mode === "previous-month") {
+      const from = inputDate(new Date(reference.getFullYear(), reference.getMonth() - 1, 1, 12));
+      const to = inputDate(new Date(reference.getFullYear(), reference.getMonth(), 0, 12));
+      return { mode, from, to, active: true, label: "Mes anterior" };
+    }
+    const from = $("cliDesde").value;
+    const to = $("cliHasta").value;
+    if (!from || !to) throw new Error("Selecciona las dos fechas del periodo de clientes.");
+    if (from > to) throw new Error("La fecha Desde no puede ser posterior a Hasta.");
+    return { mode, from, to, active: true, label: `${from} a ${to}` };
+  }
+
+  function mostrarPeriodoPersonalizadoClientes() {
+    const custom = $("cliPeriodo").value === "custom";
+    document.querySelectorAll(".cli-custom-period").forEach(field => field.classList.toggle("oculto", !custom));
+  }
+
+  async function ventasClientesDelPeriodo(range) {
+    if (!range.active) return [];
+    const key = `${BUSINESS}|${range.from}|${range.to}`;
+    if (clientPeriodSalesCache.key === key && Date.now() - clientPeriodSalesCache.at < 60_000) {
+      return clientPeriodSalesCache.rows;
+    }
+    const from = inicioDia(range.from);
+    const to = finDia(range.to);
+    const [eventResult, directResult] = await Promise.allSettled([
+      ventasActivas(from, to, 5000),
+      authProvider === "firebase" ? window.DcarelaFirebase.getSales(BUSINESS, 500) : Promise.resolve([]),
+    ]);
+    if (eventResult.status === "rejected" && directResult.status === "rejected") {
+      throw new Error("No se pudo consultar el historial de compras para ese periodo.");
+    }
+    const events = eventResult.status === "fulfilled" ? eventResult.value.active : [];
+    const direct = directResult.status === "fulfilled"
+      ? (directResult.value || []).filter(sale => {
+        const day = String(sale.vendidaEn || sale.created_at || "").slice(0, 10);
+        return day >= range.from && day <= range.to;
+      }) : [];
+    const rows = [...events, ...direct];
+    clientPeriodSalesCache = { key, at: Date.now(), rows };
+    return rows;
+  }
+
   async function cargarClientes() {
     const clients = await cargarClientesCloud();
-    const query = $("cliBuscar").value.trim().toLowerCase();
-    const visible = clients.filter(client => !query || [client.nombre, client.telefono, client.rnc, client.email].some(value => String(value || "").toLowerCase().includes(query)));
-    const debtors = clients.filter(client => numero(client.saldoCentavos) > 0);
-    $("cliResumen").innerHTML = metric("Clientes", String(clients.length)) + metric("Activos", String(clients.filter(item => item.activo).length)) + metric("Con balance", String(debtors.length)) + metric("CxC informada", money(debtors.reduce((sum, item) => sum + numero(item.saldoCentavos), 0)));
-    const headers = ["Cliente", "Telefono", "RNC", "Correo", "Limite", "Balance", "Estado"];
+    const range = rangoClientesSeleccionado();
+    const sales = await ventasClientesDelPeriodo(range);
+    if (!window.DcarelaClientPeriodFilter?.analyze) throw new Error("El filtro de clientes no termino de cargar.");
+    const filtered = window.DcarelaClientPeriodFilter.analyze({
+      clients,
+      sales,
+      query: $("cliBuscar").value,
+      balance: $("cliBalance").value || "all",
+      from: range.from,
+      to: range.to,
+      requirePeriod: range.active,
+    });
+    const visible = filtered.rows;
+    const debtors = clients.filter(client => numero(client.saldoCentavos, client.saldo_centavos) > 0);
+    $("cliResumen").innerHTML = metric("Resultado", String(visible.length))
+      + metric(range.active ? "Compraron en el periodo" : "Clientes registrados", String(range.active ? filtered.periodCustomers : clients.length))
+      + metric("Sin deuda en resultado", String(filtered.noDebtCustomers))
+      + metric(range.active ? "Ventas del resultado" : "CxC informada", range.active ? money(filtered.periodTotalCents) : money(debtors.reduce((sum, item) => sum + numero(item.saldoCentavos, item.saldo_centavos), 0)));
+    const headers = ["Cliente", "Telefono", "RNC", "Correo"];
+    if (range.active) headers.push("Compras periodo", "Ultima compra");
+    headers.push("Limite", "Balance", "Estado");
     if (canEdit) headers.push("Accion");
     $("cliTabla").innerHTML = tabla(visible, client => {
-      const row = [`<strong>${esc(client.nombre)}</strong><span class="sync-note">Folio ${esc(client.folio || "--")}</span>`, esc(client.telefono || "--"), esc(client.rnc || "--"), esc(client.email || "--"), money(client.limiteCreditoCentavos), money(client.saldoCentavos), `<span class="tag ${client.activo ? "ok" : "bad"}">${client.activo ? "Activo" : "Inactivo"}</span>`];
+      const row = [`<strong>${esc(client.nombre)}</strong><span class="sync-note">Folio ${esc(client.folio || "--")}</span>`, esc(client.telefono || "--"), esc(client.rnc || "--"), esc(client.email || "--")];
+      if (range.active) row.push(`${client._periodPurchases}<span class="sync-note">${money(client._periodTotalCentavos)}</span>`, esc(client._periodLastSale || "--"));
+      row.push(money(client.limiteCreditoCentavos), money(client.saldoCentavos), `<span class="tag ${client.activo !== false ? "ok" : "bad"}">${client.activo !== false ? "Activo" : "Inactivo"}</span>`);
       if (canEdit) row.push(`<button class="table-action" data-edit-client="${esc(client.id)}">Editar</button>`);
       return row;
     }, headers);
@@ -7590,7 +7664,7 @@
       input.style.height = "auto";
       input.style.height = `${Math.min(input.scrollHeight, 150)}px`;
     });
-    on("iaModel", "change", () => localStorage.setItem(`dcarela.ia.model.v2.${BUSINESS}`, $("iaModel").value));
+    on("iaModel", "change", () => localStorage.setItem(IA_MODEL_KEY, $("iaModel").value));
     const intelligenceUpgradeKey = `dcarela.ia.intelligence-upgrade.v37.${BUSINESS}`;
     const applyIntelligenceUpgrade = localStorage.getItem(intelligenceUpgradeKey) !== "1";
     [
@@ -7856,6 +7930,13 @@
     });
     on("btnInvBuscar", "click", () => cargarInventario().catch(error => mostrarError("inventario", error)));
     on("btnCliBuscar", "click", () => cargarClientes().catch(error => mostrarError("clientes", error)));
+    on("cliPeriodo", "change", () => {
+      mostrarPeriodoPersonalizadoClientes();
+      if ($("cliPeriodo").value !== "custom") cargarClientes().catch(error => mostrarError("clientes", error));
+    });
+    on("cliBalance", "change", () => cargarClientes().catch(error => mostrarError("clientes", error)));
+    on("cliDesde", "change", () => { if ($("cliHasta").value) cargarClientes().catch(error => mostrarError("clientes", error)); });
+    on("cliHasta", "change", () => { if ($("cliDesde").value) cargarClientes().catch(error => mostrarError("clientes", error)); });
     on("invBuscar", "keydown", event => { if (event.key === "Enter") { event.preventDefault(); $("btnInvBuscar").click(); } });
     on("cliBuscar", "keydown", event => { if (event.key === "Enter") { event.preventDefault(); $("btnCliBuscar").click(); } });
     on("btnCheckAllUpdates", "click", () => cargarDescargar(true));

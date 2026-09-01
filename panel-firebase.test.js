@@ -147,3 +147,14 @@ test("panel.html vincula firebase-config y firebase-adapter", () => {
   assert.match(fs.readFileSync(path.join(root, "panel-theme.css"), "utf8"), /html\.is-embedded \.auth-theme-toggle \{ display: none; \}/);
   assert.doesNotMatch(panelHtml, /Supabase guarda el libro/);
 });
+
+test("Clientes separa periodo de compra y estado de deuda", () => {
+  assert.match(panelHtml, /client-period-filter\.js/);
+  assert.match(panelHtml, /id="cliBalance"/);
+  assert.match(panelHtml, /value="no-debt">Sin deuda/);
+  assert.match(panelHtml, /id="cliPeriodo"/);
+  assert.match(panelHtml, /id="cliDesde"/);
+  assert.match(panelHtml, /id="cliHasta"/);
+  assert.match(panelJs, /DcarelaClientPeriodFilter\.analyze/);
+  assert.match(panelJs, /ventasClientesDelPeriodo/);
+});

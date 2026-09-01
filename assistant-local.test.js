@@ -58,8 +58,10 @@ test('el cerebro local funciona sin proveedor HTTP y anuncia consumo cero de API
   const status = await assistant.request('status', context());
   assert.equal(status.ok, true);
   assert.equal(status.local_engine, true);
-  assert.equal(status.models[0].id, 'local-pos');
-  assert.match(status.models[0].level, /Sin consumo de API/);
+  assert.equal(status.models[0].id, 'auto');
+  assert.match(status.models[0].level, /Local primero/i);
+  assert.equal(status.models[1].id, 'local-pos');
+  assert.match(status.models[1].level, /Sin consumo de API/);
 });
 
 test('resumen y auditorias usan exclusivamente datos entregados por Firebase', async () => {
@@ -222,7 +224,7 @@ test('ofrece Google cuando el servidor confirma la API y conserva el cerebro loc
     ? { ok: true, configured: true }
     : { ok: true, content: 'Respuesta real de Gemini.', effective_model: 'Google Gemini 2.5 Flash' } };
   const status = await assistant.request('status', ctx);
-  assert.deepEqual(status.models.map(item => item.id), ['local-pos', 'google-gemini']);
+  assert.deepEqual(status.models.map(item => item.id), ['auto', 'local-pos', 'google-gemini']);
   const reply = await assistant.request('chat', ctx, { message: 'Hola, ayudame a planificar mi semana.', model: 'google-gemini' });
   assert.equal(reply.message.content, 'Respuesta real de Gemini.');
   assert.match(reply.effective_model, /Google Gemini/);
@@ -233,7 +235,7 @@ test('si Gemini agota cuota informa la caida y responde con el cerebro local', a
     throw new Error('RESOURCE_EXHAUSTED: quota exceeded');
   } };
   const status = await assistant.request('status', ctx);
-  assert.deepEqual(status.models.map(item => item.id), ['local-pos']);
+  assert.deepEqual(status.models.map(item => item.id), ['auto', 'local-pos']);
   assert.match(status.providers_down.google, /limite temporal/i);
   const reply = await assistant.request('chat', ctx, {
     message: 'Hola, ayudame a planificar mi semana.', model: 'google-gemini'
@@ -241,6 +243,47 @@ test('si Gemini agota cuota informa la caida y responde con el cerebro local', a
   assert.match(reply.message.content, /Google Gemini alcanzo su limite temporal/i);
   assert.match(reply.message.content, /Puedo seguir trabajando localmente/i);
   assert.match(reply.effective_model, /Cerebro local POS/i);
+});
+
+test('automatico entrega a Gemini una pregunta que el buscador local no puede contestar', async () => {
+  const requests = [];
+  const ctx = { ...context(adapter({
+    getFinanceMovements: async () => [
+      { id: 'food', fecha: `${localDay().slice(0, 7)}-01`, tipo: 'gasto', monto_centavos: 50000, categoria: 'Comida' },
+      { id: 'sale', fecha: `${localDay().slice(0, 7)}-02`, tipo: 'ingreso', monto_centavos: 125000, descripcion: 'Venta POS' },
+    ],
+    getFinanceAccounts: async () => [{ id: 'cash', nombre: 'Efectivo', tipo: 'efectivo', estado: 'activa', saldo_actual_centavos: 75000 }],
+  })), remoteAssistant: async body => {
+    requests.push(body);
+    if (body.action === 'assistantStatus') return { ok: true, configured: true };
+    return { ok: true, content: 'Los gastos altos se concentran en Comida.', effective_model: 'Google Gemini 2.5 Flash' };
+  } };
+  const reply = await assistant.request('chat', ctx, {
+    message: '¿Por qué mis gastos están altos este mes y qué debo hacer?',
+    model: 'auto',
+    custom_rules: '- No recomendar deuda nueva.',
+  });
+  assert.match(reply.message.content, /se concentran en Comida/);
+  assert.doesNotMatch(reply.message.content, /No encontre movimientos/);
+  const generation = requests.find(item => item.action === 'assistantGenerate');
+  assert.ok(generation);
+  assert.match(generation.operational_context, /CONTEXTO FINANCIERO VERIFICADO/);
+  assert.match(generation.operational_context, /Comida: RD\$500\.00/);
+  assert.match(generation.operational_context, /No recomendar deuda nueva/);
+  assert.equal(reply.conversation.model, 'auto');
+});
+
+test('migra conversaciones antiguas que dejaban el modelo local predeterminado', async () => {
+  const storage = memoryStorage();
+  storage.setItem('dcarela.local-assistant.v1.dcarela.user-1', JSON.stringify([{
+    id: 'legacy', business_id: 'dcarela', created_by_uid: 'user-1',
+    title: 'Conversacion vieja', model: 'local-pos', messages: [], actions: [],
+    created_at: '2026-08-28T00:00:00.000Z', updated_at: '2026-08-28T00:00:00.000Z',
+  }]));
+  const ctx = { ...context(), storage };
+  const history = await assistant.request('history', ctx, { conversation_id: 'legacy' });
+  assert.equal(history.conversation.model, 'auto');
+  assert.equal(history.conversation.model_selection_version, 3);
 });
 
 test('si Firestore no permite guardar, conserva el historial local sin pantalla en blanco', async () => {

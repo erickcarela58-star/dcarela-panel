@@ -31,9 +31,9 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="favicon.svg">
   <link rel="apple-touch-icon" href="dcarela-logo.png">
-  <link rel="stylesheet" href="panel.css?v=2026.09.01.1.0.62.7">
-  <link rel="stylesheet" href="panel-theme.css?v=2026.09.01.1.0.62.7">
-  <link rel="stylesheet" href="visual-fidelity.css?v=2026.09.01.1.0.62.7">
+  <link rel="stylesheet" href="panel.css?v=2026.09.01.1.0.62.8">
+  <link rel="stylesheet" href="panel-theme.css?v=2026.09.01.1.0.62.8">
+  <link rel="stylesheet" href="visual-fidelity.css?v=2026.09.01.1.0.62.8">
 </head>
 <body>
   <section id="access" class="access-shell">
@@ -344,7 +344,14 @@
             <div><h2>Clientes</h2><p>Datos de contacto y condiciones de credito. El saldo solo cambia mediante ventas y abonos.</p></div>
             <button id="btnNuevoCliente" class="primary admin-only oculto">Nuevo cliente</button>
           </div>
-          <div class="filter-bar compact-filter"><div class="filter-grow"><label for="cliBuscar">Buscar cliente</label><input id="cliBuscar" type="search" placeholder="Nombre, telefono, RNC o correo"></div><button id="btnCliBuscar" class="secondary">Filtrar</button></div>
+          <div class="filter-bar compact-filter client-filter-bar">
+            <div class="filter-grow"><label for="cliBuscar">Buscar cliente</label><input id="cliBuscar" type="search" placeholder="Nombre, telefono, RNC, correo o folio"></div>
+            <label><span>Balance</span><select id="cliBalance"><option value="all">Con y sin deuda</option><option value="no-debt">Sin deuda</option><option value="debt">Con deuda</option></select></label>
+            <label><span>Periodo de compra</span><select id="cliPeriodo"><option value="all">Todos los periodos</option><option value="month">Este mes</option><option value="previous-month">Mes anterior</option><option value="custom">Personalizado</option></select></label>
+            <label class="cli-custom-period oculto"><span>Desde</span><input id="cliDesde" type="date"></label>
+            <label class="cli-custom-period oculto"><span>Hasta</span><input id="cliHasta" type="date"></label>
+            <button id="btnCliBuscar" class="secondary">Aplicar filtros</button>
+          </div>
           <div id="cliResumen" class="inline-metrics"></div>
           <section class="surface"><div id="cliTabla" class="table-wrap"></div></section>
         </section>
@@ -521,7 +528,7 @@
                 <div class="assistant-empty">
                   <div class="assistant-empty-icon">✦</div>
                   <strong>Asistente Operativo D' Carela POS</strong>
-                  <p>Consulta los datos reales del POS con cerebro local. Las escrituras se preparan como propuesta y requieren aprobación.</p>
+                  <p>Trabaja en modo automático: usa datos locales verificables y entrega a Gemini lo que necesita razonamiento. Las escrituras siempre quedan como propuesta para aprobación.</p>
                   <div class="assistant-empty-starters">
                     <button type="button" class="starter-card" data-prompt="Dame un resumen de las ventas de hoy, los gastos registrados y el saldo en cuentas.">
                       <span class="starter-icon">📊</span>
@@ -543,10 +550,10 @@
                       <strong>Caja y cortes</strong>
                       <small>Turnos, efectivo y diferencias</small>
                     </button>
-                    <button type="button" class="starter-card" data-prompt="Busca gastos y pagos recientes que necesiten revision o conciliacion.">
+                    <button type="button" class="starter-card" data-prompt="Analiza por que mis gastos estan altos este mes, identifica las categorias principales y recomienda acciones concretas sin registrar nada.">
                       <span class="starter-icon">💵</span>
                       <strong>Finanzas y gastos</strong>
-                      <small>Movimientos confirmados</small>
+                      <small>Analisis local + Gemini cuando haga falta</small>
                     </button>
                     <button type="button" class="starter-card" data-prompt="Explicame como registrar varias ordenes juntas de forma segura y revisable.">
                       <span class="starter-icon">📦</span>
@@ -1052,15 +1059,16 @@
   <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
-  <script src="finance-core.js?v=2026.09.01.1.0.62.7"></script>
-  <script src="firebase-adapter.js?v=2026.09.01.1.0.62.7"></script>
-  <script src="assistant-local.js?v=2026.09.01.1.0.62.7"></script>
+  <script src="finance-core.js?v=2026.09.01.1.0.62.8"></script>
+  <script src="client-period-filter.js?v=2026.09.01.1.0.62.8"></script>
+  <script src="firebase-adapter.js?v=2026.09.01.1.0.62.8"></script>
+  <script src="assistant-local.js?v=2026.09.01.1.0.62.8"></script>
   <script src="jspdf.umd.min.js"></script>
   <script src="jspdf.plugin.autotable.min.js"></script>
-  <script src="ticket-termico.js?v=2026.09.01.1.0.62.7"></script>
-  <script src="panel-sale-pending.js?v=2026.09.01.1.0.62.7"></script>
-  <script src="panel.js?v=2026.09.01.1.0.62.7"></script>
-  <script src="visual-fidelity.js?v=2026.09.01.1.0.62.7"></script>
+  <script src="ticket-termico.js?v=2026.09.01.1.0.62.8"></script>
+  <script src="panel-sale-pending.js?v=2026.09.01.1.0.62.8"></script>
+  <script src="panel.js?v=2026.09.01.1.0.62.8"></script>
+  <script src="visual-fidelity.js?v=2026.09.01.1.0.62.8"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));

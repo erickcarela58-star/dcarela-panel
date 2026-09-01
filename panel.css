@@ -209,6 +209,9 @@ footer { display: flex; justify-content: space-between; padding: 11px 24px; colo
 .alert-preview { display: grid; gap: 7px; }.preview-alert { padding: 9px 10px; background: rgba(255,255,255,.52); border-left: 3px solid var(--orange); border-radius: 5px; }.preview-alert.critical { border-color: var(--red); }.preview-alert.info { border-color: var(--cyan); }.preview-alert strong, .preview-alert span { display: block; }.preview-alert strong { font-size: 11px; }.preview-alert span { color: var(--muted); font-size: 10px; margin-top: 2px; }
 
 .filter-bar { display: flex; align-items: end; gap: 10px; flex-wrap: wrap; margin-bottom: 13px; padding: 12px 14px; background: rgba(255,255,255,.55); border: 1px solid rgba(255,255,255,.76); border-radius: 8px; backdrop-filter: blur(15px); }.filter-bar > div { min-width: 160px; }.filter-bar label { margin-top: 0; }.compact-filter { justify-content: flex-end; }.compact-filter > div { min-width: 190px; }
+.client-filter-bar > label { min-width: 142px; margin: 0; }
+.client-filter-bar > label > span { display: block; margin-bottom: 5px; }
+.client-filter-bar .cli-custom-period { min-width: 136px; }
 .inline-metrics { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 0 12px; }.metric-chip { min-width: 145px; padding: 10px 12px; background: rgba(255,255,255,.61); border: 1px solid rgba(255,255,255,.76); border-radius: 7px; backdrop-filter: blur(14px); }.metric-chip span, .metric-chip strong { display: block; }.metric-chip span { color: var(--muted); font-size: 10px; }.metric-chip strong { margin-top: 3px; color: var(--navy); font-size: 16px; }
 
 .table-wrap { width: 100%; overflow: auto; max-height: 600px; }.table-wrap table { min-width: 650px; }

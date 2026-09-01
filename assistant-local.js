@@ -144,7 +144,10 @@
       created_by_uid: ctx.user.uid,
       created_by_email: ctx.user.email,
       title: text(conversation?.title, 120) || 'Nueva conversacion',
-      model: 'local-pos',
+      model: conversation?.model_selection_version === 3
+        && ['auto', 'local-pos', 'google-gemini'].includes(conversation?.model)
+        ? conversation.model : 'auto',
+      model_selection_version: 3,
       engine: 'local-firebase',
       messages: (conversation?.messages || []).slice(-MAX_MESSAGES).map(sanitizeMessage),
       actions: (conversation?.actions || []).slice(-80).map(sanitizeAction),
@@ -341,6 +344,98 @@
     return `### Movimientos encontrados (${matches.length})\n\n` + matches.map(item =>
       `- ${movementDate(item) || '--'} · ${text(item.descripcion || item.payee || item.tipo, 140)} · **${money(movementAmount(item))}**`
     ).join('\n');
+  }
+
+  function financeWindow(query) {
+    const current = new Date(`${today()}T12:00:00`);
+    if (/hoy|del dia|este dia/.test(query)) {
+      const day = today();
+      return { label: `hoy ${day}`, from: day, to: day };
+    }
+    if (/ayer/.test(query)) {
+      current.setDate(current.getDate() - 1);
+      const day = todayFrom(current);
+      return { label: `ayer ${day}`, from: day, to: day };
+    }
+    if (/semana/.test(query)) {
+      const start = new Date(current);
+      start.setDate(start.getDate() - 6);
+      return { label: 'ultimos 7 dias', from: todayFrom(start), to: today() };
+    }
+    if (/mes pasado|mes anterior/.test(query)) {
+      const start = new Date(current.getFullYear(), current.getMonth() - 1, 1, 12);
+      const end = new Date(current.getFullYear(), current.getMonth(), 0, 12);
+      return { label: 'mes anterior', from: todayFrom(start), to: todayFrom(end) };
+    }
+    const start = new Date(current.getFullYear(), current.getMonth(), 1, 12);
+    return { label: 'mes actual', from: todayFrom(start), to: today() };
+  }
+
+  function todayFrom(date) {
+    const offset = date.getTimezoneOffset() * 60000;
+    return new Date(date.getTime() - offset).toISOString().slice(0, 10);
+  }
+
+  async function financeAnalysisContext(ctx, query) {
+    const [movementResult, accountResult] = await Promise.allSettled([
+      ctx.adapter.getFinanceMovements(ctx.businessId),
+      ctx.adapter.getFinanceAccounts(ctx.businessId),
+    ]);
+    const movements = movementResult.status === 'fulfilled' ? (movementResult.value || []) : [];
+    const accounts = accountResult.status === 'fulfilled'
+      ? activeFinanceAccounts(accountResult.value || []) : [];
+    const range = financeWindow(query);
+    const rows = movements.filter(item => {
+      const day = movementDate(item);
+      return day && day >= range.from && day <= range.to
+        && normalize(item.estado) !== 'anulado';
+    });
+    const expenseRows = rows.filter(isExpense);
+    const incomeRows = rows.filter(item => ['ingreso', 'entrada', 'venta'].includes(normalize(item.tipo)));
+    const transferRows = rows.filter(item => normalize(item.tipo).includes('transfer'));
+    const categories = new Map();
+    expenseRows.forEach(item => {
+      const label = text(item.categoria || item.categoriaNombre || item.category_name || item.descripcion || 'Sin categoria', 100);
+      categories.set(label, (categories.get(label) || 0) + movementAmount(item));
+    });
+    const topCategories = [...categories.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8);
+    const accountLines = accounts.slice(0, 12).map(account => {
+      const balance = number(account.saldo_actual_centavos, account.saldoActualCentavos, account.saldo_inicial_centavos);
+      return `- ${text(account.nombre || account.name, 100)} (${text(account.tipo || 'cuenta', 60)}): ${money(balance)}`;
+    });
+    const partial = movementResult.status === 'rejected' || movements.partial_error;
+    return [
+      `CONTEXTO FINANCIERO VERIFICADO (${range.label}, ${range.from} a ${range.to}):`,
+      `- Movimientos visibles: ${rows.length}. Ingresos: ${incomeRows.length} por ${money(incomeRows.reduce((sum, item) => sum + movementAmount(item), 0))}.`,
+      `- Gastos: ${expenseRows.length} por ${money(expenseRows.reduce((sum, item) => sum + movementAmount(item), 0))}. Transferencias: ${transferRows.length}; no cuentan como ingreso ni gasto.`,
+      topCategories.length ? `- Gastos por categoria/concepto: ${topCategories.map(([label, amount]) => `${label}: ${money(amount)}`).join('; ')}.` : '- No hay gastos verificables en el periodo.',
+      accountLines.length ? `CUENTAS VISIBLES:\n${accountLines.join('\n')}` : 'CUENTAS VISIBLES: ninguna entregada por Firebase.',
+      partial ? 'ADVERTENCIA: la lectura financiera fue parcial; no afirmes que un movimiento inexistente no existe.' : 'La lectura financiera no reporto errores parciales.',
+    ].join('\n');
+  }
+
+  async function operationalContext(ctx, prompt, customRules = '') {
+    const query = normalize(prompt);
+    const blocks = [`Fecha local del negocio: ${today()}.`];
+    if (/gasto|finanz|dinero|cuenta|banco|tarjeta|ingreso|movimiento|presupuesto|deuda|pago/.test(query)) {
+      try { blocks.push(await financeAnalysisContext(ctx, query)); }
+      catch (error) { blocks.push(`Contexto financiero no disponible: ${text(error?.message || error, 240)}.`); }
+    }
+    if (/venta|resumen|caja|turno/.test(query)) {
+      try { blocks.push(await loadSummary(ctx)); }
+      catch (error) { blocks.push(`Resumen operativo no disponible: ${text(error?.message || error, 240)}.`); }
+    }
+    if (/cliente|credito|cuenta por cobrar|deudor/.test(query)) {
+      try { blocks.push(await auditClients(ctx)); }
+      catch (error) { blocks.push(`Contexto de clientes no disponible: ${text(error?.message || error, 240)}.`); }
+    }
+    if (/producto|catalogo|inventario|stock|precio/.test(query)) {
+      try { blocks.push(await auditProducts(ctx)); }
+      catch (error) { blocks.push(`Contexto de inventario no disponible: ${text(error?.message || error, 240)}.`); }
+    }
+    const rules = text(customRules, 3000);
+    if (rules) blocks.push(`REGLAS APRENDIDAS Y CONFIRMADAS POR EL OPERADOR:\n${rules}`);
+    return text(blocks.join('\n\n'), 14000);
   }
 
   function parseMoneyCents(raw) {
@@ -711,16 +806,24 @@
         content: 'Para **varias ordenes juntas**, preparo un lote revisable con una clave unica por orden, valido cliente, conceptos, montos y forma de pago, y marco duplicados antes de escribir. Luego presento el resumen completo para aprobacion. No aplico lotes incompletos ni invento campos ausentes.',
       };
     }
-    if (/resumen|venta.*hoy|hoy.*venta|saldo.*cuenta/.test(query)) return { content: await loadSummary(ctx) };
-    if (/producto|catalogo|inventario|stock|precio/.test(query)) return { content: await auditProducts(ctx) };
-    if (/cliente|credito|deud|cuenta por cobrar/.test(query)) return { content: await auditClients(ctx) };
-    if (/caja|turno|corte|arqueo|efectivo esperado/.test(query)) return { content: await auditCash(ctx) };
-    if (/pion|motor|gasto|pago|movimiento|factura/.test(query)) return { content: await searchFinance(ctx, prompt) };
+    if (/resumen.*(?:hoy|del dia)|venta.*hoy|hoy.*venta|saldo.*cuenta/.test(query)) return { content: await loadSummary(ctx) };
+    if (/(?:audita|revisa|lista|muestra).*(?:producto|catalogo|inventario|stock|precio)/.test(query)) return { content: await auditProducts(ctx) };
+    if (/(?:revisa|lista|muestra|resume).*(?:cliente|credito|deud|cuenta por cobrar)/.test(query)) return { content: await auditClients(ctx) };
+    if (/(?:estado|audita|revisa|ultimo).*(?:caja|turno|corte|arqueo)|efectivo esperado/.test(query)) return { content: await auditCash(ctx) };
+    if (/(?:busca|buscar|encuentra|localiza|muestra si existe|consulta si existe).*(?:pion|motor|gasto|pago|movimiento|factura)/.test(query)) {
+      return { content: await searchFinance(ctx, prompt) };
+    }
     let remoteWarning = '';
-    if (data.model && data.model !== 'local-pos' && ctx.remoteAssistant) {
+    const selectedModel = ['auto', 'local-pos', 'google-gemini'].includes(data.model)
+      ? data.model : (conversation?.model || 'auto');
+    if (selectedModel !== 'local-pos' && ctx.remoteAssistant) {
       try {
         const recent = (conversation?.messages || []).slice(-8).map(item => ({ role: item.role, content: text(item.content, 1800) }));
-        const remote = await ctx.remoteAssistant({ action: 'assistantGenerate', message: prompt, model: data.model, history: recent });
+        const context = await operationalContext(ctx, prompt, data.custom_rules);
+        const remote = await ctx.remoteAssistant({
+          action: 'assistantGenerate', message: prompt, model: 'google-gemini', history: recent,
+          operational_context: context, custom_rules: text(data.custom_rules, 3000),
+        });
         if (remote?.content) return { content: text(remote.content), effectiveModel: text(remote.effective_model, 120) || 'Google Gemini' };
         remoteWarning = remoteFailureMessage('respuesta vacia');
       } catch (error) {
@@ -742,8 +845,9 @@
       let remoteError = '';
       try { remote = ctx.remoteAssistant ? await ctx.remoteAssistant({ action: 'assistantStatus' }) : null; }
       catch (error) { remoteError = remoteFailureMessage(error); }
-      const models = [{ id: 'local-pos', label: 'Cerebro local POS', level: 'Sin consumo de API' }];
-      if (remote?.configured) models.push({ id: 'google-gemini', label: 'Google Gemini', level: 'API protegida del servidor' });
+      const models = [{ id: 'auto', label: 'Automatico', level: 'Local primero · Gemini cuando haga falta' },
+        { id: 'local-pos', label: 'Solo cerebro local', level: 'Sin consumo de API' }];
+      if (remote?.configured) models.push({ id: 'google-gemini', label: 'Forzar Google Gemini', level: 'API protegida del servidor' });
       return {
         ok: true, configured: true, local_engine: true,
         role: ctx.role, full_admin_access: roleAdmin(ctx.role),
@@ -782,6 +886,8 @@
         role: 'user', content: text(data.message) || 'Analiza los archivos adjuntos.',
         metadata: { attachments: data.attachments || [] }
       });
+      conversation.model = ['auto', 'local-pos', 'google-gemini'].includes(data.model)
+        ? data.model : (conversation.model || 'auto');
       const response = await answer(ctx, userMessage.content, conversation, data);
       const responseActions = Array.isArray(response.actions)
         ? response.actions.map(sanitizeAction)
