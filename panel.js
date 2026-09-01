@@ -21,7 +21,7 @@
     document.body?.classList.add("is-embedded");
   }
   const THEME_KEY = "dcarela.ui.theme";
-  const APP_BUILD = "1.0.58";
+  const APP_BUILD = "1.0.59";
   const financeCore = window.DcarelaFinanceCore;
 
   window.cargarFinanzas = async function(force = false) {
@@ -1889,8 +1889,9 @@
       ? eventosDesde(sourceEvents, ["VentaCobrada"], from, to, limit)
       : await eventos(["VentaCobrada"], from, to, limit);
     const cancelled = await idsVentasAnuladas(Boolean(sourceEvents), sourceEvents);
-    const active = sales.filter(sale => !clavesVenta(sale).some(id => cancelled.has(id)));
-    return { active, excluded: sales.length - active.length, raw: sales };
+    const notCancelled = sales.filter(sale => !clavesVenta(sale).some(id => cancelled.has(id)));
+    const active = financeCore.deduplicateSales(notCancelled);
+    return { active, excluded: sales.length - notCancelled.length, duplicates: notCancelled.length - active.length, raw: sales };
   }
 
   function identificadorTurno(event) {
@@ -6396,7 +6397,7 @@
     if (syncStatus) {
       syncStatus.classList.toggle("warn", !salesResult.raw.length);
       syncStatus.textContent = salesResult.raw.length
-        ? `${integratedSales.length.toLocaleString("es-DO")} venta(s) integrada(s) en Finanzas · ${money(salesTotal)} · ${salesResult.excluded} anulada(s) excluida(s)`
+        ? `${integratedSales.length.toLocaleString("es-DO")} venta(s) integrada(s) en Finanzas · ${money(salesTotal)} · ${salesResult.excluded} anulada(s) excluida(s) · ${salesResult.duplicates || 0} evento(s) duplicado(s) ignorado(s)`
         : "Aún no se recibieron ventas para este mes; el panel no las presenta como cero confirmado.";
     }
     const committed = expensesTotal + paidTotal + dueTotal;

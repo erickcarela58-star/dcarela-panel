@@ -99,6 +99,57 @@
       .map(value => String(value).trim().toLocaleLowerCase("es"));
   }
 
+  function saleDeduplicationIdentifiers(event) {
+    const payload = eventPayload(event);
+    const keys = [event?.id, event?.event_id, event?.entity_id, payload.id, payload.ventaId,
+      payload.venta_id, payload.saleId, payload.sale_id]
+      .filter(value => value !== null && value !== undefined && String(value).trim())
+      .map(value => `id:${String(value).trim().toLocaleLowerCase("es")}`);
+    const device = String(event?.device_id || payload.deviceId || payload.device_id
+      || payload.cajaId || payload.caja_id || payload.cajaNombre || "").trim().toLocaleLowerCase("es");
+    const folio = String(payload.folio ?? payload.numero ?? payload.ticket ?? "").trim().toLocaleLowerCase("es");
+    if (device && folio) keys.push(`folio:${device}:${folio}`);
+    return [...new Set(keys)];
+  }
+
+  function deduplicateSales(sales) {
+    const items = Array.isArray(sales) ? sales : [];
+    if (items.length < 2) return [...items];
+    const parents = items.map((_, index) => index);
+    const find = index => {
+      while (parents[index] !== index) {
+        parents[index] = parents[parents[index]];
+        index = parents[index];
+      }
+      return index;
+    };
+    const union = (left, right) => {
+      const a = find(left);
+      const b = find(right);
+      if (a !== b) parents[b] = a;
+    };
+    const owner = new Map();
+    items.forEach((event, index) => saleDeduplicationIdentifiers(event).forEach(key => {
+      if (owner.has(key)) union(index, owner.get(key));
+      else owner.set(key, index);
+    }));
+    const groups = new Map();
+    items.forEach((event, index) => {
+      const root = find(index);
+      if (!groups.has(root)) groups.set(root, []);
+      groups.get(root).push(event);
+    });
+    const quality = event => {
+      const payload = eventPayload(event);
+      return Object.keys(payload || {}).length
+        + (payload.clienteNombre || payload.cliente_nombre ? 10 : 0)
+        + (Array.isArray(payload.lineas) ? payload.lineas.length : 0)
+        + (Array.isArray(payload.pagos) ? payload.pagos.length : 0);
+    };
+    return [...groups.values()].map(group => group.reduce((best, event) =>
+      quality(event) > quality(best) ? event : best, group[0]));
+  }
+
   function movementSaleIdentifiers(movement) {
     const metadata = movement?.metadata || {};
     return [movement?.sync_event_id, movement?.venta_id, movement?.sale_id, movement?.venta_folio,
@@ -171,6 +222,8 @@
     summarizeMovements,
     eventPayload,
     saleIdentifiers,
+    saleDeduplicationIdentifiers,
+    deduplicateSales,
     saleAmount,
     projectSalesAsMovements,
     mergeSalesIntoMovements,

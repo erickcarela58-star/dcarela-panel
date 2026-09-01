@@ -64,4 +64,6 @@ test("Finanzas integra las ventas activas del POS y muestra su procedencia", () 
   assert.match(panel, /finStateCache\.movements = \[\.\.\.baseMovements, \.\.\.integratedSales\]/);
   assert.match(panel, /movement\.origen === "pos_venta" \? "POS Windows"/);
   assert.match(panel, /venta\(s\) integrada\(s\) en Finanzas/);
+  assert.match(panel, /financeCore\.deduplicateSales\(notCancelled\)/);
+  assert.match(panel, /evento\(s\) duplicado\(s\) ignorado\(s\)/);
 });

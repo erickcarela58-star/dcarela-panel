@@ -77,6 +77,24 @@ test("integra ventas distintas y evita duplicarlas en recargas sucesivas", () =>
   assert.equal(core.summarizeMovements(twice).ingresos_centavos, 30505);
 });
 
+test("ignora rescates duplicados de una venta por terminal y folio", () => {
+  const sales = [
+    { event_id: "original", entity_id: "venta-original", device_id: "caja-1", created_at_local: "2026-08-29T10:00:00-04:00", payload: { folio: 27507, totalCentavos: 12000 } },
+    { event_id: "rescate", entity_id: "venta-rescatada", device_id: "caja-1", created_at_local: "2026-08-29T10:00:00-04:00", payload: { folio: 27507, totalCentavos: 12000 } },
+  ];
+  const unique = core.deduplicateSales(sales);
+  assert.equal(unique.length, 1);
+  assert.equal(core.saleAmount(unique[0]), 12000);
+});
+
+test("conserva folios iguales de terminales diferentes", () => {
+  const sales = [
+    { event_id: "sucursal-a", entity_id: "venta-a", device_id: "caja-a", payload: { folio: 15, totalCentavos: 10000 } },
+    { event_id: "sucursal-b", entity_id: "venta-b", device_id: "caja-b", payload: { folio: 15, totalCentavos: 20000 } },
+  ];
+  assert.equal(core.deduplicateSales(sales).length, 2);
+});
+
 test("lee ventas Firebase cuando payload llega serializado como JSON", () => {
   const movements = core.projectSalesAsMovements([{
     event_id: "evt-json", entity_id: "sale-json", created_at_local: "2026-08-30T20:00:00-04:00",
