@@ -1,9 +1,9 @@
 {
   "schema": 1,
-  "build": "2026.09.01.1.0.64.1",
+  "build": "2026.09.01.1.0.64.2",
   "web_version": "1.0.64",
   "pwa_version": "1.0.64",
-  "desktop_version": "1.0.62",
+  "desktop_version": "1.0.64",
   "ios_version": "5.2.0",
   "ios_build": "492",
   "ios_release_url": "https://panel.dcarelacompufoto.com/ios-releases/Brujula-5.2.0-492-AltStore.ipa",
@@ -12,13 +12,14 @@
   "notes": "Panel web y PWA 1.0.64: Finanzas fuerza una conciliacion completa del inventario actual y archivado, repara caches antiguas recortadas y prioriza la fecha efectiva de venta sin duplicar ingresos ni modificar saldos base.",
   "release_page_url": "https://panel.dcarelacompufoto.com/#descargar",
   "desktop_release": {
-    "version": "1.0.62",
+    "version": "1.0.64",
     "channel": "stable",
     "mandatory": false,
-    "created_at": "2026-08-31T22:15:02Z",
-    "release_url": "https://github.com/erickcarela58-star/dcarela-panel/releases/download/pos-v1.0.62/DCARELA_POS_Setup_20260831-1756.exe",
-    "sha256": "1cc9e621400ad38a9823565d161a14deba1a6523992833897a5e0b7291cb47d9",
-    "notes": "POS 1.0.62 autocura ventas cerradas que no alcanzaron a generar su evento, conserva folio, pagos, lineas e impuestos y las sincroniza sin duplicar ventas ni alterar caja, inventario o credito."
+    "created_at": "2026-09-01T23:37:06Z",
+    "release_url": "https://github.com/erickcarela58-star/dcarela-panel/releases/download/pos-v1.0.64/DCARELA_POS_Setup_20260901-1924.exe",
+    "sha256": "6eb11ba43a7cb2ea427d5b14432d3aad8c04efb80d5ef4a46cc35be5249113d8",
+    "size_bytes": 105977479,
+    "notes": "POS 1.0.64 autocura la sincronizacion contable y agrega en F2 filtros de clientes por periodo que incluyen compras al contado sin deuda, sin duplicar ventas ni alterar caja, inventario o credito."
   },
   "downloads": [
     {
@@ -63,21 +64,21 @@
     {
       "product": "D' Carela POS",
       "label": "Instalador completo para Windows",
-      "name": "DCARELA_POS_Setup_20260831-1756.exe",
+      "name": "DCARELA_POS_Setup_20260901-1924.exe",
       "extension": "EXE",
-      "version": "1.0.62",
-      "build": "1.0.62+82d63c0a222e2972d17f6a4a3e025981951849a8",
+      "version": "1.0.64",
+      "build": "1.0.64+3026b6711d738e7b6751e6c72bf3db9c9dccfedd",
       "platform": "Windows 10/11 x64",
       "channel": "stable",
       "publisher_signature": "not_signed",
       "signature_label": "Instalador de escritorio Windows",
-      "published_at": "2026-08-31T22:15:02Z",
-      "size_bytes": 105977187,
-      "sha256": "1cc9e621400ad38a9823565d161a14deba1a6523992833897a5e0b7291cb47d9",
-      "url": "https://github.com/erickcarela58-star/dcarela-panel/releases/download/pos-v1.0.62/DCARELA_POS_Setup_20260831-1756.exe",
+      "published_at": "2026-09-01T23:37:06Z",
+      "size_bytes": 105977479,
+      "sha256": "6eb11ba43a7cb2ea427d5b14432d3aad8c04efb80d5ef4a46cc35be5249113d8",
+      "url": "https://github.com/erickcarela58-star/dcarela-panel/releases/download/pos-v1.0.64/DCARELA_POS_Setup_20260901-1924.exe",
       "checksums_url": "https://panel.dcarelacompufoto.com/app-version.json",
       "action": "Abrir descarga oficial .EXE",
-      "notes": "Instalador 1.0.62 con autocuracion de eventos de venta, rescate seguro de la cola y sincronizacion comprobada con Firebase y Finanzas.",
+      "notes": "Instalador 1.0.64 con conciliacion contable autocurable y filtros F2 por periodo, comprobado con Firebase, Finanzas y 51 flujos integrales.",
       "installation_method": "Descargar, verificar la huella SHA-256 y ejecutar."
     }
   ],
