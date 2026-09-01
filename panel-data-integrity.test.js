@@ -62,15 +62,25 @@ test("Finanzas abre en el dia comercial de Santo Domingo y no en UTC", () => {
 
 test("Finanzas integra las ventas activas del POS y muestra su procedencia", () => {
   const loadAccountsAt = panel.indexOf("await cargarCuentasFin(month);");
-  const projectSalesAt = panel.indexOf("integratedSales = salesResult.active.flatMap");
+  const projectSalesAt = panel.indexOf("integratedSales = financeCore.projectSalePaymentsAsMovements");
   assert.ok(loadAccountsAt >= 0 && projectSalesAt > loadAccountsAt,
     "Money Manager debe cargar antes de proyectar ventas");
-  assert.match(panel, /const amount = totalDe\(payload\)/);
-  assert.match(panel, /origen: "pos_venta"/);
+  assert.match(panel, /projectSalePaymentsAsMovements\(salesResult\.active, finStateCache\.accounts/);
+  assert.match(panel, /finAccountBalance = account => financeCore\.effectiveAccountBalance/);
+  assert.match(panel, /finAccountSalesDelta = account => financeCore\.projectedSalesDeltaForAccount/);
+  assert.match(panel, /finStateCache\.accountSalesMovements = financeCore\.projectSalePaymentsAsMovements/);
+  assert.match(panel, /const balanceSalesResult = accountCutoffs\.length/);
   assert.match(panel, /const activeSaleIdentifiers = new Set\(salesResult\.active\.flatMap/);
   assert.match(panel, /finStateCache\.movements = \[\.\.\.baseMovements, \.\.\.integratedSales\]/);
   assert.match(panel, /movement\.origen === "pos_venta" \? "POS Windows"/);
   assert.match(panel, /venta\(s\) integrada\(s\) en Finanzas/);
   assert.match(panel, /financeCore\.deduplicateSales\(notCancelled\)/);
   assert.match(panel, /evento\(s\) duplicado\(s\) ignorado\(s\)/);
+});
+
+test("Compromisos recupera las obligaciones historicas sin duplicarlas", () => {
+  assert.match(panel, /const legacyRows = \(state\.costObligations \|\| \[\]\)\.map/);
+  assert.match(panel, /No estan borradas ni se duplicaron como compromisos nuevos/);
+  assert.match(panel, /finStateCache\.costObligations = state\.obligations \|\| \[\]/);
+  assert.match(panel, /data-fin-legacy-obligation/);
 });

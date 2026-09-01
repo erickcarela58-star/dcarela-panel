@@ -164,6 +164,120 @@
       ?? payload.totalCentavos ?? payload.total_centavos ?? payload.total));
   }
 
+  function saleTimestamp(event) {
+    const payload = eventPayload(event);
+    return payload.vendidaEn || payload.vendida_en || payload.fecha || payload.fechaEfectiva
+      || event?.created_at_local || event?.received_at_cloud || event?.created_at || "";
+  }
+
+  function salePayments(event) {
+    const payload = eventPayload(event);
+    const rows = Array.isArray(payload.pagos) ? payload.pagos : Array.isArray(payload.payments) ? payload.payments : [];
+    const payments = rows.map((payment, index) => ({
+      index,
+      method: normalizeText(payment?.metodo || payment?.method || payload.metodo || "otro").replace(/\s+/g, "_"),
+      amount_cents: Math.abs(finiteNumber(payment?.montoCentavos ?? payment?.monto_centavos
+        ?? payment?.amountCents ?? payment?.amount_cents ?? payment?.monto)),
+      account_id: payment?.cuentaFinancieraId || payment?.cuenta_financiera_id
+        || payment?.accountId || payment?.account_id || null,
+      account_name: payment?.cuentaFinancieraNombre || payment?.cuenta_financiera_nombre
+        || payment?.accountName || payment?.account_name || null,
+    })).filter(payment => payment.amount_cents > 0);
+    const amount = saleAmount(event);
+    if (payments.length) {
+      const assigned = payments.reduce((sum, payment) => sum + payment.amount_cents, 0);
+      if (amount > assigned) {
+        payments.push({
+          index: payments.length,
+          method: "sin_asignar",
+          amount_cents: amount - assigned,
+          account_id: null,
+          account_name: null,
+        });
+      }
+      return payments;
+    }
+    return amount > 0 ? [{
+      index: 0,
+      method: normalizeText(payload.metodo || payload.metodo_pago || payload.paymentMethod || "otro").replace(/\s+/g, "_"),
+      amount_cents: amount,
+      account_id: payload.cuentaFinancieraId || payload.cuenta_financiera_id || null,
+      account_name: payload.cuentaFinancieraNombre || payload.cuenta_financiera_nombre || null,
+    }] : [];
+  }
+
+  function salePaymentAccount(payment, accounts, options = {}) {
+    const active = (accounts || []).filter(account => !account?.oculta && account?.estado !== "eliminada");
+    const method = normalizeText(payment?.method).replace(/\s+/g, "_");
+    const explicitId = String(payment?.account_id || "").trim();
+    const explicitAccount = explicitId ? active.find(account => String(account.id) === explicitId) : null;
+    if (explicitAccount && !(explicitAccount.tipo === "tarjeta_credito"
+      && ["tarjeta", "credito", "debito", "tarjeta_credito", "tarjeta_debito"].includes(method))) return explicitId;
+    const explicitName = normalizeText(payment?.account_name);
+    if (explicitName) {
+      const exact = active.find(account => normalizeText(account.nombre) === explicitName);
+      if (exact && !(exact.tipo === "tarjeta_credito"
+        && ["tarjeta", "credito", "debito", "tarjeta_credito", "tarjeta_debito"].includes(method))) return exact.id;
+    }
+    if (method === "efectivo") {
+      return active.find(account => account.tipo === "efectivo" && account.ligada_ventas)?.id
+        || active.find(account => account.tipo === "efectivo")?.id || null;
+    }
+    if (["transferencia", "cheque", "deposito"].includes(method)) {
+      const preferred = String(options.transferAccountId || "").trim();
+      if (preferred && active.some(account => String(account.id) === preferred && account.tipo === "banco")) return preferred;
+      return active.find(account => account.tipo === "banco" && /popular/i.test(String(account.nombre || "")))?.id
+        || active.find(account => account.tipo === "banco")?.id || null;
+    }
+    // Una tarjeta de credito es una deuda, no la cuenta donde el adquirente
+    // deposita una venta. Sin cuenta de liquidacion explicita no se inventa.
+    return null;
+  }
+
+  function projectSalePaymentsAsMovements(sales, accounts, options = {}) {
+    return (sales || []).flatMap((event, saleIndex) => {
+      const payload = eventPayload(event);
+      const ids = saleIdentifiers(event);
+      const folio = payload.folio ?? payload.numero ?? payload.ticket ?? "";
+      const timestamp = saleTimestamp(event);
+      return salePayments(event).map((payment, paymentIndex) => normalizeMovement({
+        id: `pos-sale:${ids[0] || `${eventDay(event)}-${saleIndex}`}:${payment.index ?? paymentIndex}`,
+        business_id: event?.business_id || options.businessId || "",
+        tipo: "ingreso",
+        estado: "confirmado",
+        fecha: eventDay(event),
+        monto_centavos: payment.amount_cents,
+        cuenta_id: salePaymentAccount(payment, accounts, options),
+        descripcion: folio ? `Venta POS #${folio}` : "Venta sincronizada del POS",
+        nota: payload.clienteNombre || payload.cliente_nombre || "Venta confirmada en la caja Windows",
+        origen: "pos_venta",
+        metodo_pago: payment.method,
+        source_timestamp: timestamp,
+        venta_folio: folio ? String(folio) : "",
+        sync_event_id: event?.event_id || event?.id || "",
+        metadata: { sale_identifiers: ids },
+        solo_lectura: true,
+      }));
+    }).filter(item => item.fecha && item.monto_centavos > 0);
+  }
+
+  function projectedSalesDeltaForAccount(account, movements) {
+    if (!account?.id) return 0;
+    const cutoffText = account.reconciled_at || account.reconciledAt || account.created_at || account.createdAt || "";
+    const cutoff = cutoffText ? new Date(cutoffText).getTime() : Number.NaN;
+    if (!Number.isFinite(cutoff)) return 0;
+    return (movements || []).map(normalizeMovement).filter(item => {
+      if (item.origen !== "pos_venta" || item.cuenta_id !== account.id || !isActiveMovement(item)) return false;
+      const timestamp = new Date(item.source_timestamp || `${item.fecha}T23:59:59-04:00`).getTime();
+      return Number.isFinite(timestamp) && timestamp > cutoff;
+    }).reduce((sum, item) => sum + item.monto_centavos, 0);
+  }
+
+  function effectiveAccountBalance(account, movements) {
+    return finiteNumber(account?.saldo_actual_centavos ?? account?.saldo_inicial_centavos)
+      + projectedSalesDeltaForAccount(account, movements);
+  }
+
   function projectSalesAsMovements(sales, options = {}) {
     const accountId = options.accountId || null;
     return (sales || []).map((event, index) => {
@@ -225,6 +339,12 @@
     saleDeduplicationIdentifiers,
     deduplicateSales,
     saleAmount,
+    saleTimestamp,
+    salePayments,
+    salePaymentAccount,
+    projectSalePaymentsAsMovements,
+    projectedSalesDeltaForAccount,
+    effectiveAccountBalance,
     projectSalesAsMovements,
     mergeSalesIntoMovements,
   };

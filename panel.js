@@ -21,7 +21,7 @@
     document.body?.classList.add("is-embedded");
   }
   const THEME_KEY = "dcarela.ui.theme";
-  const APP_BUILD = "1.0.60";
+  const APP_BUILD = "1.0.61";
   const financeCore = window.DcarelaFinanceCore;
 
   window.cargarFinanzas = async function(force = false) {
@@ -5178,6 +5178,11 @@
   const safeAccountColor = (value, fallback) =>
     /^#[0-9a-f]{6}$/i.test(String(value || "")) ? String(value).toUpperCase() : fallback;
 
+  const finAccountBalance = account => financeCore.effectiveAccountBalance(account,
+    finStateCache?.accountSalesMovements || finStateCache?.movements || []);
+  const finAccountSalesDelta = account => financeCore.projectedSalesDeltaForAccount(account,
+    finStateCache?.accountSalesMovements || finStateCache?.movements || []);
+
   function finRange(period = finDashboardPeriod, reference = finReferenceDate) {
     const base = new Date(`${reference || inputDate(new Date())}T12:00:00`);
     const safe = Number.isNaN(base.getTime()) ? new Date() : base;
@@ -5215,7 +5220,8 @@
     if (!state) return;
     let patrimonio = 0;
     const cards = state.accounts.map(account => {
-      const balance = numero(account.saldo_actual_centavos);
+      const balance = finAccountBalance(account);
+      const projectedSales = finAccountSalesDelta(account);
       if (account.incluir_en_total) patrimonio += balance;
       const isCard = account.tipo === "tarjeta_credito";
       const display = isCard ? Math.max(0, -balance) : balance;
@@ -5229,7 +5235,7 @@
         <button type="button" class="fin-account-open" data-fin-account-ledger="${esc(account.id)}" title="Ver los movimientos que forman este saldo">
           <span class="fin-account-visual-head"><i>${esc(icon)}</i><span><b>${esc(account.nombre)}</b><small>${mask || esc(FIN_TIPO_LABEL[account.tipo] || account.tipo)}</small></span></span>
           <span class="fin-account-balance-row"><strong>${isCard ? money(display) : money(balance)}</strong><em class="fin-account-sign">${esc(signLabel)}</em></span>
-          <small>${esc(FIN_TIPO_LABEL[account.tipo] || account.tipo)}${account.ligada_ventas ? " &middot; ligada a ventas" : ""}${account.oculta ? " &middot; oculta" : ""}</small>
+          <small>${esc(FIN_TIPO_LABEL[account.tipo] || account.tipo)}${account.ligada_ventas ? " &middot; ligada a ventas" : ""}${projectedSales ? ` &middot; incluye ${money(projectedSales)} en ventas posteriores al ultimo cuadre` : ""}${account.oculta ? " &middot; oculta" : ""}</small>
         </button>
         ${canEdit ? `<div class="fin-account-actions"><button type="button" data-fin-account-reconcile="${esc(account.id)}">Conciliar</button><button type="button" data-fin-account-edit="${esc(account.id)}">Editar</button></div>` : ""}
       </article>`;
@@ -5439,13 +5445,41 @@
   function renderFinCommitments() {
     const state = finStateCache;
     if (!state) return;
-    const summary = state.cumulo || {};
+    const legacyRows = (state.costObligations || []).map(item => ({
+      id: `legacy:${item.id}`,
+      legacy_id: item.id,
+      legacy: true,
+      nombre: item.concepto || item.descripcion || "Obligacion",
+      nota: [item.acreedor, item.categoria].filter(Boolean).join(" · "),
+      frecuencia: "unica",
+      proximo_vencimiento: dateOnly(item.venceEn || item.vence_en || item.fechaVencimiento),
+      monto_centavos: numero(item.montoCentavos ?? item.monto_centavos),
+      saldo_pendiente_centavos: numero(item.saldoCentavos ?? item.saldo_centavos),
+      capital_pendiente_centavos: null,
+      activo: !["anulada", "pagada", "cancelada"].includes(String(item.estado || "").toLowerCase()),
+      estado_legacy: item.estado || "pendiente",
+    }));
+    const nativeIds = new Set((state.commitments || []).map(item => String(item.id)));
+    const rows = [...(state.commitments || []), ...legacyRows.filter(item => !nativeIds.has(String(item.legacy_id)))];
+    const legacyPending = legacyRows.filter(item => item.activo);
+    const currentMonth = String(state.month || "");
+    const legacyMonthTotal = legacyPending
+      .filter(item => String(item.proximo_vencimiento || "").startsWith(currentMonth))
+      .reduce((sum, item) => sum + numero(item.saldo_pendiente_centavos), 0);
+    const legacyDebtTotal = legacyPending.reduce((sum, item) => sum + numero(item.saldo_pendiente_centavos), 0);
+    const cardsDebt = state.accounts.filter(item => item.tipo === "tarjeta_credito")
+      .reduce((sum, item) => sum + Math.max(0, -finAccountBalance(item)), 0);
+    const summary = state.cumulo || {
+      compromisos_centavos: legacyMonthTotal,
+      deuda_prestamos_centavos: legacyDebtTotal,
+      capital_prestamos_centavos: 0,
+      deuda_tarjetas_centavos: cardsDebt,
+    };
     $("finCompromisosResumen").innerHTML = metric("Por saldar este mes", money(summary.compromisos_centavos || 0))
       + metric("Deuda de prestamos", money(summary.deuda_prestamos_centavos || 0))
       + metric("Capital pendiente", money(summary.capital_prestamos_centavos || 0))
       + metric("Tarjetas", money(summary.deuda_tarjetas_centavos || 0));
     const dueMap = new Map((summary.detalle || []).map(item => [String(item.id), item]));
-    const rows = state.commitments || [];
     const frequencyLabel = item => {
       if (item.frecuencia === "quincenal" && (item.dia_mes_1 || item.dia_mes_2)) {
         return `Quincenal ${[item.dia_mes_1, item.dia_mes_2].filter(Boolean).join(" y ")}`;
@@ -5458,20 +5492,26 @@
       const installments = item.cuotas_totales
         ? `Cuota ${item.cuota_actual || Math.min(item.cuotas_pagadas + 1, item.cuotas_totales)} de ${item.cuotas_totales} (${Math.max(0, item.cuotas_totales - item.cuotas_pagadas)} restante(s))`
         : frequencyLabel(item);
-      const actions = canEdit ? `<div class="table-actions"><button type="button" data-fin-commitment-pay="${esc(item.id)}"${item.activo ? "" : " disabled"}>Pagar</button><button type="button" data-fin-commitment-edit="${esc(item.id)}">Editar</button>${item.activo ? `<button type="button" data-fin-commitment-off="${esc(item.id)}">Desactivar</button>` : ""}</div>` : "";
+      const actions = item.legacy
+        ? `<button type="button" data-fin-legacy-obligation="${esc(item.legacy_id)}">Abrir en Facturas y deudas</button>`
+        : canEdit ? `<div class="table-actions"><button type="button" data-fin-commitment-pay="${esc(item.id)}"${item.activo ? "" : " disabled"}>Pagar</button><button type="button" data-fin-commitment-edit="${esc(item.id)}">Editar</button>${item.activo ? `<button type="button" data-fin-commitment-off="${esc(item.id)}">Desactivar</button>` : ""}</div>` : "";
       return [
         `<strong>${esc(item.nombre)}</strong><small>${esc(item.nota || "")}</small>`,
         `<span>${esc(installments)}</span><small>${item.proximo_vencimiento ? `Proximo ${esc(dateOnly(item.proximo_vencimiento))}` : "Sin fecha fija"}</small>`,
         money(numero(due.monto_periodo_centavos)),
         item.saldo_pendiente_centavos == null ? "--" : money(item.saldo_pendiente_centavos),
         item.capital_pendiente_centavos == null ? "--" : money(item.capital_pendiente_centavos),
-        `<span class="tag ${item.activo ? "ok" : "bad"}">${item.activo ? "Activo" : "Inactivo"}</span>`,
+        `<span class="tag ${item.activo ? "ok" : "bad"}">${item.legacy ? esc(item.estado_legacy) : item.activo ? "Activo" : "Inactivo"}</span>`,
         actions,
       ];
     }, ["Compromiso", "Frecuencia / cuota", "Este mes", "Saldo total", "Capital", "Estado", "Acciones"]);
+    if (legacyRows.length) {
+      $("finCompromisosTabla").insertAdjacentHTML("afterbegin", `<div class="field-hint">Se recuperaron ${legacyRows.length.toLocaleString("es-DO")} obligacion(es) del historial de Facturas y deudas. No estan borradas ni se duplicaron como compromisos nuevos.</div>`);
+    }
     $("finCompromisosTabla").querySelectorAll("[data-fin-commitment-pay]").forEach(button => button.addEventListener("click", () => abrirPagoCompromisoFin(rows.find(item => item.id === button.dataset.finCommitmentPay))));
     $("finCompromisosTabla").querySelectorAll("[data-fin-commitment-edit]").forEach(button => button.addEventListener("click", () => abrirCompromisoFin(rows.find(item => item.id === button.dataset.finCommitmentEdit))));
     $("finCompromisosTabla").querySelectorAll("[data-fin-commitment-off]").forEach(button => button.addEventListener("click", () => desactivarCompromisoFin(rows.find(item => item.id === button.dataset.finCommitmentOff))));
+    $("finCompromisosTabla").querySelectorAll("[data-fin-legacy-obligation]").forEach(button => button.addEventListener("click", () => setCostTab("obligaciones")));
   }
 
   function finMovementMatches(movement) {
@@ -5753,7 +5793,7 @@
     const income = numero(summary.ingresos_centavos);
     const expense = numero(summary.gastos_centavos);
     const net = income - expense;
-    const patrimonio = (state.accounts || []).filter(item => item.incluir_en_total).reduce((sum, item) => sum + numero(item.saldo_actual_centavos), 0);
+    const patrimonio = (state.accounts || []).filter(item => item.incluir_en_total).reduce((sum, item) => sum + finAccountBalance(item), 0);
     $("finDashboardKpis").innerHTML = [
       ["Patrimonio", money(patrimonio), "Suma de cuentas"],
       ["Ingresos", money(income), range.label],
@@ -5963,7 +6003,7 @@
   function abrirConciliacionCuentaFin(account) {
     if (!account) return;
     const isCard = account.tipo === "tarjeta_credito";
-    const currentBalance = numero(account.saldo_actual_centavos);
+    const currentBalance = finAccountBalance(account);
     const displayBalance = isCard ? Math.max(0, -currentBalance) : currentBalance;
     abrirEditor("Conciliar saldo", "Registra la diferencia sin borrar movimientos ni alterar los cobros de ventas.", `
       <div class="reconciliation-summary field-wide"><span>${isCard ? "Deuda actual en tarjeta" : "Saldo disponible calculado"}</span><strong>${money(displayBalance)}</strong></div>
@@ -5973,7 +6013,7 @@
       <p class="field-hint field-wide">El asiento ajusta el balance real de forma transparente, genera registro contable y conserva intactas las ventas.</p>`, async form => {
       const rawTarget = centavosConSignoInput(form.get("saldoObjetivo"));
       const target = isCard ? (rawTarget > 0 ? -rawTarget : rawTarget) : rawTarget;
-      const current = numero(account.saldo_actual_centavos);
+      const current = finAccountBalance(account);
       const difference = target - current;
       await adminWrite("fin.account.reconcile", account.id, {
         cuentaId: account.id,
@@ -5992,7 +6032,7 @@
     if (accounts.length < 2) { toast("Necesitas al menos dos cuentas activas para transferir."); return; }
     const bank = accounts.find(account => account.nombre.toLowerCase().includes("popular")) || accounts.find(account => account.tipo === "banco") || accounts[0];
     const target = accounts.find(account => account.id !== bank.id) || accounts[1];
-    const options = current => accounts.map(account => `<option value="${esc(account.id)}"${selected(current, account.id)}>${esc(account.nombre)} (${money(account.saldo_actual_centavos)})</option>`).join("");
+    const options = current => accounts.map(account => `<option value="${esc(account.id)}"${selected(current, account.id)}>${esc(account.nombre)} (${money(finAccountBalance(account))})</option>`).join("");
     abrirEditor("Nueva transferencia", "Mueve dinero entre cuentas propias. El patrimonio no se duplica ni desaparece.", `
       <label><span>Cuenta de origen</span><select name="cuentaOrigenId">${options(bank.id)}</select></label>
       <label><span>Cuenta de destino</span><select name="cuentaDestinoId">${options(target.id)}</select></label>
@@ -6026,7 +6066,7 @@
     const activeAccounts = state.accounts.filter(item => !item.oculta && item.estado !== "eliminada");
     const defaultAccount = type === "gasto" ? prefs.cuenta_gasto_default_id : prefs.cuenta_ingreso_default_id;
     const accountOptions = current => activeAccounts
-      .map(item => `<option value="${esc(item.id)}"${selected(current, item.id)}>${esc(item.nombre)} &middot; ${money(item.saldo_actual_centavos)}</option>`).join("");
+      .map(item => `<option value="${esc(item.id)}"${selected(current, item.id)}>${esc(item.nombre)} &middot; ${money(finAccountBalance(item))}</option>`).join("");
     const bank = activeAccounts.find(item => item.nombre.toLowerCase().includes("popular")) || activeAccounts.find(item => item.tipo === "banco") || activeAccounts[0];
     const otra = activeAccounts.find(item => item.id !== (bank && bank.id)) || activeAccounts[1] || activeAccounts[0];
     const esTransfer = type === "transferencia";
@@ -6186,7 +6226,7 @@
     const account = state.accounts.find(item => item.id === accountId);
     const sources = state.accounts.filter(item => item.id !== accountId && item.tipo !== "tarjeta_credito" && !item.oculta);
     if (!card || !sources.length) { toast("Configura la tarjeta y una cuenta de pago antes de continuar."); return; }
-    const sourceOptions = sources.map(item => `<option value="${esc(item.id)}"${selected(card.cuenta_pago_id, item.id)}>${esc(item.nombre)} &middot; ${money(item.saldo_actual_centavos)}</option>`).join("");
+    const sourceOptions = sources.map(item => `<option value="${esc(item.id)}"${selected(card.cuenta_pago_id, item.id)}>${esc(item.nombre)} &middot; ${money(finAccountBalance(item))}</option>`).join("");
     abrirEditor("Pagar tarjeta", "Este pago reduce la cuenta de origen y la deuda de la tarjeta. No se registra como gasto otra vez.", `
       <div class="confirm-panel field-wide"><strong>${esc(account.nombre)}</strong><p>Deuda actual: ${money(Math.max(0, -numero(account.saldo_actual_centavos)))}</p></div>
       <label><span>Cuenta de origen</span><select name="cuentaOrigenId">${sourceOptions}</select></label>
@@ -6344,6 +6384,13 @@
       $("finMovimientosTabla").innerHTML = `<div class="empty-state"><strong>No se pudo cargar Finanzas.</strong><p>${esc(error?.message || error)}</p></div>`;
       throw error;
     }
+    const accountCutoffs = (finStateCache?.accounts || [])
+      .map(account => account.reconciled_at || account.reconciledAt || account.created_at || account.createdAt)
+      .filter(value => Number.isFinite(new Date(value).getTime()))
+      .sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
+    const balanceSalesResult = accountCutoffs.length
+      ? await ventasActivas(new Date(accountCutoffs[0]).toISOString(), new Date().toISOString(), 20000)
+      : { active: [], excluded: 0, duplicates: 0, raw: [] };
     const monthExpenses = state.expenses.filter(item => item.activo && monthOf(item.fecha || item._latestAt) === month);
     const monthPayments = state.payments.filter(item => monthOf(item.fecha) === month);
     const monthObligations = state.obligations.filter(item => monthOf(item.venceEn) === month && !["anulada", "pagada"].includes(item.estado));
@@ -6355,7 +6402,6 @@
     const salesTotal = salesResult.active.reduce((sum, item) => sum + totalDe(P(item)), 0);
     let integratedSales = [];
     if (finStateCache) {
-      const salesAccount = finStateCache.accounts.find(item => item.ligada_ventas && !item.oculta && item.estado !== "eliminada");
       const activeSaleIdentifiers = new Set(salesResult.active.flatMap(event => financeCore.saleIdentifiers(event)));
       const baseMovements = finStateCache.movements.filter(item => {
         if (item.origen === "pos_venta") return false;
@@ -6363,31 +6409,22 @@
           .filter(Boolean).map(value => String(value).trim().toLocaleLowerCase("es"));
         return !identifiers.some(id => activeSaleIdentifiers.has(id));
       });
-      integratedSales = salesResult.active.flatMap((event, index) => {
-        const payload = P(event);
-        const identifiers = financeCore.saleIdentifiers(event);
-        const amount = totalDe(payload);
-        const saleDate = financeCore.businessDay(fechaEventoIso(event));
-        if (!amount || !saleDate) return [];
-        const folio = payload.folio ?? payload.numero ?? payload.ticket ?? "";
-        return [financeCore.normalizeMovement({
-          id: `pos-sale:${identifiers[0] || `${saleDate}-${index}`}`,
-          business_id: BUSINESS,
-          tipo: "ingreso",
-          estado: "confirmado",
-          fecha: saleDate,
-          monto_centavos: amount,
-          cuenta_id: salesAccount?.id || null,
-          descripcion: folio ? `Venta POS #${folio}` : "Venta sincronizada del POS",
-          nota: payload.clienteNombre || payload.cliente_nombre || "Venta confirmada en la caja Windows",
-          origen: "pos_venta",
-          venta_folio: folio ? String(folio) : "",
-          sync_event_id: event.event_id || event.id || "",
-          solo_lectura: true,
-        })];
+      integratedSales = financeCore.projectSalePaymentsAsMovements(salesResult.active, finStateCache.accounts, {
+        businessId: BUSINESS,
+        transferAccountId: finStateCache.preferences?.cuenta_ingreso_default_id || null,
       });
+      finStateCache.accountSalesMovements = financeCore.projectSalePaymentsAsMovements(
+        balanceSalesResult.active, finStateCache.accounts, {
+          businessId: BUSINESS,
+          transferAccountId: finStateCache.preferences?.cuenta_ingreso_default_id || null,
+        });
       finStateCache.movements = [...baseMovements, ...integratedSales]
         .sort((a, b) => String(b.fecha || "").localeCompare(String(a.fecha || "")));
+      finStateCache.costObligations = state.obligations || [];
+      finStateCache.costPayments = state.payments || [];
+      finStateCache.costRecurrents = state.recurrents || [];
+      renderFinAccounts();
+      renderFinCommitments();
       renderFinMovements();
       await renderFinDashboard();
     }
@@ -6395,7 +6432,7 @@
     if (syncStatus) {
       syncStatus.classList.toggle("warn", !salesResult.raw.length);
       syncStatus.textContent = salesResult.raw.length
-        ? `${integratedSales.length.toLocaleString("es-DO")} venta(s) integrada(s) en Finanzas · ${money(salesTotal)} · ${salesResult.excluded} anulada(s) excluida(s) · ${salesResult.duplicates || 0} evento(s) duplicado(s) ignorado(s)`
+        ? `${salesResult.active.length.toLocaleString("es-DO")} venta(s) integrada(s) en Finanzas · ${money(salesTotal)} · ${integratedSales.length.toLocaleString("es-DO")} cobro(s) por metodo · ${salesResult.excluded} anulada(s) excluida(s) · ${salesResult.duplicates || 0} evento(s) duplicado(s) ignorado(s)`
         : "Aún no se recibieron ventas para este mes; el panel no las presenta como cero confirmado.";
     }
     const committed = expensesTotal + paidTotal + dueTotal;

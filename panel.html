@@ -31,9 +31,9 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="favicon.svg">
   <link rel="apple-touch-icon" href="dcarela-logo.png">
-  <link rel="stylesheet" href="panel.css?v=2026.08.31.1.0.62.3">
-  <link rel="stylesheet" href="panel-theme.css?v=2026.08.31.1.0.62.3">
-  <link rel="stylesheet" href="visual-fidelity.css?v=2026.08.31.1.0.62.3">
+  <link rel="stylesheet" href="panel.css?v=2026.09.01.1.0.62.4">
+  <link rel="stylesheet" href="panel-theme.css?v=2026.09.01.1.0.62.4">
+  <link rel="stylesheet" href="visual-fidelity.css?v=2026.09.01.1.0.62.4">
 </head>
 <body>
   <section id="access" class="access-shell">
@@ -81,7 +81,7 @@
     <aside class="sidebar">
       <div class="brand">
         <img src="dcarela-logo.png" alt="" class="brand-logo">
-        <div><strong>D' Carela Compufoto</strong><span>Panel web 1.0.60</span></div>
+        <div><strong>D' Carela Compufoto</strong><span>Panel web 1.0.61</span></div>
       </div>
       <nav id="menu" aria-label="Navegacion principal">
         <a href="#dashboard" data-title="Resumen operativo">Resumen</a>
@@ -366,7 +366,7 @@
               <button data-cost-tab="cuentas" role="tab">Cuentas</button>
               <button data-cost-tab="presupuestos" role="tab">Presupuestos</button>
               <button data-cost-tab="tarjetas" role="tab">Tarjetas</button>
-              <button data-cost-tab="compromisos" role="tab">Compromisos</button>
+              <button data-cost-tab="compromisos" role="tab">Compromisos y deudas</button>
               <button data-cost-tab="recurrentes" role="tab">Planificados</button>
               <button data-cost-tab="obligaciones" role="tab">Facturas y deudas</button>
               <button data-cost-tab="recibos" role="tab">Recibos</button>
@@ -452,7 +452,7 @@
 
           <section id="provPanelCompromisos" class="cost-panel oculto">
             <div class="surface-title">
-              <div><h3>Compromisos y prestamos</h3><p>Cuotas del mes, saldo contractual, capital pendiente y pagos sin duplicar gastos.</p></div>
+              <div><h3>Compromisos, prestamos y deudas</h3><p>Unifica las obligaciones historicas con los compromisos nuevos sin borrar ni duplicar pagos.</p></div>
               <button id="btnFinNuevoCompromiso" class="primary admin-only oculto">Nuevo compromiso</button>
             </div>
             <div id="finCompromisosResumen" class="inline-metrics"></div>
@@ -1052,15 +1052,15 @@
   <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
-  <script src="finance-core.js?v=2026.08.31.1.0.62.3"></script>
-  <script src="firebase-adapter.js?v=2026.08.31.1.0.62.3"></script>
-  <script src="assistant-local.js?v=2026.08.31.1.0.62.3"></script>
+  <script src="finance-core.js?v=2026.09.01.1.0.62.4"></script>
+  <script src="firebase-adapter.js?v=2026.09.01.1.0.62.4"></script>
+  <script src="assistant-local.js?v=2026.09.01.1.0.62.4"></script>
   <script src="jspdf.umd.min.js"></script>
   <script src="jspdf.plugin.autotable.min.js"></script>
-  <script src="ticket-termico.js?v=2026.08.31.1.0.62.3"></script>
-  <script src="panel-sale-pending.js?v=2026.08.31.1.0.62.3"></script>
-  <script src="panel.js?v=2026.08.31.1.0.62.3"></script>
-  <script src="visual-fidelity.js?v=2026.08.31.1.0.62.3"></script>
+  <script src="ticket-termico.js?v=2026.09.01.1.0.62.4"></script>
+  <script src="panel-sale-pending.js?v=2026.09.01.1.0.62.4"></script>
+  <script src="panel.js?v=2026.09.01.1.0.62.4"></script>
+  <script src="visual-fidelity.js?v=2026.09.01.1.0.62.4"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));
