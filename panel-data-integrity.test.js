@@ -47,6 +47,12 @@ test("Money Manager limita el ledger al mes y tolera modulos secundarios", () =>
   assert.match(panel, /const budgets = optional\(4, \[\]\)/);
 });
 
+test("Finanzas abre en el dia comercial de Santo Domingo y no en UTC", () => {
+  assert.match(panel, /let finReferenceDate = "";/);
+  assert.match(panel, /finReferenceDate = financeCore\?\.businessDay\(new Date\(\)\) \|\| inputDate\(new Date\(\)\);/);
+  assert.doesNotMatch(panel, /let finReferenceDate = new Date\(\)\.toISOString\(\)\.slice\(0, 10\)/);
+});
+
 test("Finanzas integra las ventas activas del POS y muestra su procedencia", () => {
   const loadAccountsAt = panel.indexOf("await cargarCuentasFin(month);");
   const projectSalesAt = panel.indexOf("integratedSales = salesResult.active.flatMap");

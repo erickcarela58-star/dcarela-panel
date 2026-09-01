@@ -21,7 +21,7 @@
     document.body?.classList.add("is-embedded");
   }
   const THEME_KEY = "dcarela.ui.theme";
-  const APP_BUILD = "1.0.51";
+  const APP_BUILD = "1.0.58";
   const financeCore = window.DcarelaFinanceCore;
 
   window.cargarFinanzas = async function(force = false) {
@@ -113,7 +113,7 @@
   let finStateCache = null;
   let costTab = "resumen";
   let finDashboardPeriod = "mes";
-  let finReferenceDate = new Date().toISOString().slice(0, 10);
+  let finReferenceDate = "";
   let finFilteredMovements = [];
   let finRealtimeChannel = null;
   let costAlertsAt = 0;
@@ -228,6 +228,9 @@
     const day = String(d.getDate()).padStart(2, "0");
     return `${y}-${m}-${day}`;
   };
+  // Finanzas opera con el dia comercial de La Romana. Usar ISO UTC aqui
+  // adelanta el mes varias horas antes de medianoche y oculta movimientos validos.
+  finReferenceDate = financeCore?.businessDay(new Date()) || inputDate(new Date());
   const inicioDia = value => {
     const d = value ? new Date(`${value}T00:00:00`) : new Date();
     if (!value) d.setHours(0, 0, 0, 0);
