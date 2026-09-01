@@ -11,12 +11,12 @@
       "localizedDescription": "Sistema integral de productividad, lectura completa de PDF/TXT autorizados y páginas web accesibles, preparado para el bloqueo certificado de Jomo mediante sus acciones oficiales.",
       "iconURL": "https://panel.dcarelacompufoto.com/assets/brujula-icon.png",
       "tintColor": "#007AFF",
-      "version": "5.1.9",
-      "versionDate": "2026-09-01T10:27:27Z",
-      "versionDescription": "v5.1.9 (Build 491): copia individual de 1 a 3 respuestas estilo Liggo, entrenamiento alineado, importación visible de PDF/TXT/capturas, índice local persistente y contexto relevante enviado a Gemini; recorrido de 1,024 páginas verificado.",
-      "downloadURL": "https://panel.dcarelacompufoto.com/ios-releases/Brujula-5.1.9-491-AltStore.ipa",
-      "size": 17756323,
-      "sha256": "755e00b1138897a48657bbd5216437e9ae2b297d530fba8e10da9edf51d7cc60",
+      "version": "5.2.0",
+      "versionDate": "2026-09-01T18:35:39Z",
+      "versionDescription": "v5.2.0 (Build 492): lector PDF visible en tiempo real con recorrido completo de 1,024 páginas, historial y chat nuevo integrados en el menú hamburguesa, y Entreno corregido en selección, pausa, descansos, límites y progreso; regresiones de OCR, contexto y copia individual aprobadas.",
+      "downloadURL": "https://panel.dcarelacompufoto.com/ios-releases/Brujula-5.2.0-492-AltStore.ipa",
+      "size": 17794351,
+      "sha256": "b8ae8c971e9bf930e977be09c3340138d73eb9572f8cdece73f35b12ad0d547a",
       "minOSVersion": "17.0",
       "appPermissions": {
         "entitlements": [
@@ -33,13 +33,13 @@
       },
       "versions": [
         {
-          "version": "5.1.9",
-          "buildVersion": "491",
+          "version": "5.2.0",
+          "buildVersion": "492",
           "date": "2026-09-01",
-          "downloadURL": "https://panel.dcarelacompufoto.com/ios-releases/Brujula-5.1.9-491-AltStore.ipa",
-          "size": 17756323,
-          "sha256": "755e00b1138897a48657bbd5216437e9ae2b297d530fba8e10da9edf51d7cc60",
-          "localizedDescription": "v5.1.9 (Build 491): copia individual de 1 a 3 respuestas estilo Liggo, entrenamiento alineado, importación visible de PDF/TXT/capturas, índice local persistente y contexto relevante enviado a Gemini; recorrido de 1,024 páginas verificado.",
+          "downloadURL": "https://panel.dcarelacompufoto.com/ios-releases/Brujula-5.2.0-492-AltStore.ipa",
+          "size": 17794351,
+          "sha256": "b8ae8c971e9bf930e977be09c3340138d73eb9572f8cdece73f35b12ad0d547a",
+          "localizedDescription": "v5.2.0 (Build 492): lector PDF visible en tiempo real con recorrido completo de 1,024 páginas, historial y chat nuevo integrados en el menú hamburguesa, y Entreno corregido en selección, pausa, descansos, límites y progreso; regresiones de OCR, contexto y copia individual aprobadas.",
           "minOSVersion": "17.0"
         }
       ]
