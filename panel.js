@@ -6442,7 +6442,7 @@
     const monthPayments = state.payments.filter(item => monthOf(item.fecha) === month);
     const monthObligations = state.obligations.filter(item => monthOf(item.venceEn) === month && !["anulada", "pagada"].includes(item.estado));
     const overdue = state.obligations.filter(item => item.estado === "vencida");
-    const expensesTotal = monthExpenses.reduce((sum, item) => sum + numero(item.montoCentavos), 0);
+    const documentedExpensesTotal = monthExpenses.reduce((sum, item) => sum + numero(item.montoCentavos), 0);
     const paidTotal = monthPayments.reduce((sum, item) => sum + numero(item.montoCentavos), 0);
     const dueTotal = monthObligations.reduce((sum, item) => sum + numero(item.saldoCentavos), 0);
     const overdueTotal = overdue.reduce((sum, item) => sum + numero(item.saldoCentavos), 0);
@@ -6482,15 +6482,18 @@
         ? `${salesResult.active.length.toLocaleString("es-DO")} venta(s) integrada(s) en Finanzas · ${money(salesTotal)} · ${integratedSales.length.toLocaleString("es-DO")} cobro(s) por metodo · ${salesResult.excluded} anulada(s) excluida(s) · ${salesResult.duplicates || 0} evento(s) duplicado(s) ignorado(s)`
         : "Aún no se recibieron ventas para este mes; el panel no las presenta como cero confirmado.";
     }
-    const committed = expensesTotal + paidTotal + dueTotal;
-    const net = salesTotal - expensesTotal - paidTotal;
+    const ledgerExpensesTotal = finStateCache
+      ? financeCore.summarizeMovements(finStateCache.movements, `${month}-01`, inputDate(endDate)).gastos_centavos
+      : documentedExpensesTotal;
+    const committed = ledgerExpensesTotal + dueTotal;
+    const net = salesTotal - ledgerExpensesTotal;
     const activeRecurring = state.recurrents.filter(item => item.activo);
 
-    $("provResumen").innerHTML = metric("Ventas del mes", money(salesTotal)) + metric("Gastos", money(expensesTotal))
-      + metric("Pagado en obligaciones", money(paidTotal)) + metric("Por pagar este mes", money(dueTotal))
+    $("provResumen").innerHTML = metric("Ventas del mes", money(salesTotal)) + metric("Gastos Money Manager", money(ledgerExpensesTotal))
+      + metric("Pagos documentados", money(paidTotal)) + metric("Por pagar este mes", money(dueTotal))
       + metric("Vencido", money(overdueTotal)) + metric("Resultado disponible", money(net));
     $("provAnalisis").innerHTML = `<div class="surface-title"><div><h3>Analisis del mes</h3><p>Ventas contra gastos y compromisos registrados.</p></div></div>
-      <div class="analysis-result"><span>Ventas netas</span><strong>${money(salesTotal)}</strong><span>Gastos registrados</span><strong>${money(expensesTotal)}</strong><span>Pagos de deudas</span><strong>${money(paidTotal)}</strong><span>Comprometido + pendiente</span><strong>${money(committed)}</strong><span>Resultado despues de pagos</span><strong class="net ${net < 0 ? "bad" : ""}">${money(net)}</strong></div>`;
+      <div class="analysis-result"><span>Ventas netas</span><strong>${money(salesTotal)}</strong><span>Gastos Money Manager</span><strong>${money(ledgerExpensesTotal)}</strong><span>Pagos documentados en deudas</span><strong>${money(paidTotal)}</strong><span>Gastado + pendiente</span><strong>${money(committed)}</strong><span>Disponible segun movimientos</span><strong class="net ${net < 0 ? "bad" : ""}">${money(net)}</strong></div>`;
     const upcoming = state.obligations.filter(item => ["vencida", "pendiente", "parcial"].includes(item.estado)).slice(0, 6);
     $("provVencimientos").innerHTML = upcoming.length ? upcoming.map(item => `<article class="due-item ${item.estado === "vencida" ? "overdue" : ""}"><strong>${esc(item.concepto)}</strong><span>${esc(item.acreedor || item.categoria)} | ${money(item.saldoCentavos)}</span><span>${item.estado === "vencida" ? "Vencida" : "Pagar"} ${esc(dateOnly(item.venceEn))}</span></article>`).join("") : '<div class="empty-state">No hay vencimientos pendientes.</div>';
 

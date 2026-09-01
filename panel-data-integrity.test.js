@@ -36,12 +36,12 @@ test("finanzas normaliza estados y no usa RPC de otro proveedor en sesion Fireba
 
 test("las consultas recientes no vuelven a descargar archivos historicos", () => {
   const method = adapter.slice(adapter.indexOf("async getSyncEvents"), adapter.indexOf("async getSales"));
-  assert.match(method, /if \(recentWindow\) return current/);
+  assert.match(method, /if \(recentWindow && options\.includeArchives !== true\) return current/);
 });
 
 test("Money Manager limita el ledger al mes y tolera modulos secundarios", () => {
   const financeMethod = adapter.slice(adapter.indexOf("async getFinanceMovements"), adapter.indexOf("async webSaleAction"));
-  assert.match(financeMethod, /getSyncEvents\(businessId, \{ from, to, limit: SYNC_EVENT_MAX_BATCH \}\)/);
+  assert.match(financeMethod, /getSyncEvents\(businessId, \{ from, to, limit: SYNC_EVENT_MAX_BATCH, includeArchives: true \}\)/);
   assert.match(panel, /const results = await Promise\.allSettled\(\[/);
   assert.match(panel, /const accounts = required\(0, "las cuentas financieras"\)/);
   assert.match(panel, /const budgets = optional\(4, \[\]\)/);
@@ -87,4 +87,10 @@ test("Compromisos recupera las obligaciones historicas sin duplicarlas", () => {
   assert.match(panel, /No estan borradas ni se duplicaron como compromisos nuevos/);
   assert.match(panel, /finStateCache\.costObligations = state\.obligations \|\| \[\]/);
   assert.match(panel, /data-fin-legacy-obligation/);
+});
+
+test("el analisis mensual usa el mismo libro de gastos que Money Manager", () => {
+  assert.match(panel, /const ledgerExpensesTotal = finStateCache[\s\S]{0,120}financeCore\.summarizeMovements/);
+  assert.match(panel, /Gastos Money Manager/);
+  assert.match(panel, /const net = salesTotal - ledgerExpensesTotal/);
 });

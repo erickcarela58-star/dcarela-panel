@@ -1246,7 +1246,7 @@
       }
       const recentWindow = from && Number.isFinite(Date.parse(from))
         && Date.parse(from) >= Date.now() - 45 * 24 * 60 * 60 * 1000;
-      if (recentWindow) return current;
+      if (recentWindow && options.includeArchives !== true) return current;
       let archived = eventArchiveCache.get(businessId);
       if (!archived || Date.now() - archived.at > 5 * 60 * 1000) {
         const chunks = await this.getCollection('sync_event_archives', [['business_id', '==', businessId]]);
@@ -1325,7 +1325,7 @@
         const [year, monthNumber] = String(month).split('-').map(Number);
         const from = new Date(year, monthNumber - 1, 1, 0, 0, 0, 0).toISOString();
         const to = new Date(year, monthNumber, 1, 0, 0, 0, 0).toISOString();
-        return this.getSyncEvents(businessId, { from, to, limit: SYNC_EVENT_MAX_BATCH })
+        return this.getSyncEvents(businessId, { from, to, limit: SYNC_EVENT_MAX_BATCH, includeArchives: true })
           .then(events => events.filter(event => event.event_type === 'LedgerMovimientoRegistrado'));
       })() : this.getCollection('sync_events', [
         ['business_id', '==', businessId],
