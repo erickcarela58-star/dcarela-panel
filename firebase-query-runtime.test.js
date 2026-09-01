@@ -10,6 +10,8 @@ function harness(read) {
   function query(name, conditions = []) {
     return {where:(...condition)=>query(name,[...conditions,condition]),
       doc:id=>query(name, [id]),
+      orderBy:(...order)=>query(name,[...conditions,['orderBy',...order]]),
+      limit:value=>query(name,[...conditions,['limit',value]]),
       async get(){ calls.push({name,conditions}); return read(name,conditions); }};
   }
   const auth = {currentUser:user};
@@ -85,4 +87,27 @@ test('finanzas no duplica una conciliacion materializada y su evento del ledger'
   const rows=await h.api.getFinanceMovements();
   assert.equal(rows.length,1);
   assert.equal(rows[0].descripcion,'Comida materializada');
+});
+
+test('un rango contable incluye ventas archivadas y ventas recibidas tarde',async()=>{
+  const lateAugust={id:'late-aug',event_id:'late-aug',business_id:'dcarela',event_type:'VentaCobrada',
+    received_at_cloud:'2026-09-01T05:00:00.000Z',payload:{vendidaEn:'2026-08-31T18:00:00.000Z',totalCobradoCentavos:12500}};
+  const september={id:'sep',event_id:'sep',business_id:'dcarela',event_type:'VentaCobrada',
+    received_at_cloud:'2026-09-01T14:00:00.000Z',payload:{vendidaEn:'2026-09-01T14:00:00.000Z',totalCobradoCentavos:30000}};
+  const archived={id:'archive-1',event_id:'archive-1',business_id:'dcarela',event_type:'VentaCobrada',
+    received_at_cloud:'2026-08-05T16:00:00.000Z',payload:{vendidaEn:'2026-08-05T15:00:00.000Z',totalCobradoCentavos:7000}};
+  const h=harness(async name=>{
+    if(name==='sync_events') return snapshot([lateAugust,september]);
+    if(name==='sync_event_archives') return snapshot([{id:'chunk',business_id:'dcarela',events:[archived]}]);
+    return snapshot([]);
+  });
+  const rows=await h.api.getSyncEvents('dcarela',{
+    from:'2026-08-01T04:00:00.000Z',to:'2026-09-01T03:59:59.999Z',limit:5000,includeArchives:true
+  });
+  assert.deepEqual([...rows.map(item=>item.event_id)].sort(),['archive-1','late-aug']);
+  const currentCalls=h.calls.filter(call=>call.name==='sync_events');
+  assert.ok(currentCalls.length>=1);
+  assert.equal(currentCalls.some(call=>call.conditions.some(condition=>
+    Array.isArray(condition)&&condition[0]==='received_at_cloud')),false,
+  'la fecha de recepcion no debe recortar un periodo contable');
 });

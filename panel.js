@@ -549,6 +549,8 @@
           from: start.toISOString(),
           to: new Date().toISOString(),
           limit: 1600,
+          includeArchives: true,
+          eventTypes: ["VentaCobrada", "VentaCancelada", "CajaAbierta", "CajaCerrada", "CierreConDiferencia", "GastoRegistrado"],
         }),
         window.DcarelaFirebase.getCollection("devices", [["business_id", "==", branchId]]),
         window.DcarelaFirebase.getCollection("system_alerts", [["business_id", "==", branchId]]),
@@ -699,6 +701,12 @@
         from: from || null,
         to: to || null,
         limit: fetchLimit,
+        // Retencion puede mover ventas de un mes todavia consultable a
+        // sync_event_archives. Toda consulta con rango debe unir ambas capas;
+        // las consultas de actividad reciente sin rango conservan el camino
+        // economico de solo eventos actuales.
+        includeArchives: Boolean(from || to),
+        eventTypes: types || null,
       });
       if (types?.length) items = items.filter(item => types.includes(item.event_type));
       if (from || to) items = items.filter(item => eventoEnRango(item, from, to));
@@ -1882,7 +1890,10 @@
     if (!sourceEvents && !force && Date.now() - cancelCache.at < 2 * 60 * 1000) return cancelCache.ids;
     const cancellations = sourceEvents
       ? eventosDesde(sourceEvents, ["VentaCancelada"], null, null, 1600)
-      : await eventos(["VentaCancelada"], null, null, 1600);
+      // Una anulacion puede haberse archivado despues de la venta original.
+      // Se consulta el registro global para que Resumen, Ventas y Finanzas
+      // excluyan exactamente los mismos tickets.
+      : await eventos(["VentaCancelada"], "2000-01-01T00:00:00.000Z", new Date().toISOString(), 1600);
     const ids = new Set();
     cancellations.forEach(event => clavesVenta(event).forEach(id => ids.add(id)));
     cancelCache = { at: Date.now(), ids };

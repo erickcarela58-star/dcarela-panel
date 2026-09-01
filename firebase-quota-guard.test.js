@@ -16,7 +16,7 @@ test('Firebase limita sync_events en servidor y usa el indice temporal publicado
   assert.match(adapter, /const SYNC_EVENT_DELTA_BATCH = 250/);
   assert.match(adapter, /const SYNC_EVENT_QUERY_TTL_MS = 2 \* 60 \* 1000/);
   assert.match(method, /where\('business_id', '==', businessId\)/);
-  assert.match(method, /where\('received_at_cloud', '>=', from\)/);
+  assert.match(method, /where\('received_at_cloud', '>=', serverFrom\)/);
   assert.match(method, /orderBy\('received_at_cloud', 'desc'\)\.limit\(maximum\)/);
   assert.match(method, /Math\.min\(SYNC_EVENT_MAX_BATCH/);
   assert.match(method, /syncEventQueryCache\.get\(queryKey\)/);
@@ -38,8 +38,8 @@ test('Firebase limita sync_events en servidor y usa el indice temporal publicado
 
 test('las vistas Firebase nunca solicitan el historial completo sin ventana ni limite', () => {
   assert.doesNotMatch(panel, /DcarelaFirebase\.getSyncEvents\((?:branchId|BUSINESS)\)/);
-  assert.match(panel, /getSyncEvents\(branchId, \{[\s\S]{0,220}limit: 1600/);
-  assert.match(panel, /getSyncEvents\(BUSINESS, \{[\s\S]{0,180}limit: fetchLimit/);
+  assert.match(panel, /getSyncEvents\(branchId, \{[\s\S]{0,260}limit: 1600,[\s\S]{0,80}includeArchives: true/);
+  assert.match(panel, /getSyncEvents\(BUSINESS, \{[\s\S]{0,220}limit: fetchLimit,[\s\S]{0,360}includeArchives: Boolean\(from \|\| to\)/);
   assert.match(panel, /fetchLimit = Math\.min\(5000/);
   assert.match(panel, /sourceEvents = await eventos\(null, extendedFrom, queryTo, 5000\)/);
   assert.match(panel, /ventasActivas\(from, to, 1600, sourceEvents\)/);

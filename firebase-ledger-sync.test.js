@@ -8,7 +8,7 @@ test('integra el ledger Windows desde eventos Firebase sin escanear todo el hist
   assert.match(adapter, /payload\.importeDopCentavos/);
   assert.match(adapter, /source: 'pos_sync_event'/);
   const method = adapter.slice(adapter.indexOf('async getFinanceMovements'), adapter.indexOf('async webSaleAction'));
-  assert.match(method, /this\.getSyncEvents\(businessId, \{ from, to, limit: SYNC_EVENT_MAX_BATCH, includeArchives: true \}\)/);
+  assert.match(method, /this\.getSyncEvents\(businessId, \{ from, to, limit: SYNC_EVENT_MAX_BATCH,[\s\S]{0,120}includeArchives: true, eventTypes: \['LedgerMovimientoRegistrado'\] \}\)/);
   assert.match(method, /events\.filter\(event => event\.event_type === 'LedgerMovimientoRegistrado'\)/);
 });
 

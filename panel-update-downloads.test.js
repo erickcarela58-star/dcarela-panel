@@ -76,6 +76,6 @@ test("AltStore solo anuncia los dos IPA vigentes", () => {
     assert.doesNotMatch(app.downloadURL, /QA|netlify|github\.io/i);
   }
   const urls = altStore.apps.map(app => app.downloadURL);
-  assert.ok(urls.some(url => /Brujula-5\.1\.8-490-AltStore\.ipa$/.test(url)));
+  assert.ok(urls.some(url => /Brujula-5\.2\.0-492-AltStore\.ipa$/.test(url)));
   assert.ok(urls.some(url => /DCarelaFinanzas-6\.2\.5-629-AltStore\.ipa$/.test(url)));
 });

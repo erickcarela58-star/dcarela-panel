@@ -1183,14 +1183,23 @@
       const maximum = Math.max(1, Math.min(SYNC_EVENT_MAX_BATCH, Number(options.limit || 500)));
       const from = options.from ? String(options.from) : '';
       const to = options.to ? String(options.to) : '';
+      const includeArchives = options.includeArchives === true;
+      const eventTypes = new Set((Array.isArray(options.eventTypes) ? options.eventTypes : [])
+        .map(value => String(value || '').trim()).filter(Boolean));
+      // Un reporte contable se filtra por la fecha efectiva del movimiento,
+      // no por el momento en que una caja recupero internet. Para esos
+      // reportes se carga el inventario actual acotado completo (retencion lo
+      // mantiene por debajo del tope) y luego se aplica el rango real abajo.
+      const serverFrom = includeArchives ? '' : from;
+      const serverTo = includeArchives ? '' : to;
       let query = d.collection('sync_events').where('business_id', '==', businessId);
       // received_at_cloud es ISO-8601 en los eventos POS/Firebase y el indice
       // business_id + received_at_cloud ya esta publicado. El tope y la cache
       // compartida evitan que cada modulo vuelva a facturar miles de lecturas.
-      if (from) query = query.where('received_at_cloud', '>=', from);
-      if (to) query = query.where('received_at_cloud', '<=', to);
+      if (serverFrom) query = query.where('received_at_cloud', '>=', serverFrom);
+      if (serverTo) query = query.where('received_at_cloud', '<=', serverTo);
       query = query.orderBy('received_at_cloud', 'desc').limit(maximum);
-      const queryKey = `${businessId}|${from}|${to}|${maximum}`;
+      const queryKey = `${businessId}|${serverFrom}|${serverTo}|${maximum}`;
       let cachedQuery = syncEventQueryCache.get(queryKey);
       if (!cachedQuery || Date.now() - cachedQuery.at > SYNC_EVENT_QUERY_TTL_MS
         || cachedQuery.limit < maximum) {
@@ -1211,10 +1220,10 @@
               const latest = cached.reduce((value, event) => {
                 const received = String(event.received_at_cloud || '');
                 return received > value ? received : value;
-              }, from);
+              }, serverFrom);
               serverQuery = d.collection('sync_events').where('business_id', '==', businessId);
               if (latest) serverQuery = serverQuery.where('received_at_cloud', '>=', latest);
-              if (to) serverQuery = serverQuery.where('received_at_cloud', '<=', to);
+              if (serverTo) serverQuery = serverQuery.where('received_at_cloud', '<=', serverTo);
               serverQuery = serverQuery.orderBy('received_at_cloud', 'desc')
                 .limit(Math.min(SYNC_EVENT_DELTA_BATCH, maximum));
             }
@@ -1246,7 +1255,7 @@
       }
       const recentWindow = from && Number.isFinite(Date.parse(from))
         && Date.parse(from) >= Date.now() - 45 * 24 * 60 * 60 * 1000;
-      if (recentWindow && options.includeArchives !== true) return current;
+      if (recentWindow && !includeArchives) return current;
       let archived = eventArchiveCache.get(businessId);
       if (!archived || Date.now() - archived.at > 5 * 60 * 1000) {
         const chunks = await this.getCollection('sync_event_archives', [['business_id', '==', businessId]]);
@@ -1257,11 +1266,33 @@
         eventArchiveCache.set(businessId, archived);
       }
       const merged = new Map();
+      const effectiveTimestamp = event => {
+        let payload = event?.payload;
+        if (typeof payload === 'string') {
+          try { payload = JSON.parse(payload); } catch (_) { payload = {}; }
+        }
+        payload = payload && typeof payload === 'object' ? payload : {};
+        return payload.vendidaEn || payload.vendida_en || payload.fechaEfectiva
+          || payload.fecha_efectiva || payload.fecha || event.received_at_cloud
+          || event.created_at_local || event.created_at || '';
+      };
+      const inRequestedRange = event => {
+        const value = effectiveTimestamp(event);
+        const timestamp = Date.parse(value);
+        const fromTimestamp = from ? Date.parse(from) : Number.NEGATIVE_INFINITY;
+        const toTimestamp = to ? Date.parse(to) : Number.POSITIVE_INFINITY;
+        if (Number.isFinite(timestamp)) return timestamp >= fromTimestamp && timestamp <= toTimestamp;
+        const comparable = String(value || '');
+        return (!from || comparable >= from) && (!to || comparable <= to);
+      };
+      const matchesRequestedType = event => !eventTypes.size || eventTypes.has(String(event?.event_type || ''));
       archived.events
-        .filter(event => !from || String(event.received_at_cloud || event.created_at_local || '') >= from)
-        .filter(event => !to || String(event.received_at_cloud || event.created_at_local || '') <= to)
+        .filter(inRequestedRange)
+        .filter(matchesRequestedType)
         .forEach(event => merged.set(event.event_id || event.id, event));
-      current.forEach(event => merged.set(event.event_id || event.id, event));
+      current.filter(inRequestedRange)
+        .filter(matchesRequestedType)
+        .forEach(event => merged.set(event.event_id || event.id, event));
       return [...merged.values()].sort((a, b) => String(b.received_at_cloud || b.created_at_local || '')
         .localeCompare(String(a.received_at_cloud || a.created_at_local || ''))).slice(0, maximum);
     },
@@ -1325,7 +1356,8 @@
         const [year, monthNumber] = String(month).split('-').map(Number);
         const from = new Date(year, monthNumber - 1, 1, 0, 0, 0, 0).toISOString();
         const to = new Date(year, monthNumber, 1, 0, 0, 0, 0).toISOString();
-        return this.getSyncEvents(businessId, { from, to, limit: SYNC_EVENT_MAX_BATCH, includeArchives: true })
+        return this.getSyncEvents(businessId, { from, to, limit: SYNC_EVENT_MAX_BATCH,
+          includeArchives: true, eventTypes: ['LedgerMovimientoRegistrado'] })
           .then(events => events.filter(event => event.event_type === 'LedgerMovimientoRegistrado'));
       })() : this.getCollection('sync_events', [
         ['business_id', '==', businessId],

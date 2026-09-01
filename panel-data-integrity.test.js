@@ -36,12 +36,26 @@ test("finanzas normaliza estados y no usa RPC de otro proveedor en sesion Fireba
 
 test("las consultas recientes no vuelven a descargar archivos historicos", () => {
   const method = adapter.slice(adapter.indexOf("async getSyncEvents"), adapter.indexOf("async getSales"));
-  assert.match(method, /if \(recentWindow && options\.includeArchives !== true\) return current/);
+  assert.match(method, /if \(recentWindow && !includeArchives\) return current/);
+});
+
+test("los rangos contables unen eventos actuales y archivos retenidos", () => {
+  const eventsMethod = panel.slice(panel.indexOf("async function eventos("), panel.indexOf("function eventosDesde"));
+  const branchStart = panel.indexOf("async function resumenSucursal");
+  const branchMethod = panel.slice(branchStart, panel.indexOf("async function cargarSucursales()", branchStart));
+  assert.match(eventsMethod, /includeArchives: Boolean\(from \|\| to\)/);
+  assert.match(branchMethod, /includeArchives: true/);
+  assert.match(adapter, /const serverFrom = includeArchives \? '' : from/);
+  assert.match(adapter, /payload\.vendidaEn \|\| payload\.vendida_en \|\| payload\.fechaEfectiva/);
+  assert.match(adapter, /current\.filter\(inRequestedRange\)/);
+  assert.match(adapter, /filter\(matchesRequestedType\)/);
+  assert.match(eventsMethod, /eventTypes: types \|\| null/);
+  assert.match(panel, /eventos\(\["VentaCancelada"\], "2000-01-01T00:00:00\.000Z", new Date\(\)\.toISOString\(\), 1600\)/);
 });
 
 test("Money Manager limita el ledger al mes y tolera modulos secundarios", () => {
   const financeMethod = adapter.slice(adapter.indexOf("async getFinanceMovements"), adapter.indexOf("async webSaleAction"));
-  assert.match(financeMethod, /getSyncEvents\(businessId, \{ from, to, limit: SYNC_EVENT_MAX_BATCH, includeArchives: true \}\)/);
+  assert.match(financeMethod, /getSyncEvents\(businessId, \{ from, to, limit: SYNC_EVENT_MAX_BATCH,[\s\S]{0,120}includeArchives: true, eventTypes: \['LedgerMovimientoRegistrado'\] \}\)/);
   assert.match(panel, /const results = await Promise\.allSettled\(\[/);
   assert.match(panel, /const accounts = required\(0, "las cuentas financieras"\)/);
   assert.match(panel, /const budgets = optional\(4, \[\]\)/);
