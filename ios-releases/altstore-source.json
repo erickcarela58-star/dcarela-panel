@@ -11,12 +11,12 @@
       "localizedDescription": "Sistema integral de productividad, lectura completa de PDF/TXT autorizados y páginas web accesibles, preparado para el bloqueo certificado de Jomo mediante sus acciones oficiales.",
       "iconURL": "https://panel.dcarelacompufoto.com/assets/brujula-icon.png",
       "tintColor": "#007AFF",
-      "version": "5.1.8",
-      "versionDate": "2026-08-31T17:53:22Z",
-      "versionDescription": "v5.1.8 (Build 490): selección ordenada de hasta 10 capturas, respuestas listas para copiar en 8 tonos (4 Liggo y 4 complementarios), conocimiento local de libros automático y widgets reales de enfoque, lectura y checklist de tareas.",
-      "downloadURL": "https://panel.dcarelacompufoto.com/ios-releases/Brujula-5.1.8-490-AltStore.ipa",
-      "size": 17748758,
-      "sha256": "17cef0a122e78acc706f572af49a0f81562f2ba29ab50cbb33c0c2f498e66771",
+      "version": "5.1.9",
+      "versionDate": "2026-09-01T10:27:27Z",
+      "versionDescription": "v5.1.9 (Build 491): copia individual de 1 a 3 respuestas estilo Liggo, entrenamiento alineado, importación visible de PDF/TXT/capturas, índice local persistente y contexto relevante enviado a Gemini; recorrido de 1,024 páginas verificado.",
+      "downloadURL": "https://panel.dcarelacompufoto.com/ios-releases/Brujula-5.1.9-491-AltStore.ipa",
+      "size": 17756323,
+      "sha256": "755e00b1138897a48657bbd5216437e9ae2b297d530fba8e10da9edf51d7cc60",
       "minOSVersion": "17.0",
       "appPermissions": {
         "entitlements": [
@@ -33,13 +33,13 @@
       },
       "versions": [
         {
-          "version": "5.1.8",
-          "buildVersion": "490",
-          "date": "2026-08-31",
-          "downloadURL": "https://panel.dcarelacompufoto.com/ios-releases/Brujula-5.1.8-490-AltStore.ipa",
-          "size": 17748758,
-          "sha256": "17cef0a122e78acc706f572af49a0f81562f2ba29ab50cbb33c0c2f498e66771",
-          "localizedDescription": "v5.1.8 (Build 490): selección ordenada de hasta 10 capturas, respuestas listas para copiar en 8 tonos (4 Liggo y 4 complementarios), conocimiento local de libros automático y widgets reales de enfoque, lectura y checklist de tareas.",
+          "version": "5.1.9",
+          "buildVersion": "491",
+          "date": "2026-09-01",
+          "downloadURL": "https://panel.dcarelacompufoto.com/ios-releases/Brujula-5.1.9-491-AltStore.ipa",
+          "size": 17756323,
+          "sha256": "755e00b1138897a48657bbd5216437e9ae2b297d530fba8e10da9edf51d7cc60",
+          "localizedDescription": "v5.1.9 (Build 491): copia individual de 1 a 3 respuestas estilo Liggo, entrenamiento alineado, importación visible de PDF/TXT/capturas, índice local persistente y contexto relevante enviado a Gemini; recorrido de 1,024 páginas verificado.",
           "minOSVersion": "17.0"
         }
       ]
