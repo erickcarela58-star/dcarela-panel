@@ -1,0 +1,80 @@
+{
+  "name": "D' Carela Apps Final",
+  "identifier": "com.dcarela.altstore-source.final-20260901",
+  "sourceURL": "https://panel.dcarelacompufoto.com/ios-releases/altstore-source-final.json",
+  "apps": [
+    {
+      "name": "Brújula",
+      "bundleIdentifier": "com.dcarela.brujula",
+      "developerName": "D' Carela Studio",
+      "subtitle": "Productividad, hábitos y lecturas",
+      "localizedDescription": "Sistema integral de productividad, lectura completa de PDF/TXT autorizados y páginas web accesibles, preparado para el bloqueo certificado de Jomo mediante sus acciones oficiales.",
+      "iconURL": "https://panel.dcarelacompufoto.com/assets/brujula-icon.png",
+      "tintColor": "#007AFF",
+      "version": "5.1.8",
+      "versionDate": "2026-09-01T04:15:00Z",
+      "versionDescription": "v5.1.8 (Build 490): selección ordenada de hasta 10 capturas, respuestas listas para copiar en 8 tonos (4 Liggo y 4 complementarios), conocimiento local de libros automático y widgets reales de enfoque, lectura y checklist de tareas.",
+      "downloadURL": "https://panel.dcarelacompufoto.com/ios-releases/Brujula-5.1.8-490-AltStore.ipa",
+      "size": 17748758,
+      "sha256": "17cef0a122e78acc706f572af49a0f81562f2ba29ab50cbb33c0c2f498e66771",
+      "minOSVersion": "17.0",
+      "appPermissions": {
+        "entitlements": [
+          "com.apple.security.application-groups"
+        ],
+        "privacy": {
+          "NSAlarmKitUsageDescription": "Brújula programa las alarmas firmes que tú creas para ejercicios, pendientes y períodos de enfoque.",
+          "NSCameraUsageDescription": "Brújula usa la cámara solamente cuando decides añadir una foto al asistente o a tu diario privado.",
+          "NSFaceIDUsageDescription": "Brújula usa Face ID para proteger la apertura de tu planificación, biblioteca y diario.",
+          "NSMicrophoneUsageDescription": "Brújula usa el micrófono para reconocer comandos del entrenamiento y grabar los audios que decides enviar a sus asistentes.",
+          "NSPhotoLibraryUsageDescription": "Brújula accede solamente a las fotos que eliges para adjuntarlas al asistente o a tu diario privado.",
+          "NSSpeechRecognitionUsageDescription": "Brújula reconoce comandos como iniciar, pausa, siguiente y descanso para controlar tu entrenamiento."
+        }
+      },
+      "versions": [
+        {
+          "version": "5.1.8",
+          "buildVersion": "490",
+          "date": "2026-09-01",
+          "downloadURL": "https://panel.dcarelacompufoto.com/ios-releases/Brujula-5.1.8-490-AltStore.ipa",
+          "size": 17748758,
+          "sha256": "17cef0a122e78acc706f572af49a0f81562f2ba29ab50cbb33c0c2f498e66771",
+          "localizedDescription": "v5.1.8 (Build 490): selección ordenada de hasta 10 capturas, respuestas listas para copiar en 8 tonos (4 Liggo y 4 complementarios), conocimiento local de libros automático y widgets reales de enfoque, lectura y checklist de tareas.",
+          "minOSVersion": "17.0"
+        }
+      ]
+    },
+    {
+      "name": "D' Carela Finanzas",
+      "bundleIdentifier": "com.dcarela.panel",
+      "developerName": "D' Carela Studio",
+      "subtitle": "Operaciones financieras y panel POS",
+      "localizedDescription": "Control financiero y administrativo oficial para D' Carela Estudio Fotográfico.",
+      "iconURL": "https://panel.dcarelacompufoto.com/assets/finanzas-icon.png",
+      "tintColor": "#1D4ED8",
+      "version": "6.2.5",
+      "versionDate": "2026-09-01T04:15:00Z",
+      "versionDescription": "v6.2.5 (Build 629): abre el panel web actualizado, renueva la caché de la app y conserva el formulario sin zoom ni desbordes.",
+      "downloadURL": "https://panel.dcarelacompufoto.com/ios-releases/DCarelaFinanzas-6.2.5-629-AltStore.ipa",
+      "size": 939299,
+      "sha256": "a2ce3bbcc547fc2a112dd23cc3bfe13b2906d39a40fc70c42b7ec0c1cdbc876f",
+      "minOSVersion": "16.4",
+      "appPermissions": {
+        "entitlements": [],
+        "privacy": {}
+      },
+      "versions": [
+        {
+          "version": "6.2.5",
+          "buildVersion": "629",
+          "date": "2026-09-01",
+          "downloadURL": "https://panel.dcarelacompufoto.com/ios-releases/DCarelaFinanzas-6.2.5-629-AltStore.ipa",
+          "size": 939299,
+          "sha256": "a2ce3bbcc547fc2a112dd23cc3bfe13b2906d39a40fc70c42b7ec0c1cdbc876f",
+          "localizedDescription": "v6.2.5 (Build 629): abre el panel web actualizado, renueva la caché de la app y conserva el formulario sin zoom ni desbordes.",
+          "minOSVersion": "16.4"
+        }
+      ]
+    }
+  ]
+}
