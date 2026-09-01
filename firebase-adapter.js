@@ -33,6 +33,19 @@
     return error;
   }
 
+  function financeMovementKey(item) {
+    const metadata = item?.metadata || {};
+    let key = String(item?.idempotency_key || metadata.idempotency_key || item?.ledger_id || item?.id || "")
+      .trim().toLowerCase();
+    // Las conciliaciones migradas existen como documento `fin-*` y como
+    // evento `sync-ledger-*`. Son dos proyecciones del mismo asiento, no dos
+    // gastos. Los UUID normales permanecen intactos.
+    while (/^(?:sync-ledger-|ledger-|fin-)/.test(key)) {
+      key = key.replace(/^(?:sync-ledger-|ledger-|fin-)/, "");
+    }
+    return key || String(item?.id || item?.sync_event_id || "");
+  }
+
   async function readFirestoreQuery(query, key) {
     // Deduplicate concurrent consumers only: do not cache balances or mutable
     // collections after completion, nor substitute empty rows for read errors.
@@ -1349,7 +1362,7 @@
       const merged = new Map();
       // La proyeccion materializada conserva los campos completos del panel;
       // el evento cubre movimientos que solo existen en el POS Windows.
-      [...ledgerRows, ...rows].forEach(item => merged.set(item.id, item));
+      [...ledgerRows, ...rows].forEach(item => merged.set(financeMovementKey(item), item));
       const filtered = month ? [...merged.values()].filter(item => String(item.fecha || '').startsWith(`${month}-`)) : [...merged.values()];
       if (financeResult.status === 'rejected' && ledgerResult.status === 'rejected') {
         throw financeResult.reason;

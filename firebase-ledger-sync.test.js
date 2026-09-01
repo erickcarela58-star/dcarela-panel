@@ -12,10 +12,11 @@ test('integra el ledger Windows desde eventos Firebase sin escanear todo el hist
   assert.match(method, /events\.filter\(event => event\.event_type === 'LedgerMovimientoRegistrado'\)/);
 });
 
-test('la lectura financiera conserva fallback parcial y deduplica por id', () => {
+test('la lectura financiera conserva fallback parcial y deduplica por identidad contable', () => {
   assert.match(adapter, /Promise\.allSettled/);
   assert.match(adapter, /const merged = new Map\(\)/);
-  assert.match(adapter, /merged\.set\(item\.id, item\)/);
+  assert.match(adapter, /merged\.set\(financeMovementKey\(item\), item\)/);
+  assert.match(adapter, /sync-ledger-/);
   assert.match(adapter, /partial_error/);
 });
 

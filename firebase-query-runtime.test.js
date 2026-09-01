@@ -70,3 +70,19 @@ test('finanzas informa consulta parcial o fallo total, nunca saldo cero ficticio
   const failed=harness(async()=>{throw new Error('offline');});
   await assert.rejects(failed.api.getFinanceMovements(),/offline/);
 });
+
+test('finanzas no duplica una conciliacion materializada y su evento del ledger',async()=>{
+  const h=harness(async name=>{
+    if(name==='fin_movements') return snapshot([{
+      id:'fin-recon-20260827-comida',tipo:'gasto',monto_centavos:50000,fecha:'2026-08-27',descripcion:'Comida materializada'
+    }]);
+    if(name==='sync_events') return snapshot([{
+      id:'ledger-event',event_id:'ledger-event',event_type:'LedgerMovimientoRegistrado',business_id:'dcarela',
+      payload:{ledgerId:'sync-ledger-recon-20260827-comida',tipo:'GASTO',importeDopCentavos:50000,fechaEfectiva:'2026-08-27'}
+    }]);
+    return snapshot([]);
+  });
+  const rows=await h.api.getFinanceMovements();
+  assert.equal(rows.length,1);
+  assert.equal(rows[0].descripcion,'Comida materializada');
+});
