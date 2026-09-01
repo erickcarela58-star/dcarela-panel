@@ -52,12 +52,12 @@
       "localizedDescription": "Control financiero y administrativo oficial para D' Carela Estudio Fotográfico.",
       "iconURL": "https://panel.dcarelacompufoto.com/assets/finanzas-icon.png",
       "tintColor": "#1D4ED8",
-      "version": "6.2.4",
-      "versionDate": "2026-08-30T20:27:44Z",
-      "versionDescription": "v6.2.4 (Build 628): conserva la estética y sesión actuales, invalida caché y service workers antiguos, evita el zoom y recupera automáticamente una carga vacía desde el servidor.",
-      "downloadURL": "https://github.com/erickcarela58-star/dcarela-panel/releases/download/ios-20260830-final-5.1.7-6.2.4/DCarelaFinanzas-6.2.4-628-AltStore.ipa",
-      "size": 930533,
-      "sha256": "15db667ef5fc3ac8ada5f3a42103e56f96af7c6d6391b7cd97b062fb8fac49c3",
+      "version": "6.2.5",
+      "versionDate": "2026-08-31T22:50:00Z",
+      "versionDescription": "v6.2.5 (Build 629): abre el panel web actualizado, renueva la caché de la app y conserva el formulario sin zoom ni desbordes.",
+      "downloadURL": "https://panel.dcarelacompufoto.com/ios-releases/DCarelaFinanzas-6.2.5-629-AltStore.ipa",
+      "size": 939299,
+      "sha256": "a2ce3bbcc547fc2a112dd23cc3bfe13b2906d39a40fc70c42b7ec0c1cdbc876f",
       "minOSVersion": "16.4",
       "appPermissions": {
         "entitlements": {},
@@ -65,13 +65,13 @@
       },
       "versions": [
         {
-          "version": "6.2.4",
-          "buildVersion": "628",
-          "date": "2026-08-30",
-          "downloadURL": "https://github.com/erickcarela58-star/dcarela-panel/releases/download/ios-20260830-final-5.1.7-6.2.4/DCarelaFinanzas-6.2.4-628-AltStore.ipa",
-          "size": 930533,
-          "sha256": "15db667ef5fc3ac8ada5f3a42103e56f96af7c6d6391b7cd97b062fb8fac49c3",
-          "localizedDescription": "v6.2.4 (Build 628): conserva la estética y sesión actuales, invalida caché y service workers antiguos, evita el zoom y recupera automáticamente una carga vacía desde el servidor.",
+          "version": "6.2.5",
+          "buildVersion": "629",
+          "date": "2026-08-31",
+          "downloadURL": "https://panel.dcarelacompufoto.com/ios-releases/DCarelaFinanzas-6.2.5-629-AltStore.ipa",
+          "size": 939299,
+          "sha256": "a2ce3bbcc547fc2a112dd23cc3bfe13b2906d39a40fc70c42b7ec0c1cdbc876f",
+          "localizedDescription": "v6.2.5 (Build 629): abre el panel web actualizado, renueva la caché de la app y conserva el formulario sin zoom ni desbordes.",
           "minOSVersion": "16.4"
         }
       ]
