@@ -60,7 +60,7 @@
       "sha256": "a2ce3bbcc547fc2a112dd23cc3bfe13b2906d39a40fc70c42b7ec0c1cdbc876f",
       "minOSVersion": "16.4",
       "appPermissions": {
-        "entitlements": {},
+        "entitlements": [],
         "privacy": {}
       },
       "versions": [
