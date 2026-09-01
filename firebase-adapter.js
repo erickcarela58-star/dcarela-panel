@@ -1215,7 +1215,12 @@
               // Primera visita o persistencia no disponible: se completa desde servidor.
             }
             let serverQuery = query;
-            const primed = cached.length > 0 && hasSyncQueryMarker(queryKey);
+            // Un informe con archivos es una conciliacion completa. No puede
+            // confiar en una cache IndexedDB que pudo quedar recortada por una
+            // version anterior: el delta solo agrega eventos nuevos y nunca
+            // recuperaria los documentos historicos ausentes. En este camino
+            // se relee el inventario actual acotado y luego se une al archivo.
+            const primed = !includeArchives && cached.length > 0 && hasSyncQueryMarker(queryKey);
             if (primed) {
               const latest = cached.reduce((value, event) => {
                 const received = String(event.received_at_cloud || '');

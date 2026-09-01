@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const vm = require('node:vm');
 const fs = require('node:fs');
 
-function harness(read) {
+function harness(read, storageValues = {}) {
   let now = Date.now();
   const user = {uid:'admin-a'};
   const calls = [];
@@ -12,15 +12,19 @@ function harness(read) {
       doc:id=>query(name, [id]),
       orderBy:(...order)=>query(name,[...conditions,['orderBy',...order]]),
       limit:value=>query(name,[...conditions,['limit',value]]),
-      async get(){ calls.push({name,conditions}); return read(name,conditions); }};
+      async get(options = {}){ calls.push({name,conditions,source:options?.source || 'server'}); return read(name,conditions,options); }};
   }
   const auth = {currentUser:user};
   const db = {collection:query, enablePersistence:async()=>{}};
   const firebase = {apps:[], initializeApp:()=>({}), auth:()=>auth, firestore:()=>db};
   const window = {__DCARELA_FIREBASE_CONFIG:{projectId:'test'}};
+  const localStorage = {
+    getItem:key=>Object.prototype.hasOwnProperty.call(storageValues,key) ? storageValues[key] : null,
+    setItem:(key,value)=>{storageValues[key]=String(value);}
+  };
   const clock = class extends Date {static now(){return now;}};
   vm.runInNewContext(fs.readFileSync(__dirname+'/firebase-adapter.js','utf8'),
-    {window,firebase,console,Date:clock,Map,Promise,Error});
+    {window,firebase,console,Date:clock,Map,Promise,Error,localStorage});
   return {api:window.DcarelaFirebase,calls,auth,advance:ms=>{now+=ms;}};
 }
 const snapshot = rows => ({docs:rows.map(row=>({id:row.id,data:()=>({...row})}))});
@@ -110,4 +114,29 @@ test('un rango contable incluye ventas archivadas y ventas recibidas tarde',asyn
   assert.equal(currentCalls.some(call=>call.conditions.some(condition=>
     Array.isArray(condition)&&condition[0]==='received_at_cloud')),false,
   'la fecha de recepcion no debe recortar un periodo contable');
+});
+
+test('una conciliacion completa no hereda una cache actual recortada',async()=>{
+  const cached={id:'cached',event_id:'cached',business_id:'dcarela',event_type:'VentaCobrada',
+    received_at_cloud:'2026-08-31T18:00:00.000Z',payload:{vendidaEn:'2026-08-31T17:00:00.000Z',totalCobradoCentavos:5000}};
+  const missing={id:'missing',event_id:'missing',business_id:'dcarela',event_type:'VentaCobrada',
+    received_at_cloud:'2026-08-18T18:00:00.000Z',payload:{vendidaEn:'2026-08-18T17:00:00.000Z',totalCobradoCentavos:113000}};
+  const queryKey='dcarela|||5000';
+  const marker=`dcarela:sync-events-primed:v1:${queryKey}`;
+  const h=harness(async(name,conditions,options)=>{
+    if(name==='sync_events') return options?.source==='cache' ? snapshot([cached]) : snapshot([cached,missing]);
+    if(name==='sync_event_archives') return snapshot([]);
+    return snapshot([]);
+  },{[marker]:'1'});
+  const rows=await h.api.getSyncEvents('dcarela',{
+    from:'2026-08-01T04:00:00.000Z',to:'2026-09-01T03:59:59.999Z',limit:5000,
+    includeArchives:true,eventTypes:['VentaCobrada']
+  });
+  assert.deepEqual([...rows.map(item=>item.event_id)].sort(),['cached','missing']);
+  const serverCall=h.calls.find(call=>call.name==='sync_events'&&call.source==='server');
+  assert.ok(serverCall);
+  assert.equal(serverCall.conditions.some(condition=>Array.isArray(condition)
+    &&condition[0]==='received_at_cloud'&&condition[1]==='>='),false);
+  assert.ok(serverCall.conditions.some(condition=>Array.isArray(condition)
+    &&condition[0]==='limit'&&condition[1]===5000));
 });

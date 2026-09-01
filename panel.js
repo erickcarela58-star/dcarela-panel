@@ -241,7 +241,9 @@
     const d = value ? new Date(`${value}T23:59:59.999`) : new Date();
     return d.toISOString();
   };
-  const fechaEventoIso = event => event?.created_at_local || P(event).vendidaEn || P(event).fecha || event?.received_at_cloud || event?.created_at;
+  const fechaEventoIso = event => P(event).vendidaEn || P(event).vendida_en
+    || P(event).fechaEfectiva || P(event).fecha_efectiva || P(event).fecha
+    || event?.created_at_local || event?.received_at_cloud || event?.created_at;
   const eventoEnRango = (event, from, to) => {
     const value = fechaEventoIso(event);
     const timestamp = value ? new Date(value).getTime() : Number.NaN;
