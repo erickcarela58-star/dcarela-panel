@@ -6,7 +6,8 @@ const adapter = fs.readFileSync(__dirname + '/firebase-adapter.js', 'utf8');
 test('integra el ledger Windows desde eventos Firebase sin escanear todo el histórico', () => {
   assert.match(adapter, /event_type', '==', 'LedgerMovimientoRegistrado'/);
   assert.match(adapter, /payload\.importeDopCentavos/);
-  assert.match(adapter, /source: 'pos_sync_event'/);
+  assert.match(adapter, /financeMovementFromLedgerEvent/);
+  assert.match(adapter, /'web_sync_event' : 'pos_sync_event'/);
   const method = adapter.slice(adapter.indexOf('async getFinanceMovements'), adapter.indexOf('async webSaleAction'));
   assert.match(method, /this\.getSyncEvents\(businessId, \{ from, to, limit: SYNC_EVENT_MAX_BATCH,[\s\S]{0,120}includeArchives: true, eventTypes: \['LedgerMovimientoRegistrado'\] \}\)/);
   assert.match(method, /events\.filter\(event => event\.event_type === 'LedgerMovimientoRegistrado'\)/);
@@ -35,4 +36,18 @@ test('los movimientos creados en web publican un evento idempotente al ledger gl
   assert.match(publish, /existing = await eventRef\.get\(\)/);
   assert.match(publish, /row\.event_type === 'LedgerMovimientoRegistrado'/);
   assert.match(publish, /Movimiento enviado al ledger global/);
+  assert.match(adapter, /cuentaOrigenId:/);
+  assert.match(adapter, /cuentaDestinoId:/);
+  assert.match(adapter, /importeOriginalCentavos:/);
+  assert.match(adapter, /idempotencyKey:/);
+});
+
+test('las transferencias web tambien llegan a Windows como un solo asiento ledger', () => {
+  const transferStart = adapter.indexOf("if (action === 'fin.transfer.create')");
+  const categoryStart = adapter.indexOf("if (action === 'fin.category.upsert')", transferStart);
+  const transfer = adapter.slice(transferStart, categoryStart);
+  assert.match(transfer, /eventId = `ledger-\$\{movementId\}`/);
+  assert.match(transfer, /transaction\.set\(eventRef, eventDocument/);
+  assert.match(transfer, /'LedgerMovimientoRegistrado'/);
+  assert.match(transfer, /cuenta_destino_id: targetId/);
 });

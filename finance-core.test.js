@@ -131,6 +131,63 @@ test("el saldo efectivo suma solo ventas posteriores al ultimo cuadre", () => {
   assert.equal(core.effectiveAccountBalance(account, movements), 1270000);
 });
 
+test("el saldo aplica gastos y transferencias del Money Manager Windows posteriores al cuadre", () => {
+  const cutoff = "2026-08-30T23:00:00Z";
+  const cash = { id: "cash", saldo_actual_centavos: 1500000, reconciled_at: cutoff };
+  const popular = { id: "popular", saldo_actual_centavos: 32000, reconciled_at: cutoff };
+  const movements = [
+    { id: "expense", tipo: "gasto", estado: "confirmado", source: "pos_sync_event",
+      cuenta_id: "cash", monto_centavos: 50000, source_timestamp: "2026-08-31T12:00:00Z" },
+    { id: "transfer", tipo: "transferencia", estado: "confirmado", source: "pos_sync_event",
+      cuenta_id: "cash", cuenta_destino_id: "popular", monto_centavos: 250000,
+      source_timestamp: "2026-08-31T13:00:00Z" },
+    { id: "bank-expense", tipo: "gasto", estado: "confirmado", source: "pos_sync_event",
+      cuenta_id: "popular", monto_centavos: 100000, source_timestamp: "2026-08-31T14:00:00Z" },
+  ];
+  assert.equal(core.projectedLedgerDeltaForAccount(cash, movements), -300000);
+  assert.equal(core.projectedLedgerDeltaForAccount(popular, movements), 150000);
+  assert.equal(core.effectiveAccountBalance(cash, movements), 1200000);
+  assert.equal(core.effectiveAccountBalance(popular, movements), 182000);
+  assert.equal(
+    core.effectiveAccountBalance(cash, movements) + core.effectiveAccountBalance(popular, movements),
+    1382000,
+    "la transferencia conserva patrimonio; solo los dos gastos lo reducen"
+  );
+});
+
+test("un movimiento web ya materializado no se vuelve a aplicar al saldo", () => {
+  const account = { id: "cash", saldo_actual_centavos: 1200000, reconciled_at: "2026-08-30T23:00:00Z" };
+  const movement = {
+    tipo: "gasto", estado: "registrado", origen: "panel", cuenta_id: "cash",
+    monto_centavos: 50000, created_at: "2026-08-31T12:00:00Z"
+  };
+  assert.equal(core.projectedAccountDeltaForAccount(account, [movement]), 0);
+  assert.equal(core.effectiveAccountBalance(account, [movement]), 1200000);
+});
+
+test("normaliza cuentas origen y destino del evento ledger creado por Windows", () => {
+  const expense = core.ledgerEventMovement({
+    event_id: "event-expense", created_at_local: "2026-08-31T12:00:00Z",
+    payload: { ledgerId: "expense", tipo: "GASTO", cuentaOrigenId: "cash",
+      importeDopCentavos: 50000, fechaEfectiva: "2026-08-31T12:00:00Z" }
+  });
+  const transfer = core.ledgerEventMovement({
+    event_id: "event-transfer", payload: { ledgerId: "transfer", tipo: "TRANSFERENCIA",
+      cuentaOrigenId: "cash", cuentaDestinoId: "popular", importeDopCentavos: 250000,
+      fechaEfectiva: "2026-08-31T13:00:00Z" }
+  });
+  const income = core.ledgerEventMovement({
+    event_id: "event-income", payload: { ledgerId: "income", tipo: "INGRESO",
+      cuentaDestinoId: "popular", importeDopCentavos: 10000,
+      fechaEfectiva: "2026-08-31T14:00:00Z" }
+  });
+  assert.equal(expense.cuenta_id, "cash");
+  assert.equal(expense.source, "pos_sync_event");
+  assert.equal(transfer.cuenta_id, "cash");
+  assert.equal(transfer.cuenta_destino_id, "popular");
+  assert.equal(income.cuenta_id, "popular");
+});
+
 test("sin un cuadre verificable no inventa ventas dentro del saldo base", () => {
   const account = { id: "cash", saldo_actual_centavos: 50000 };
   const movements = [{ tipo: "ingreso", estado: "confirmado", origen: "pos_venta", cuenta_id: "cash", monto_centavos: 30000, fecha: "2026-08-31" }];

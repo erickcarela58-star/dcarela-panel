@@ -81,9 +81,10 @@ test("Finanzas integra las ventas activas del POS y muestra su procedencia", () 
     "Money Manager debe cargar antes de proyectar ventas");
   assert.match(panel, /projectSalePaymentsAsMovements\(salesResult\.active, finStateCache\.accounts/);
   assert.match(panel, /finAccountBalance = account => financeCore\.effectiveAccountBalance/);
-  assert.match(panel, /finAccountSalesDelta = account => financeCore\.projectedSalesDeltaForAccount/);
-  assert.match(panel, /finStateCache\.accountSalesMovements = financeCore\.projectSalePaymentsAsMovements/);
-  assert.match(panel, /const balanceSalesResult = accountCutoffs\.length/);
+  assert.match(panel, /finAccountProjectedDelta = account => financeCore\.projectedAccountDeltaForAccount/);
+  assert.match(panel, /finStateCache\.accountProjectedMovements = \[/);
+  assert.match(panel, /const \[balanceSalesResult, balanceLedgerMovements\] = accountCutoffs\.length/);
+  assert.match(panel, /getFinanceLedgerMovements\(BUSINESS/);
   assert.match(panel, /const activeSaleIdentifiers = new Set\(salesResult\.active\.flatMap/);
   assert.match(panel, /finStateCache\.movements = \[\.\.\.baseMovements, \.\.\.integratedSales\]/);
   assert.match(panel, /movement\.origen === "pos_venta" \? "POS Windows"/);

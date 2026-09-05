@@ -21,7 +21,7 @@
     document.body?.classList.add("is-embedded");
   }
   const THEME_KEY = "dcarela.ui.theme";
-  const APP_BUILD = "1.0.65";
+  const APP_BUILD = "1.0.66";
   const financeCore = window.DcarelaFinanceCore;
 
   window.cargarFinanzas = async function(force = false) {
@@ -5313,9 +5313,9 @@
     /^#[0-9a-f]{6}$/i.test(String(value || "")) ? String(value).toUpperCase() : fallback;
 
   const finAccountBalance = account => financeCore.effectiveAccountBalance(account,
-    finStateCache?.accountSalesMovements || finStateCache?.movements || []);
-  const finAccountSalesDelta = account => financeCore.projectedSalesDeltaForAccount(account,
-    finStateCache?.accountSalesMovements || finStateCache?.movements || []);
+    finStateCache?.accountProjectedMovements || finStateCache?.movements || []);
+  const finAccountProjectedDelta = account => financeCore.projectedAccountDeltaForAccount(account,
+    finStateCache?.accountProjectedMovements || finStateCache?.movements || []);
 
   function finRange(period = finDashboardPeriod, reference = finReferenceDate) {
     const base = new Date(`${reference || inputDate(new Date())}T12:00:00`);
@@ -5355,7 +5355,7 @@
     let patrimonio = 0;
     const cards = state.accounts.map(account => {
       const balance = finAccountBalance(account);
-      const projectedSales = finAccountSalesDelta(account);
+      const projectedDelta = finAccountProjectedDelta(account);
       if (account.incluir_en_total) patrimonio += balance;
       const isCard = account.tipo === "tarjeta_credito";
       const display = isCard ? Math.max(0, -balance) : balance;
@@ -5369,7 +5369,7 @@
         <button type="button" class="fin-account-open" data-fin-account-ledger="${esc(account.id)}" title="Ver los movimientos que forman este saldo">
           <span class="fin-account-visual-head"><i>${esc(icon)}</i><span><b>${esc(account.nombre)}</b><small>${mask || esc(FIN_TIPO_LABEL[account.tipo] || account.tipo)}</small></span></span>
           <span class="fin-account-balance-row"><strong>${isCard ? money(display) : money(balance)}</strong><em class="fin-account-sign">${esc(signLabel)}</em></span>
-          <small>${esc(FIN_TIPO_LABEL[account.tipo] || account.tipo)}${account.ligada_ventas ? " &middot; ligada a ventas" : ""}${projectedSales ? ` &middot; incluye ${money(projectedSales)} en ventas posteriores al ultimo cuadre` : ""}${account.oculta ? " &middot; oculta" : ""}</small>
+          <small>${esc(FIN_TIPO_LABEL[account.tipo] || account.tipo)}${account.ligada_ventas ? " &middot; ligada a ventas" : ""}${projectedDelta ? ` &middot; ajuste sincronizado desde el ultimo cuadre ${projectedDelta > 0 ? "+" : ""}${money(projectedDelta)}` : ""}${account.oculta ? " &middot; oculta" : ""}</small>
         </button>
         ${canEdit ? `<div class="fin-account-actions"><button type="button" data-fin-account-reconcile="${esc(account.id)}">Conciliar</button><button type="button" data-fin-account-edit="${esc(account.id)}">Editar</button></div>` : ""}
       </article>`;
@@ -6522,9 +6522,15 @@
       .map(account => account.reconciled_at || account.reconciledAt || account.created_at || account.createdAt)
       .filter(value => Number.isFinite(new Date(value).getTime()))
       .sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
-    const balanceSalesResult = accountCutoffs.length
-      ? await ventasActivas(new Date(accountCutoffs[0]).toISOString(), new Date().toISOString(), 20000)
-      : { active: [], excluded: 0, duplicates: 0, raw: [] };
+    const balanceFrom = accountCutoffs.length ? new Date(accountCutoffs[0]).toISOString() : "";
+    const [balanceSalesResult, balanceLedgerMovements] = accountCutoffs.length
+      ? await Promise.all([
+        ventasActivas(balanceFrom, new Date().toISOString(), 20000),
+        authProvider === "firebase" && window.DcarelaFirebase?.getFinanceLedgerMovements
+          ? window.DcarelaFirebase.getFinanceLedgerMovements(BUSINESS, balanceFrom, new Date().toISOString())
+          : Promise.resolve([]),
+      ])
+      : [{ active: [], excluded: 0, duplicates: 0, raw: [] }, []];
     const monthExpenses = state.expenses.filter(item => item.activo && monthOf(item.fecha || item._latestAt) === month);
     const monthPayments = state.payments.filter(item => monthOf(item.fecha) === month);
     const monthObligations = state.obligations.filter(item => monthOf(item.venceEn) === month && !["anulada", "pagada"].includes(item.estado));
@@ -6547,11 +6553,15 @@
         businessId: BUSINESS,
         transferAccountId: finStateCache.preferences?.cuenta_ingreso_default_id || null,
       });
-      finStateCache.accountSalesMovements = financeCore.projectSalePaymentsAsMovements(
+      const balanceSalesMovements = financeCore.projectSalePaymentsAsMovements(
         balanceSalesResult.active, finStateCache.accounts, {
           businessId: BUSINESS,
           transferAccountId: finStateCache.preferences?.cuenta_ingreso_default_id || null,
         });
+      finStateCache.accountProjectedMovements = [
+        ...balanceSalesMovements,
+        ...balanceLedgerMovements.filter(item => item.source === "pos_sync_event"),
+      ];
       finStateCache.movements = [...baseMovements, ...integratedSales]
         .sort((a, b) => String(b.fecha || "").localeCompare(String(a.fecha || "")));
       finStateCache.costObligations = state.obligations || [];

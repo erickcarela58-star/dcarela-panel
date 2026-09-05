@@ -70,6 +70,43 @@
     return normalized;
   }
 
+  function ledgerEventMovement(event) {
+    const payload = eventPayload(event);
+    const type = normalizeMovementType(payload.tipo || "gasto");
+    const sourceAccount = payload.cuentaOrigenId || payload.cuenta_origen_id || null;
+    const targetAccount = payload.cuentaDestinoId || payload.cuenta_destino_id || null;
+    const explicitAccount = payload.cuentaId || payload.cuenta_id || null;
+    const accountId = explicitAccount || (["ingreso", "ajuste_positivo"].includes(type)
+      ? targetAccount || sourceAccount
+      : sourceAccount || targetAccount);
+    const timestamp = payload.fechaEfectiva || payload.fecha_efectiva || payload.fecha
+      || event?.created_at_local || event?.received_at_cloud || event?.created_at || "";
+    return normalizeMovement({
+      id: payload.ledgerId || payload.ledger_id || event?.entity_id || event?.event_id || event?.id,
+      ledger_id: payload.ledgerId || payload.ledger_id || event?.entity_id || null,
+      business_id: event?.business_id || payload.business_id || "",
+      tipo: type,
+      categoria: payload.categoria || "",
+      descripcion: payload.descripcion || event?.event_type || "Movimiento de caja Windows",
+      monto_centavos: payload.importeDopCentavos ?? payload.importe_dop_centavos ?? 0,
+      importe_dop_centavos: payload.importeDopCentavos ?? payload.importe_dop_centavos ?? 0,
+      comision_centavos: payload.comisionCentavos ?? payload.comision_centavos ?? 0,
+      moneda: payload.monedaOriginal || payload.moneda_original || "DOP",
+      estado: payload.estado || "confirmado",
+      fecha: timestamp,
+      cuenta_id: accountId,
+      cuenta_destino_id: type === "transferencia" ? targetAccount : null,
+      categoria_id: payload.categoriaId || payload.categoria_id || null,
+      payee: payload.payee || null,
+      nota: payload.observaciones || "",
+      origen: payload.origen || "pos",
+      sync_event_id: event?.event_id || event?.id || "",
+      source_timestamp: timestamp,
+      source: normalizeText(payload.origen) === "panel" ? "web_sync_event" : "pos_sync_event",
+      observaciones: payload.observaciones || "",
+    });
+  }
+
   function isActiveMovement(item) {
     const state = normalizeText(item?.estado || "registrado");
     if (INACTIVE_STATES.has(state)) return false;
@@ -261,21 +298,57 @@
     }).filter(item => item.fecha && item.monto_centavos > 0);
   }
 
+  function projectionCutoff(account) {
+    const cutoffText = account?.reconciled_at || account?.reconciledAt
+      || account?.created_at || account?.createdAt || "";
+    const cutoff = cutoffText ? new Date(cutoffText).getTime() : Number.NaN;
+    return Number.isFinite(cutoff) ? cutoff : Number.NaN;
+  }
+
+  function movementAfterCutoff(account, item) {
+    const cutoff = projectionCutoff(account);
+    if (!Number.isFinite(cutoff)) return false;
+    const normalized = normalizeMovement(item);
+    const timestamp = new Date(normalized.source_timestamp || normalized.created_at
+      || normalized.updated_at || `${normalized.fecha}T23:59:59-04:00`).getTime();
+    return Number.isFinite(timestamp) && timestamp > cutoff;
+  }
+
   function projectedSalesDeltaForAccount(account, movements) {
     if (!account?.id) return 0;
-    const cutoffText = account.reconciled_at || account.reconciledAt || account.created_at || account.createdAt || "";
-    const cutoff = cutoffText ? new Date(cutoffText).getTime() : Number.NaN;
-    if (!Number.isFinite(cutoff)) return 0;
     return (movements || []).map(normalizeMovement).filter(item => {
       if (item.origen !== "pos_venta" || item.cuenta_id !== account.id || !isActiveMovement(item)) return false;
-      const timestamp = new Date(item.source_timestamp || `${item.fecha}T23:59:59-04:00`).getTime();
-      return Number.isFinite(timestamp) && timestamp > cutoff;
+      return movementAfterCutoff(account, item);
     }).reduce((sum, item) => sum + item.monto_centavos, 0);
+  }
+
+  function projectedLedgerDeltaForAccount(account, movements) {
+    if (!account?.id) return 0;
+    return (movements || []).map(normalizeMovement).filter(item =>
+      item.source === "pos_sync_event" && isActiveMovement(item) && movementAfterCutoff(account, item)
+    ).reduce((sum, item) => {
+      const amount = item.monto_centavos;
+      if (item.tipo === "transferencia") {
+        let delta = 0;
+        if (item.cuenta_id === account.id) delta -= amount + item.comision_centavos;
+        if (item.cuenta_destino_id === account.id) delta += amount;
+        return sum + delta;
+      }
+      if (item.cuenta_id !== account.id) return sum;
+      if (["ingreso", "ajuste_positivo"].includes(item.tipo)) return sum + amount;
+      if (["gasto", "ajuste_negativo", "comision"].includes(item.tipo)) return sum - amount;
+      return sum;
+    }, 0);
+  }
+
+  function projectedAccountDeltaForAccount(account, movements) {
+    return projectedSalesDeltaForAccount(account, movements)
+      + projectedLedgerDeltaForAccount(account, movements);
   }
 
   function effectiveAccountBalance(account, movements) {
     return finiteNumber(account?.saldo_actual_centavos ?? account?.saldo_inicial_centavos)
-      + projectedSalesDeltaForAccount(account, movements);
+      + projectedAccountDeltaForAccount(account, movements);
   }
 
   function projectSalesAsMovements(sales, options = {}) {
@@ -331,6 +404,7 @@
     eventDay,
     normalizeMovementType,
     normalizeMovement,
+    ledgerEventMovement,
     isActiveMovement,
     movementInRange,
     summarizeMovements,
@@ -344,6 +418,8 @@
     salePaymentAccount,
     projectSalePaymentsAsMovements,
     projectedSalesDeltaForAccount,
+    projectedLedgerDeltaForAccount,
+    projectedAccountDeltaForAccount,
     effectiveAccountBalance,
     projectSalesAsMovements,
     mergeSalesIntoMovements,
