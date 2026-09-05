@@ -11,12 +11,12 @@
       "localizedDescription": "Sistema integral de productividad, lectura completa de PDF/TXT autorizados y páginas web accesibles, preparado para el bloqueo certificado de Jomo mediante sus acciones oficiales.",
       "iconURL": "https://panel.dcarelacompufoto.com/assets/brujula-icon.png",
       "tintColor": "#007AFF",
-      "version": "5.2.0",
-      "versionDate": "2026-09-01T18:35:39Z",
-      "versionDescription": "v5.2.0 (Build 492): lector PDF visible en tiempo real con recorrido completo de 1,024 páginas, historial y chat nuevo integrados en el menú hamburguesa, y Entreno corregido en selección, pausa, descansos, límites y progreso; regresiones de OCR, contexto y copia individual aprobadas.",
-      "downloadURL": "https://panel.dcarelacompufoto.com/ios-releases/Brujula-5.2.0-492-AltStore.ipa",
-      "size": 17794351,
-      "sha256": "b8ae8c971e9bf930e977be09c3340138d73eb9572f8cdece73f35b12ad0d547a",
+      "version": "5.2.1",
+      "versionDate": "2026-09-05T04:08:49Z",
+      "versionDescription": "v5.2.1 (Build 493): IPA reconstruido con firma válida en la app, widgets y monitor de actividad, verificado e instalado mediante AltStore en iPhone; conserva el lector PDF visible de recorrido completo, el historial con chat nuevo integrado y las correcciones funcionales de Entreno, OCR, contexto y copia individual.",
+      "downloadURL": "https://panel.dcarelacompufoto.com/ios-releases/Brujula-5.2.1-493-AltStore.ipa",
+      "size": 17826378,
+      "sha256": "c7c3bce600fbd4170e5cdfa5236ac3f82530bf132629b9090e739ee4a0adab12",
       "minOSVersion": "17.0",
       "appPermissions": {
         "entitlements": [
@@ -33,13 +33,13 @@
       },
       "versions": [
         {
-          "version": "5.2.0",
-          "buildVersion": "492",
-          "date": "2026-09-01",
-          "downloadURL": "https://panel.dcarelacompufoto.com/ios-releases/Brujula-5.2.0-492-AltStore.ipa",
-          "size": 17794351,
-          "sha256": "b8ae8c971e9bf930e977be09c3340138d73eb9572f8cdece73f35b12ad0d547a",
-          "localizedDescription": "v5.2.0 (Build 492): lector PDF visible en tiempo real con recorrido completo de 1,024 páginas, historial y chat nuevo integrados en el menú hamburguesa, y Entreno corregido en selección, pausa, descansos, límites y progreso; regresiones de OCR, contexto y copia individual aprobadas.",
+          "version": "5.2.1",
+          "buildVersion": "493",
+          "date": "2026-09-05",
+          "downloadURL": "https://panel.dcarelacompufoto.com/ios-releases/Brujula-5.2.1-493-AltStore.ipa",
+          "size": 17826378,
+          "sha256": "c7c3bce600fbd4170e5cdfa5236ac3f82530bf132629b9090e739ee4a0adab12",
+          "localizedDescription": "v5.2.1 (Build 493): IPA reconstruido con firma válida en la app, widgets y monitor de actividad, verificado e instalado mediante AltStore en iPhone; conserva el lector PDF visible de recorrido completo, el historial con chat nuevo integrado y las correcciones funcionales de Entreno, OCR, contexto y copia individual.",
           "minOSVersion": "17.0"
         }
       ]
