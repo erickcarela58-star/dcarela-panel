@@ -21,7 +21,7 @@
     document.body?.classList.add("is-embedded");
   }
   const THEME_KEY = "dcarela.ui.theme";
-  const APP_BUILD = "1.0.64";
+  const APP_BUILD = "1.0.65";
   const financeCore = window.DcarelaFinanceCore;
 
   window.cargarFinanzas = async function(force = false) {
@@ -7338,7 +7338,6 @@
     // aquí introducía una carrera: el iframe podía regresar a oscuro justo
     // después de que el usuario seleccionara claro en el shell.
     if (!EMBEDDED && authProvider === "supabase") await cargarTemaUsuario().catch(() => {});
-    await cargarPermisosCajaWeb().catch(() => setSaleAccess({ loaded: true }));
     if (generation !== authGeneration || session?.user?.id !== expectedUserId) return false;
     sesionOk = true;
     activeUserId = expectedUserId;
@@ -7349,9 +7348,18 @@
     verEstado(true, authProvider === "firebase" ? "Firebase autenticado" : "Supabase autenticado");
     if (canEdit) renderIaApprovals().catch(() => {});
     conectarRealtime();
-    await obtenerAlertas(true).catch(() => []);
     comprobarVersion();
     mostrarVista(location.hash.slice(1) || "dashboard");
+
+    // La funcion de Caja virtual puede tener un cold start y la consulta de
+    // alertas puede necesitar un indice que todavia este construyendose. Son
+    // capacidades secundarias: nunca deben bloquear la restauracion de una
+    // sesion valida ni devolver al usuario al login al abrir Finanzas.
+    cargarPermisosCajaWeb().catch(error => {
+      console.warn("cargarPermisosCajaWeb al iniciar:", error);
+      setSaleAccess({ loaded: true });
+    });
+    obtenerAlertas(true).catch(error => console.warn("obtenerAlertas al iniciar:", error));
     return true;
   }
 
@@ -7430,7 +7438,6 @@
       if (generation !== authGeneration) return;
       if (firebaseSession) {
         await iniciarConSesion(firebaseSession, generation);
-        if (!sesionOk) await window.DcarelaFirebase.signOut().catch(() => {});
         return;
       }
       session = null;
