@@ -31,9 +31,9 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="favicon.svg">
   <link rel="apple-touch-icon" href="dcarela-logo.png">
-  <link rel="stylesheet" href="panel.css?v=2026.09.04.1.0.66.0">
-  <link rel="stylesheet" href="panel-theme.css?v=2026.09.04.1.0.66.0">
-  <link rel="stylesheet" href="visual-fidelity.css?v=2026.09.04.1.0.66.0">
+  <link rel="stylesheet" href="panel.css?v=2026.09.05.1.0.67.0">
+  <link rel="stylesheet" href="panel-theme.css?v=2026.09.05.1.0.67.0">
+  <link rel="stylesheet" href="visual-fidelity.css?v=2026.09.05.1.0.67.0">
 </head>
 <body>
   <section id="access" class="access-shell">
@@ -81,7 +81,7 @@
     <aside class="sidebar">
       <div class="brand">
         <img src="dcarela-logo.png" alt="" class="brand-logo">
-        <div><strong>D' Carela Compufoto</strong><span>Panel web 1.0.61</span></div>
+        <div><strong>D' Carela Compufoto</strong><span>Panel web 1.0.67</span></div>
       </div>
       <nav id="menu" aria-label="Navegacion principal">
         <a href="#dashboard" data-title="Resumen operativo">Resumen</a>
@@ -94,6 +94,7 @@
         <a href="#reportes" data-title="Reportes">Reportes</a>
         <a href="#inventario" data-title="Inventario">Inventario</a>
         <a href="#clientes" data-title="Clientes">Clientes</a>
+        <a href="#money-manager" data-title="Money Manager"><span class="money-pig-icon" aria-hidden="true">&#128055;</span> Money Manager</a>
         <a href="#finanzas" data-title="Finanzas">Finanzas</a>
         <a href="#asistente" data-title="Asistente IA">Asistente IA <span id="navIaPending" class="nav-count oculto">0</span></a>
         <a href="#notificaciones" data-title="Notificaciones">Notificaciones <span id="navAlertas" class="nav-count oculto">0</span></a>
@@ -354,6 +355,90 @@
           </div>
           <div id="cliResumen" class="inline-metrics"></div>
           <section class="surface"><div id="cliTabla" class="table-wrap"></div></section>
+        </section>
+
+        <section id="v-money-manager" class="vista oculto money-manager-view">
+          <div class="section-heading money-manager-heading">
+            <div class="money-manager-title">
+              <span class="money-manager-mark" aria-hidden="true">&#128055;</span>
+              <div><span class="finance-brand-kicker">D' Carela · Libro unificado</span><h2>Money Manager</h2><p>Registra todo manualmente y comprueba, en el mismo libro, las ventas automáticas, entradas, salidas, transferencias, tarjetas y pagos pendientes.</p></div>
+            </div>
+            <div class="button-row admin-only oculto money-manager-primary-actions">
+              <button id="btnMmExpense" class="primary" type="button">− Gasto</button>
+              <button id="btnMmIncome" class="secondary" type="button">+ Ingreso</button>
+              <button id="btnMmTransfer" class="secondary" type="button">Transferir</button>
+              <button id="btnMmReconcile" class="secondary" type="button">Conciliar saldo</button>
+            </div>
+          </div>
+
+          <div class="money-manager-toolbar">
+            <div id="mmTabs" class="segmented money-manager-tabs" role="tablist" aria-label="Secciones de Money Manager">
+              <button class="act" type="button" data-mm-tab="resumen" role="tab">Resumen</button>
+              <button type="button" data-mm-tab="calendario" role="tab">Calendario</button>
+              <button type="button" data-mm-tab="movimientos" role="tab">Entradas y salidas</button>
+              <button type="button" data-mm-tab="cuentas" role="tab">Cuentas y tarjetas</button>
+              <button type="button" data-mm-tab="pagos" role="tab">Pagos y préstamos</button>
+            </div>
+            <label class="money-manager-month"><span>Mes</span><input id="mmMonth" type="month"></label>
+          </div>
+          <p id="mmSyncStatus" class="money-manager-sync" role="status">Comprobando el libro unificado…</p>
+
+          <section id="mmPanelResumen" class="money-manager-panel">
+            <div id="mmKpis" class="money-manager-kpis"></div>
+            <div class="money-manager-grid">
+              <section class="surface mm-accounts-summary"><div class="surface-title"><div><h3>Dinero por cuenta</h3><p>Saldos conciliados más ventas posteriores, sin duplicar transferencias.</p></div><button class="text-button" type="button" data-mm-open="cuentas">Ver cuentas</button></div><div id="mmAccountStrip" class="money-manager-account-strip"></div></section>
+              <section class="surface mm-source-summary"><div class="surface-title"><div><h3>De dónde sale cada monto</h3><p>Ventas automáticas separadas de lo registrado manualmente.</p></div></div><div id="mmSourceSummary" class="money-manager-source-list"></div></section>
+              <section class="surface mm-recent-summary"><div class="surface-title"><div><h3>Últimos movimientos</h3><p>Entradas, salidas y traslados con su procedencia.</p></div><button class="text-button" type="button" data-mm-open="movimientos">Ver todo</button></div><div id="mmRecent" class="money-manager-ledger-list"></div></section>
+              <section class="surface mm-due-summary"><div class="surface-title"><div><h3>Por pagar ahora</h3><p>Incluye vencidos, este mes y planes todavía sin factura.</p></div><button class="text-button" type="button" data-mm-open="pagos">Administrar</button></div><div id="mmDueNow" class="money-manager-due-list"></div></section>
+            </div>
+            <section class="surface money-manager-tools">
+              <div class="surface-title"><div><h3>Herramientas</h3><p>Las funciones avanzadas siguen usando este mismo libro; no crean una segunda contabilidad.</p></div></div>
+              <div class="button-row">
+                <button type="button" class="secondary" data-mm-finance-tab="presupuestos">Presupuestos</button>
+                <button type="button" class="secondary" data-mm-finance-tab="tarjetas">Configurar tarjetas</button>
+                <button type="button" class="secondary" data-mm-finance-tab="recurrentes">Pagos planificados</button>
+                <button type="button" class="secondary" data-mm-finance-tab="ajustes">Categorías y ajustes</button>
+                <button id="btnMmExportCsv" type="button" class="secondary">Exportar CSV</button>
+                <button id="btnMmBackup" type="button" class="secondary">Exportar datos financieros</button>
+              </div>
+            </section>
+          </section>
+
+          <section id="mmPanelCalendario" class="money-manager-panel oculto">
+            <section class="surface money-manager-calendar-surface">
+              <div class="surface-title"><div><h3>Calendario mensual</h3><p>Pulsa un día para revisar exactamente sus movimientos.</p></div><div class="money-manager-calendar-legend"><span class="income">Entrada</span><span class="expense">Salida</span><span class="transfer">Traslado</span></div></div>
+              <div class="money-manager-weekdays" aria-hidden="true"><span>Lun</span><span>Mar</span><span>Mié</span><span>Jue</span><span>Vie</span><span>Sáb</span><span>Dom</span></div>
+              <div id="mmCalendar" class="money-manager-calendar"></div>
+              <div id="mmCalendarDay" class="money-manager-day-detail"></div>
+            </section>
+          </section>
+
+          <section id="mmPanelMovimientos" class="money-manager-panel oculto">
+            <section class="surface">
+              <div class="surface-title"><div><h3>Panel de entradas y salidas</h3><p>Todo movimiento conserva cuenta, categoría, procedencia y estado de sincronización.</p></div><div class="button-row admin-only oculto"><button id="btnMmMovementExpense" class="primary" type="button">Nuevo gasto</button><button id="btnMmMovementIncome" class="secondary" type="button">Nuevo ingreso</button></div></div>
+              <div class="money-manager-filters">
+                <label class="filter-grow"><span>Buscar</span><input id="mmSearch" type="search" placeholder="Descripción, comercio, nota o folio"></label>
+                <label><span>Tipo</span><select id="mmType"><option value="">Todos</option><option value="ingreso">Entradas</option><option value="gasto">Salidas</option><option value="transferencia">Transferencias</option></select></label>
+                <label><span>Procedencia</span><select id="mmSource"><option value="">Todas</option><option value="venta_automatica">Ventas automáticas</option><option value="manual">Manual</option><option value="asistente">Asistente</option><option value="caja_windows">Caja Windows</option><option value="transferencia">Transferencias</option><option value="conciliacion">Conciliaciones</option></select></label>
+                <label><span>Cuenta</span><select id="mmAccount"><option value="">Todas</option></select></label>
+              </div>
+              <div id="mmMovements" class="table-wrap money-manager-movements"></div>
+            </section>
+          </section>
+
+          <section id="mmPanelCuentas" class="money-manager-panel oculto">
+            <div class="surface-title"><div><h3>Cuentas y tarjetas</h3><p>Revisa movimientos y registra operaciones identificadas. La conciliación de saldo está temporalmente bloqueada hasta verificar el historial con la caja.</p></div><div class="button-row admin-only oculto"><button id="btnMmNewAccount" type="button" class="secondary">Agregar cuenta</button><button id="btnMmAccountsTransfer" type="button" class="primary">Nueva transferencia</button></div></div>
+            <div id="mmAccounts" class="money-manager-accounts"></div>
+            <section class="surface money-manager-rule"><strong>Regla contable</strong><p>Ingreso suma. Gasto resta. Transferencia mueve el mismo dinero y no se cuenta como venta. Consumo de tarjeta aumenta la deuda; pago de tarjeta la reduce sin registrar el gasto dos veces.</p></section>
+          </section>
+
+          <section id="mmPanelPagos" class="money-manager-panel oculto">
+            <div id="mmObligationKpis" class="money-manager-kpis compact"></div>
+            <section class="surface">
+              <div class="surface-title"><div><h3>Servicios, compromisos y préstamos</h3><p>Ninguna deuda desaparece por cambiar de mes: vencidos y saldo contractual permanecen visibles.</p></div><div class="button-row admin-only oculto"><button id="btnMmGenerateDue" type="button" class="secondary">Generar vencimientos</button><button id="btnMmNewCommitment" type="button" class="primary">Nuevo compromiso</button></div></div>
+              <div id="mmObligations" class="table-wrap"></div>
+            </section>
+          </section>
         </section>
 
         <section id="v-finanzas" class="vista oculto finance-view">
@@ -890,6 +975,7 @@
     </div>
     <nav class="mobile-command-dock" aria-label="Accesos principales">
       <a href="#caja-virtual"><i aria-hidden="true">+</i><span>Vender</span></a>
+      <a href="#money-manager"><i aria-hidden="true">&#128055;</i><span>Money</span></a>
       <a href="#finanzas"><i aria-hidden="true">$</i><span>Finanzas</span></a>
       <a href="#inventario"><i aria-hidden="true">▦</i><span>Inventario</span></a>
       <a href="#asistente"><i aria-hidden="true">✦</i><span>IA</span></a>
@@ -1059,16 +1145,17 @@
   <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
-  <script src="finance-core.js?v=2026.09.04.1.0.66.0"></script>
-  <script src="client-period-filter.js?v=2026.09.04.1.0.66.0"></script>
-  <script src="firebase-adapter.js?v=2026.09.04.1.0.66.0"></script>
-  <script src="assistant-local.js?v=2026.09.04.1.0.66.0"></script>
+  <script src="finance-core.js?v=2026.09.05.1.0.67.0"></script>
+  <script src="money-manager-core.js?v=2026.09.05.1.0.67.0"></script>
+  <script src="client-period-filter.js?v=2026.09.05.1.0.67.0"></script>
+  <script src="firebase-adapter.js?v=2026.09.05.1.0.67.0"></script>
+  <script src="assistant-local.js?v=2026.09.05.1.0.67.0"></script>
   <script src="jspdf.umd.min.js"></script>
   <script src="jspdf.plugin.autotable.min.js"></script>
-  <script src="ticket-termico.js?v=2026.09.04.1.0.66.0"></script>
-  <script src="panel-sale-pending.js?v=2026.09.04.1.0.66.0"></script>
-  <script src="panel.js?v=2026.09.04.1.0.66.0"></script>
-  <script src="visual-fidelity.js?v=2026.09.04.1.0.66.0"></script>
+  <script src="ticket-termico.js?v=2026.09.05.1.0.67.0"></script>
+  <script src="panel-sale-pending.js?v=2026.09.05.1.0.67.0"></script>
+  <script src="panel.js?v=2026.09.05.1.0.67.0"></script>
+  <script src="visual-fidelity.js?v=2026.09.05.1.0.67.0"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));

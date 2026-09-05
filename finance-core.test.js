@@ -131,61 +131,81 @@ test("el saldo efectivo suma solo ventas posteriores al ultimo cuadre", () => {
   assert.equal(core.effectiveAccountBalance(account, movements), 1270000);
 });
 
-test("el saldo aplica gastos y transferencias del Money Manager Windows posteriores al cuadre", () => {
-  const cutoff = "2026-08-30T23:00:00Z";
-  const cash = { id: "cash", saldo_actual_centavos: 1500000, reconciled_at: cutoff };
-  const popular = { id: "popular", saldo_actual_centavos: 32000, reconciled_at: cutoff };
+test("el saldo proyecta gastos y transferencias Windows posteriores al ultimo cuadre", () => {
+  const cutoff = "2026-09-01T12:00:00.000Z";
+  const cash = { id: "cash", saldo_actual_centavos: 100000, reconciled_at: cutoff };
+  const bank = { id: "bank", saldo_actual_centavos: 50000, reconciled_at: cutoff };
   const movements = [
-    { id: "expense", tipo: "gasto", estado: "confirmado", source: "pos_sync_event",
-      cuenta_id: "cash", monto_centavos: 50000, source_timestamp: "2026-08-31T12:00:00Z" },
-    { id: "transfer", tipo: "transferencia", estado: "confirmado", source: "pos_sync_event",
-      cuenta_id: "cash", cuenta_destino_id: "popular", monto_centavos: 250000,
-      source_timestamp: "2026-08-31T13:00:00Z" },
-    { id: "bank-expense", tipo: "gasto", estado: "confirmado", source: "pos_sync_event",
-      cuenta_id: "popular", monto_centavos: 100000, source_timestamp: "2026-08-31T14:00:00Z" },
+    { tipo: "gasto", cuenta_id: "cash", monto_centavos: 10000, fecha: "2026-09-02", source_timestamp: "2026-09-02T14:00:00.000Z", source: "pos_sync_event" },
+    { tipo: "transferencia", cuenta_id: "cash", cuenta_destino_id: "bank", monto_centavos: 25000, fecha: "2026-09-03", source_timestamp: "2026-09-03T14:00:00.000Z", source: "pos_sync_event" },
   ];
-  assert.equal(core.projectedLedgerDeltaForAccount(cash, movements), -300000);
-  assert.equal(core.projectedLedgerDeltaForAccount(popular, movements), 150000);
-  assert.equal(core.effectiveAccountBalance(cash, movements), 1200000);
-  assert.equal(core.effectiveAccountBalance(popular, movements), 182000);
-  assert.equal(
-    core.effectiveAccountBalance(cash, movements) + core.effectiveAccountBalance(popular, movements),
-    1382000,
-    "la transferencia conserva patrimonio; solo los dos gastos lo reducen"
-  );
+  assert.equal(core.effectiveAccountBalance(cash, movements), 65000);
+  assert.equal(core.effectiveAccountBalance(bank, movements), 75000);
 });
 
-test("un movimiento web ya materializado no se vuelve a aplicar al saldo", () => {
-  const account = { id: "cash", saldo_actual_centavos: 1200000, reconciled_at: "2026-08-30T23:00:00Z" };
-  const movement = {
-    tipo: "gasto", estado: "registrado", origen: "panel", cuenta_id: "cash",
-    monto_centavos: 50000, created_at: "2026-08-31T12:00:00Z"
-  };
-  assert.equal(core.projectedAccountDeltaForAccount(account, [movement]), 0);
-  assert.equal(core.effectiveAccountBalance(account, [movement]), 1200000);
+test("un movimiento web materializado y su evento no se proyectan otra vez", () => {
+  const account = { id: "cash", saldo_actual_centavos: 90000, reconciled_at: "2026-09-01T12:00:00.000Z" };
+  const materialized = { tipo: "gasto", cuenta_id: "cash", monto_centavos: 10000, fecha: "2026-09-02", created_at: "2026-09-02T14:00:00.000Z", origen: "panel" };
+  assert.equal(core.effectiveAccountBalance(account, [materialized]), 90000);
 });
 
-test("normaliza cuentas origen y destino del evento ledger creado por Windows", () => {
-  const expense = core.ledgerEventMovement({
-    event_id: "event-expense", created_at_local: "2026-08-31T12:00:00Z",
-    payload: { ledgerId: "expense", tipo: "GASTO", cuentaOrigenId: "cash",
-      importeDopCentavos: 50000, fechaEfectiva: "2026-08-31T12:00:00Z" }
+test("un evento web publicado no duplica el saldo aunque se relea desde sync", () => {
+  const account = { id: "cash", saldo_actual_centavos: 100000, reconciled_at: "2026-09-01T00:00:00.000Z" };
+  const movements = [{ tipo: "gasto", monto_centavos: 25000, cuenta_origen_id: "cash",
+    origen: "panel", source: "pos_sync_event", source_timestamp: "2026-09-02T00:00:00.000Z" }];
+  assert.equal(core.effectiveAccountBalance(account, movements), 100000);
+});
+
+test("el saldo Windows respeta ambos lados de compras, pagos de tarjeta y ajustes", () => {
+  const makeAccount = id => ({ id, saldo_actual_centavos: 0, reconciled_at: "2026-09-01T00:00:00Z" });
+  const movement = (id, tipo, amount, source, target) => ({
+    id, tipo, monto_centavos: amount, cuenta_origen_id: source, cuenta_destino_id: target,
+    source: "pos_sync_event", origen: "pos", estado: "confirmado", fecha: "2026-09-02", source_timestamp: "2026-09-02T12:00:00Z",
   });
-  const transfer = core.ledgerEventMovement({
-    event_id: "event-transfer", payload: { ledgerId: "transfer", tipo: "TRANSFERENCIA",
-      cuentaOrigenId: "cash", cuentaDestinoId: "popular", importeDopCentavos: 250000,
-      fechaEfectiva: "2026-08-31T13:00:00Z" }
-  });
-  const income = core.ledgerEventMovement({
-    event_id: "event-income", payload: { ledgerId: "income", tipo: "INGRESO",
-      cuentaDestinoId: "popular", importeDopCentavos: 10000,
-      fechaEfectiva: "2026-08-31T14:00:00Z" }
-  });
-  assert.equal(expense.cuenta_id, "cash");
-  assert.equal(expense.source, "pos_sync_event");
-  assert.equal(transfer.cuenta_id, "cash");
-  assert.equal(transfer.cuenta_destino_id, "popular");
-  assert.equal(income.cuenta_id, "popular");
+  const rows = [
+    movement("card-buy", "COMPRA_TARJETA", 371263, "card", null),
+    movement("card-pay", "PAGO_TARJETA", 500000, "popular", "card"),
+    movement("supplier", "PAGO_PROVEEDOR", 3500, "popular", null),
+    movement("adjust", "AJUSTE", 2000, null, "popular"),
+  ];
+  assert.equal(core.effectiveAccountBalance(makeAccount("card"), rows), 128737);
+  assert.equal(core.effectiveAccountBalance(makeAccount("popular"), rows), -501500);
+  const summary = core.summarizeMovements(rows);
+  assert.equal(summary.gastos_centavos, 374763);
+  assert.equal(summary.ingresos_centavos, 0);
+});
+
+test("deduplica sobres del mismo asiento y prefiere su documento materializado", () => {
+  const account = { id: "cash", saldo_actual_centavos: 90000, reconciled_at: "2026-09-01T00:00:00Z" };
+  const event = { id: "sync-ledger-payment-1", tipo: "gasto", monto_centavos: 10000,
+    cuenta_origen_id: "cash", source: "pos_sync_event", origen: "pos",
+    fecha: "2026-09-02", source_timestamp: "2026-09-02T12:00:00Z" };
+  const duplicate = { ...event, id: "ledger-payment-1", sync_event_id: "another-envelope" };
+  assert.equal(core.effectiveAccountBalance(account, [event, duplicate]), 80000);
+  const materialized = { ...event, id: "fin-payment-1", origen: "panel", source: "fin_movements" };
+  assert.equal(core.effectiveAccountBalance(account, [materialized, event, duplicate]), 90000);
+});
+
+test("comision de transferencia cuenta una vez antes y despues de materializar su asiento", () => {
+  const transfer = { id: "transfer-1", tipo: "transferencia", monto_centavos: 250000,
+    comision_centavos: 4060, cuenta_origen_id: "cash", cuenta_destino_id: "bank",
+    source: "pos_sync_event", origen: "pos", fecha: "2026-09-02", source_timestamp: "2026-09-02T12:00:00Z" };
+  const cash = { id: "cash", saldo_actual_centavos: 500000, reconciled_at: "2026-09-01T00:00:00Z" };
+  assert.equal(core.summarizeMovements([transfer]).gastos_centavos, 4060);
+  assert.equal(core.effectiveAccountBalance(cash, [transfer]), 245940);
+  const fee = { ...transfer, id: "fee-1", tipo: "gasto", monto_centavos: 4060,
+    comision_centavos: 0, cuenta_destino_id: null, transferencia_id: "transfer-1" };
+  assert.equal(core.summarizeMovements([transfer, fee]).gastos_centavos, 4060);
+  assert.equal(core.effectiveAccountBalance(cash, [transfer, fee]), 245940);
+});
+
+test("un pago de capital marcado fuera de resultado conserva salida de cuenta sin inventar gasto", () => {
+  const movement = { id: "principal", tipo: "gasto", monto_centavos: 500000, afecta_resultado: false,
+    cuenta_origen_id: "bank", source: "pos_sync_event", origen: "pos", fecha: "2026-09-02",
+    source_timestamp: "2026-09-02T12:00:00Z" };
+  assert.equal(core.summarizeMovements([movement]).gastos_centavos, 0);
+  assert.equal(core.effectiveAccountBalance({ id: "bank", saldo_actual_centavos: 600000,
+    reconciled_at: "2026-09-01T00:00:00Z" }, [movement]), 100000);
 });
 
 test("sin un cuadre verificable no inventa ventas dentro del saldo base", () => {

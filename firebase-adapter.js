@@ -46,32 +46,44 @@
     return key || String(item?.id || item?.sync_event_id || "");
   }
 
-  function financeMovementFromLedgerEvent(event) {
-    if (window.DcarelaFinanceCore?.ledgerEventMovement) {
-      return window.DcarelaFinanceCore.ledgerEventMovement(event);
+  function financeMovementFromLedgerEvent(event, businessId) {
+    let payload = event.payload || {};
+    if (typeof payload === 'string') {
+      try { payload = JSON.parse(payload); } catch { throw new Error('Evento contable con JSON invalido.'); }
     }
-    const payload = event?.payload || {};
     const type = String(payload.tipo || 'gasto').trim().toLowerCase();
-    const sourceAccount = payload.cuentaOrigenId || payload.cuenta_origen_id || null;
-    const targetAccount = payload.cuentaDestinoId || payload.cuenta_destino_id || null;
-    const incoming = ['ingreso', 'entrada', 'deposito', 'ajuste_positivo'].includes(type);
-    const timestamp = payload.fechaEfectiva || event.created_at_local || event.received_at_cloud || '';
+    const sourceAccount = payload.cuentaOrigenId || payload.cuenta_origen_id
+      || (type !== 'ingreso' ? payload.cuentaId || payload.cuenta_id : null);
+    const targetAccount = payload.cuentaDestinoId || payload.cuenta_destino_id
+      || (type === 'ingreso' ? payload.cuentaId || payload.cuenta_id : null);
     return {
       id: payload.ledgerId || event.entity_id || event.event_id || event.id,
-      business_id: event.business_id || '', tipo: type,
-      categoria: payload.categoria || '', descripcion: payload.descripcion || event.event_type || 'Movimiento de caja Windows',
+      business_id: event.business_id || businessId,
+      tipo: type,
+      categoria: payload.categoria || '',
+      descripcion: payload.descripcion || event.event_type || 'Movimiento de caja Windows',
       monto_centavos: Number(payload.importeDopCentavos ?? payload.importe_dop_centavos ?? 0),
       importe_dop_centavos: Number(payload.importeDopCentavos ?? payload.importe_dop_centavos ?? 0),
-      comision_centavos: Number(payload.comisionCentavos ?? payload.comision_centavos ?? 0),
-      moneda: payload.monedaOriginal || 'DOP', estado: String(payload.estado || 'confirmado').trim().toLowerCase(),
-      fecha: businessDay(timestamp), cuenta_id: payload.cuentaId || payload.cuenta_id
-        || (incoming ? targetAccount || sourceAccount : sourceAccount || targetAccount),
-      cuenta_destino_id: type === 'transferencia' ? targetAccount : null,
+      moneda: payload.monedaOriginal || 'DOP',
+      estado: String(payload.estado || 'confirmado').trim().toLowerCase(),
+      fecha: businessDay(payload.fechaEfectiva || event.created_at_local || event.received_at_cloud || ''),
+      cuenta_id: sourceAccount || targetAccount || null,
+      cuenta_origen_id: sourceAccount || null,
+      cuenta_destino_id: targetAccount || null,
       categoria_id: payload.categoriaId || payload.categoria_id || null,
-      payee: payload.payee || null, nota: payload.observaciones || '', origen: payload.origen || 'pos',
-      sync_event_id: event.event_id || event.id, source_timestamp: timestamp,
+      payee: payload.payee || null,
+      nota: payload.observaciones || '',
+      origen: payload.origen || 'pos',
+      sync_event_id: event.event_id || event.id,
       observaciones: payload.observaciones || '',
-      source: String(payload.origen || '').toLowerCase() === 'panel' ? 'web_sync_event' : 'pos_sync_event'
+      source: 'pos_sync_event',
+      afecta_resultado: payload.afecta_resultado ?? payload.afectaResultado,
+      metadata: payload.metadata || {},
+      idempotency_key: payload.idempotencyKey || payload.idempotency_key || null,
+      comision_centavos: payload.comision_centavos ?? payload.comisionCentavos ?? 0,
+      comision_movimiento_id: payload.comision_movimiento_id || payload.fee_movement_id || null,
+      transferencia_id: payload.transferencia_id || payload.transfer_id || null,
+      source_timestamp: payload.fechaEfectiva || event.created_at_local || event.received_at_cloud || event.created_at || ''
     };
   }
 
@@ -410,32 +422,26 @@
 
   function financeLedgerPayload(movement, account = {}, category = {}) {
     const type = text(movement.tipo, 40).toLowerCase();
-    const incoming = ['ingreso', 'entrada', 'deposito', 'ajuste_positivo'].includes(type);
-    const transfer = type === 'transferencia';
-    const sourceAccountId = movement.cuenta_origen_id || ((!incoming || transfer) ? movement.cuenta_id : null);
-    const targetAccountId = movement.cuenta_destino_id || (incoming ? movement.cuenta_id : null);
+    const accountId = movement.cuenta_id || null;
     return {
       ledgerId: movement.id,
       tipo: type.toUpperCase(),
-      cuentaOrigenId: sourceAccountId || null,
-      cuentaDestinoId: targetAccountId || null,
       categoriaId: movement.categoria_id || null,
       categoria: text(category.nombre, 120) || '',
       descripcion: text(movement.descripcion, 500),
       importeDopCentavos: Number(movement.monto_centavos || 0),
-      importeOriginalCentavos: Number(movement.monto_centavos || 0),
       monedaOriginal: 'DOP',
-      tipoCambio: '1',
       estado: movement.estado || 'registrado',
       fechaEfectiva: movement.fecha || movement.created_at,
-      cuentaId: movement.cuenta_id || null,
+      cuentaId: accountId,
+      cuentaOrigenId: ['gasto', 'retiro', 'salida', 'comision', 'ajuste_negativo'].includes(type) ? accountId : null,
+      cuentaDestinoId: ['ingreso', 'deposito', 'entrada', 'ajuste_positivo'].includes(type) ? accountId : null,
       cuentaNombre: text(account.nombre, 120) || '',
       payee: text(movement.payee, 180) || null,
       observaciones: text(movement.nota, 1200) || '',
-      actorId: movement.created_by_uid || movement.created_by_email || 'panel-web',
-      requestId: movement.request_id || movement.id,
-      idempotencyKey: movement.idempotency_key || movement.id,
       origen: 'panel',
+      requestId: movement.id,
+      idempotencyKey: movement.sync_event_id || `ledger-${movement.id}`,
     };
   }
 
@@ -766,7 +772,6 @@
       const sourceRef = d.collection('fin_accounts').doc(sourceId);
       const targetRef = d.collection('fin_accounts').doc(targetId);
       const movementId = uuid();
-      const movementRef = d.collection('fin_movements').doc(movementId);
       const eventId = `ledger-${movementId}`;
       const eventRef = d.collection('sync_events').doc(eventId);
       await d.runTransaction(async transaction => {
@@ -785,14 +790,25 @@
           origen: 'panel', estado: 'registrado', conciliado: true, afecta_resultado: false,
           sync_event_id: eventId, created_at: createdAt, updated_at: createdAt, ...actor
         };
-        transaction.set(movementRef, movement);
+        transaction.set(d.collection('fin_movements').doc(movementId), movement);
         transaction.set(eventRef, eventDocument(ctx, eventId, 'LedgerMovimientoRegistrado',
-          'fin_movements', movementId, financeLedgerPayload(movement, sourceDoc.data()), createdAt));
+          'fin_movements', movementId, {
+            ledgerId: movementId, tipo: 'TRANSFERENCIA', categoria: 'Transferencia',
+            descripcion: movement.descripcion, importeDopCentavos: amount,
+            importeOriginalCentavos: amount, monedaOriginal: 'DOP', tipoCambio: '1',
+            estado: 'confirmado', fechaEfectiva: movement.fecha,
+            cuentaOrigenId: sourceId, cuentaDestinoId: targetId,
+            cuentaOrigenNombre: text(sourceDoc.data().nombre, 120),
+            cuentaDestinoNombre: text(targetDoc.data().nombre, 120),
+            actorId: ctx.user.uid, usuarioNombre: ctx.user.email || 'Panel Firebase',
+            requestId: movementId, idempotencyKey: eventId,
+            observaciones: movement.nota || '', origen: 'panel'
+          }, createdAt));
         transaction.update(sourceRef, { saldo_actual_centavos: sourceBalance - amount - fee, updated_at: createdAt });
         transaction.update(targetRef, { saldo_actual_centavos: targetBalance + amount, updated_at: createdAt });
       });
       return { ok: true, id: movementId, event: { id: eventId, entity_id: movementId },
-        message: 'Transferencia registrada sin duplicar patrimonio y enviada a sincronizacion.' };
+        message: 'Transferencia registrada y sincronizada sin duplicar patrimonio.' };
     }
 
     if (action === 'fin.category.upsert') {
@@ -1405,13 +1421,24 @@
       return this.getCollection('fin_pending_transfers', [['business_id', '==', businessId]]);
     },
 
-    async getFinanceLedgerMovements(businessId = 'dcarela', from = '', to = '') {
+    async getFinanceLedgerMovements(businessId = 'dcarela', options = {}) {
+      const from = options.from ? String(options.from) : '';
+      const to = options.to ? String(options.to) : '';
+      const fromTime = from ? Date.parse(from) : -Infinity;
+      const toTime = to ? Date.parse(to) : Infinity;
+      if (Number.isNaN(fromTime) || Number.isNaN(toTime) || fromTime > toTime) throw new Error('Rango contable invalido.');
       const events = await this.getSyncEvents(businessId, {
         from, to, limit: SYNC_EVENT_MAX_BATCH, includeArchives: true,
         eventTypes: ['LedgerMovimientoRegistrado']
       });
-      return events.filter(event => event.event_type === 'LedgerMovimientoRegistrado')
-        .map(financeMovementFromLedgerEvent);
+      const merged = new Map();
+      events.filter(event => event.event_type === 'LedgerMovimientoRegistrado')
+        .map(event => financeMovementFromLedgerEvent(event, businessId))
+        .filter(item => {
+          const instant = Date.parse(item.source_timestamp || `${item.fecha}T00:00:00-04:00`);
+          return Number.isFinite(instant) && instant >= fromTime && instant <= toTime;
+        }).forEach(item => merged.set(financeMovementKey(item), item));
+      return [...merged.values()];
     },
 
     async getFinanceMovements(businessId = 'dcarela', month = null) {
@@ -1432,7 +1459,7 @@
       ]);
       const rows = financeResult.status === 'fulfilled' ? financeResult.value : [];
       const ledgerRows = ledgerResult.status === 'fulfilled'
-        ? ledgerResult.value.map(financeMovementFromLedgerEvent) : [];
+        ? ledgerResult.value.map(event => financeMovementFromLedgerEvent(event, businessId)) : [];
       const merged = new Map();
       // La proyeccion materializada conserva los campos completos del panel;
       // el evento cubre movimientos que solo existen en el POS Windows.

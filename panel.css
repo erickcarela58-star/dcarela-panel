@@ -3589,6 +3589,7 @@ body.sale-printing .thermal-ticket {
     border-radius: 0;
     box-shadow: none;
   }
+}
 body.sale-printing #saleConsole {
   width: auto !important;
   max-width: none !important;
@@ -3707,4 +3708,148 @@ body.sale-printing .thermal-ticket {
     width: min(340px, 92%);
     padding: 14px;
   }
+}
+
+/* Money Manager: libro unico para escritorio y telefono. */
+.money-pig-icon { display: inline-grid; width: 20px; place-items: center; margin-right: 6px; }
+.money-manager-view { --mm-income: #0f8a6c; --mm-expense: #c63f48; --mm-transfer: #4674c8; }
+.money-manager-heading { align-items: center; gap: 18px; }
+.money-manager-title { display: flex; align-items: center; gap: 16px; min-width: 0; }
+.money-manager-mark {
+  display: grid; place-items: center; flex: 0 0 58px; width: 58px; height: 58px;
+  border: 1px solid var(--border); border-radius: 18px; background: var(--surface);
+  box-shadow: 0 10px 30px rgba(0,0,0,.08); font-size: 30px;
+}
+.money-manager-toolbar {
+  position: sticky; top: 0; z-index: 5; display: flex; align-items: center;
+  justify-content: space-between; gap: 16px; margin: 0 0 12px; padding: 10px;
+  border: 1px solid var(--border); border-radius: 15px; background: color-mix(in srgb, var(--surface) 92%, transparent);
+  backdrop-filter: blur(14px);
+}
+.money-manager-tabs { min-width: 0; overflow-x: auto; scrollbar-width: thin; }
+.money-manager-tabs button { white-space: nowrap; }
+.money-manager-month { display: grid; gap: 3px; flex: 0 0 auto; }
+.money-manager-month span { color: var(--muted); font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .07em; }
+.money-manager-month input { min-width: 145px; }
+.money-manager-sync {
+  margin: 0 0 14px; padding: 10px 13px; border: 1px solid color-mix(in srgb, var(--mm-income) 28%, var(--border));
+  border-radius: 12px; background: color-mix(in srgb, var(--mm-income) 8%, var(--surface)); color: var(--text);
+  font-size: 12px;
+}
+.money-manager-sync.warn { border-color: color-mix(in srgb, var(--mm-expense) 35%, var(--border)); color: var(--mm-expense); }
+.money-manager-kpis { display: grid; grid-template-columns: repeat(6, minmax(145px, 1fr)); gap: 10px; margin-bottom: 12px; }
+.money-manager-kpis.compact { grid-template-columns: repeat(4, minmax(150px, 1fr)); }
+.money-manager-kpi {
+  min-width: 0; padding: 15px; border: 1px solid var(--border); border-radius: 15px; background: var(--surface);
+}
+.money-manager-kpi span,.money-manager-kpi small { display: block; color: var(--muted); }
+.money-manager-kpi span { margin-bottom: 8px; font-size: 11px; font-weight: 750; text-transform: uppercase; letter-spacing: .04em; }
+.money-manager-kpi strong { display: block; overflow: hidden; font-size: clamp(17px, 1.6vw, 24px); text-overflow: ellipsis; white-space: nowrap; }
+.money-manager-kpi small { margin-top: 6px; font-size: 11px; }
+.money-manager-kpi.income strong { color: var(--mm-income); }
+.money-manager-kpi.expense strong,.money-manager-kpi.bad strong { color: var(--mm-expense); }
+.money-manager-kpi.transfer strong { color: var(--mm-transfer); }
+.money-manager-grid { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(290px, .65fr); gap: 12px; }
+.money-manager-grid .surface { min-width: 0; }
+.mm-recent-summary,.mm-due-summary { min-height: 310px; }
+.money-manager-account-strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(175px, 1fr)); gap: 9px; }
+.money-manager-account-strip button {
+  display: grid; gap: 6px; min-width: 0; padding: 13px; border: 1px solid var(--border);
+  border-radius: 13px; background: var(--surface-subtle); color: var(--text); text-align: left;
+}
+.money-manager-account-strip button:hover { border-color: var(--text); transform: translateY(-1px); }
+.money-manager-account-strip span,.money-manager-account-strip small { overflow: hidden; color: var(--muted); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.money-manager-account-strip strong { font-size: 18px; }
+.money-manager-source-list { display: grid; gap: 9px; }
+.money-manager-source-list article { display: grid; grid-template-columns: 10px minmax(0,1fr) auto; align-items: center; gap: 10px; padding: 11px 0; border-bottom: 1px solid var(--border); }
+.money-manager-source-list article:last-child { border: 0; }
+.money-manager-source-list i { width: 9px; height: 9px; border-radius: 99px; background: var(--muted); }
+.money-manager-source-list i.income { background: var(--mm-income); }
+.money-manager-source-list i.expense { background: var(--mm-expense); }
+.money-manager-source-list i.transfer { background: var(--mm-transfer); }
+.money-manager-source-list span { display: grid; gap: 2px; min-width: 0; }
+.money-manager-source-list small { color: var(--muted); }
+.money-manager-ledger-list,.money-manager-due-list { display: grid; gap: 2px; }
+.money-manager-ledger-list article,.money-manager-due-list article {
+  display: grid; grid-template-columns: auto minmax(0,1fr) auto; align-items: center; gap: 11px;
+  min-width: 0; padding: 10px 2px; border-bottom: 1px solid var(--border);
+}
+.money-manager-ledger-list article:last-child,.money-manager-due-list article:last-child { border: 0; }
+.money-manager-ledger-list i { width: 10px; height: 10px; border-radius: 50%; background: var(--muted); }
+.money-manager-ledger-list i.ingreso { background: var(--mm-income); }
+.money-manager-ledger-list i.gasto { background: var(--mm-expense); }
+.money-manager-ledger-list i.transferencia { background: var(--mm-transfer); }
+.money-manager-ledger-list span,.money-manager-due-list span { display: grid; gap: 2px; min-width: 0; }
+.money-manager-ledger-list strong,.money-manager-ledger-list small,.money-manager-due-list strong,.money-manager-due-list small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.money-manager-ledger-list small,.money-manager-due-list small { color: var(--muted); font-size: 11px; }
+.money-manager-ledger-list b.gasto { color: var(--mm-expense); }
+.money-manager-ledger-list b.ingreso { color: var(--mm-income); }
+.money-manager-due-list em { padding: 4px 7px; border-radius: 999px; background: var(--surface-subtle); color: var(--muted); font-size: 10px; font-style: normal; }
+.money-manager-due-list article.overdue em { background: color-mix(in srgb, var(--mm-expense) 12%, var(--surface)); color: var(--mm-expense); }
+.money-manager-tools { margin-top: 12px; }
+.money-manager-calendar-legend { display: flex; flex-wrap: wrap; gap: 10px; color: var(--muted); font-size: 11px; }
+.money-manager-calendar-legend span::before { content: ""; display: inline-block; width: 8px; height: 8px; margin-right: 5px; border-radius: 50%; background: currentColor; }
+.money-manager-calendar-legend .income { color: var(--mm-income); }
+.money-manager-calendar-legend .expense { color: var(--mm-expense); }
+.money-manager-calendar-legend .transfer { color: var(--mm-transfer); }
+.money-manager-weekdays,.money-manager-calendar { display: grid; grid-template-columns: repeat(7, minmax(0,1fr)); gap: 6px; }
+.money-manager-weekdays { margin: 12px 0 6px; color: var(--muted); font-size: 10px; font-weight: 800; text-align: center; text-transform: uppercase; }
+.money-manager-calendar-day {
+  display: grid; align-content: start; gap: 5px; min-width: 0; min-height: 108px; padding: 9px;
+  border: 1px solid var(--border); border-radius: 12px; background: var(--surface-subtle); color: var(--text); text-align: left;
+}
+.money-manager-calendar-day:hover,.money-manager-calendar-day.act { border-color: var(--text); }
+.money-manager-calendar-day.outside { visibility: hidden; pointer-events: none; }
+.money-manager-calendar-day > b { font-size: 12px; }
+.money-manager-calendar-day span { overflow: hidden; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.money-manager-calendar-day .income { color: var(--mm-income); }
+.money-manager-calendar-day .expense { color: var(--mm-expense); }
+.money-manager-calendar-day .transfer { color: var(--mm-transfer); }
+.money-manager-calendar-day small { color: var(--muted); }
+.money-manager-day-detail { margin-top: 12px; }
+.money-manager-filters { display: grid; grid-template-columns: minmax(240px,1fr) repeat(3,minmax(145px,.3fr)); gap: 9px; margin: 12px 0; }
+.money-manager-filters label { display: grid; gap: 5px; min-width: 0; color: var(--muted); font-size: 11px; }
+.money-manager-movements .source-pill { display: inline-flex; padding: 4px 7px; border-radius: 999px; background: var(--surface-subtle); color: var(--muted); font-size: 10px; white-space: nowrap; }
+.money-manager-accounts { display: grid; grid-template-columns: repeat(auto-fit, minmax(245px,1fr)); gap: 11px; }
+.money-manager-account-card { display: grid; gap: 12px; min-width: 0; padding: 17px; border: 1px solid var(--border); border-radius: 17px; background: var(--surface); }
+.money-manager-account-card header { display: flex; align-items: center; justify-content: space-between; gap: 9px; }
+.money-manager-account-card header span { display: grid; gap: 2px; min-width: 0; }
+.money-manager-account-card header small { color: var(--muted); }
+.money-manager-account-card > strong { font-size: clamp(21px,2.4vw,30px); }
+.money-manager-account-card > strong.debt { color: var(--mm-expense); }
+.money-manager-account-card .button-row { margin-top: auto; }
+.money-manager-account-card .button-row button { flex: 1 1 auto; }
+.money-manager-rule { margin-top: 12px; }
+.money-manager-rule p { margin: 6px 0 0; color: var(--muted); }
+
+@media (max-width: 1180px) {
+  .money-manager-kpis { grid-template-columns: repeat(3, minmax(145px,1fr)); }
+  .money-manager-grid { grid-template-columns: 1fr; }
+  .money-manager-filters { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .money-manager-filters .filter-grow { grid-column: 1 / -1; }
+}
+@media (max-width: 760px) {
+  .money-manager-heading { align-items: stretch; }
+  .money-manager-title { align-items: flex-start; }
+  .money-manager-mark { flex-basis: 46px; width: 46px; height: 46px; border-radius: 14px; font-size: 24px; }
+  .money-manager-primary-actions { display: grid; grid-template-columns: 1fr 1fr; width: 100%; }
+  .money-manager-primary-actions button { width: 100%; }
+  .money-manager-toolbar { align-items: stretch; flex-direction: column-reverse; top: -1px; padding: 8px; }
+  .money-manager-month { grid-template-columns: auto minmax(0,1fr); align-items: center; }
+  .money-manager-month input { min-width: 0; width: 100%; }
+  .money-manager-kpis,.money-manager-kpis.compact { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .money-manager-kpi { padding: 12px; }
+  .money-manager-calendar-surface { overflow-x: auto; }
+  .money-manager-weekdays,.money-manager-calendar { min-width: 690px; }
+  .money-manager-filters { grid-template-columns: 1fr; }
+  .money-manager-filters .filter-grow { grid-column: auto; }
+  .money-manager-accounts { grid-template-columns: 1fr; }
+  .mobile-command-dock { overflow-x: auto; justify-content: flex-start; }
+  .mobile-command-dock a { flex: 0 0 72px; }
+}
+@media (max-width: 430px) {
+  .money-manager-title p { font-size: 12px; }
+  .money-manager-kpis,.money-manager-kpis.compact { grid-template-columns: 1fr 1fr; gap: 7px; }
+  .money-manager-kpi strong { font-size: 17px; }
+  .money-manager-account-strip { grid-template-columns: 1fr 1fr; }
 }

@@ -21,8 +21,9 @@
     document.body?.classList.add("is-embedded");
   }
   const THEME_KEY = "dcarela.ui.theme";
-  const APP_BUILD = "1.0.66";
+  const APP_BUILD = "1.0.67";
   const financeCore = window.DcarelaFinanceCore;
+  const moneyManagerCore = window.DcarelaMoneyManagerCore;
 
   window.cargarFinanzas = async function(force = false) {
     try {
@@ -116,6 +117,8 @@
   let finDashboardPeriod = "mes";
   let finReferenceDate = "";
   let finFilteredMovements = [];
+  let moneyManagerTab = "resumen";
+  let moneyManagerSelectedDay = "";
   let finRealtimeChannel = null;
   let costAlertsAt = 0;
   let lastReportExport = null;
@@ -360,6 +363,7 @@
     reportes: cargarReporte,
     inventario: cargarInventario,
     clientes: cargarClientes,
+    "money-manager": cargarMoneyManager,
     finanzas: cargarProveedores,
     asistente: cargarAsistente,
     notificaciones: cargarNotificaciones,
@@ -5000,15 +5004,20 @@
   }
 
   function pagarObligacion(obligation) {
+    if (!obligation) return;
+    const requestId = crypto.randomUUID();
+    const accounts = (finStateCache?.accounts || []).filter(item => item.estado !== "eliminada" && !item.oculta);
+    if (!accounts.length) { toast("Agrega una cuenta para registrar de dónde salió el pago."); return; }
     abrirEditor("Registrar pago", "El abono reduce el saldo y queda como movimiento inmutable.", `
       <div class="confirm-panel field-wide"><strong>${esc(obligation.concepto)}</strong><p>Saldo actual: ${money(obligation.saldoCentavos)}</p></div>
       <label><span>Monto del pago (RD$)</span><input name="monto" type="number" min="0.01" max="${pesoInput(obligation.saldoCentavos)}" step="0.01" required></label>
       <label><span>Metodo</span><select name="metodoPago">${methodOptions("transferencia")}</select></label>
+      <label class="field-wide"><span>Cuenta usada</span><select name="cuentaId" required><option value="">Selecciona la cuenta</option>${accounts.map(item => `<option value="${esc(item.id)}">${esc(item.nombre)}</option>`).join("")}</select></label>
       <label class="field-wide"><span>Nota</span><textarea name="nota" rows="3" maxlength="1200"></textarea></label>`, async form => {
       const amount = centavosInput(form.get("monto"));
       if (amount <= 0 || amount > numero(obligation.saldoCentavos)) throw new Error("El pago debe ser mayor que cero y no superar el saldo.");
       await adminWrite("cost.payment.create", obligation.id, {
-        obligacionId: obligation.id, concepto: obligation.concepto, montoCentavos: amount,
+        requestId, cuentaId: form.get("cuentaId"), obligacionId: obligation.id, concepto: obligation.concepto, montoCentavos: amount,
         saldoCentavos: numero(obligation.saldoCentavos) - amount, metodoPago: form.get("metodoPago"), nota: form.get("nota")
       });
       cerrarEditor();
@@ -5225,12 +5234,12 @@
         const accounts = required(0, "las cuentas financieras");
         const movements = required(2, "los movimientos financieros");
         const categories = optional(1, []);
-        const cards = optional(3, []);
+        const cards = required(3, "las tarjetas");
         const budgets = optional(4, []);
         const preferences = optional(5, null);
         const currencies = optional(6, []);
-        const commitments = optional(7, []);
-        const commitmentPayments = optional(8, []);
+        const commitments = required(7, "los compromisos");
+        const commitmentPayments = required(8, "los abonos de compromisos");
         const pendingTransfers = optional(9, []);
         cuentasRes = { data: accounts || [] };
         accountVisualsRes = { data: [] };
@@ -5279,6 +5288,7 @@
       commitments: commitmentsRes.data || [],
       commitmentPayments: commitmentPaymentsRes.data || [],
       pendingTransfers: pendingTransfersRes.data || [],
+      partialError: movs.partial_error || "",
       month,
     };
     dispararAlertaCumuloMensual();
@@ -5313,9 +5323,9 @@
     /^#[0-9a-f]{6}$/i.test(String(value || "")) ? String(value).toUpperCase() : fallback;
 
   const finAccountBalance = account => financeCore.effectiveAccountBalance(account,
-    finStateCache?.accountProjectedMovements || finStateCache?.movements || []);
-  const finAccountProjectedDelta = account => financeCore.projectedAccountDeltaForAccount(account,
-    finStateCache?.accountProjectedMovements || finStateCache?.movements || []);
+    finStateCache?.accountBalanceMovements || finStateCache?.accountSalesMovements || finStateCache?.movements || []);
+  const finAccountSalesDelta = account => financeCore.projectedSalesDeltaForAccount(account,
+    finStateCache?.accountSalesMovements || finStateCache?.movements || []);
 
   function finRange(period = finDashboardPeriod, reference = finReferenceDate) {
     const base = new Date(`${reference || inputDate(new Date())}T12:00:00`);
@@ -5355,7 +5365,7 @@
     let patrimonio = 0;
     const cards = state.accounts.map(account => {
       const balance = finAccountBalance(account);
-      const projectedDelta = finAccountProjectedDelta(account);
+      const projectedSales = finAccountSalesDelta(account);
       if (account.incluir_en_total) patrimonio += balance;
       const isCard = account.tipo === "tarjeta_credito";
       const display = isCard ? Math.max(0, -balance) : balance;
@@ -5369,7 +5379,7 @@
         <button type="button" class="fin-account-open" data-fin-account-ledger="${esc(account.id)}" title="Ver los movimientos que forman este saldo">
           <span class="fin-account-visual-head"><i>${esc(icon)}</i><span><b>${esc(account.nombre)}</b><small>${mask || esc(FIN_TIPO_LABEL[account.tipo] || account.tipo)}</small></span></span>
           <span class="fin-account-balance-row"><strong>${isCard ? money(display) : money(balance)}</strong><em class="fin-account-sign">${esc(signLabel)}</em></span>
-          <small>${esc(FIN_TIPO_LABEL[account.tipo] || account.tipo)}${account.ligada_ventas ? " &middot; ligada a ventas" : ""}${projectedDelta ? ` &middot; ajuste sincronizado desde el ultimo cuadre ${projectedDelta > 0 ? "+" : ""}${money(projectedDelta)}` : ""}${account.oculta ? " &middot; oculta" : ""}</small>
+          <small>${esc(FIN_TIPO_LABEL[account.tipo] || account.tipo)}${account.ligada_ventas ? " &middot; ligada a ventas" : ""}${projectedSales ? ` &middot; incluye ${money(projectedSales)} en ventas posteriores al ultimo cuadre` : ""}${account.oculta ? " &middot; oculta" : ""}</small>
         </button>
         ${canEdit ? `<div class="fin-account-actions"><button type="button" data-fin-account-reconcile="${esc(account.id)}">Conciliar</button><button type="button" data-fin-account-edit="${esc(account.id)}">Editar</button></div>` : ""}
       </article>`;
@@ -5533,6 +5543,7 @@
   }
 
   function abrirPagoCompromisoFin(commitment) {
+    const requestId = crypto.randomUUID();
     const accountOptions = (finStateCache?.accounts || []).filter(item => item.estado !== "eliminada")
       .map(item => `<option value="${esc(item.id)}">${esc(item.nombre)}</option>`).join("");
     abrirEditor("Registrar pago", `${commitment.nombre}. El saldo se reduce una sola vez y el desglose queda auditado.`, `
@@ -5541,19 +5552,19 @@
       <label><span>Abono a capital (RD$)</span><input name="capital" type="number" min="0" step="0.01" value=""></label>
       <label><span>Interes (RD$)</span><input name="interes" type="number" min="0" step="0.01" value=""></label>
       <label><span>Otros cargos (RD$)</span><input name="cargos" type="number" min="0" step="0.01" value=""></label>
-      <label><span>Cuenta usada</span><select name="cuentaId"><option value="">Sin vincular</option>${accountOptions}</select></label>
+      <label><span>Cuenta usada</span><select name="cuentaId" required><option value="">Selecciona la cuenta</option>${accountOptions}</select></label>
       <label><span>Numero de cuota</span><input name="numeroCuota" type="number" min="1" value="${esc(commitment.cuota_actual ?? "")}"></label>
       <label><span>Cuotas aplicadas</span><input name="cuotasAplicadas" type="number" min="1" value="1"></label>
       <label><span>Siguiente vencimiento (opcional)</span><input name="proximoVencimiento" type="date"></label>
       <label><span>Referencia o recibo</span><input name="referencia" maxlength="180"></label>
       <label class="field-wide"><span>Nota</span><textarea name="nota" rows="3" maxlength="1200"></textarea></label>`, async form => {
       const amount = centavosInput(form.get("monto"));
-      const capital = optionalCents(form.get("capital")) || 0;
+      const capital = optionalCents(form.get("capital"));
       const interest = optionalCents(form.get("interes")) || 0;
       const charges = optionalCents(form.get("cargos")) || 0;
-      if (capital + interest + charges > amount) throw new Error("Capital, interes y cargos no pueden superar el pago.");
+      if ((capital ?? 0) + interest + charges > amount) throw new Error("Capital, interes y cargos no pueden superar el pago.");
       await adminWrite("fin.commitment.payment", commitment.id, {
-        fecha: form.get("fecha"), montoCentavos: amount, capitalCentavos: capital,
+        requestId, fecha: form.get("fecha"), montoCentavos: amount, capitalCentavos: capital,
         interesCentavos: interest, cargosCentavos: charges, cuentaId: form.get("cuentaId") || null,
         numeroCuota: optionalInteger(form.get("numeroCuota")), cuotasAplicadas: optionalInteger(form.get("cuotasAplicadas")) || 1,
         proximoVencimiento: form.get("proximoVencimiento") || null,
@@ -5595,25 +5606,26 @@
     }));
     const nativeIds = new Set((state.commitments || []).map(item => String(item.id)));
     const rows = [...(state.commitments || []), ...legacyRows.filter(item => !nativeIds.has(String(item.legacy_id)))];
-    const legacyPending = legacyRows.filter(item => item.activo);
-    const currentMonth = String(state.month || "");
-    const legacyMonthTotal = legacyPending
-      .filter(item => String(item.proximo_vencimiento || "").startsWith(currentMonth))
-      .reduce((sum, item) => sum + numero(item.saldo_pendiente_centavos), 0);
-    const legacyDebtTotal = legacyPending.reduce((sum, item) => sum + numero(item.saldo_pendiente_centavos), 0);
+    const obligations = moneyManagerCore?.obligationSummary({
+      commitments: state.commitments || [],
+      costObligations: state.costObligations || [],
+      costRecurrents: state.costRecurrents || [],
+      month: state.month,
+    });
     const cardsDebt = state.accounts.filter(item => item.tipo === "tarjeta_credito")
       .reduce((sum, item) => sum + Math.max(0, -finAccountBalance(item)), 0);
-    const summary = state.cumulo || {
-      compromisos_centavos: legacyMonthTotal,
-      deuda_prestamos_centavos: legacyDebtTotal,
-      capital_prestamos_centavos: 0,
+    const remote = state.cumulo || {};
+    const summary = {
+      compromisos_centavos: obligations?.payableNow ?? numero(remote.compromisos_centavos),
+      deuda_prestamos_centavos: obligations?.loanDebt ?? numero(remote.deuda_prestamos_centavos),
+      capital_prestamos_centavos: obligations?.loanCapital ?? numero(remote.capital_prestamos_centavos),
       deuda_tarjetas_centavos: cardsDebt,
     };
-    $("finCompromisosResumen").innerHTML = metric("Por saldar este mes", money(summary.compromisos_centavos || 0))
+    $("finCompromisosResumen").innerHTML = metric("Por pagar ahora", money(summary.compromisos_centavos || 0), `${money(obligations?.overdueDue || 0)} vencido`)
       + metric("Deuda de prestamos", money(summary.deuda_prestamos_centavos || 0))
       + metric("Capital pendiente", money(summary.capital_prestamos_centavos || 0))
       + metric("Tarjetas", money(summary.deuda_tarjetas_centavos || 0));
-    const dueMap = new Map((summary.detalle || []).map(item => [String(item.id), item]));
+    const dueMap = new Map((remote.detalle || []).map(item => [String(item.id), item]));
     const frequencyLabel = item => {
       if (item.frecuencia === "quincenal" && (item.dia_mes_1 || item.dia_mes_2)) {
         return `Quincenal ${[item.dia_mes_1, item.dia_mes_2].filter(Boolean).join(" y ")}`;
@@ -5632,7 +5644,8 @@
       return [
         `<strong>${esc(item.nombre)}</strong><small>${esc(item.nota || "")}</small>`,
         `<span>${esc(installments)}</span><small>${item.proximo_vencimiento ? `Proximo ${esc(dateOnly(item.proximo_vencimiento))}` : "Sin fecha fija"}</small>`,
-        money(numero(due.monto_periodo_centavos)),
+        money(item.activo ? numero(due.monto_periodo_centavos,
+          item.proximo_vencimiento && item.proximo_vencimiento <= (obligations?.to || "") ? item.monto_centavos : 0) : 0),
         item.saldo_pendiente_centavos == null ? "--" : money(item.saldo_pendiente_centavos),
         item.capital_pendiente_centavos == null ? "--" : money(item.capital_pendiente_centavos),
         `<span class="tag ${item.activo ? "ok" : "bad"}">${item.legacy ? esc(item.estado_legacy) : item.activo ? "Activo" : "Inactivo"}</span>`,
@@ -6136,32 +6149,11 @@
 
   function abrirConciliacionCuentaFin(account) {
     if (!account) return;
-    const isCard = account.tipo === "tarjeta_credito";
-    const currentBalance = finAccountBalance(account);
-    const displayBalance = isCard ? Math.max(0, -currentBalance) : currentBalance;
-    abrirEditor("Conciliar saldo", "Registra la diferencia sin borrar movimientos ni alterar los cobros de ventas.", `
-      <div class="reconciliation-summary field-wide"><span>${isCard ? "Deuda actual en tarjeta" : "Saldo disponible calculado"}</span><strong>${money(displayBalance)}</strong></div>
-      <label><span>${isCard ? "Deuda real acumulada (RD$)" : "Saldo real disponible (RD$)"}</span><input name="saldoObjetivo" type="number" step="0.01" required value="${pesoInput(displayBalance)}"></label>
-      <label><span>Fecha</span><input name="fecha" type="date" required value="${inputDate(new Date())}"></label>
-      <label class="field-wide"><span>Motivo obligatorio</span><textarea name="motivo" rows="3" required placeholder="Ejemplo: saldo confirmado con estado de cuenta bancario"></textarea></label>
-      <p class="field-hint field-wide">El asiento ajusta el balance real de forma transparente, genera registro contable y conserva intactas las ventas.</p>`, async form => {
-      const rawTarget = centavosConSignoInput(form.get("saldoObjetivo"));
-      const target = isCard ? (rawTarget > 0 ? -rawTarget : rawTarget) : rawTarget;
-      const current = finAccountBalance(account);
-      const difference = target - current;
-      await adminWrite("fin.account.reconcile", account.id, {
-        cuentaId: account.id,
-        saldoObjetivoCentavos: target,
-        fecha: form.get("fecha"),
-        motivo: form.get("motivo"),
-      });
-      cerrarEditor();
-      toast(`Saldo conciliado. Diferencia registrada: ${difference >= 0 ? "+" : "-"}${money(Math.abs(difference))}`);
-      await cargarProveedores(true);
-    }, "Conciliar saldo");
+    toast("Conciliación temporalmente bloqueada: falta verificar el saldo y su sincronización con la caja. Puedes registrar movimientos identificados; no se ha cambiado ningún saldo.");
   }
 
   function abrirTransferenciaFin() {
+    const requestId = crypto.randomUUID();
     const accounts = (finStateCache?.accounts || []).filter(account => account.estado !== "eliminada" && !account.oculta);
     if (accounts.length < 2) { toast("Necesitas al menos dos cuentas activas para transferir."); return; }
     const bank = accounts.find(account => account.nombre.toLowerCase().includes("popular")) || accounts.find(account => account.tipo === "banco") || accounts[0];
@@ -6176,6 +6168,7 @@
       <label class="field-wide"><span>Descripcion</span><input name="descripcion" maxlength="500" placeholder="Ej. Deposito de efectivo a Banco Popular"></label>
       <label class="field-wide"><span>Nota</span><textarea name="nota" rows="3" maxlength="1200"></textarea></label>`, async form => {
       await adminWrite("fin.transfer.create", null, {
+        requestId,
         cuentaOrigenId: form.get("cuentaOrigenId"), cuentaDestinoId: form.get("cuentaDestinoId"),
         montoCentavos: centavosInput(form.get("monto")), comisionCentavos: centavosInput(form.get("comision")),
         fecha: form.get("fecha"), descripcion: form.get("descripcion"), nota: form.get("nota"),
@@ -6193,6 +6186,7 @@
   }
 
   function abrirMovimientoFin(defaultType = "gasto") {
+    const requestId = crypto.randomUUID();
     const state = finStateCache;
     if (!state?.accounts?.length) { toast("Agrega una cuenta antes de registrar movimientos."); return; }
     const prefs = state.preferences || {};
@@ -6234,7 +6228,7 @@
         if (!origen || !destino) throw new Error("Elige la cuenta de origen y la de destino.");
         if (origen === destino) throw new Error("Elige dos cuentas distintas para transferir.");
         await adminWrite("fin.transfer.create", null, {
-          cuentaOrigenId: origen, cuentaDestinoId: destino, montoCentavos: amount,
+          requestId, cuentaOrigenId: origen, cuentaDestinoId: destino, montoCentavos: amount,
           comisionCentavos: centavosInput(form.get("comision") || "0"),
           fecha: form.get("fecha"), descripcion: form.get("descripcion"), nota: form.get("nota"),
         });
@@ -6243,6 +6237,7 @@
         return;
       }
       await adminWrite("fin.movement.create", null, {
+        requestId,
         tipo: form.get("tipo"), montoCentavos: amount, cuentaId: form.get("cuentaId"),
         categoriaId: form.get("categoriaId"), fecha: form.get("fecha"), payee: form.get("payee"),
         descripcion: form.get("descripcion"), nota: form.get("nota"), origen: "panel",
@@ -6282,10 +6277,11 @@
   }
 
   function confirmarAnularMovimientoFin(movement) {
+    const requestId = crypto.randomUUID();
     abrirEditor("Anular movimiento", "El asiento queda visible en auditoria, pero deja de afectar saldos y reportes.", `
       <div class="confirm-panel field-wide"><strong>${esc(movement.descripcion || movement.payee || "Movimiento")}</strong><p>${esc(dateOnly(movement.fecha))} &middot; ${money(movement.monto_centavos)}</p></div>
       <label class="field-wide"><span>Motivo</span><textarea name="motivo" required rows="3" maxlength="500"></textarea></label>`, async form => {
-      await adminWrite("fin.movement.cancel", movement.id, { motivo: form.get("motivo") });
+      await adminWrite("fin.movement.cancel", movement.id, { requestId, motivo: form.get("motivo") });
       cerrarEditor();
       await cargarProveedores(true);
     });
@@ -6355,6 +6351,7 @@
   }
 
   function abrirPagoTarjetaFin(accountId) {
+    const requestId = crypto.randomUUID();
     const state = finStateCache;
     const card = state.cards.find(item => item.cuenta_id === accountId);
     const account = state.accounts.find(item => item.id === accountId);
@@ -6362,13 +6359,14 @@
     if (!card || !sources.length) { toast("Configura la tarjeta y una cuenta de pago antes de continuar."); return; }
     const sourceOptions = sources.map(item => `<option value="${esc(item.id)}"${selected(card.cuenta_pago_id, item.id)}>${esc(item.nombre)} &middot; ${money(finAccountBalance(item))}</option>`).join("");
     abrirEditor("Pagar tarjeta", "Este pago reduce la cuenta de origen y la deuda de la tarjeta. No se registra como gasto otra vez.", `
-      <div class="confirm-panel field-wide"><strong>${esc(account.nombre)}</strong><p>Deuda actual: ${money(Math.max(0, -numero(account.saldo_actual_centavos)))}</p></div>
+      <div class="confirm-panel field-wide"><strong>${esc(account.nombre)}</strong><p>Deuda actual: ${money(Math.max(0, -finAccountBalance(account)))}</p></div>
       <label><span>Cuenta de origen</span><select name="cuentaOrigenId">${sourceOptions}</select></label>
       <input type="hidden" name="cuentaDestinoId" value="${esc(accountId)}">
       <label><span>Monto (RD$)</span><input name="monto" type="number" min="0.01" step="0.01" required></label>
       <label><span>Fecha</span><input name="fecha" type="date" required value="${inputDate(new Date())}"></label>
       <label class="field-wide"><span>Nota</span><textarea name="nota" rows="2" maxlength="1200"></textarea></label>`, async form => {
       await adminWrite("fin.card.payment", null, {
+        requestId,
         cuentaOrigenId: form.get("cuentaOrigenId"), cuentaDestinoId: accountId,
         montoCentavos: centavosInput(form.get("monto")), fecha: form.get("fecha"), nota: form.get("nota"),
       });
@@ -6416,12 +6414,12 @@
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
-  function exportarFinCsv() {
+  function exportarFinCsv(selectedRows) {
     const state = finStateCache;
     const accounts = new Map(state.accounts.map(item => [item.id, item.nombre]));
     const categories = new Map(state.categories.map(item => [item.id, item.nombre]));
     const header = ["Fecha","Hora","Tipo","Cuenta origen","Cuenta destino","Categoria","Persona o comercio","Descripcion","Nota","Monto centavos","Monto RD$","Folio","Origen"];
-    const rows = finFilteredMovements.map(item => [item.fecha,item.hora || "",item.tipo,accounts.get(item.cuenta_id) || "",accounts.get(item.cuenta_destino_id) || "",categories.get(item.categoria_id) || "",item.payee || "",item.descripcion || "",item.nota || "",item.monto_centavos,(numero(item.monto_centavos)/100).toFixed(2),item.venta_folio || "",item.origen || ""]);
+    const rows = (Array.isArray(selectedRows) ? selectedRows : finFilteredMovements).map(item => [item.fecha,item.hora || "",item.tipo,accounts.get(item.cuenta_id) || "",accounts.get(item.cuenta_destino_id) || "",categories.get(item.categoria_id) || "",item.payee || "",item.descripcion || "",item.nota || "",item.monto_centavos,(numero(item.monto_centavos)/100).toFixed(2),item.venta_folio || "",item.origen || ""]);
     const csv = `\uFEFF${[header, ...rows].map(row => row.map(csvCell).join(",")).join("\r\n")}`;
     downloadBlob(new Blob([csv], { type: "text/csv;charset=utf-8" }), `DCARELA_FINANZAS_${$("provMes").value}.csv`);
   }
@@ -6446,6 +6444,11 @@
   }
 
   async function todosMovimientosFin() {
+    if (authProvider === "firebase") {
+      if (!window.DcarelaFirebase?.isAvailable) throw new Error("Firebase no está disponible.");
+      return window.DcarelaFirebase.getFinanceMovements(BUSINESS, null);
+    }
+    if (!sb) return [...(finStateCache?.movements || [])];
     const rows = [];
     for (let offset = 0; ; offset += 1000) {
       const { data, error } = await sb.from("fin_movimientos").select("*").eq("business_id", BUSINESS).order("fecha", { ascending: true }).range(offset, offset + 999);
@@ -6457,19 +6460,24 @@
 
   async function backupFinanzas() {
     const state = finStateCache;
-    $("finBackupStatus").textContent = "Preparando copia completa desde Supabase...";
+    if (!state) throw new Error("Abre Money Manager antes de crear la copia.");
+    $("finBackupStatus").textContent = "Preparando exportación financiera; no incluye el respaldo completo del POS...";
     const movements = await todosMovimientosFin();
+    if (movements.partial_error) throw new Error(movements.partial_error);
     const payload = {
       schema: "dcarela-finanzas-v1", generated_at: new Date().toISOString(), business_id: BUSINESS,
-      version_pos: "1.0.17", accounts: state.accounts, categories: state.categories, movements,
+      scope: "financial_documents_and_current_ledger_events", includes_archived_ledger: false,
+      accounts: state.accounts, categories: state.categories, movements,
       cards: state.cards, budgets: state.budgets, preferences: state.preferences, currencies: state.currencies,
       pending_transfers: state.pendingTransfers || [],
+      commitments: state.commitments || [], commitment_payments: state.commitmentPayments || [],
+      obligations: state.costObligations || [], recurring_costs: state.costRecurrents || [],
       checksum_basis: `${state.accounts.length}:${state.categories.length}:${movements.length}:${movements.reduce((sum, item) => sum + numero(item.monto_centavos), 0)}`,
     };
     const name = `DCARELA_FINANZAS_BACKUP_${inputDate(new Date())}.json`;
     const file = new File([JSON.stringify(payload, null, 2)], name, { type: "application/json" });
     if (navigator.share && navigator.canShare?.({ files: [file] })) {
-      await navigator.share({ title: "Copia de Finanzas D' Carela", text: "Respaldo completo para guardar en iCloud Drive o Google Drive.", files: [file] });
+      await navigator.share({ title: "Exportación de Finanzas D' Carela", text: "Datos financieros; no sustituye el respaldo completo del POS.", files: [file] });
       $("finBackupStatus").textContent = `Copia compartida: ${movements.length.toLocaleString("es-DO")} movimientos.`;
     } else {
       downloadBlob(file, name);
@@ -6484,13 +6492,228 @@
     $("finBackupStatus").textContent = `Archivo valido: ${payload.accounts.length} cuenta(s), ${payload.categories?.length || 0} categoria(s) y ${payload.movements.length.toLocaleString("es-DO")} movimiento(s). Solo se verifico; no se modifico la nube.`;
   }
 
+  const MM_SOURCE_LABEL = {
+    venta_automatica: "Venta automática", manual: "Registro manual", asistente: "Asistente IA",
+    caja_windows: "Caja Windows", transferencia: "Transferencia", conciliacion: "Conciliación",
+  };
+
+  function mmMetric(label, value, detail = "", tone = "") {
+    return `<article class="money-manager-kpi ${esc(tone)}"><span>${esc(label)}</span><strong>${esc(value)}</strong><small>${esc(detail)}</small></article>`;
+  }
+
+  function setMoneyManagerTab(tab) {
+    const allowed = ["resumen", "calendario", "movimientos", "cuentas", "pagos"];
+    moneyManagerTab = allowed.includes(tab) ? tab : "resumen";
+    document.querySelectorAll("[data-mm-tab]").forEach(button => button.classList.toggle("act", button.dataset.mmTab === moneyManagerTab));
+    allowed.forEach(name => $("mmPanel" + name.charAt(0).toUpperCase() + name.slice(1))?.classList.toggle("oculto", name !== moneyManagerTab));
+  }
+
+  function openFinanceTabFromMoneyManager(tab) {
+    location.hash = "finanzas";
+    setTimeout(() => setCostTab(tab), 0);
+  }
+
+  function bindMoneyManagerControl(element, eventName, handler) {
+    if (!element || element.dataset.mmBound === "1") return;
+    element.dataset.mmBound = "1";
+    element.addEventListener(eventName, handler);
+  }
+
+  function abrirConciliacionMoneyManager() {
+    const accounts = (finStateCache?.accounts || []).filter(item => item.estado !== "eliminada" && !item.oculta);
+    if (!accounts.length) { toast("Agrega una cuenta antes de conciliar."); return; }
+    abrirEditor("Conciliar cuenta", "Selecciona la cuenta cuyo saldo físico o bancario acabas de comprobar.", `
+      <label class="field-wide"><span>Cuenta</span><select name="cuentaId">${accounts.map(item => `<option value="${esc(item.id)}">${esc(item.nombre)} · ${money(finAccountBalance(item))}</option>`).join("")}</select></label>
+      <p class="field-hint field-wide">La siguiente pantalla pedirá el saldo exacto y el motivo. El historial anterior no se borra.</p>`, async form => {
+      const account = accounts.find(item => item.id === form.get("cuentaId"));
+      cerrarEditor();
+      if (account) setTimeout(() => abrirConciliacionCuentaFin(account), 0);
+    }, "Continuar");
+  }
+
+  function wireMoneyManagerStatic() {
+    document.querySelectorAll("[data-mm-tab]").forEach(button => bindMoneyManagerControl(button, "click", () => setMoneyManagerTab(button.dataset.mmTab)));
+    document.querySelectorAll("[data-mm-open]").forEach(button => bindMoneyManagerControl(button, "click", () => setMoneyManagerTab(button.dataset.mmOpen)));
+    document.querySelectorAll("[data-mm-finance-tab]").forEach(button => bindMoneyManagerControl(button, "click", () => openFinanceTabFromMoneyManager(button.dataset.mmFinanceTab)));
+    bindMoneyManagerControl($("btnMmExpense"), "click", () => abrirMovimientoFin("gasto"));
+    bindMoneyManagerControl($("btnMmIncome"), "click", () => abrirMovimientoFin("ingreso"));
+    bindMoneyManagerControl($("btnMmTransfer"), "click", abrirTransferenciaFin);
+    bindMoneyManagerControl($("btnMmReconcile"), "click", abrirConciliacionMoneyManager);
+    bindMoneyManagerControl($("btnMmMovementExpense"), "click", () => abrirMovimientoFin("gasto"));
+    bindMoneyManagerControl($("btnMmMovementIncome"), "click", () => abrirMovimientoFin("ingreso"));
+    bindMoneyManagerControl($("btnMmNewAccount"), "click", () => abrirCuentaFin());
+    bindMoneyManagerControl($("btnMmAccountsTransfer"), "click", abrirTransferenciaFin);
+    bindMoneyManagerControl($("btnMmNewCommitment"), "click", () => abrirCompromisoFin());
+    bindMoneyManagerControl($("btnMmGenerateDue"), "click", () => generarObligacionesWeb().catch(error => toast(error.message)));
+    bindMoneyManagerControl($("btnMmExportCsv"), "click", () => exportarFinCsv(filteredMoneyManagerMovements()));
+    bindMoneyManagerControl($("btnMmBackup"), "click", () => backupFinanzas().then(() => toast("Exportación financiera preparada. No sustituye el respaldo completo del ecosistema.")).catch(error => toast(error.message)));
+    bindMoneyManagerControl($("mmMonth"), "change", async event => {
+      $("provMes").value = event.target.value;
+      moneyManagerSelectedDay = "";
+      await cargarMoneyManager(true).catch(error => mostrarError("money-manager", error));
+    });
+    ["mmSearch", "mmType", "mmSource", "mmAccount"].forEach(id => bindMoneyManagerControl($(id), id === "mmSearch" ? "input" : "change", renderMoneyManagerMovements));
+  }
+
+  function moneyManagerMovementRows(rows, includeActions = true) {
+    const state = finStateCache;
+    const accounts = new Map((state?.accounts || []).map(item => [item.id, item.nombre]));
+    const categories = new Map((state?.categories || []).map(item => [item.id, item.nombre]));
+    const headers = ["Fecha", "Tipo", "Procedencia", "Cuenta", "Categoría", "Detalle", "Monto"];
+    if (includeActions) headers.push("");
+    return tabla(rows, movement => {
+      const source = moneyManagerCore.sourceOf(movement);
+      const expense = movement.tipo === "gasto";
+      const accountName = movement.tipo === "transferencia"
+        ? `${accounts.get(movement.cuenta_id) || "--"} → ${accounts.get(movement.cuenta_destino_id) || "--"}`
+        : accounts.get(movement.cuenta_id) || (source === "venta_automatica" ? "Venta POS" : "--");
+      const detail = movement.descripcion || movement.payee || "Sin descripción";
+      const row = [
+        esc(dateOnly(movement.fecha)),
+        esc(movement.tipo === "ingreso" ? "Entrada" : movement.tipo === "gasto" ? "Salida" : movement.tipo === "transferencia" ? "Transferencia" : movement.tipo),
+        `<span class="source-pill">${esc(MM_SOURCE_LABEL[source] || source)}</span>`,
+        esc(accountName), esc(categories.get(movement.categoria_id) || movement.categoria || "--"),
+        `<strong>${esc(detail)}</strong><small>${esc(movement.nota || movement.payee || "")}</small>`,
+        `<strong class="${expense ? "status-overdue" : movement.tipo === "ingreso" ? "status-paid" : ""}">${expense ? "−" : movement.tipo === "ingreso" ? "+" : ""}${money(movement.monto_centavos)}</strong>`,
+      ];
+      if (includeActions) {
+        const canCancel = canEdit && financeCore.isActiveMovement(movement) && ["panel", "asistente", "movil"].includes(movement.origen);
+        row.push(canCancel ? `<button class="mini danger" type="button" data-mm-cancel-movement="${esc(movement.id)}">Anular</button>` : "");
+      }
+      return row;
+    }, headers);
+  }
+
+  function filteredMoneyManagerMovements() {
+    return moneyManagerCore.filterMovements(finStateCache?.movements || [], {
+      query: $("mmSearch")?.value, type: $("mmType")?.value, source: $("mmSource")?.value,
+      accountId: $("mmAccount")?.value,
+    }).filter(item => String(item.fecha || "").startsWith(`${$("mmMonth")?.value || finStateCache?.month}-`));
+  }
+
+  function renderMoneyManagerMovements() {
+    if (!finStateCache || !moneyManagerCore) return;
+    const accountValue = $("mmAccount")?.value || "";
+    if ($("mmAccount")) $("mmAccount").innerHTML = `<option value="">Todas</option>${finStateCache.accounts.map(item => `<option value="${esc(item.id)}"${selected(accountValue, item.id)}>${esc(item.nombre)}</option>`).join("")}`;
+    const rows = filteredMoneyManagerMovements();
+    $("mmMovements").innerHTML = moneyManagerMovementRows(rows);
+    $("mmMovements").querySelectorAll("[data-mm-cancel-movement]").forEach(button => button.addEventListener("click", () => {
+      confirmarAnularMovimientoFin(rows.find(item => item.id === button.dataset.mmCancelMovement));
+    }));
+  }
+
+  function renderMoneyManagerCalendar() {
+    const state = finStateCache;
+    const month = $("mmMonth")?.value || state?.month;
+    const calendar = moneyManagerCore.calendar(state?.movements || [], month);
+    if (!moneyManagerSelectedDay || !moneyManagerSelectedDay.startsWith(`${month}-`)) {
+      const today = financeCore.businessDay(new Date());
+      moneyManagerSelectedDay = today.startsWith(`${month}-`) ? today : "";
+    }
+    $("mmCalendar").innerHTML = calendar.cells.map(item => item.outside
+      ? '<span class="money-manager-calendar-day outside" aria-hidden="true"></span>'
+      : `<button type="button" class="money-manager-calendar-day${moneyManagerSelectedDay === item.date ? " act" : ""}" data-mm-day="${item.date}"><b>${item.day}</b>${item.income ? `<span class="income">+${money(item.income)}</span>` : ""}${item.expenses ? `<span class="expense">−${money(item.expenses)}</span>` : ""}${item.transfers ? `<span class="transfer">↔ ${money(item.transfers)}</span>` : ""}<small>${item.count ? `${item.count} movimiento(s)` : "Sin movimientos"}</small></button>`).join("");
+    $("mmCalendar").querySelectorAll("[data-mm-day]").forEach(button => button.addEventListener("click", () => {
+      moneyManagerSelectedDay = button.dataset.mmDay;
+      renderMoneyManagerCalendar();
+    }));
+    const dayRows = moneyManagerSelectedDay ? moneyManagerCore.filterMovements(state.movements, { day: moneyManagerSelectedDay }) : [];
+    $("mmCalendarDay").innerHTML = moneyManagerSelectedDay
+      ? `<div class="surface-title"><div><h3>${esc(new Date(`${moneyManagerSelectedDay}T12:00:00`).toLocaleDateString("es-DO", { weekday: "long", day: "numeric", month: "long" }))}</h3><p>${dayRows.length} movimiento(s) confirmado(s).</p></div></div>${moneyManagerMovementRows(dayRows, false)}`
+      : '<div class="empty-state"><p>Selecciona un día para ver el detalle.</p></div>';
+  }
+
+  function renderMoneyManagerAccounts(accountState) {
+    const mount = $("mmAccounts");
+    mount.innerHTML = accountState.rows.map(account => {
+      const isCard = account.tipo === "tarjeta_credito";
+      const display = isCard ? Math.max(0, -account.effective_balance_cents) : account.effective_balance_cents;
+      return `<article class="money-manager-account-card"><header><span><strong>${esc(account.nombre)}</strong><small>${esc(FIN_TIPO_LABEL[account.tipo] || account.tipo)}${account.ligada_ventas ? " · ventas automáticas" : ""}</small></span><em class="tag ${display < 0 || isCard && display > 0 ? "bad" : "ok"}">${isCard ? "Deuda" : display < 0 ? "Negativo" : "Disponible"}</em></header><strong class="${isCard && display > 0 ? "debt" : ""}">${money(display)}</strong><div class="button-row"><button class="secondary" type="button" data-mm-account-ledger="${esc(account.id)}">Movimientos</button>${canEdit ? `<button class="secondary" type="button" data-mm-account-reconcile="${esc(account.id)}">Conciliar</button>${isCard ? `<button class="secondary" type="button" data-mm-card-consume="${esc(account.id)}">Consumo</button><button class="primary" type="button" data-mm-card-pay="${esc(account.id)}">Pagar</button>` : ""}` : ""}</div></article>`;
+    }).join("") || '<div class="empty-state"><strong>Sin cuentas</strong><p>Agrega la primera cuenta para comenzar.</p></div>';
+    mount.querySelectorAll("[data-mm-account-ledger]").forEach(button => button.addEventListener("click", () => {
+      setMoneyManagerTab("movimientos"); $("mmAccount").value = button.dataset.mmAccountLedger; renderMoneyManagerMovements();
+    }));
+    mount.querySelectorAll("[data-mm-account-reconcile]").forEach(button => button.addEventListener("click", () => abrirConciliacionCuentaFin(finStateCache.accounts.find(item => item.id === button.dataset.mmAccountReconcile))));
+    mount.querySelectorAll("[data-mm-card-consume]").forEach(button => button.addEventListener("click", () => abrirConsumoTarjetaFin(button.dataset.mmCardConsume)));
+    mount.querySelectorAll("[data-mm-card-pay]").forEach(button => button.addEventListener("click", () => abrirPagoTarjetaFin(button.dataset.mmCardPay)));
+  }
+
+  function renderMoneyManagerObligations(obligations) {
+    $("mmObligationKpis").innerHTML = mmMetric("Por pagar ahora", money(obligations.payableNow), "Vencido + mes actual", obligations.payableNow ? "expense" : "")
+      + mmMetric("Vencido", money(obligations.overdueDue), `${obligations.overdue.length} pendiente(s)`, obligations.overdueDue ? "bad" : "")
+      + mmMetric("Deuda de préstamos", money(obligations.loanDebt), "Saldo contractual vivo")
+      + mmMetric("Capital pendiente", money(obligations.loanCapital), "Sin ocultarse al cambiar de mes");
+    const rows = [...obligations.rows].sort((a, b) => String(a.due || "9999").localeCompare(String(b.due || "9999")));
+    $("mmObligations").innerHTML = tabla(rows, item => {
+      const overdue = item.due && item.due < obligations.from;
+      const amount = item.outstanding == null ? item.periodAmount : item.outstanding;
+      const action = item.source === "compromiso"
+        ? `<button type="button" class="mini" data-mm-pay-commitment="${esc(item.id)}">Registrar pago</button>`
+        : item.source === "factura" ? `<button type="button" class="mini" data-mm-pay-obligation="${esc(item.legacyId)}">Registrar pago</button>`
+          : `<button type="button" class="mini" data-mm-generate-plan>Generar factura</button>`;
+      return [`<strong>${esc(item.name)}</strong><small>${esc(item.type || "obligación")}</small>`, esc(dateOnly(item.due) || "Sin fecha"), `<span class="tag ${overdue ? "bad" : item.source === "planificado" ? "warn" : "ok"}">${overdue ? "Vencido" : item.source === "planificado" ? "Previsto" : "Pendiente"}</span>`, money(item.periodAmount), money(amount || 0), action];
+    }, ["Compromiso", "Vence", "Estado", "Cuota", "Saldo", "Acción"]);
+    $("mmObligations").querySelectorAll("[data-mm-pay-commitment]").forEach(button => button.addEventListener("click", () => abrirPagoCompromisoFin(finStateCache.commitments.find(item => item.id === button.dataset.mmPayCommitment))));
+    $("mmObligations").querySelectorAll("[data-mm-pay-obligation]").forEach(button => button.addEventListener("click", () => pagarObligacion((costStateCache?.obligations || []).find(item => item.id === button.dataset.mmPayObligation))));
+    $("mmObligations").querySelectorAll("[data-mm-generate-plan]").forEach(button => button.addEventListener("click", () => generarObligacionesWeb().catch(error => toast(error.message))));
+  }
+
+  function renderMoneyManager() {
+    if (!moneyManagerCore || !finStateCache) return;
+    wireMoneyManagerStatic();
+    const state = finStateCache;
+    const month = $("mmMonth")?.value || state.month || financeCore.businessDay(new Date()).slice(0, 7);
+    $("mmMonth").value = month;
+    const movementSummary = moneyManagerCore.summarizeMovements(state.movements, month);
+    const accountState = moneyManagerCore.accountSummary(state.accounts, state.accountBalanceMovements || state.movements);
+    const obligations = moneyManagerCore.obligationSummary({ commitments: state.commitments, costObligations: state.costObligations, costRecurrents: state.costRecurrents, month });
+    const shiftClosings = state.shiftClosings || [];
+    const cashExpected = shiftClosings.reduce((sum, event) => sum + Math.max(0, numero(P(event).efectivoEsperadoCentavos) - numero(P(event).montoAperturaCentavos)), 0);
+    const cashCounted = shiftClosings.reduce((sum, event) => sum + Math.max(0, numero(P(event).efectivoContadoCentavos) - numero(P(event).montoAperturaCentavos)), 0);
+    $("mmKpis").innerHTML = mmMetric("Dinero disponible", money(accountState.available), "Cuentas incluidas, sin deuda de tarjetas")
+      + mmMetric("Ventas automáticas", money(movementSummary.sales), `${movementSummary.movements.filter(item => moneyManagerCore.sourceOf(item) === "venta_automatica").length} cobro(s)`, "income")
+      + mmMetric("Efectivo a entregar", state.shiftClosings == null ? "No verificado" : money(cashExpected), `${shiftClosings.length} cierre(s) del mes`, "transfer")
+      + mmMetric("Efectivo contado", state.shiftClosings == null ? "No verificado" : money(cashCounted), "Cierres sin fondo de apertura")
+      + mmMetric("Salidas", money(movementSummary.expenses), "Gastos confirmados", "expense")
+      + mmMetric("Por pagar ahora", money(obligations.payableNow), `${money(obligations.overdueDue)} vencido`, obligations.payableNow ? "bad" : "");
+    $("mmAccountStrip").innerHTML = accountState.rows.map(item => `<button type="button" data-mm-strip-account="${esc(item.id)}"><span>${esc(item.nombre)}</span><strong>${money(item.tipo === "tarjeta_credito" ? Math.max(0, -item.effective_balance_cents) : item.effective_balance_cents)}</strong><small>${item.tipo === "tarjeta_credito" ? "Deuda" : FIN_TIPO_LABEL[item.tipo] || item.tipo}</small></button>`).join("");
+    $("mmAccountStrip").querySelectorAll("[data-mm-strip-account]").forEach(button => button.addEventListener("click", () => { setMoneyManagerTab("movimientos"); $("mmAccount").value = button.dataset.mmStripAccount; renderMoneyManagerMovements(); }));
+    const reconciliationCount = movementSummary.movements.filter(item => moneyManagerCore.sourceOf(item) === "conciliacion").length;
+    $("mmSourceSummary").innerHTML = [
+      ["income", "Ventas de la caja", movementSummary.sales, "Se integran automáticamente"],
+      ["income", "Otros ingresos", movementSummary.manualIncome, "Manual o asistente"],
+      ["expense", "Gastos y consumos", movementSummary.expenses, "Reducen el resultado"],
+      ["transfer", "Transferencias internas", movementSummary.transfers, "Mueven dinero; no son ventas"],
+      ["", "Conciliaciones", reconciliationCount, "Ajustan saldo sin borrar historial", true],
+    ].map(([tone, label, value, detail, count]) => `<article><i class="${tone}"></i><span><strong>${esc(label)}</strong><small>${esc(detail)}</small></span><b>${count ? Number(value).toLocaleString("es-DO") : money(value)}</b></article>`).join("");
+    const recent = moneyManagerCore.activeMovements(state.movements).slice(0, 10);
+    $("mmRecent").innerHTML = recent.length ? recent.map(item => `<article><i class="${esc(item.tipo)}"></i><span><strong>${esc(item.descripcion || item.payee || "Movimiento")}</strong><small>${esc(MM_SOURCE_LABEL[moneyManagerCore.sourceOf(item)] || moneyManagerCore.sourceOf(item))} · ${esc(dateOnly(item.fecha))}</small></span><b class="${esc(item.tipo)}">${item.tipo === "gasto" ? "−" : item.tipo === "ingreso" ? "+" : ""}${money(item.monto_centavos)}</b></article>`).join("") : '<div class="empty-state"><p>Sin movimientos cargados.</p></div>';
+    $("mmDueNow").innerHTML = obligations.dueNow.length ? obligations.dueNow.slice(0, 8).map(item => `<article class="${item.due < obligations.from ? "overdue" : ""}"><em>${item.due < obligations.from ? "Vencido" : item.source === "planificado" ? "Previsto" : "Este mes"}</em><span><strong>${esc(item.name)}</strong><small>${esc(dateOnly(item.due))} · ${esc(item.type || "obligación")}</small></span><b>${money(item.periodAmount || item.outstanding || 0)}</b></article>`).join("") : '<div class="empty-state"><strong>Sin vencimientos visibles</strong><p>Los planes sin factura también aparecerán aquí.</p></div>';
+    renderMoneyManagerMovements();
+    renderMoneyManagerCalendar();
+    renderMoneyManagerAccounts(accountState);
+    renderMoneyManagerObligations(obligations);
+    $("mmSyncStatus").classList.toggle("warn", Boolean(state.partialError));
+    $("mmSyncStatus").textContent = state.partialError || `${movementSummary.movements.length.toLocaleString("es-DO")} movimiento(s) del mes · ${state.accounts.length} cuenta(s) · ${obligations.rows.length} obligación(es) · una sola fuente contable compartida con Finanzas y la caja.`;
+    setMoneyManagerTab(moneyManagerTab);
+  }
+
+  async function cargarMoneyManager(force = false) {
+    if (!moneyManagerCore) throw new Error("El motor de Money Manager no cargó.");
+    if (!$("mmMonth").value) $("mmMonth").value = financeCore.businessDay(new Date()).slice(0, 7);
+    $("provMes").value = $("mmMonth").value;
+    await cargarProveedores(force);
+  }
+
   function subscribeFinanceRealtime() {
     if (finRealtimeChannel || !sb) return;
     let timer = null;
     const refresh = () => {
       clearTimeout(timer);
       timer = setTimeout(() => {
-        if (!$("v-finanzas").classList.contains("oculto")) cargarProveedores(true).catch(error => toast(error.message));
+        if (!$("v-finanzas").classList.contains("oculto") || !$("v-money-manager").classList.contains("oculto")) {
+          cargarProveedores(true).catch(error => toast(error.message));
+        }
       }, 500);
     };
     finRealtimeChannel = sb.channel(`dcarela-finance-${BUSINESS}`)
@@ -6523,14 +6746,16 @@
       .filter(value => Number.isFinite(new Date(value).getTime()))
       .sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
     const balanceFrom = accountCutoffs.length ? new Date(accountCutoffs[0]).toISOString() : "";
-    const [balanceSalesResult, balanceLedgerMovements] = accountCutoffs.length
-      ? await Promise.all([
-        ventasActivas(balanceFrom, new Date().toISOString(), 20000),
-        authProvider === "firebase" && window.DcarelaFirebase?.getFinanceLedgerMovements
-          ? window.DcarelaFirebase.getFinanceLedgerMovements(BUSINESS, balanceFrom, new Date().toISOString())
-          : Promise.resolve([]),
-      ])
-      : [{ active: [], excluded: 0, duplicates: 0, raw: [] }, []];
+    const balanceTo = new Date().toISOString();
+    const [balanceSalesResult, balanceLedgerResult] = await Promise.all([
+      balanceFrom
+        ? ventasActivas(balanceFrom, balanceTo, 20000)
+        : Promise.resolve({ active: [], excluded: 0, duplicates: 0, raw: [] }),
+      balanceFrom && authProvider === "firebase" && window.DcarelaFirebase?.getFinanceLedgerMovements
+        ? window.DcarelaFirebase.getFinanceLedgerMovements(BUSINESS, { from: balanceFrom, to: balanceTo })
+          .then(rows => ({ rows, error: "" })).catch(error => ({ rows: [], error: error?.message || String(error) }))
+        : Promise.resolve({ rows: [], error: "" }),
+    ]);
     const monthExpenses = state.expenses.filter(item => item.activo && monthOf(item.fecha || item._latestAt) === month);
     const monthPayments = state.payments.filter(item => monthOf(item.fecha) === month);
     const monthObligations = state.obligations.filter(item => monthOf(item.venceEn) === month && !["anulada", "pagada"].includes(item.estado));
@@ -6553,20 +6778,33 @@
         businessId: BUSINESS,
         transferAccountId: finStateCache.preferences?.cuenta_ingreso_default_id || null,
       });
-      const balanceSalesMovements = financeCore.projectSalePaymentsAsMovements(
+      finStateCache.accountSalesMovements = financeCore.projectSalePaymentsAsMovements(
         balanceSalesResult.active, finStateCache.accounts, {
           businessId: BUSINESS,
           transferAccountId: finStateCache.preferences?.cuenta_ingreso_default_id || null,
         });
-      finStateCache.accountProjectedMovements = [
-        ...balanceSalesMovements,
-        ...balanceLedgerMovements.filter(item => item.source === "pos_sync_event"),
+      finStateCache.accountBalanceMovements = [
+        ...(balanceLedgerResult.rows || []),
+        ...finStateCache.accountSalesMovements,
       ];
+      if (balanceLedgerResult.error) {
+        finStateCache.partialError = finStateCache.partialError
+          || `No se pudo completar el saldo posterior al último cuadre: ${balanceLedgerResult.error}`;
+      }
       finStateCache.movements = [...baseMovements, ...integratedSales]
         .sort((a, b) => String(b.fecha || "").localeCompare(String(a.fecha || "")));
       finStateCache.costObligations = state.obligations || [];
       finStateCache.costPayments = state.payments || [];
       finStateCache.costRecurrents = state.recurrents || [];
+      if (location.hash.slice(1) === "money-manager") {
+        try {
+          finStateCache.shiftClosings = (await eventos(["CajaCerrada"], from, to, 2000))
+            .filter(item => item.event_type === "CajaCerrada");
+        } catch (error) {
+          finStateCache.shiftClosings = null;
+          finStateCache.partialError = finStateCache.partialError || `No se pudieron verificar los cierres de caja: ${error.message}`;
+        }
+      }
       renderFinAccounts();
       renderFinCommitments();
       renderFinMovements();
@@ -6635,6 +6873,7 @@
       setCostTab("movimientos");
       setTimeout(() => abrirMovimientoFin("gasto"), 120);
     }
+    if (moneyManagerCore && !$("v-money-manager")?.classList.contains("oculto")) renderMoneyManager();
   }
 
   function alertDefinition(event) {
@@ -7273,7 +7512,7 @@
       const view = location.hash.slice(1) || "dashboard";
       if (view === "dashboard") cargarDashboard().catch(() => {});
       if (view === "notificaciones") cargarNotificaciones().catch(() => {});
-      if (["ventas", "caja-virtual", "caja", "turnos", "recalcular", "reportes", "inventario", "clientes", "finanzas", "asistente", "configuracion"].includes(view)) loaders[view]?.().catch(() => {});
+      if (["ventas", "caja-virtual", "caja", "turnos", "recalcular", "reportes", "inventario", "clientes", "finanzas", "money-manager", "asistente", "configuracion"].includes(view)) loaders[view]?.().catch(() => {});
     };
     liveRefreshTimer = setTimeout(refreshWhenIdle, 1200);
   }
@@ -7360,11 +7599,7 @@
     conectarRealtime();
     comprobarVersion();
     mostrarVista(location.hash.slice(1) || "dashboard");
-
-    // La funcion de Caja virtual puede tener un cold start y la consulta de
-    // alertas puede necesitar un indice que todavia este construyendose. Son
-    // capacidades secundarias: nunca deben bloquear la restauracion de una
-    // sesion valida ni devolver al usuario al login al abrir Finanzas.
+    // Capacidades secundarias no bloquean una sesión Firebase válida.
     cargarPermisosCajaWeb().catch(error => {
       console.warn("cargarPermisosCajaWeb al iniciar:", error);
       setSaleAccess({ loaded: true });

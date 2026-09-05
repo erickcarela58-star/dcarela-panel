@@ -750,8 +750,6 @@ tbody tr:hover { background: color-mix(in srgb, var(--ui-accent) 7%, transparent
     text-align: left;
   }
 }
-
-
 /* Caja virtual como modulo operativo, no como pantalla de enlace. */
 .virtual-workspace {
   min-height: calc(100dvh - 118px);

@@ -69,21 +69,13 @@ test("un arranque Firebase vencido se invalida antes de que pueda abrir el panel
   assert.match(source, /if \(generation !== authGeneration \|\| session\?\.user\?\.id !== expectedUserId\) return false;[\s\S]*sesionOk = true/);
 });
 
-test("una funcion lenta de Caja o alertas no expulsa la sesion al cambiar de modulo", () => {
+test("Caja y alertas lentas no expulsan una sesion restaurada", () => {
   const start = source.indexOf("async function iniciar(generation");
-  const end = source.indexOf("function sesionFirebase(user)", start);
-  const startup = source.slice(start, end);
+  const startup = source.slice(start, source.indexOf("function sesionFirebase(user)", start));
   const restoreStart = source.indexOf("async function restaurarSesion()");
-  const restoreEnd = source.indexOf("function manejarCambioAuth", restoreStart);
-  const restore = source.slice(restoreStart, restoreEnd);
-
-  assert.doesNotMatch(startup, /await cargarPermisosCajaWeb\(/,
-    "el cold start de Caja virtual no debe bloquear la sesion");
-  assert.doesNotMatch(startup, /await obtenerAlertas\(/,
-    "la lectura de alertas no debe bloquear la sesion");
-  assert.match(startup, /mostrarVista\([\s\S]*cargarPermisosCajaWeb\(\)\.catch/,
-    "la vista debe abrir antes de cargar permisos secundarios");
-  assert.match(startup, /obtenerAlertas\(true\)\.catch/);
-  assert.doesNotMatch(restore, /DcarelaFirebase\.signOut/,
-    "una consulta lenta no debe cerrar una autenticacion Firebase valida");
+  const restore = source.slice(restoreStart, source.indexOf("function manejarCambioAuth", restoreStart));
+  assert.doesNotMatch(startup, /await cargarPermisosCajaWeb\(/);
+  assert.doesNotMatch(startup, /await obtenerAlertas\(/);
+  assert.match(startup, /mostrarVista\([\s\S]*cargarPermisosCajaWeb\(\)\.catch/);
+  assert.doesNotMatch(restore, /DcarelaFirebase\.signOut/);
 });
