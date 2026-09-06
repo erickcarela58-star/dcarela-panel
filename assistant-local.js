@@ -72,6 +72,7 @@
       role: text(raw.role || 'viewer', 40).toLowerCase(),
       storage: raw.storage || root?.localStorage || null,
       remoteAssistant: typeof raw.remoteAssistant === 'function' ? raw.remoteAssistant : null,
+      now: typeof raw.now === 'function' ? raw.now : () => new Date(),
     };
   }
 
@@ -476,7 +477,17 @@
   }
 
   function parseMoneyExpression(raw) {
-    return extractMoneyAmounts(raw)[0]?.cents ?? null;
+    const terms = String(raw || '').trim().split(/\s*\+\s*/);
+    let total = 0;
+    for (const term of terms) {
+      const match = term.match(/^(?:RD\$\s*|DOP\s*)?(\d[\d.,]*)(?:\s*(mil))?$/i);
+      if (!match) return null;
+      const amount = parseMoneyCents(match[1]);
+      if (amount === null) return null;
+      total += amount * (match[2] ? 1000 : 1);
+      if (!Number.isSafeInteger(total)) return null;
+    }
+    return total > 0 ? total : null;
   }
 
   function activeFinanceAccounts(rows) {
@@ -485,6 +496,10 @@
   }
 
   function resolveNamedAccount(accounts, hint) {
+    // La marca sola no distingue la cuenta corriente de la tarjeta de Qik.
+    const query = normalize(hint);
+    if (/\bqik\b/.test(query) && !/tarjeta|credito|corriente|ahorro|debito/.test(query)
+      && accounts.filter(account => /\bqik\b/.test(normalize(account.nombre || account.name))).length > 1) return null;
     const ranked = accounts.map(account => ({ account, score: accountScore(account, hint) }))
       .sort((a, b) => b.score - a.score);
     if (ranked[0]?.score > 0 && ranked[0].score > (ranked[1]?.score || 0)) return ranked[0].account;
@@ -625,6 +640,30 @@
     return cleaned ? cleaned.charAt(0).toUpperCase() + cleaned.slice(1) : '';
   }
 
+  function batchEffectiveDate(ctx, prompt) {
+    const now = new Date(ctx.now());
+    const businessToday = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Santo_Domingo', year: 'numeric', month: '2-digit', day: '2-digit'
+    }).format(now);
+    const yesterday = new Date(`${businessToday}T12:00:00-04:00`);
+    yesterday.setUTCDate(yesterday.getUTCDate() - 1);
+    const explicit = String(prompt).match(/\b(?:fecha|hechos?\s+el|realizados?\s+el|del\s+dia)\s*:?\s*(\d{4}-\d{2}-\d{2})\b/i);
+    if (explicit) {
+      const date = new Date(`${explicit[1]}T12:00:00Z`);
+      return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === explicit[1]
+        ? { date: explicit[1] } : { error: 'La fecha indicada no es valida; aclara el dia antes de preparar el lote.' };
+    }
+    const relative = normalize(prompt).match(/\bayer(?:\s+(\d{1,2}))?\b/);
+    if (relative) {
+      const date = yesterday.toISOString().slice(0, 10);
+      if (relative[1] && Number(relative[1]) !== Number(date.slice(-2))) {
+        return { error: `“Ayer” corresponde al ${date}, pero tambien indicaste dia ${relative[1]}. Aclara la fecha antes de preparar el lote.` };
+      }
+      return { date };
+    }
+    return { date: businessToday };
+  }
+
   async function buildFinanceBatchProposal(ctx, prompt) {
     if (!roleAdmin(ctx.role)) return null;
     const raw = String(prompt || '');
@@ -632,17 +671,20 @@
     const amounts = extractMoneyAmounts(raw);
     if (amounts.length < 2 || !/(gaste|pague|transferi|abone|conciliacion|multiples gastos)/.test(query)) return null;
     if (/solo consulta|no registres|no crear|no apliques/.test(query)) return null;
+    const effective = batchEffectiveDate(ctx, raw);
+    if (effective.error) return { content: effective.error, actions: [] };
 
     const accounts = activeFinanceAccounts(await ctx.adapter.getFinanceAccounts(ctx.businessId));
     const cash = resolveNamedAccount(accounts, 'efectivo caja');
     const actions = [];
     const warnings = [];
+    const pendingExpenses = [];
     const seenExpenses = new Set();
     let inferredCash = false;
 
     const addExpense = (description, amountCents, account = cash, inferred = false) => {
       const concept = cleanBatchDescription(description);
-      const key = `${normalize(concept)}:${amountCents}`;
+      const key = `${account?.id || 'sin-cuenta'}:${normalize(concept)}:${amountCents}`;
       if (!concept || !amountCents || seenExpenses.has(key)) return;
       if (!account) {
         warnings.push(`No pude identificar la cuenta del gasto **${concept}** por **${money(amountCents)}**.`);
@@ -655,16 +697,42 @@
         `Registrar gasto de ${money(amountCents)} desde ${text(account.nombre, 120)}: ${concept}`,
         {
           cuentaId: account.id, cuentaNombre: text(account.nombre, 120), tipo: 'gasto',
-          montoCentavos: amountCents, fecha: today(), descripcion: concept,
+          montoCentavos: amountCents, fecha: effective.date, descripcion: concept,
           nota: 'Propuesto como parte de un lote por el cerebro local; requiere aprobacion individual.',
           conciliado: false, afectaResultado: true,
         }
       ));
     };
 
-    const cashBlock = raw.match(/gast(?:e|\u00e9)\s+en\s+efectivo[\s\S]*?(?=(?:[.;]\s*pag(?:ue|u\u00e9))|$)/i)?.[0] || '';
-    for (const match of cashBlock.matchAll(/(\d[\d.,]*(?:\s*mil)?)\s*(?:pesos?)?\s+en\s+([^,.;]+)/gi)) {
-      addExpense(match[2], parseMoneyExpression(match[1]), cash, false);
+    // Solo el importe al inicio de una clausula es dinero: Hummer H3 y
+    // Tucan RR 200 permanecen en el concepto. Una cabecera conserva su cuenta
+    // hasta la siguiente; si es ambigua no cae al valor por defecto Efectivo.
+    let headingAccount = null;
+    let headingHint = '';
+    const expenseClauses = raw.split(/[.;](?=\s|$)|\n+|,(?=\s+\d)/).map(value => value.trim()).filter(Boolean);
+    for (const original of expenseClauses) {
+      let clause = original;
+      const heading = clause.match(/^(?:desde|con)\s+(?:la\s+|el\s+)?([^:]+):\s*([\s\S]*)$/i);
+      if (heading) {
+        headingHint = heading[1].trim();
+        headingAccount = resolveNamedAccount(accounts, headingHint);
+        clause = heading[2];
+      }
+      clause = clause.replace(/^gast(?:e|\u00e9)\s+/i, '');
+      const explicitCash = clause.match(/^en\s+efectivo(?:\s+las\s+siguientes\s+cantidades)?\s*[:>]*\s*(?=\d)/i);
+      if (explicitCash) { headingHint = 'Efectivo'; headingAccount = cash; clause = clause.slice(explicitCash[0].length); }
+      const match = clause.match(/^((?:RD\$\s*|DOP\s*)?\d[\d.,]*(?:\s*mil)?(?:\s*\+\s*\d[\d.,]*(?:\s*mil)?)*)\s+(?:(?:pesos?|DOP)\s+)?(?:(?:en|por)\s+)?([^\d][\s\S]*)$/i);
+      if (!match) continue;
+      const amount = parseMoneyExpression(match[1]);
+      const concept = cleanBatchDescription(match[2]);
+      if (!amount || !concept) continue;
+      if (headingHint && !headingAccount) {
+        const candidates = accounts.filter(account => accountScore(account, headingHint) > 0).map(account => `**${text(account.nombre, 100)}**`);
+        warnings.push(`Falta precisar **${headingHint}** para **${concept}** (${money(amount)}): ${candidates.join(' o ') || 'indica el nombre exacto de la cuenta'}. No prepare ese gasto.`);
+        pendingExpenses.push({ accountHint: headingHint, descripcion: concept, montoCentavos: amount, fecha: effective.date });
+        continue;
+      }
+      addExpense(concept, amount, headingHint ? headingAccount : cash, !headingHint);
     }
 
     const clauses = raw.split(/[.;](?=\s|$)|\n+/).map(value => value.trim()).filter(Boolean);
@@ -692,7 +760,7 @@
           `Transferir ${money(amountCents)} de ${text(cash.nombre, 120)} a ${text(target.nombre, 120)}`,
           {
             cuentaOrigenId: cash.id, cuentaDestinoId: target.id, montoCentavos: amountCents,
-            comisionCentavos: 0, fecha: today(), descripcion: `Transferencia a ${text(target.nombre, 120)}`,
+            comisionCentavos: 0, fecha: effective.date, descripcion: `Transferencia a ${text(target.nombre, 120)}`,
             nota: 'Propuesta por el cerebro local; requiere aprobacion individual.',
           }
         ));
@@ -704,7 +772,7 @@
     const cardPayment = raw.match(/abon(?:e|\u00e9)\s+(\d[\d.,]*(?:\s*mil)?)\s*(?:pesos?)?\s+a\s+(?:la\s+)?tarjeta(?:\s+de\s+credito)?\s+(.+?)\s+desde\s+(?:el|la)?\s*([^,.;]+)/i);
     if (cardPayment) {
       const amountCents = parseMoneyExpression(cardPayment[1]);
-      const target = resolveNamedAccount(accounts, cardPayment[2]);
+      const target = resolveNamedAccount(accounts, `tarjeta de credito ${cardPayment[2]}`);
       const source = resolveNamedAccount(accounts, cardPayment[3]);
       if (source && target && source.id !== target.id && amountCents) {
         actions.push(pendingFinanceAction(
@@ -712,7 +780,7 @@
           `Pagar ${money(amountCents)} a ${text(target.nombre, 120)} desde ${text(source.nombre, 120)}`,
           {
             cuentaOrigenId: source.id, cuentaDestinoId: target.id, montoCentavos: amountCents,
-            fecha: today(), nota: `Pago a ${text(target.nombre, 120)} propuesto por el cerebro local.`,
+            fecha: effective.date, nota: `Pago a ${text(target.nombre, 120)} propuesto por el cerebro local.`,
           }
         ));
       } else {
@@ -761,7 +829,7 @@
         `Conciliar ${text(account.nombre, 120)} a ${money(targetCents)}`,
         {
           cuentaId: account.id, cuentaNombre: text(account.nombre, 120), saldoObjetivoCentavos: targetCents,
-          fecha: today(), motivo: 'Conciliacion total informada al asistente; requiere aprobacion individual.',
+          fecha: effective.date, motivo: 'Conciliacion total informada al asistente; requiere aprobacion individual.',
         }
       ));
     }
@@ -769,12 +837,43 @@
     if (!actions.length && !warnings.length) return null;
     const lines = actions.map((action, index) => `${index + 1}. ${action.summary}`).join('\n');
     const warningText = [
-      ...(inferredCash ? ['Tome **Efectivo** como origen de los pagos sin cuenta explicita y de la transferencia porque el mensaje abre el bloque indicando efectivo. Corrige cualquier propuesta si esa inferencia no corresponde.'] : []),
+      ...(inferredCash ? ['Propuse **Efectivo** para los conceptos sin cuenta explicita. Es una inferencia pendiente de tu revision; corrige la cuenta antes de aplicar si no corresponde.'] : []),
       ...warnings,
     ];
-    const content = `Prepare **${actions.length} propuestas pendientes** a partir del mensaje completo. No aplique ningun movimiento. Cada propuesta requiere aprobacion individual.\n\n${lines || 'No hubo propuestas ejecutables.'}`
+    const content = `Prepare **${actions.length} propuestas pendientes** con fecha **${effective.date}**. No aplique ningun movimiento. Cada propuesta requiere aprobacion individual.\n\n${lines || 'No hubo propuestas ejecutables.'}`
       + (warningText.length ? `\n\n### Revisar antes de aplicar\n\n${warningText.map(value => `- ${value}`).join('\n')}` : '');
-    return { content, actions };
+    return { content, actions, pendingExpenses };
+  }
+
+  async function resumePendingBatchExpenses(ctx, prompt, conversation) {
+    const previous = [...(conversation?.messages || [])].reverse().find(item => item.role === 'assistant');
+    const drafts = previous?.metadata?.pending_expenses;
+    if (!Array.isArray(drafts) || !drafts.length || !roleAdmin(ctx.role)
+      || text(prompt).length > 240 || extractMoneyAmounts(prompt).length) return null;
+    const accounts = activeFinanceAccounts(await ctx.adapter.getFinanceAccounts(ctx.businessId));
+    const { negated, affirmed } = splitCorrection(prompt);
+    const candidates = accounts.filter(account => !negated || accountScore(account, negated) === 0);
+    const account = resolveNamedAccount(candidates, affirmed);
+    if (!account) return {
+      content: 'Los gastos del lote siguen sin cuenta definida. Indica el nombre completo de la cuenta Qik; las propuestas anteriores permanecen pendientes y no cambie sus cuentas.',
+      actions: [], pendingExpenses: drafts,
+    };
+    const applicable = drafts.filter(draft => accountScore(account, draft.accountHint) > 0);
+    if (!applicable.length) return null;
+    const actions = applicable.map(draft => pendingFinanceAction('fin.movement.create',
+      `Registrar gasto de ${money(draft.montoCentavos)} desde ${text(account.nombre, 120)}: ${draft.descripcion}`, {
+        cuentaId: account.id, cuentaNombre: text(account.nombre, 120), tipo: 'gasto',
+        montoCentavos: draft.montoCentavos, fecha: draft.fecha, descripcion: draft.descripcion,
+        nota: 'Cuenta aclarada por el operador para un lote pendiente; requiere aprobacion individual.',
+        conciliado: false, afectaResultado: true,
+      }));
+    // Se resuelven los borradores, no las propuestas ya creadas o aprobadas.
+    const pendingExpenses = drafts.filter(draft => !applicable.includes(draft));
+    previous.metadata.pending_expenses = pendingExpenses;
+    return {
+      content: `Prepare **${actions.length} propuestas pendientes** desde **${text(account.nombre, 120)}** con la fecha original del lote. Las propuestas anteriores conservan su cuenta. No aplique ningun movimiento.\n\n${actions.map((action, index) => `${index + 1}. ${action.summary}`).join('\n')}`,
+      actions, pendingExpenses,
+    };
   }
 
   function remoteFailureMessage(error) {
@@ -792,6 +891,8 @@
     const query = normalize(prompt);
     const batch = await buildFinanceBatchProposal(ctx, prompt);
     if (batch) return batch;
+    const resumed = await resumePendingBatchExpenses(ctx, prompt, conversation);
+    if (resumed) return resumed;
     const revised = await revisePendingExpense(ctx, prompt, conversation);
     if (revised) return revised;
     const proposal = await buildExpenseProposal(ctx, prompt);
@@ -897,6 +998,7 @@
         role: 'assistant', content: response.content,
         metadata: {
           action_ids: responseActions.map(action => action.id),
+          pending_expenses: response.pendingExpenses || [],
           quick_actions: [
             { label: 'Abrir Finanzas', destination: 'finanzas' },
             { label: 'Abrir Caja virtual', destination: 'caja-virtual' },

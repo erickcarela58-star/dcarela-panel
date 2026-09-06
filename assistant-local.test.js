@@ -411,3 +411,96 @@ test('una negacion sin alternativa nunca reconfirma la cuenta rechazada', async 
   assert.equal(corrected.conversation.actions[0].status, 'pending');
   assert.match(corrected.message.content, /Dime el nombre exacto de la cuenta/);
 });
+
+const SEPTEMBER_EXPENSE_BATCH = 'gaste 765+425 en pizza y salchipapa. 200 en costos del mecanico. desde Qik: 979 en gasolina motor. 2,200 Aceite Hummer H3. 1,250 Aceite tucan RR 200. todos esos movimientos fueron hechos ayer 5';
+
+function septemberBatchContext(accounts) {
+  let writes = 0;
+  const ctx = context(adapter({
+    getFinanceAccounts: async () => accounts,
+    adminAction: async () => { writes += 1; throw new Error('El lote no tiene aprobacion.'); },
+  }));
+  ctx.now = () => new Date('2026-09-06T15:00:00.000Z');
+  return { ctx, writes: () => writes };
+}
+
+test('el lote real suma expresiones, conserva H3 y RR 200, hereda Qik y fecha ayer', async () => {
+  const harness = septemberBatchContext([
+    { id: 'cash', nombre: 'Efectivo', tipo: 'efectivo', estado: 'activa' },
+    { id: 'qik-current', nombre: 'Cuenta corriente Qik', tipo: 'cuenta_corriente', estado: 'activa' },
+  ]);
+  const reply = await assistant.request('chat', harness.ctx, { message: SEPTEMBER_EXPENSE_BATCH });
+  const actions = reply.conversation.actions;
+  assert.equal(actions.length, 5);
+  assert.deepEqual(actions.map(item => item.payload.montoCentavos), [119000, 20000, 97900, 220000, 125000]);
+  assert.deepEqual(actions.map(item => item.payload.cuentaId), ['cash', 'cash', 'qik-current', 'qik-current', 'qik-current']);
+  assert.deepEqual(actions.map(item => item.payload.descripcion), [
+    'Pizza y salchipapa', 'Costos del mecanico', 'Gasolina motor', 'Aceite Hummer H3', 'Aceite tucan RR 200',
+  ]);
+  assert.ok(actions.every(item => item.action === 'fin.movement.create' && item.status === 'pending'
+    && item.payload.fecha === '2026-09-05' && item.requires_admin_approval));
+  assert.match(reply.message.content, /2026-09-05/);
+  assert.match(reply.message.content, /inferencia pendiente/i);
+  assert.equal(harness.writes(), 0);
+});
+
+test('Qik ambiguo no se asigna por defecto ni a efectivo ni a la tarjeta', async () => {
+  const harness = septemberBatchContext([
+    { id: 'cash', nombre: 'Efectivo', tipo: 'efectivo', estado: 'activa' },
+    { id: 'qik-current', nombre: 'Cuenta corriente Qik', tipo: 'cuenta_corriente', estado: 'activa' },
+    { id: 'qik-card', nombre: 'Tarjeta de credito Qik', tipo: 'tarjeta_credito', estado: 'activa' },
+  ]);
+  const reply = await assistant.request('chat', harness.ctx, { message: SEPTEMBER_EXPENSE_BATCH });
+  assert.equal(reply.conversation.actions.length, 2);
+  assert.match(reply.message.content, /Falta precisar \*\*Qik\*\*/);
+  assert.match(reply.message.content, /Cuenta corriente Qik/);
+  assert.match(reply.message.content, /Tarjeta de credito Qik/);
+  assert.match(reply.message.content, /Aceite Hummer H3/);
+  assert.equal(harness.writes(), 0);
+});
+
+test('aclarar Qik retoma solo gastos incompletos y conserva efectivo y fecha original', async () => {
+  const harness = septemberBatchContext([
+    { id: 'cash', nombre: 'Efectivo', tipo: 'efectivo', estado: 'activa' },
+    { id: 'qik-current', nombre: 'Cuenta corriente Qik', tipo: 'cuenta_corriente', estado: 'activa' },
+    { id: 'qik-card', nombre: 'Tarjeta de credito Qik', tipo: 'tarjeta_credito', estado: 'activa' },
+  ]);
+  const first = await assistant.request('chat', harness.ctx, { message: SEPTEMBER_EXPENSE_BATCH });
+  const previousIds = first.conversation.actions.map(item => item.id);
+  harness.ctx.now = () => new Date('2026-09-07T15:00:00.000Z');
+  const resumed = await assistant.request('chat', harness.ctx, {
+    conversation_id: first.conversation.id, message: 'Tarjeta de credito Qik',
+  });
+  const actions = resumed.conversation.actions;
+  assert.equal(actions.length, 5);
+  assert.deepEqual(actions.slice(0, 2).map(item => item.id), previousIds);
+  assert.deepEqual(actions.map(item => item.payload.cuentaId), ['cash', 'cash', 'qik-card', 'qik-card', 'qik-card']);
+  assert.deepEqual(actions.map(item => item.payload.montoCentavos), [119000, 20000, 97900, 220000, 125000]);
+  assert.ok(actions.every(item => item.payload.fecha === '2026-09-05' && item.status === 'pending'));
+  assert.equal(harness.writes(), 0);
+});
+
+test('una cabecera explicita elige la tarjeta Qik y conserva los centavos del lote', async () => {
+  const harness = septemberBatchContext([
+    { id: 'cash', nombre: 'Efectivo', tipo: 'efectivo', estado: 'activa' },
+    { id: 'qik-current', nombre: 'Cuenta corriente Qik', tipo: 'cuenta_corriente', estado: 'activa' },
+    { id: 'qik-card', nombre: 'Tarjeta de credito Qik', tipo: 'tarjeta_credito', estado: 'activa' },
+  ]);
+  const reply = await assistant.request('chat', harness.ctx, {
+    message: 'gaste en efectivo 765.25+425.50 en comida. desde Tarjeta de credito Qik: 2,200 Aceite Hummer H3. 1,250 Aceite tucan RR 200. todos fueron hechos ayer 5',
+  });
+  assert.deepEqual(reply.conversation.actions.map(item => item.payload.montoCentavos), [119075, 220000, 125000]);
+  assert.deepEqual(reply.conversation.actions.map(item => item.payload.cuentaId), ['cash', 'qik-card', 'qik-card']);
+  assert.equal(harness.writes(), 0);
+});
+
+test('una fecha ayer contradictoria detiene propuestas en lugar de cambiar silenciosamente el dia', async () => {
+  const harness = septemberBatchContext([{ id: 'cash', nombre: 'Efectivo', tipo: 'efectivo', estado: 'activa' }]);
+  const reply = await assistant.request('chat', harness.ctx, {
+    message: 'gaste 100 en comida. 200 en cafe. todos esos movimientos fueron hechos ayer 4',
+  });
+  assert.equal(reply.conversation.actions.length, 0);
+  assert.match(reply.message.content, /2026-09-05/);
+  assert.match(reply.message.content, /Aclara la fecha/i);
+  assert.equal(harness.writes(), 0);
+});
