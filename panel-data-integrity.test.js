@@ -84,7 +84,7 @@ test("Finanzas integra las ventas activas del POS y muestra su procedencia", () 
   assert.match(panel, /finAccountSalesDelta = account => financeCore\.projectedSalesDeltaForAccount/);
   assert.match(panel, /finStateCache\.accountSalesMovements = financeCore\.projectSalePaymentsAsMovements/);
   assert.match(panel, /const \[balanceSalesResult, balanceLedgerResult\] = await Promise\.all/);
-  assert.match(panel, /getFinanceLedgerMovements\(BUSINESS, \{ from: balanceFrom, to: balanceTo \}\)/);
+  assert.match(panel, /getFinanceLedgerMovements\(BUSINESS, \{ from: balanceFrom, to: balanceTo,[\s\S]{0,180}accounts: finStateCache.accounts/);
   assert.match(panel, /const activeSaleIdentifiers = new Set\(salesResult\.active\.flatMap/);
   assert.match(panel, /finStateCache\.movements = \[\.\.\.baseMovements, \.\.\.integratedSales\]/);
   assert.match(panel, /movement\.origen === "pos_venta" \? "POS Windows"/);

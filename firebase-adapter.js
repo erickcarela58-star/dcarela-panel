@@ -35,7 +35,7 @@
 
   function financeMovementKey(item) {
     const metadata = item?.metadata || {};
-    let key = String(item?.idempotency_key || metadata.idempotency_key || item?.ledger_id || item?.id || "")
+    let key = String(item?.ledger_id || item?.idempotency_key || metadata.idempotency_key || item?.id || "")
       .trim().toLowerCase();
     // Las conciliaciones migradas existen como documento `fin-*` y como
     // evento `sync-ledger-*`. Son dos proyecciones del mismo asiento, no dos
@@ -58,6 +58,7 @@
       || (type === 'ingreso' ? payload.cuentaId || payload.cuenta_id : null);
     return {
       id: payload.ledgerId || event.entity_id || event.event_id || event.id,
+      ledger_id: payload.ledgerId || event.entity_id || null,
       business_id: event.business_id || businessId,
       tipo: type,
       categoria: payload.categoria || '',
@@ -77,9 +78,13 @@
       venta_id: payload.ventaId || payload.venta_id || null,
       sale_id: payload.saleId || payload.sale_id || null,
       venta_folio: payload.ventaFolio || payload.venta_folio || null,
+      gasto_id: payload.gastoId || payload.gasto_id || null,
+      caja_movimiento_id: payload.cajaMovimientoId || payload.movimientoCajaId || null,
+      abono_id: payload.abonoId || null,
       sync_event_id: event.event_id || event.id,
       observaciones: payload.observaciones || '',
       source: 'pos_sync_event',
+      updated_at: event.created_at_local || event.received_at_cloud,
       afecta_resultado: payload.afecta_resultado ?? payload.afectaResultado,
       metadata: payload.metadata || {},
       idempotency_key: payload.idempotencyKey || payload.idempotency_key || null,
@@ -290,9 +295,31 @@
     };
   }
 
+  async function optionalBusinessDocument(ctx, collection, id) {
+    const result = await ctx.d.collection(collection).where('business_id', '==', ctx.businessId)
+      .where(firebase.firestore.FieldPath.documentId(), '==', id).limit(1).get();
+    return result.docs[0] || { exists: false, data: () => undefined };
+  }
+
+  async function eventTransaction(ctx, eventId, eventType, callback) {
+    try {
+      const result = await ctx.d.runTransaction(callback);
+      syncEventQueryCache.clear();
+      return result;
+    } catch (error) {
+      // Un evento inmutable hace abortar tambien los cambios de saldo de un
+      // reintento. Solo el mismo usuario y tipo pueden recuperar el resultado.
+      let previous;
+      try { previous = await ctx.d.collection('sync_events').doc(eventId).get(); } catch { throw error; }
+      const row = previous?.exists ? previous.data() : null;
+      if (row?.business_id !== ctx.businessId || row.event_type !== eventType || row.created_by_uid !== ctx.user.uid) throw error;
+      return { deduplicated: true, payload: row.payload };
+    }
+  }
+
   async function createFirebaseSale(ctx, data, requestId) {
     const d = ctx.d;
-    const existing = await d.collection('sync_events').doc(requestId).get();
+    const existing = await optionalBusinessDocument(ctx, 'sync_events', requestId);
     if (existing.exists) {
       const row = existing.data();
       if (row.event_type !== 'VentaCobrada') throw new Error('request_id ya pertenece a otra operacion.');
@@ -300,6 +327,7 @@
     }
     const shift = await openWebShift(ctx);
     if (!shift) throw new Error('Abre la caja web antes de registrar una venta.');
+    const shiftRef = d.collection('cash_shifts').doc(shift.id);
     if (!Array.isArray(data?.lineas) || !data.lineas.length || data.lineas.length > 200) {
       throw new Error('La venta necesita entre 1 y 200 lineas.');
     }
@@ -404,13 +432,15 @@
     const settledAccountIds = [...new Set(settledPayments.map(payment => payment.cuentaFinancieraId).filter(Boolean))];
     const settledAccountRefs = settledAccountIds.map(accountId => d.collection('fin_accounts').doc(accountId));
     const saleMovementRows = settledPayments.map((payment, index) => ({ payment, index }));
+    const counterBefore = await optionalBusinessDocument(ctx, 'counters', `${ctx.businessId}_web_sale`);
+    const materializeAccounts = ['owner', 'admin'].includes(ctx.role);
     let salePayload = null;
-    await d.runTransaction(async transaction => {
-      const [eventAgain, counter, ...accountDocs] = await Promise.all([
-        transaction.get(eventRef), transaction.get(counterRef),
+    const committed = await eventTransaction(ctx, requestId, 'VentaCobrada', async transaction => {
+      const [shiftDoc, counter, ...accountDocs] = await Promise.all([
+        transaction.get(shiftRef), counterBefore.exists ? transaction.get(counterRef) : Promise.resolve(counterBefore),
         ...settledAccountRefs.map(ref => transaction.get(ref)),
       ]);
-      if (eventAgain.exists) { salePayload = eventAgain.data().payload; return; }
+      if (!shiftDoc.exists || shiftDoc.data().status !== 'open') throw new Error('El turno ya esta cerrado.');
       const accountById = new Map(accountDocs.map((doc, index) => [settledAccountIds[index], doc]));
       accountById.forEach((accountDoc, accountId) => {
         if (!accountDoc.exists || accountDoc.data().business_id !== ctx.businessId) {
@@ -428,7 +458,8 @@
         metodo: settledPayments.length === 1 ? settledPayments[0].metodo : 'mixto',
         pagoConCentavos: received, cambioCentavos: received == null ? null : received - total - tip,
         propinaCentavos: tip, referencia: settledPayments.length === 1 ? settledPayments[0].referencia : null,
-        nota: text(data.nota, 1200) || null, idempotencyKey: requestId, pagos: settledPayments, lineas,
+        nota: text(data.nota, 1200) || null, idempotencyKey: requestId, pagos: settledPayments, lineas: lines,
+        finance_materialized: materializeAccounts,
         motivoInventario: text(data.motivoInventario, 500) || null,
         vendidaEn: soldAt, turnoInicio: shift.abiertoEn || shift.opened_at,
         usuarioId: ctx.user.uid, usuarioNombre: ctx.user.email || 'Caja web Firebase', origen: 'caja_web'
@@ -449,7 +480,7 @@
         accountDeltas.set(payment.cuentaFinancieraId,
           (accountDeltas.get(payment.cuentaFinancieraId) || 0) + payment.montoCentavos);
       });
-      saleMovementRows.filter(({ payment }) => payment.metodo !== 'credito').forEach(({ payment, index }) => {
+      saleMovementRows.filter(({ payment }) => materializeAccounts && payment.metodo !== 'credito').forEach(({ payment, index }) => {
         const accountDoc = accountById.get(payment.cuentaFinancieraId);
         const movementId = `sale-${saleId}-${index}`;
         const ledgerEventId = `ledger-${movementId}`;
@@ -471,6 +502,7 @@
             payment, folio, ledgerEventId }), soldAt));
       });
       accountDeltas.forEach((amount, accountId) => {
+        if (!materializeAccounts) return;
         const accountDoc = accountById.get(accountId);
         const current = Number(accountDoc.data().saldo_actual_centavos ?? accountDoc.data().saldo_inicial_centavos ?? 0);
         transaction.update(d.collection('fin_accounts').doc(accountId), {
@@ -480,6 +512,7 @@
       stockUpdates.forEach(item => transaction.update(d.collection('products').doc(item.id), { stock: item.stock, updated_at: soldAt }));
       if (credit && clientId) transaction.update(d.collection('clients').doc(clientId), { saldoCentavos: debt + credit, updated_at: soldAt });
     });
+    if (committed?.deduplicated) salePayload = committed.payload;
     return { ok: true, sale: salePayload, event: { id: requestId }, warnings: [] };
   }
 
@@ -498,21 +531,9 @@
   }
 
   function accountForSalePayment(payment, accounts) {
-    const active = activeFinanceAccounts(accounts);
-    const method = text(payment?.metodo, 40).toLowerCase();
-    if (method === 'credito') return null;
-    const explicitId = text(payment?.cuentaFinancieraId, 160);
-    const explicit = explicitId ? active.find(account => account.id === explicitId) : null;
-    if (explicit && explicit.tipo !== 'tarjeta_credito') return explicit;
-    if (method === 'efectivo') {
-      return active.find(account => account.tipo === 'efectivo' && account.ligada_ventas)
-        || active.find(account => account.tipo === 'efectivo') || null;
-    }
-    if (SALE_BANK_METHODS.has(method)) {
-      return active.find(account => account.tipo === 'banco' && /popular/i.test(String(account.nombre || '')))
-        || active.find(account => account.tipo === 'banco') || null;
-    }
-    return null;
+    const id = window.DcarelaFinanceCore.salePaymentAccount({ method: payment.metodo,
+      account_id: payment.cuentaFinancieraId, account_name: payment.cuentaFinancieraNombre }, accounts);
+    return accounts.find(account => account.id === id) || null;
   }
 
   function financeSaleMovementPayload({ movement, account, sale, payment, folio, ledgerEventId }) {
@@ -543,8 +564,10 @@
       estado: movement.estado || 'registrado',
       fechaEfectiva: movement.fecha || movement.created_at,
       cuentaId: accountId,
-      cuentaOrigenId: ['gasto', 'retiro', 'salida', 'comision', 'ajuste_negativo'].includes(type) ? accountId : null,
-      cuentaDestinoId: ['ingreso', 'deposito', 'entrada', 'ajuste_positivo'].includes(type) ? accountId : null,
+      cuentaOrigenId: ['gasto', 'retiro', 'salida', 'comision', 'ajuste_negativo', 'transferencia'].includes(type) ? accountId : null,
+      cuentaDestinoId: type === 'transferencia' ? movement.cuenta_destino_id || null
+        : ['ingreso', 'deposito', 'entrada', 'ajuste_positivo'].includes(type) ? accountId : null,
+      comisionCentavos: Number(movement.comision_centavos || 0),
       cuentaNombre: text(account.nombre, 120) || '',
       payee: text(movement.payee, 180) || null,
       observaciones: text(movement.nota, 1200) || '',
@@ -554,6 +577,9 @@
       ventaId: movement.venta_id || null,
       ventaFolio: movement.venta_folio || null,
       cajaMovimientoId: movement.caja_movimiento_id || null,
+      gastoId: movement.gasto_id || null,
+      abonoId: movement.abono_id || null,
+      afectaResultado: movement.afecta_resultado !== false,
     };
   }
 
@@ -653,20 +679,25 @@
     }
 
     if (action === 'expense.upsert') {
-      const id = text(entityId || data.gastoId, 160) || uuid();
+      const requestId = text(data.requestId, 80) || uuid();
+      const id = text(entityId || data.gastoId, 160) || `expense-${requestId}`;
       const amount = integer(data.montoCentavos, 'monto', 1);
       const accountId = text(data.cuentaId, 160);
       if (!accountId) throw new Error('Selecciona la cuenta de donde salio el gasto.');
       const expenseRef = d.collection('expenses').doc(id);
       const movementId = `expense-${id}`;
       const movementRef = d.collection('fin_movements').doc(movementId);
-      const ledgerEventId = `ledger-${movementId}`;
+      const ledgerEventId = `ledger-${movementId}-${requestId}`;
       const ledgerEventRef = d.collection('sync_events').doc(ledgerEventId);
-      const eventId = uuid();
+      const eventId = `expense-operation-${requestId}`;
       const eventRef = d.collection('sync_events').doc(eventId);
-      await d.runTransaction(async transaction => {
+      const [expenseBefore, movementBefore] = await Promise.all([
+        optionalBusinessDocument(ctx, 'expenses', id), optionalBusinessDocument(ctx, 'fin_movements', movementId),
+      ]);
+      await eventTransaction(ctx, ledgerEventId, 'LedgerMovimientoRegistrado', async transaction => {
         const [previousDoc, previousMovementDoc] = await Promise.all([
-          transaction.get(expenseRef), transaction.get(movementRef),
+          expenseBefore.exists ? transaction.get(expenseRef) : Promise.resolve(expenseBefore),
+          movementBefore.exists ? transaction.get(movementRef) : Promise.resolve(movementBefore),
         ]);
         const previous = previousDoc.exists ? previousDoc.data() : {};
         const previousMovement = previousMovementDoc.exists ? previousMovementDoc.data() : null;
@@ -721,9 +752,10 @@
       const expenseRef = d.collection('expenses').doc(id);
       const movementRef = d.collection('fin_movements').doc(`expense-${id}`);
       const eventId = uuid();
+      const movementBefore = await optionalBusinessDocument(ctx, 'fin_movements', `expense-${id}`);
       await d.runTransaction(async transaction => {
         const [expenseDoc, movementDoc] = await Promise.all([
-          transaction.get(expenseRef), transaction.get(movementRef),
+          transaction.get(expenseRef), movementBefore.exists ? transaction.get(movementRef) : Promise.resolve(movementBefore),
         ]);
         if (!expenseDoc.exists || expenseDoc.data().business_id !== ctx.businessId) throw new Error('El gasto no existe.');
         const movement = movementDoc.exists ? movementDoc.data() : null;
@@ -736,6 +768,10 @@
         transaction.set(expenseRef, payload, { merge: true });
         if (movement && movement.estado !== 'anulado') {
           transaction.update(movementRef, { estado: 'anulado', motivo_anulacion: text(data.motivo, 500), updated_at: createdAt });
+          const ledgerEventId = `ledger-expense-cancel-${eventId}`;
+          transaction.set(d.collection('sync_events').doc(ledgerEventId), eventDocument(ctx, ledgerEventId,
+            'LedgerMovimientoRegistrado', 'fin_movements', movement.id || `expense-${id}`,
+            financeLedgerPayload({ ...movement, id: movement.id || `expense-${id}`, estado: 'anulado', sync_event_id: ledgerEventId }, accountDoc.data()), createdAt));
           const current = Number(accountDoc.data().saldo_actual_centavos ?? accountDoc.data().saldo_inicial_centavos ?? 0);
           transaction.update(accountRef, { saldo_actual_centavos: current + Math.abs(Number(movement.monto_centavos || 0)), updated_at: createdAt });
         }
@@ -773,13 +809,13 @@
       if (!obligationId) throw new Error('La obligacion es obligatoria.');
       const accountId = text(data.cuentaId, 160);
       if (!accountId) throw new Error('Selecciona la cuenta de donde salio el pago.');
-      const paymentId = uuid();
+      const paymentId = text(data.requestId, 80) || uuid();
       const eventId = uuid();
       const ledgerMovementId = `cost-payment-${paymentId}`;
       const ledgerEventId = `ledger-${ledgerMovementId}`;
       const obligationRef = d.collection('cost_obligations').doc(obligationId);
       const accountRef = d.collection('fin_accounts').doc(accountId);
-      await d.runTransaction(async transaction => {
+      await eventTransaction(ctx, ledgerEventId, 'LedgerMovimientoRegistrado', async transaction => {
         const [obligation, account] = await Promise.all([
           transaction.get(obligationRef), transaction.get(accountRef),
         ]);
@@ -889,7 +925,7 @@
           saldo_anterior_centavos: current, saldo_resultante_centavos: target,
           afecta_resultado: false, created_at: createdAt, updated_at: createdAt, ...actor
         });
-        transaction.update(accountRef, { saldo_actual_centavos: target, reconciled_at: createdAt, updated_at: createdAt });
+        transaction.update(accountRef, { saldo_actual_centavos: target, reconciled_balance_centavos: target, reconciled_at: createdAt, updated_at: createdAt });
       });
       return { ok: true, id: movementId, difference, message: 'Saldo conciliado mediante asiento auditable.' };
     }
@@ -900,13 +936,13 @@
       const amount = integer(data.montoCentavos, 'monto', 1);
       const signed = financeSignedAmount(type, amount);
       const accountRef = d.collection('fin_accounts').doc(accountId);
-      const movementId = text(entityId, 160) || uuid();
+      const movementId = text(entityId || data.requestId, 160) || uuid();
       const movementRef = d.collection('fin_movements').doc(movementId);
       const eventId = `ledger-${movementId}`;
       const eventRef = d.collection('sync_events').doc(eventId);
       const categoryId = text(data.categoriaId, 160) || null;
       const categoryRef = categoryId ? d.collection('fin_categories').doc(categoryId) : null;
-      await d.runTransaction(async transaction => {
+      await eventTransaction(ctx, eventId, 'LedgerMovimientoRegistrado', async transaction => {
         const [accountDoc, categoryDoc] = await Promise.all([
           transaction.get(accountRef),
           categoryRef ? transaction.get(categoryRef) : Promise.resolve(null),
@@ -984,10 +1020,10 @@
       const fee = integer(data.comisionCentavos || 0, 'comision', 0);
       const sourceRef = d.collection('fin_accounts').doc(sourceId);
       const targetRef = d.collection('fin_accounts').doc(targetId);
-      const movementId = uuid();
+      const movementId = text(data.requestId, 80) || uuid();
       const eventId = `ledger-${movementId}`;
       const eventRef = d.collection('sync_events').doc(eventId);
-      await d.runTransaction(async transaction => {
+      await eventTransaction(ctx, eventId, 'LedgerMovimientoRegistrado', async transaction => {
         const [sourceDoc, targetDoc] = await Promise.all([transaction.get(sourceRef), transaction.get(targetRef)]);
         if (!sourceDoc.exists || !targetDoc.exists || sourceDoc.data().business_id !== ctx.businessId || targetDoc.data().business_id !== ctx.businessId) {
           throw new Error('Las cuentas de la transferencia no son validas.');
@@ -1015,7 +1051,7 @@
             cuentaDestinoNombre: text(targetDoc.data().nombre, 120),
             actorId: ctx.user.uid, usuarioNombre: ctx.user.email || 'Panel Firebase',
             requestId: movementId, idempotencyKey: eventId,
-            observaciones: movement.nota || '', origen: 'panel'
+            observaciones: movement.nota || '', origen: 'panel', comisionCentavos: fee, afectaResultado: false
           }, createdAt));
         transaction.update(sourceRef, { saldo_actual_centavos: sourceBalance - amount - fee, updated_at: createdAt });
         transaction.update(targetRef, { saldo_actual_centavos: targetBalance + amount, updated_at: createdAt });
@@ -1038,6 +1074,7 @@
       const id = text(entityId, 160);
       const ref = d.collection('fin_movements').doc(id);
       const restoring = action.endsWith('.restore');
+      const eventId = `ledger-state-${text(data.requestId, 80) || uuid()}`;
       await d.runTransaction(async transaction => {
         const movement = await transaction.get(ref);
         if (!movement.exists || movement.data().business_id !== ctx.businessId) throw new Error('El movimiento no existe.');
@@ -1064,6 +1101,9 @@
         }
         transaction.update(ref, { estado: restoring ? 'registrado' : 'anulado',
           motivo_anulacion: restoring ? null : text(data.motivo, 500), updated_at: createdAt });
+        transaction.set(d.collection('sync_events').doc(eventId), eventDocument(ctx, eventId,
+          'LedgerMovimientoRegistrado', 'fin_movements', id,
+          financeLedgerPayload({ ...row, id, estado: restoring ? 'registrado' : 'anulado', sync_event_id: eventId }, account.data()), createdAt));
       });
       return { ok: true, id, message: restoring ? 'Movimiento restaurado.' : 'Movimiento anulado sin borrarlo.' };
     }
@@ -1168,21 +1208,21 @@
     if (action === 'fin.commitment.payment') {
       const commitmentId = text(entityId, 160);
       const amount = integer(data.montoCentavos, 'monto', 1);
-      const id = uuid();
+      const id = text(data.requestId, 80) || uuid();
       const accountId = text(data.cuentaId, 160);
       if (!accountId) throw new Error('Selecciona la cuenta de donde salio el pago.');
       const commitmentRef = d.collection('fin_commitments').doc(commitmentId);
       const accountRef = d.collection('fin_accounts').doc(accountId);
       const ledgerMovementId = `commitment-payment-${id}`;
       const ledgerEventId = `ledger-${ledgerMovementId}`;
-      await d.runTransaction(async transaction => {
+      await eventTransaction(ctx, ledgerEventId, 'LedgerMovimientoRegistrado', async transaction => {
         const [commitment, account] = await Promise.all([
           transaction.get(commitmentRef), transaction.get(accountRef),
         ]);
         if (!commitment.exists || commitment.data().business_id !== ctx.businessId) throw new Error('El compromiso no existe.');
         if (!account.exists || account.data().business_id !== ctx.businessId) throw new Error('La cuenta de pago no existe.');
         const accountBalance = Number(account.data().saldo_actual_centavos ?? account.data().saldo_inicial_centavos ?? 0);
-        const balance = Math.max(0, Number(commitment.data().saldo_pendiente_centavos || 0) - Number(data.capitalCentavos || amount));
+        const balance = Math.max(0, Number(commitment.data().saldo_pendiente_centavos || 0) - Number(data.capitalCentavos ?? amount));
         const movement = {
           id: ledgerMovementId, business_id: ctx.businessId, tipo: 'gasto',
           fecha: text(data.fecha, 10) || createdAt.slice(0, 10), hora: createdAt.slice(11, 19),
@@ -1408,6 +1448,7 @@
       }
       if (Number(options.limit) > 0) q = q.limit(Math.max(1, Math.min(500, Number(options.limit))));
       return q.onSnapshot(snap => {
+        if (collectionName === 'sync_events' && !snap.metadata?.fromCache) syncEventQueryCache.clear();
         const items = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         callback(items);
       }, err => {
@@ -1531,6 +1572,7 @@
               fresh = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
               markSyncQueryPrimed(queryKey);
             } catch (error) {
+              if (includeArchives) throw error;
               if (!cached.length) throw error;
               console.warn('getSyncEvents(): se usa cache local por fallo de cuota o red.', error?.message || error);
               fresh = [];
@@ -1655,18 +1697,41 @@
       const fromTime = from ? Date.parse(from) : -Infinity;
       const toTime = to ? Date.parse(to) : Infinity;
       if (Number.isNaN(fromTime) || Number.isNaN(toTime) || fromTime > toTime) throw new Error('Rango contable invalido.');
-      const events = await this.getSyncEvents(businessId, {
+      const [events, documents] = await Promise.all([this.getSyncEvents(businessId, {
         from, to, limit: SYNC_EVENT_MAX_BATCH, includeArchives: true,
-        eventTypes: ['LedgerMovimientoRegistrado']
-      });
+        eventTypes: ['LedgerMovimientoRegistrado', ...window.DcarelaFinanceCore.OPERATION_EVENT_TYPES]
+      }), this.getCollection('fin_movements', [['business_id', '==', businessId]])]);
       const merged = new Map();
       events.filter(event => event.event_type === 'LedgerMovimientoRegistrado')
+        .sort((a, b) => String(a.created_at_local || '').localeCompare(String(b.created_at_local || '')))
         .map(event => financeMovementFromLedgerEvent(event, businessId))
         .filter(item => {
           const instant = Date.parse(item.source_timestamp || `${item.fecha}T00:00:00-04:00`);
           return Number.isFinite(instant) && instant >= fromTime && instant <= toTime;
         }).forEach(item => merged.set(financeMovementKey(item), item));
-      return [...merged.values()];
+      documents.forEach(item => merged.set(financeMovementKey(item), item));
+      const ledger = [...merged.values()];
+      return [...ledger, ...window.DcarelaFinanceCore.projectOperationsAsMovements(
+        events, options.accounts || [], ledger, options)];
+    },
+
+    async getFinanceAccountState(businessId = 'dcarela', accounts = null) {
+      const core = window.DcarelaFinanceCore;
+      accounts = accounts || await this.getFinanceAccounts(businessId);
+      const dates = accounts.map(a => a.reconciled_at || a.created_at).filter(x => Number.isFinite(Date.parse(x))).sort();
+      if (!dates.length) return { accounts, movements: [], balances: accounts.map(a => ({ id: a.id, balance: core.effectiveAccountBalance(a, []) })) };
+      const from = dates[0], to = nowIso();
+      const preferences = await this.getFinancePreferences(businessId);
+      const transferAccountId = preferences?.cuenta_ingreso_default_id || null;
+      const [ledger, events, cancellations] = await Promise.all([
+        this.getFinanceLedgerMovements(businessId, { from, to, accounts, transferAccountId }),
+        this.getSyncEvents(businessId, { from, to, limit: SYNC_EVENT_MAX_BATCH, includeArchives: true, eventTypes: ['VentaCobrada'] }),
+        this.getCollection('sync_events', [['business_id', '==', businessId], ['event_type', '==', 'VentaCancelada']]),
+      ]);
+      const cancelled = new Set(cancellations.flatMap(core.saleIdentifiers));
+      const sales = core.deduplicateSales(events.filter(e => !core.saleIdentifiers(e).some(id => cancelled.has(id))));
+      const movements = [...ledger, ...core.projectSalePaymentsAsMovements(sales, accounts, {businessId,transferAccountId})];
+      return { accounts, movements, balances: accounts.map(a => ({id:a.id, balance:core.effectiveAccountBalance(a, movements)})) };
     },
 
     async getFinanceMovements(businessId = 'dcarela', month = null) {
@@ -1687,7 +1752,8 @@
       ]);
       const rows = financeResult.status === 'fulfilled' ? financeResult.value : [];
       const ledgerRows = ledgerResult.status === 'fulfilled'
-        ? ledgerResult.value.map(event => financeMovementFromLedgerEvent(event, businessId)) : [];
+        ? ledgerResult.value.sort((a, b) => String(a.created_at_local || '').localeCompare(String(b.created_at_local || '')))
+          .map(event => financeMovementFromLedgerEvent(event, businessId)) : [];
       const merged = new Map();
       // La proyeccion materializada conserva los campos completos del panel;
       // el evento cubre movimientos que solo existen en el POS Windows.
@@ -1750,9 +1816,7 @@
           montoAperturaCentavos: shift.montoAperturaCentavos, abiertoEn: openedAt,
           usuarioId: ctx.user.uid, usuarioNombre: ctx.user.email || 'Caja web Firebase'
         };
-        await ctx.d.runTransaction(async transaction => {
-          const previous = await transaction.get(eventRef);
-          if (previous.exists) return;
+        await eventTransaction(ctx, id, 'CajaAbierta', async transaction => {
           transaction.set(ctx.d.collection('cash_shifts').doc(shiftId), shift);
           transaction.set(eventRef, eventDocument(ctx, id, 'CajaAbierta', 'turnos', shiftId, payload, openedAt));
         });
@@ -1796,33 +1860,13 @@
         const cashAccount = cashAccounts.find(account => account.tipo === 'efectivo' && account.ligada_ventas)
           || cashAccounts.find(account => account.tipo === 'efectivo');
         if (!cashAccount) throw new Error('Configura una cuenta financiera de tipo Efectivo antes de registrar entradas o salidas de caja.');
-        const ledgerMovementId = `cash-${movementId}`;
-        const ledgerEventId = `ledger-${ledgerMovementId}`;
-        const movementType = type === 'SalidaEfectivo' ? 'gasto' : 'ingreso';
-        await ctx.d.runTransaction(async transaction => {
-          const [previous, shiftDoc, accountDoc] = await Promise.all([
-            transaction.get(eventRef),
-            transaction.get(ctx.d.collection('cash_shifts').doc(shift.id)),
-            transaction.get(ctx.d.collection('fin_accounts').doc(cashAccount.id)),
-          ]);
-          if (previous.exists) return;
+        payload.cuentaId = cashAccount.id;
+        await eventTransaction(ctx, id, type, async transaction => {
+          const shiftDoc = await transaction.get(ctx.d.collection('cash_shifts').doc(shift.id));
           if (!shiftDoc.exists || shiftDoc.data().business_id !== ctx.businessId) throw new Error('El turno de caja no existe.');
-          if (!accountDoc.exists || accountDoc.data().business_id !== ctx.businessId) throw new Error('La cuenta de efectivo no existe.');
-          const current = Number(accountDoc.data().saldo_actual_centavos ?? accountDoc.data().saldo_inicial_centavos ?? 0);
-          const signed = type === 'SalidaEfectivo' ? -amount : amount;
-          const movement = {
-            id: ledgerMovementId, business_id: ctx.businessId, tipo: movementType,
-            fecha: businessDay(createdAt), hora: createdAt.slice(11, 19), monto_centavos: amount,
-            cuenta_id: cashAccount.id, descripcion: payload.motivo, nota: payload.origenEntrada || null,
-            origen: 'caja_web', estado: 'registrado', afecta_resultado: false,
-            sync_event_id: ledgerEventId, created_at: createdAt, updated_at: createdAt,
-            caja_movimiento_id: movementId, turno_id: shift.id,
-            created_by_uid: ctx.user.uid, created_by_email: ctx.user.email || '',
-          };
-          transaction.set(ctx.d.collection('fin_movements').doc(ledgerMovementId), movement);
-          transaction.set(ctx.d.collection('sync_events').doc(ledgerEventId), eventDocument(
-            ctx, ledgerEventId, 'LedgerMovimientoRegistrado', 'fin_movements', ledgerMovementId,
-            financeLedgerPayload(movement, accountDoc.data()), createdAt));
+          if (shiftDoc.data().status !== 'open') throw new Error('El turno ya esta cerrado.');
+          // El diario proyecta este evento una sola vez para admin y cajero.
+          // Un traslado interno cambia la gaveta, no el efectivo del negocio.
           transaction.set(eventRef, eventDocument(ctx, id, type, 'movimientos_caja', movementId, payload, createdAt));
           transaction.update(ctx.d.collection('cash_shifts').doc(shift.id), {
             [type === 'SalidaEfectivo' ? 'exitsCentavos' : 'entriesCentavos']:
@@ -1836,9 +1880,6 @@
                 firebase.firestore.FieldValue.increment(amount),
             } : {}),
             updated_at: createdAt,
-          });
-          transaction.update(ctx.d.collection('fin_accounts').doc(cashAccount.id), {
-            saldo_actual_centavos: current + signed, updated_at: createdAt,
           });
         });
         return { ok: true, movement: payload };
@@ -1878,9 +1919,7 @@
           nota: text(data.nota, 1000) || null, abiertoEn: shift.abiertoEn || shift.opened_at,
           cerradoEn: closedAt, usuarioId: ctx.user.uid, usuarioNombre: ctx.user.email || 'Caja web Firebase'
         };
-        await ctx.d.runTransaction(async transaction => {
-          const previous = await transaction.get(eventRef);
-          if (previous.exists) return;
+        await eventTransaction(ctx, id, 'CajaCerrada', async transaction => {
           transaction.update(ctx.d.collection('cash_shifts').doc(shift.id), {
             status: 'closed', cerradoEn: closedAt, closed_at: closedAt,
             efectivoEsperadoCentavos: expected, efectivoContadoCentavos: counted,
@@ -1952,7 +1991,7 @@
           const saleShiftRef = materializedWebSale && sale.turnoId
             ? ctx.d.collection('cash_shifts').doc(sale.turnoId)
             : null;
-          const saleSettlementRows = materializedWebSale
+          const saleSettlementRows = materializedWebSale && sale.finance_materialized === true
             ? (sale.pagos || []).map((payment, index) => ({ payment, index }))
               .filter(({ payment }) => payment.metodo !== 'credito' && payment.cuentaFinancieraId)
             : [];
@@ -1994,6 +2033,11 @@
             transaction.update(saleMovementRefs[saleSettlementRows.findIndex(row => row.index === index)], {
               estado: 'anulado', motivo_anulacion: reason, updated_at: createdAt,
             });
+            const ledgerEventId = `ledger-sale-cancel-${id}-${index}`;
+            transaction.set(ctx.d.collection('sync_events').doc(ledgerEventId), eventDocument(ctx, ledgerEventId,
+              'LedgerMovimientoRegistrado', 'fin_movements', `sale-${saleId}-${index}`,
+              financeLedgerPayload({ ...movement.data(), id: `sale-${saleId}-${index}`,
+                estado: 'anulado', sync_event_id: ledgerEventId }, saleAccountById.get(payment.cuentaFinancieraId).data()), createdAt));
           });
           saleReversals.forEach((amount, accountId) => {
             const account = saleAccountById.get(accountId).data();
@@ -2054,7 +2098,13 @@
 
     async adminAction(action, businessId, role, entityId = null, data = {}) {
       const ctx = await firebaseContext(businessId, role);
-      return firebaseAdminAction(ctx, action, entityId, data);
+      const result = await firebaseAdminAction(ctx, action, entityId, data);
+      syncEventQueryCache.clear();
+      return result;
+    },
+
+    invalidateReadCache() {
+      syncEventQueryCache.clear();
     },
 
     async assistantRequest(body = {}) {

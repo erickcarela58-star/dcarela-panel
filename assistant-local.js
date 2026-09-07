@@ -273,7 +273,10 @@
     const shifts = value(3);
     const salesCents = sales.reduce((sum, item) => sum + saleTotal(item), 0);
     const expenseCents = expenses.reduce((sum, item) => sum + movementAmount(item), 0);
-    const accountCents = accounts.reduce((sum, item) => sum + number(item.saldo_actual_centavos, item.saldoActualCentavos, item.saldo_inicial_centavos), 0);
+    const accountState = ctx.adapter.getFinanceAccountState
+      ? await ctx.adapter.getFinanceAccountState(ctx.businessId, accounts) : null;
+    const accountCents = accountState ? accountState.balances.reduce((sum, item) => sum + item.balance, 0)
+      : accounts.reduce((sum, item) => sum + number(item.saldo_actual_centavos, item.saldoActualCentavos, item.saldo_inicial_centavos), 0);
     const openShift = shifts.find(item => normalize(item.status) === 'open') || null;
     return `### Resumen real del ${requestedDay}\n\n`
       + `- Ventas confirmadas: **${sales.length}** por **${money(salesCents)}**.\n`
@@ -400,8 +403,11 @@
       categories.set(label, (categories.get(label) || 0) + movementAmount(item));
     });
     const topCategories = [...categories.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8);
+    const accountState = ctx.adapter.getFinanceAccountState
+      ? await ctx.adapter.getFinanceAccountState(ctx.businessId, accounts) : null;
     const accountLines = accounts.slice(0, 12).map(account => {
-      const balance = number(account.saldo_actual_centavos, account.saldoActualCentavos, account.saldo_inicial_centavos);
+      const balance = accountState ? accountState.balances.find(row => row.id === account.id)?.balance
+        : number(account.saldo_actual_centavos, account.saldoActualCentavos, account.saldo_inicial_centavos);
       return `- ${text(account.nombre || account.name, 100)} (${text(account.tipo || 'cuenta', 60)}): ${money(balance)}`;
     });
     const partial = movementResult.status === 'rejected' || movements.partial_error;

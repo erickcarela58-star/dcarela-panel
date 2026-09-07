@@ -97,8 +97,8 @@
   function movementIdentity(item) {
     // Cobros mixtos comparten sync_event_id: su id incluye el lado del pago.
     if (item?.origen === "pos_venta") return item.id ? `venta:${item.id}` : "";
-    let id = String(item?.idempotency_key || item?.idempotencyKey || item?.metadata?.idempotency_key
-      || item?.ledger_id || item?.ledgerId || item?.id || item?.sync_event_id || "").trim().toLowerCase();
+    let id = String(item?.ledger_id || item?.ledgerId || item?.idempotency_key || item?.idempotencyKey || item?.metadata?.idempotency_key
+      || item?.id || item?.sync_event_id || "").trim().toLowerCase();
     while (/^(sync-ledger-|ledger-|fin-)/.test(id)) id = id.replace(/^(sync-ledger-|ledger-|fin-)/, "");
     return id;
   }
@@ -275,6 +275,7 @@
   function salePaymentAccount(payment, accounts, options = {}) {
     const active = (accounts || []).filter(account => !account?.oculta && account?.estado !== "eliminada");
     const method = normalizePaymentMethod(payment?.method);
+    if (method === "credito" || method === "sin_asignar") return null;
     const explicitId = String(payment?.account_id || "").trim();
     const explicitAccount = explicitId ? active.find(account => String(account.id) === explicitId) : null;
     if (explicitAccount && !(explicitAccount.tipo === "tarjeta_credito"
@@ -346,6 +347,7 @@
     const cutoff = cutoffText ? new Date(cutoffText).getTime() : Number.NaN;
     if (!Number.isFinite(cutoff)) return 0;
     const uniqueMovements = deduplicateMovements(movements);
+    const fromCheckpoint = Number.isFinite(account.reconciled_balance_centavos);
     const materializedSaleIds = new Set(uniqueMovements
       .filter(item => item.origen !== "pos_venta" && item.source !== "pos_venta")
       .flatMap(item => movementSaleIdentifiers(item)));
@@ -358,12 +360,13 @@
       // fin_movements ya fue materializado en saldo_actual_centavos. Solo se
       // proyectan ventas y eventos del ledger Windows que aun no viven en la
       // cuenta remota; asi una escritura web y su sync_event no se duplican.
+      if (fromCheckpoint) return true;
       const materializedOrigin = ["panel", "asistente", "movil", "caja_web", "conciliacion_propietario"]
         .includes(String(item.origen || "").toLowerCase());
-      return item.origen === "pos_venta"
+      return item.origen === "pos_venta" || item.source === "pos_operation"
         || (item.source === "pos_sync_event" && !materializedOrigin);
     }).reduce((sum, item) => {
-      const timestamp = new Date(item.source_timestamp || item.created_at
+      const timestamp = new Date(item.source_timestamp || (item.fecha ? `${item.fecha}T23:59:59-04:00` : item.created_at)
         || `${item.fecha}T23:59:59-04:00`).getTime();
       if (!Number.isFinite(timestamp) || timestamp <= cutoff) return sum;
       const amount = Math.abs(finiteNumber(item.monto_centavos));
@@ -381,8 +384,51 @@
   }
 
   function effectiveAccountBalance(account, movements) {
-    return finiteNumber(account?.saldo_actual_centavos ?? account?.saldo_inicial_centavos)
+    // Un cuadre es una base inmutable, no un acumulado que pueda contener ya
+    // parte de las ventas. Todos los consumidores suman el mismo diario.
+    return finiteNumber(account?.reconciled_balance_centavos ?? account?.saldo_actual_centavos ?? account?.saldo_inicial_centavos)
       + projectedLedgerDeltaForAccount(account, movements);
+  }
+
+  const OPERATION_EVENT_TYPES = ["GastoRegistrado", "GastoEditado", "GastoAnulado", "GastoEliminado",
+    "AbonoClienteRegistrado", "EntradaEfectivo", "SalidaEfectivo"];
+
+  function projectOperationsAsMovements(events, accounts, represented = [], options = {}) {
+    const latest = new Map();
+    const links = row => [row.gasto_id, row.gastoId, row.caja_movimiento_id, row.cajaMovimientoId,
+      row.movimientoCajaId, row.abono_id, row.abonoId, row.metadata?.gasto_id,
+      row.metadata?.caja_movimiento_id, row.metadata?.abono_id].filter(Boolean).map(String);
+    const representedIds = new Set(represented.flatMap(links));
+    const ordered = [...(events || [])].sort((a, b) => String(a.created_at_local || "").localeCompare(String(b.created_at_local || "")));
+    ordered.filter(event => OPERATION_EVENT_TYPES.includes(event.event_type)).forEach(event => {
+      const p = eventPayload(event);
+      const expense = event.event_type.startsWith("Gasto");
+      const id = expense ? p.gastoId || event.entity_id : p.movimientoId || event.event_id || event.id;
+      latest.set(`${expense ? "expense" : "cash"}:${id}`, { event, p, expense, id });
+    });
+    const expenseCashIds = new Set([...latest.values()].filter(x => x.expense).map(x => x.p.movimientoCajaId).filter(Boolean));
+    return [...latest.values()].flatMap(({ event, p, expense, id }) => {
+      if ([id, p.movimientoCajaId].filter(Boolean).some(key => representedIds.has(String(key)))) return [];
+      if (!expense && expenseCashIds.has(id)) return [];
+      const entry = event.event_type === "EntradaEfectivo";
+      if (entry && p.origenEntrada !== "dinero_cliente") return [];
+      const abono = event.event_type === "AbonoClienteRegistrado";
+      const type = expense || event.event_type === "SalidaEfectivo" ? "gasto" : "ingreso";
+      const accountId = salePaymentAccount({ method: p.metodo || p.metodoPago || "efectivo",
+        account_id: p.cuentaFinancieraId || p.cuentaId, account_name: p.cuentaFinancieraNombre }, accounts, options);
+      const timestamp = p.fecha || p.registradoEn || event.created_at_local;
+      return [normalizeMovement({ id: `operation-${expense ? "expense" : "cash"}-${id}`,
+        business_id: event.business_id || options.businessId || "", tipo: type,
+        estado: /Anulado|Eliminado/.test(event.event_type) || p.activo === false ? "anulado" : "registrado",
+        monto_centavos: p.montoCentavos, cuenta_id: accountId, fecha: businessDay(timestamp),
+        source_timestamp: timestamp, source: "pos_operation", origen: "caja_operacion",
+        descripcion: p.descripcion || p.motivo || (abono ? "Abono de cliente" : "Movimiento de caja"),
+        payee: p.clienteNombre || null, nota: p.nota || null, categoria_id: p.categoriaId || null,
+        afecta_resultado: type === "gasto", gasto_id: expense ? id : null,
+        caja_movimiento_id: expense ? p.movimientoCajaId : !abono ? id : null,
+        abono_id: abono ? id : null, sync_event_id: event.event_id || event.id, solo_lectura: true,
+      })];
+    });
   }
 
   function projectSalesAsMovements(sales, options = {}) {
@@ -455,6 +501,8 @@
     projectedSalesDeltaForAccount,
     projectedLedgerDeltaForAccount,
     effectiveAccountBalance,
+    OPERATION_EVENT_TYPES,
+    projectOperationsAsMovements,
     projectSalesAsMovements,
     mergeSalesIntoMovements,
   };

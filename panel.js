@@ -21,7 +21,7 @@
     document.body?.classList.add("is-embedded");
   }
   const THEME_KEY = "dcarela.ui.theme";
-  const APP_BUILD = "1.0.67";
+  const APP_BUILD = "1.0.73";
   const financeCore = window.DcarelaFinanceCore;
   const moneyManagerCore = window.DcarelaMoneyManagerCore;
 
@@ -4920,7 +4920,8 @@
 
   function abrirGasto(state, expense = null) {
     if (!state.categories.length) { toast("Agrega primero una categoria de gasto."); return; }
-    const item = expense || { metodoPago: "transferencia", fecha: new Date().toISOString(), activo: true };
+    const requestId = crypto.randomUUID();
+    const item = expense || { metodoPago: "efectivo", fecha: new Date().toISOString(), activo: true };
     const accounts = (finStateCache?.accounts || []).filter(account => !account.oculta && account.estado !== "eliminada");
     if (!accounts.length) { toast("Agrega una cuenta financiera antes de registrar un gasto."); return; }
     const defaultAccount = item.cuentaId || item.cuenta_id || finStateCache?.preferences?.cuenta_gasto_default_id
@@ -4937,6 +4938,7 @@
       <label class="field-wide"><span>Nota</span><textarea name="nota" rows="3" maxlength="1200">${esc(item.nota || "")}</textarea></label>`, async form => {
       const category = state.categories.find(value => value.id === form.get("categoriaId"));
       await adminWrite("expense.upsert", expense?.id, {
+        requestId,
         gastoId: expense?.id || null, categoriaId: form.get("categoriaId"), categoria: category?.nombre || null,
         descripcion: form.get("descripcion"), montoCentavos: centavosInput(form.get("monto")),
         metodoPago: form.get("metodoPago"), cuentaId: form.get("cuentaId"), nota: form.get("nota"), fecha: form.get("fecha")
@@ -5359,14 +5361,14 @@
     };
     dispararAlertaCumuloMensual();
     finDashboardPeriod = finStateCache.preferences?.periodo_dashboard || finDashboardPeriod;
-    renderFinAccounts();
+    if (authProvider !== "firebase") renderFinAccounts();
     renderFinPendingTransfers();
     renderFinCommitments();
     renderFinMovements();
     await renderFinBudgets();
-    renderFinCards();
+    if (authProvider !== "firebase") renderFinCards();
     renderFinSettings();
-    await renderFinDashboard();
+    if (authProvider !== "firebase") await renderFinDashboard();
     subscribeFinanceRealtime();
   }
 
@@ -5867,7 +5869,7 @@
     }
     $("finTarjetasCards").innerHTML = cardAccounts.map(account => {
       const card = settings.get(account.id);
-      const balance = numero(account.saldo_actual_centavos);
+      const balance = finAccountBalance(account);
       const debt = Math.max(0, -balance);
       const aFavor = Math.max(0, balance);
       const color = esc(card?.color || "#18181B");
@@ -6805,6 +6807,7 @@
   }
 
   async function cargarProveedoresData(force = false) {
+    if (force && authProvider === "firebase") window.DcarelaFirebase?.invalidateReadCache?.();
     if (!$("provMes").value) $("provMes").value = inputDate(new Date()).slice(0, 7);
     const month = $("provMes").value;
     const from = inicioDia(`${month}-01`);
@@ -6832,10 +6835,12 @@
         ? ventasActivas(balanceFrom, balanceTo, 20000)
         : Promise.resolve({ active: [], excluded: 0, duplicates: 0, raw: [] }),
       balanceFrom && authProvider === "firebase" && window.DcarelaFirebase?.getFinanceLedgerMovements
-        ? window.DcarelaFirebase.getFinanceLedgerMovements(BUSINESS, { from: balanceFrom, to: balanceTo })
+        ? window.DcarelaFirebase.getFinanceLedgerMovements(BUSINESS, { from: balanceFrom, to: balanceTo,
+          accounts: finStateCache.accounts, transferAccountId: finStateCache.preferences?.cuenta_ingreso_default_id || null })
           .then(rows => ({ rows, error: "" })).catch(error => ({ rows: [], error: error?.message || String(error) }))
         : Promise.resolve({ rows: [], error: "" }),
     ]);
+    if (balanceLedgerResult.error) throw new Error(`No se pudo verificar el diario de las cuentas: ${balanceLedgerResult.error}`);
     const monthExpenses = state.expenses.filter(item => item.activo && monthOf(item.fecha || item._latestAt) === month);
     const monthPayments = state.payments.filter(item => monthOf(item.fecha) === month);
     const monthObligations = state.obligations.filter(item => monthOf(item.venceEn) === month && !["anulada", "pagada"].includes(item.estado));
@@ -6848,7 +6853,10 @@
     let integratedSales = [];
     if (finStateCache) {
       const activeSaleIdentifiers = new Set(salesResult.active.flatMap(event => financeCore.saleIdentifiers(event)));
-      const baseMovements = finStateCache.movements.filter(item => {
+      const baseMovements = financeCore.deduplicateMovements([
+        ...finStateCache.movements,
+        ...(balanceLedgerResult.rows || []).filter(item => String(item.fecha || '').startsWith(`${month}-`)),
+      ]).filter(item => {
         if (item.origen === "pos_venta") return false;
         const identifiers = [item.sync_event_id, item.venta_id, item.sale_id, item.venta_folio]
           .filter(Boolean).map(value => String(value).trim().toLocaleLowerCase("es"));
@@ -6886,6 +6894,7 @@
         }
       }
       renderFinAccounts();
+      renderFinCards();
       renderFinCommitments();
       renderFinMovements();
       await renderFinDashboard();

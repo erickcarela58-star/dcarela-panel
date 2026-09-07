@@ -27,7 +27,7 @@ test('el saldo de cuentas puede releer solo el ledger posterior al ultimo cuadre
   const method = adapter.slice(start, end);
   assert.match(method, /from, to, limit: SYNC_EVENT_MAX_BATCH/);
   assert.match(method, /includeArchives: true/);
-  assert.match(method, /eventTypes: \['LedgerMovimientoRegistrado'\]/);
+  assert.match(method, /eventTypes: \['LedgerMovimientoRegistrado', \.\.\.window\.DcarelaFinanceCore\.OPERATION_EVENT_TYPES\]/);
   assert.match(method, /financeMovementFromLedgerEvent/);
 });
 
@@ -38,7 +38,9 @@ test('el lector de saldos compara instantes y no duplica sobres del mismo ledger
     SYNC_EVENT_MAX_BATCH: 5000,
     financeMovementFromLedgerEvent: event => event.payload,
     financeMovementKey: item => item.id,
+    window: { DcarelaFinanceCore: require('./finance-core') },
   });
+  reader.getCollection = async () => [];
   reader.getSyncEvents = async () => [
     {event_type:'LedgerMovimientoRegistrado',payload:{id:'same',source_timestamp:'2026-09-05T00:30:00-04:00'}},
     {event_type:'LedgerMovimientoRegistrado',payload:{id:'same',source_timestamp:'2026-09-05T04:30:00Z'}},
@@ -61,7 +63,7 @@ test('los movimientos creados en web publican un evento idempotente al ledger gl
   assert.match(create, /sync_event_id: eventId/);
   assert.match(create, /transaction\.set\(eventRef, eventDocument/);
   assert.match(adapter, /cuentaOrigenId: \['gasto'/);
-  assert.match(adapter, /cuentaDestinoId: \['ingreso'/);
+  assert.match(adapter, /cuentaDestinoId: type === 'transferencia' \? movement.cuenta_destino_id/);
   assert.match(adapter, /idempotencyKey: movement\.sync_event_id/);
   assert.match(publish, /eventId = `ledger-\$\{id\}`/);
   assert.doesNotMatch(publish, /transaction\.get\(eventRef\)/);
@@ -83,7 +85,7 @@ test('una transferencia web publica origen y destino en un unico evento ledger',
   assert.match(transfer, /sync_event_id: eventId/);
 });
 
-test('Caja y gastos materializan el mismo asiento que actualiza la cuenta', () => {
+test('ventas y gastos comparten diario; movimientos de gaveta conservan permisos de cajero', () => {
   const sale = adapter.slice(adapter.indexOf('async function createFirebaseSale'), adapter.indexOf('const financeSignedAmount'));
   const cash = adapter.slice(adapter.indexOf("if (action === 'cash.move')"), adapter.indexOf("if (action === 'shift.close')"));
   const expense = adapter.slice(adapter.indexOf("if (action === 'expense.upsert')"), adapter.indexOf("if (action === 'expense.delete')"));
@@ -92,7 +94,8 @@ test('Caja y gastos materializan el mismo asiento que actualiza la cuenta', () =
   assert.match(sale, /saldo_actual_centavos: current \+ amount/);
   assert.match(sale, /LedgerMovimientoRegistrado/);
   assert.match(cash, /fin_accounts/);
-  assert.match(cash, /saldo_actual_centavos: current \+ signed/);
+  assert.doesNotMatch(cash, /transaction\.update\(ctx\.d\.collection\('fin_accounts'\)/);
+  assert.match(cash, /eventTransaction\(ctx, id, type/);
   assert.match(expense, /saldo_actual_centavos: current \+ delta/);
   assert.match(payment, /saldo_actual_centavos: accountBalance - amount/);
   assert.match(payment, /fin_movements/);
