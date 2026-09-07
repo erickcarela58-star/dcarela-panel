@@ -24,6 +24,12 @@ test("el guardado financiero ignora un segundo submit mientras la escritura estÃ
   assert.match(panel, /const button = \$\("btnGuardarEditor"\);\s*if \(button\.disabled\) return;/);
 });
 
+test("las entradas no dependen de que exista un catalogo de ingresos", () => {
+  assert.match(panel, /type === "ingreso" \? "Sin categoria \(opcional\)"/);
+  assert.match(panel, /type === "gasto" \? " required" : ""/);
+  assert.match(panel, /categoryInput\.required = nuevo === "gasto"/);
+});
+
 test("el service worker conserva la Ãºltima pantalla si el HTML tarda", () => {
   assert.match(serviceWorker, /Promise\.race\(\[network, new Promise/);
   assert.match(serviceWorker, /timer = setTimeout\(\(\) => resolve\(cached\), 2500\)/);

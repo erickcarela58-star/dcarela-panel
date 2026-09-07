@@ -6223,7 +6223,8 @@
     const state = finStateCache;
     const rows = (state?.categories || []).filter(item => item.tipo === type);
     const names = new Map(rows.map(item => [item.id, item.nombre]));
-    return `<option value="">Selecciona la categoria</option>${rows.map(item => `<option value="${esc(item.id)}"${selected(current, item.id)}>${item.categoria_padre_id ? `${esc(names.get(item.categoria_padre_id) || "General")} / ` : ""}${esc(item.nombre)}</option>`).join("")}`;
+    const placeholder = type === "ingreso" ? "Sin categoria (opcional)" : "Selecciona la categoria";
+    return `<option value="">${placeholder}</option>${rows.map(item => `<option value="${esc(item.id)}"${selected(current, item.id)}>${item.categoria_padre_id ? `${esc(names.get(item.categoria_padre_id) || "General")} / ` : ""}${esc(item.nombre)}</option>`).join("")}`;
   }
 
   function abrirMovimientoFin(defaultType = "gasto") {
@@ -6249,7 +6250,7 @@
         </div>
       </div>
       <div id="finQuickOperacion" class="fin-quick-group${esTransfer ? " oculto" : ""}">
-        <label><span>Categoria</span><select name="categoriaId" id="finQuickCategory"${esTransfer ? " disabled" : " required"}>${finCategoryOptions(esTransfer ? "gasto" : type)}</select></label>
+        <label><span>Categoria</span><select name="categoriaId" id="finQuickCategory"${esTransfer ? " disabled" : type === "gasto" ? " required" : ""}>${finCategoryOptions(esTransfer ? "gasto" : type)}</select></label>
         <label><span>Cuenta</span><select name="cuentaId"${esTransfer ? " disabled" : " required"}>${accountOptions(defaultAccount)}</select></label>
         <label><span>Persona o comercio</span><input name="payee" maxlength="180" placeholder="Opcional"${esTransfer ? " disabled" : ""}></label>
       </div>
@@ -6312,6 +6313,7 @@
       transferBox.classList.toggle("oculto", !transfer);
       operacionBox.querySelectorAll("select,input").forEach(el => { el.disabled = transfer; });
       transferBox.querySelectorAll("select,input").forEach(el => { el.disabled = !transfer; });
+      categoryInput.required = nuevo === "gasto";
       descInput.required = !transfer;
       if (!transfer) categoryInput.innerHTML = finCategoryOptions(nuevo);
     }));
