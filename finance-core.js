@@ -215,7 +215,8 @@
   function movementSaleIdentifiers(movement) {
     const metadata = movement?.metadata || {};
     return [movement?.sync_event_id, movement?.venta_id, movement?.sale_id, movement?.venta_folio,
-      metadata.ventaId, metadata.venta_id, metadata.saleId, metadata.sale_id, metadata.folio]
+      movement?.ventaId, movement?.ventaFolio, metadata.ventaId, metadata.venta_id, metadata.saleId,
+      metadata.sale_id, metadata.folio, ...(Array.isArray(metadata.sale_identifiers) ? metadata.sale_identifiers : [])]
       .filter(value => value !== null && value !== undefined && String(value).trim())
       .map(value => String(value).trim().toLocaleLowerCase("es"));
   }
@@ -345,12 +346,19 @@
     const cutoff = cutoffText ? new Date(cutoffText).getTime() : Number.NaN;
     if (!Number.isFinite(cutoff)) return 0;
     const uniqueMovements = deduplicateMovements(movements);
+    const materializedSaleIds = new Set(uniqueMovements
+      .filter(item => item.origen !== "pos_venta" && item.source !== "pos_venta")
+      .flatMap(item => movementSaleIdentifiers(item)));
     return uniqueMovements.filter(item => {
       if (!isActiveMovement(item)) return false;
+      // Una venta de Caja ya materializada en fin_movimientos solo puede
+      // entrar por el saldo actualizado de la cuenta, no por la proyeccion
+      // POS una segunda vez.
+      if (item.origen === "pos_venta" && movementSaleIdentifiers(item).some(id => materializedSaleIds.has(id))) return false;
       // fin_movements ya fue materializado en saldo_actual_centavos. Solo se
       // proyectan ventas y eventos del ledger Windows que aun no viven en la
       // cuenta remota; asi una escritura web y su sync_event no se duplican.
-      const materializedOrigin = ["panel", "asistente", "movil", "conciliacion_propietario"]
+      const materializedOrigin = ["panel", "asistente", "movil", "caja_web", "conciliacion_propietario"]
         .includes(String(item.origen || "").toLowerCase());
       return item.origen === "pos_venta"
         || (item.source === "pos_sync_event" && !materializedOrigin);

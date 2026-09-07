@@ -74,6 +74,9 @@
       payee: payload.payee || null,
       nota: payload.observaciones || '',
       origen: payload.origen || 'pos',
+      venta_id: payload.ventaId || payload.venta_id || null,
+      sale_id: payload.saleId || payload.sale_id || null,
+      venta_folio: payload.ventaFolio || payload.venta_folio || null,
       sync_event_id: event.event_id || event.id,
       observaciones: payload.observaciones || '',
       source: 'pos_sync_event',
@@ -376,18 +379,44 @@
     const limit = Number(client?.limiteCreditoCentavos ?? client?.limite_credito_centavos ?? 0);
     const debt = Number(client?.saldoCentavos ?? client?.saldo_centavos ?? 0);
     if (credit && limit > 0 && debt + credit > limit) throw new Error('El credito supera el disponible del cliente.');
+    const accountSnapshot = await d.collection('fin_accounts')
+      .where('business_id', '==', ctx.businessId).get();
+    const financeAccounts = accountSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    const settledPayments = payments.map(payment => {
+      const account = accountForSalePayment(payment, financeAccounts);
+      if (payment.metodo !== 'credito' && !account) {
+        throw new Error(`No hay una cuenta financiera disponible para cobrar por ${payment.metodo}. Configura Efectivo o Banco Popular antes de vender.`);
+      }
+      return {
+        ...payment,
+        cuentaFinancieraId: account?.id || null,
+        cuentaFinancieraNombre: account?.nombre || null,
+      };
+    });
     const tip = integer(data.propinaCentavos || 0, 'propinaCentavos', 0);
-    const cashOnly = payments.length === 1 && payments[0].metodo === 'efectivo';
+    const cashOnly = settledPayments.length === 1 && settledPayments[0].metodo === 'efectivo';
     const received = cashOnly ? integer(data.pagoConCentavos, 'efectivo recibido', total + tip) : null;
     const soldAt = nowIso();
     const saleId = uuid();
     const counterRef = d.collection('counters').doc(`${ctx.businessId}_web_sale`);
     const eventRef = d.collection('sync_events').doc(requestId);
     const saleRef = d.collection('sales').doc(saleId);
+    const settledAccountIds = [...new Set(settledPayments.map(payment => payment.cuentaFinancieraId).filter(Boolean))];
+    const settledAccountRefs = settledAccountIds.map(accountId => d.collection('fin_accounts').doc(accountId));
+    const saleMovementRows = settledPayments.map((payment, index) => ({ payment, index }));
     let salePayload = null;
     await d.runTransaction(async transaction => {
-      const [eventAgain, counter] = await Promise.all([transaction.get(eventRef), transaction.get(counterRef)]);
+      const [eventAgain, counter, ...accountDocs] = await Promise.all([
+        transaction.get(eventRef), transaction.get(counterRef),
+        ...settledAccountRefs.map(ref => transaction.get(ref)),
+      ]);
       if (eventAgain.exists) { salePayload = eventAgain.data().payload; return; }
+      const accountById = new Map(accountDocs.map((doc, index) => [settledAccountIds[index], doc]));
+      accountById.forEach((accountDoc, accountId) => {
+        if (!accountDoc.exists || accountDoc.data().business_id !== ctx.businessId) {
+          throw new Error(`La cuenta financiera ${accountId} no existe en esta sucursal.`);
+        }
+      });
       const folio = Math.max(1, Number(counter.data()?.next || 900000));
       salePayload = {
         ventaId: saleId, folio, turnoId: shift.id, cajaNombre: shift.cajaNombre || 'Caja web',
@@ -396,10 +425,10 @@
         subtotalSinItbisCentavos: baseTotal, itbisCentavos: taxTotal,
         descuentoCentavos: discountTotal, totalCalculadoCentavos: exactTotal,
         ajusteRedondeoCentavos: total - exactTotal, totalCobradoCentavos: total,
-        metodo: payments.length === 1 ? payments[0].metodo : 'mixto',
+        metodo: settledPayments.length === 1 ? settledPayments[0].metodo : 'mixto',
         pagoConCentavos: received, cambioCentavos: received == null ? null : received - total - tip,
-        propinaCentavos: tip, referencia: payments.length === 1 ? payments[0].referencia : null,
-        nota: text(data.nota, 1200) || null, idempotencyKey: requestId, pagos: payments, lineas,
+        propinaCentavos: tip, referencia: settledPayments.length === 1 ? settledPayments[0].referencia : null,
+        nota: text(data.nota, 1200) || null, idempotencyKey: requestId, pagos: settledPayments, lineas,
         motivoInventario: text(data.motivoInventario, 500) || null,
         vendidaEn: soldAt, turnoInicio: shift.abiertoEn || shift.opened_at,
         usuarioId: ctx.user.uid, usuarioNombre: ctx.user.email || 'Caja web Firebase', origen: 'caja_web'
@@ -415,6 +444,39 @@
         ),
         updated_at: soldAt,
       });
+      const accountDeltas = new Map();
+      saleMovementRows.filter(({ payment }) => payment.metodo !== 'credito').forEach(({ payment }) => {
+        accountDeltas.set(payment.cuentaFinancieraId,
+          (accountDeltas.get(payment.cuentaFinancieraId) || 0) + payment.montoCentavos);
+      });
+      saleMovementRows.filter(({ payment }) => payment.metodo !== 'credito').forEach(({ payment, index }) => {
+        const accountDoc = accountById.get(payment.cuentaFinancieraId);
+        const movementId = `sale-${saleId}-${index}`;
+        const ledgerEventId = `ledger-${movementId}`;
+        const movement = {
+          id: movementId, business_id: ctx.businessId, tipo: 'ingreso', fecha: businessDay(soldAt),
+          hora: soldAt.slice(11, 19), monto_centavos: payment.montoCentavos,
+          cuenta_id: payment.cuentaFinancieraId, descripcion: `Venta POS #${folio}`,
+          nota: salePayload.clienteNombre || 'Venta cobrada en Caja web', referencia: payment.referencia,
+          origen: 'caja_web', estado: 'registrado', afecta_resultado: true,
+          venta_id: saleId, venta_folio: String(folio), metodo_pago: payment.metodo,
+          sync_event_id: ledgerEventId, created_at: soldAt, updated_at: soldAt,
+          metadata: { sale_identifiers: [saleId, requestId, String(folio)] },
+          created_by_uid: ctx.user.uid, created_by_email: ctx.user.email || '',
+        };
+        transaction.set(d.collection('fin_movements').doc(movementId), movement);
+        transaction.set(d.collection('sync_events').doc(ledgerEventId), eventDocument(
+          ctx, ledgerEventId, 'LedgerMovimientoRegistrado', 'fin_movements', movementId,
+          financeSaleMovementPayload({ movement, account: accountDoc.data(), sale: salePayload,
+            payment, folio, ledgerEventId }), soldAt));
+      });
+      accountDeltas.forEach((amount, accountId) => {
+        const accountDoc = accountById.get(accountId);
+        const current = Number(accountDoc.data().saldo_actual_centavos ?? accountDoc.data().saldo_inicial_centavos ?? 0);
+        transaction.update(d.collection('fin_accounts').doc(accountId), {
+          saldo_actual_centavos: current + amount, updated_at: soldAt,
+        });
+      });
       stockUpdates.forEach(item => transaction.update(d.collection('products').doc(item.id), { stock: item.stock, updated_at: soldAt }));
       if (credit && clientId) transaction.update(d.collection('clients').doc(clientId), { saldoCentavos: debt + credit, updated_at: soldAt });
     });
@@ -428,6 +490,44 @@
     if (negative.has(type)) return -Math.abs(amount);
     return amount;
   };
+
+  const SALE_BANK_METHODS = new Set(['transferencia', 'tarjeta', 'cheque', 'deposito']);
+
+  function activeFinanceAccounts(rows) {
+    return (rows || []).filter(account => account?.estado !== 'eliminada' && account?.oculta !== true);
+  }
+
+  function accountForSalePayment(payment, accounts) {
+    const active = activeFinanceAccounts(accounts);
+    const method = text(payment?.metodo, 40).toLowerCase();
+    if (method === 'credito') return null;
+    const explicitId = text(payment?.cuentaFinancieraId, 160);
+    const explicit = explicitId ? active.find(account => account.id === explicitId) : null;
+    if (explicit && explicit.tipo !== 'tarjeta_credito') return explicit;
+    if (method === 'efectivo') {
+      return active.find(account => account.tipo === 'efectivo' && account.ligada_ventas)
+        || active.find(account => account.tipo === 'efectivo') || null;
+    }
+    if (SALE_BANK_METHODS.has(method)) {
+      return active.find(account => account.tipo === 'banco' && /popular/i.test(String(account.nombre || '')))
+        || active.find(account => account.tipo === 'banco') || null;
+    }
+    return null;
+  }
+
+  function financeSaleMovementPayload({ movement, account, sale, payment, folio, ledgerEventId }) {
+    return {
+      ...financeLedgerPayload(movement, account),
+      origen: 'caja_web',
+      ventaId: sale.ventaId,
+      venta_id: sale.ventaId,
+      ventaFolio: String(folio || ''),
+      venta_folio: String(folio || ''),
+      metodoPago: payment.metodo,
+      metadata: { sale_identifiers: [sale.ventaId, sale.idempotencyKey, String(folio || '')].filter(Boolean) },
+      idempotencyKey: ledgerEventId,
+    };
+  }
 
   function financeLedgerPayload(movement, account = {}, category = {}) {
     const type = text(movement.tipo, 40).toLowerCase();
@@ -448,9 +548,12 @@
       cuentaNombre: text(account.nombre, 120) || '',
       payee: text(movement.payee, 180) || null,
       observaciones: text(movement.nota, 1200) || '',
-      origen: 'panel',
+      origen: movement.origen || 'panel',
       requestId: movement.id,
       idempotencyKey: movement.sync_event_id || `ledger-${movement.id}`,
+      ventaId: movement.venta_id || null,
+      ventaFolio: movement.venta_folio || null,
+      cajaMovimientoId: movement.caja_movimiento_id || null,
     };
   }
 
@@ -551,18 +654,95 @@
 
     if (action === 'expense.upsert') {
       const id = text(entityId || data.gastoId, 160) || uuid();
-      return saveWithEvent('expenses', id, {
-        ...data, gastoId: id, montoCentavos: integer(data.montoCentavos, 'monto', 1), activo: true,
-        estado: 'registrado'
-      }, entityId ? 'GastoEditado' : 'GastoRegistrado', 'gastos', 'Gasto guardado con auditoria.');
+      const amount = integer(data.montoCentavos, 'monto', 1);
+      const accountId = text(data.cuentaId, 160);
+      if (!accountId) throw new Error('Selecciona la cuenta de donde salio el gasto.');
+      const expenseRef = d.collection('expenses').doc(id);
+      const movementId = `expense-${id}`;
+      const movementRef = d.collection('fin_movements').doc(movementId);
+      const ledgerEventId = `ledger-${movementId}`;
+      const ledgerEventRef = d.collection('sync_events').doc(ledgerEventId);
+      const eventId = uuid();
+      const eventRef = d.collection('sync_events').doc(eventId);
+      await d.runTransaction(async transaction => {
+        const [previousDoc, previousMovementDoc] = await Promise.all([
+          transaction.get(expenseRef), transaction.get(movementRef),
+        ]);
+        const previous = previousDoc.exists ? previousDoc.data() : {};
+        const previousMovement = previousMovementDoc.exists ? previousMovementDoc.data() : null;
+        const oldAccountId = text(previousMovement?.cuenta_id || previous.cuentaId, 160);
+        const accountIds = [...new Set([oldAccountId, accountId].filter(Boolean))];
+        const accountDocs = await Promise.all(accountIds.map(value => transaction.get(d.collection('fin_accounts').doc(value))));
+        const accountById = new Map(accountDocs.map((doc, index) => [accountIds[index], doc]));
+        accountById.forEach((account, value) => {
+          if (!account.exists || account.data().business_id !== ctx.businessId) throw new Error(`La cuenta ${value} no existe en esta sucursal.`);
+        });
+        const deltaByAccount = new Map();
+        if (previousMovement && previousMovement.estado !== 'anulado') {
+          deltaByAccount.set(oldAccountId, (deltaByAccount.get(oldAccountId) || 0) + Math.abs(Number(previousMovement.monto_centavos || 0)));
+        }
+        deltaByAccount.set(accountId, (deltaByAccount.get(accountId) || 0) - amount);
+        const saved = {
+          ...data, gastoId: id, cuentaId: accountId, montoCentavos: amount, activo: true,
+          estado: 'registrado', business_id: ctx.businessId, updated_at: createdAt, ...actor,
+        };
+        const account = accountById.get(accountId).data();
+        const movement = {
+          id: movementId, business_id: ctx.businessId, tipo: 'gasto',
+          fecha: businessDay(data.fecha || createdAt), hora: createdAt.slice(11, 19), monto_centavos: amount,
+          cuenta_id: accountId, categoria_id: text(data.categoriaId, 160) || null,
+          payee: text(data.payee || data.proveedor, 180) || null,
+          descripcion: text(data.descripcion, 500) || 'Gasto', nota: text(data.nota, 1200) || null,
+          origen: 'panel', estado: 'registrado', afecta_resultado: data.afectaResultado !== false,
+          gasto_id: id, sync_event_id: ledgerEventId, created_at: previous.created_at || createdAt,
+          updated_at: createdAt, created_by_uid: ctx.user.uid, created_by_email: ctx.user.email || '',
+        };
+        transaction.set(expenseRef, saved, { merge: true });
+        transaction.set(movementRef, movement);
+        transaction.set(ledgerEventRef, eventDocument(ctx, ledgerEventId, 'LedgerMovimientoRegistrado',
+          'fin_movements', movementId, financeLedgerPayload(movement, account), createdAt));
+        transaction.set(eventRef, eventDocument(ctx, eventId,
+          previousDoc.exists ? 'GastoEditado' : 'GastoRegistrado', 'gastos', id, saved, createdAt));
+        deltaByAccount.forEach((delta, value) => {
+          if (!delta) return;
+          const current = Number(accountById.get(value).data().saldo_actual_centavos
+            ?? accountById.get(value).data().saldo_inicial_centavos ?? 0);
+          transaction.update(d.collection('fin_accounts').doc(value), {
+            saldo_actual_centavos: current + delta, updated_at: createdAt,
+          });
+        });
+      });
+      return { ok: true, id, event: { id: eventId, entity_id: id }, message: 'Gasto guardado y aplicado a la cuenta.' };
     }
 
     if (action === 'expense.delete') {
       const id = text(entityId || data.gastoId, 160);
       if (!id) throw new Error('Selecciona el gasto que deseas anular.');
-      return saveWithEvent('expenses', id, {
-        ...data, gastoId: id, activo: false, estado: 'anulado', anuladoEn: createdAt
-      }, 'GastoAnulado', 'gastos', 'Gasto anulado sin borrar su historial.');
+      const expenseRef = d.collection('expenses').doc(id);
+      const movementRef = d.collection('fin_movements').doc(`expense-${id}`);
+      const eventId = uuid();
+      await d.runTransaction(async transaction => {
+        const [expenseDoc, movementDoc] = await Promise.all([
+          transaction.get(expenseRef), transaction.get(movementRef),
+        ]);
+        if (!expenseDoc.exists || expenseDoc.data().business_id !== ctx.businessId) throw new Error('El gasto no existe.');
+        const movement = movementDoc.exists ? movementDoc.data() : null;
+        const accountId = text(movement?.cuenta_id || expenseDoc.data().cuentaId, 160);
+        const accountRef = accountId ? d.collection('fin_accounts').doc(accountId) : null;
+        const accountDoc = accountRef ? await transaction.get(accountRef) : null;
+        if (accountRef && (!accountDoc.exists || accountDoc.data().business_id !== ctx.businessId)) throw new Error('La cuenta del gasto no existe.');
+        const payload = { ...data, gastoId: id, activo: false, estado: 'anulado', anuladoEn: createdAt,
+          business_id: ctx.businessId, updated_at: createdAt, ...actor };
+        transaction.set(expenseRef, payload, { merge: true });
+        if (movement && movement.estado !== 'anulado') {
+          transaction.update(movementRef, { estado: 'anulado', motivo_anulacion: text(data.motivo, 500), updated_at: createdAt });
+          const current = Number(accountDoc.data().saldo_actual_centavos ?? accountDoc.data().saldo_inicial_centavos ?? 0);
+          transaction.update(accountRef, { saldo_actual_centavos: current + Math.abs(Number(movement.monto_centavos || 0)), updated_at: createdAt });
+        }
+        transaction.set(d.collection('sync_events').doc(eventId), eventDocument(ctx, eventId,
+          'GastoAnulado', 'gastos', id, payload, createdAt));
+      });
+      return { ok: true, id, event: { id: eventId, entity_id: id }, message: 'Gasto anulado y saldo restaurado.' };
     }
 
     if (action === 'cost.recurring.upsert') {
@@ -591,23 +771,47 @@
       const obligationId = text(entityId || data.obligacionId, 160);
       const amount = integer(data.montoCentavos, 'monto', 1);
       if (!obligationId) throw new Error('La obligacion es obligatoria.');
+      const accountId = text(data.cuentaId, 160);
+      if (!accountId) throw new Error('Selecciona la cuenta de donde salio el pago.');
       const paymentId = uuid();
       const eventId = uuid();
+      const ledgerMovementId = `cost-payment-${paymentId}`;
+      const ledgerEventId = `ledger-${ledgerMovementId}`;
       const obligationRef = d.collection('cost_obligations').doc(obligationId);
+      const accountRef = d.collection('fin_accounts').doc(accountId);
       await d.runTransaction(async transaction => {
-        const obligation = await transaction.get(obligationRef);
+        const [obligation, account] = await Promise.all([
+          transaction.get(obligationRef), transaction.get(accountRef),
+        ]);
         if (!obligation.exists || obligation.data().business_id !== ctx.businessId) throw new Error('La obligacion no existe.');
+        if (!account.exists || account.data().business_id !== ctx.businessId) throw new Error('La cuenta de pago no existe.');
         const current = Number(obligation.data().saldoCentavos ?? obligation.data().saldo_centavos ?? 0);
         if (amount > current) throw new Error('El pago no puede superar el saldo pendiente.');
+        const accountBalance = Number(account.data().saldo_actual_centavos ?? account.data().saldo_inicial_centavos ?? 0);
         const balance = current - amount;
         const payload = { ...data, pagoId: paymentId, obligacionId: obligationId, montoCentavos: amount,
           saldoCentavos: balance, estado: balance === 0 ? 'pagada' : 'parcial', pagadoEn: createdAt };
+        const movement = {
+          id: ledgerMovementId, business_id: ctx.businessId, tipo: 'gasto', fecha: businessDay(data.fecha || createdAt),
+          hora: createdAt.slice(11, 19), monto_centavos: amount, cuenta_id: accountId,
+          categoria_id: text(data.categoriaId, 160) || null, payee: text(data.proveedor || data.acreedor, 180) || null,
+          descripcion: text(data.concepto, 500) || 'Pago de obligacion', nota: text(data.nota, 1200) || null,
+          referencia: text(data.referencia, 180) || null, origen: 'panel', estado: 'registrado',
+          afecta_resultado: data.afectaResultado !== false, obligacion_id: obligationId, pago_id: paymentId,
+          sync_event_id: ledgerEventId, created_at: createdAt, updated_at: createdAt,
+          created_by_uid: ctx.user.uid, created_by_email: ctx.user.email || '',
+        };
         transaction.set(d.collection('cost_payments').doc(paymentId), {
           ...payload, business_id: ctx.businessId, created_at: createdAt, ...actor
         });
         transaction.update(obligationRef, { saldoCentavos: balance, estado: payload.estado, updated_at: createdAt });
         transaction.set(d.collection('sync_events').doc(eventId),
           eventDocument(ctx, eventId, 'CostoPagoRegistrado', 'costos_pagos', paymentId, payload, createdAt));
+        transaction.set(d.collection('fin_movements').doc(ledgerMovementId), movement);
+        transaction.set(d.collection('sync_events').doc(ledgerEventId), eventDocument(
+          ctx, ledgerEventId, 'LedgerMovimientoRegistrado', 'fin_movements', ledgerMovementId,
+          financeLedgerPayload(movement, account.data()), createdAt));
+        transaction.update(accountRef, { saldo_actual_centavos: accountBalance - amount, updated_at: createdAt });
       });
       return { ok: true, id: paymentId, event: { id: eventId, entity_id: paymentId }, message: 'Pago aplicado una sola vez.' };
     }
@@ -965,19 +1169,30 @@
       const commitmentId = text(entityId, 160);
       const amount = integer(data.montoCentavos, 'monto', 1);
       const id = uuid();
+      const accountId = text(data.cuentaId, 160);
+      if (!accountId) throw new Error('Selecciona la cuenta de donde salio el pago.');
       const commitmentRef = d.collection('fin_commitments').doc(commitmentId);
+      const accountRef = d.collection('fin_accounts').doc(accountId);
+      const ledgerMovementId = `commitment-payment-${id}`;
+      const ledgerEventId = `ledger-${ledgerMovementId}`;
       await d.runTransaction(async transaction => {
-        const commitment = await transaction.get(commitmentRef);
+        const [commitment, account] = await Promise.all([
+          transaction.get(commitmentRef), transaction.get(accountRef),
+        ]);
         if (!commitment.exists || commitment.data().business_id !== ctx.businessId) throw new Error('El compromiso no existe.');
-        let accountRef = null;
-        let accountBalance = 0;
-        if (data.cuentaId) {
-          accountRef = d.collection('fin_accounts').doc(text(data.cuentaId, 160));
-          const account = await transaction.get(accountRef);
-          if (!account.exists || account.data().business_id !== ctx.businessId) throw new Error('La cuenta de pago no existe.');
-          accountBalance = Number(account.data().saldo_actual_centavos || 0);
-        }
+        if (!account.exists || account.data().business_id !== ctx.businessId) throw new Error('La cuenta de pago no existe.');
+        const accountBalance = Number(account.data().saldo_actual_centavos ?? account.data().saldo_inicial_centavos ?? 0);
         const balance = Math.max(0, Number(commitment.data().saldo_pendiente_centavos || 0) - Number(data.capitalCentavos || amount));
+        const movement = {
+          id: ledgerMovementId, business_id: ctx.businessId, tipo: 'gasto',
+          fecha: text(data.fecha, 10) || createdAt.slice(0, 10), hora: createdAt.slice(11, 19),
+          monto_centavos: amount, cuenta_id: accountId, descripcion: `Pago: ${text(commitment.data().nombre, 180)}`,
+          nota: text(data.nota, 1200) || null, referencia: text(data.referencia, 180) || null,
+          origen: 'panel', estado: 'registrado', afecta_resultado: data.afectaResultado !== false,
+          compromiso_id: commitmentId, pago_compromiso_id: id, sync_event_id: ledgerEventId,
+          created_at: createdAt, updated_at: createdAt, created_by_uid: ctx.user.uid,
+          created_by_email: ctx.user.email || '',
+        };
         transaction.set(d.collection('fin_commitment_payments').doc(id), {
           business_id: ctx.businessId, compromiso_id: commitmentId, monto_centavos: amount,
           capital_centavos: Number(data.capitalCentavos || 0), interes_centavos: Number(data.interesCentavos || 0),
@@ -990,7 +1205,11 @@
         transaction.update(commitmentRef, { saldo_pendiente_centavos: balance,
           proximo_vencimiento: data.proximoVencimiento || commitment.data().proximo_vencimiento || null,
           updated_at: createdAt });
-        if (accountRef) transaction.update(accountRef, { saldo_actual_centavos: accountBalance - amount, updated_at: createdAt });
+        transaction.set(d.collection('fin_movements').doc(ledgerMovementId), movement);
+        transaction.set(d.collection('sync_events').doc(ledgerEventId), eventDocument(
+          ctx, ledgerEventId, 'LedgerMovimientoRegistrado', 'fin_movements', ledgerMovementId,
+          financeLedgerPayload(movement, account.data()), createdAt));
+        transaction.update(accountRef, { saldo_actual_centavos: accountBalance - amount, updated_at: createdAt });
       });
       return { ok: true, id, message: 'Pago del compromiso registrado.' };
     }
@@ -1571,9 +1790,39 @@
           origenEntrada: entryOrigin, clienteId: customerId, clienteNombre: customerName,
           fecha: createdAt, usuarioId: ctx.user.uid, usuarioNombre: ctx.user.email || 'Caja web Firebase'
         };
+        const accountsSnapshot = await ctx.d.collection('fin_accounts')
+          .where('business_id', '==', ctx.businessId).get();
+        const cashAccounts = accountsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const cashAccount = cashAccounts.find(account => account.tipo === 'efectivo' && account.ligada_ventas)
+          || cashAccounts.find(account => account.tipo === 'efectivo');
+        if (!cashAccount) throw new Error('Configura una cuenta financiera de tipo Efectivo antes de registrar entradas o salidas de caja.');
+        const ledgerMovementId = `cash-${movementId}`;
+        const ledgerEventId = `ledger-${ledgerMovementId}`;
+        const movementType = type === 'SalidaEfectivo' ? 'gasto' : 'ingreso';
         await ctx.d.runTransaction(async transaction => {
-          const previous = await transaction.get(eventRef);
+          const [previous, shiftDoc, accountDoc] = await Promise.all([
+            transaction.get(eventRef),
+            transaction.get(ctx.d.collection('cash_shifts').doc(shift.id)),
+            transaction.get(ctx.d.collection('fin_accounts').doc(cashAccount.id)),
+          ]);
           if (previous.exists) return;
+          if (!shiftDoc.exists || shiftDoc.data().business_id !== ctx.businessId) throw new Error('El turno de caja no existe.');
+          if (!accountDoc.exists || accountDoc.data().business_id !== ctx.businessId) throw new Error('La cuenta de efectivo no existe.');
+          const current = Number(accountDoc.data().saldo_actual_centavos ?? accountDoc.data().saldo_inicial_centavos ?? 0);
+          const signed = type === 'SalidaEfectivo' ? -amount : amount;
+          const movement = {
+            id: ledgerMovementId, business_id: ctx.businessId, tipo: movementType,
+            fecha: businessDay(createdAt), hora: createdAt.slice(11, 19), monto_centavos: amount,
+            cuenta_id: cashAccount.id, descripcion: payload.motivo, nota: payload.origenEntrada || null,
+            origen: 'caja_web', estado: 'registrado', afecta_resultado: false,
+            sync_event_id: ledgerEventId, created_at: createdAt, updated_at: createdAt,
+            caja_movimiento_id: movementId, turno_id: shift.id,
+            created_by_uid: ctx.user.uid, created_by_email: ctx.user.email || '',
+          };
+          transaction.set(ctx.d.collection('fin_movements').doc(ledgerMovementId), movement);
+          transaction.set(ctx.d.collection('sync_events').doc(ledgerEventId), eventDocument(
+            ctx, ledgerEventId, 'LedgerMovimientoRegistrado', 'fin_movements', ledgerMovementId,
+            financeLedgerPayload(movement, accountDoc.data()), createdAt));
           transaction.set(eventRef, eventDocument(ctx, id, type, 'movimientos_caja', movementId, payload, createdAt));
           transaction.update(ctx.d.collection('cash_shifts').doc(shift.id), {
             [type === 'SalidaEfectivo' ? 'exitsCentavos' : 'entriesCentavos']:
@@ -1587,6 +1836,9 @@
                 firebase.firestore.FieldValue.increment(amount),
             } : {}),
             updated_at: createdAt,
+          });
+          transaction.update(ctx.d.collection('fin_accounts').doc(cashAccount.id), {
+            saldo_actual_centavos: current + signed, updated_at: createdAt,
           });
         });
         return { ok: true, movement: payload };
@@ -1700,13 +1952,23 @@
           const saleShiftRef = materializedWebSale && sale.turnoId
             ? ctx.d.collection('cash_shifts').doc(sale.turnoId)
             : null;
+          const saleSettlementRows = materializedWebSale
+            ? (sale.pagos || []).map((payment, index) => ({ payment, index }))
+              .filter(({ payment }) => payment.metodo !== 'credito' && payment.cuentaFinancieraId)
+            : [];
+          const saleMovementRefs = saleSettlementRows.map(({ index }) =>
+            ctx.d.collection('fin_movements').doc(`sale-${saleId}-${index}`));
+          const saleAccountIds = [...new Set(saleSettlementRows.map(({ payment }) => payment.cuentaFinancieraId))];
+          const saleAccountRefs = saleAccountIds.map(accountId => ctx.d.collection('fin_accounts').doc(accountId));
           // Firestore exige completar todas las lecturas antes de la primera
           // escritura dentro de una transaccion. Esto evita anulaciones
           // parciales cuando la venta mezcla inventario y credito.
-          const [productDocs, clientDoc, saleShiftDoc] = await Promise.all([
+          const [productDocs, clientDoc, saleShiftDoc, saleMovementDocs, saleAccountDocs] = await Promise.all([
             Promise.all(productRefs.map(ref => transaction.get(ref))),
             clientRef ? transaction.get(clientRef) : Promise.resolve(null),
-            saleShiftRef ? transaction.get(saleShiftRef) : Promise.resolve(null)
+            saleShiftRef ? transaction.get(saleShiftRef) : Promise.resolve(null),
+            Promise.all(saleMovementRefs.map(ref => transaction.get(ref))),
+            Promise.all(saleAccountRefs.map(ref => transaction.get(ref))),
           ]);
           productDocs.forEach((productDoc, index) => {
             if (!productDoc.exists) return;
@@ -1719,6 +1981,27 @@
               saldoCentavos: Math.max(0, Number(clientDoc.data().saldoCentavos || 0) - credit), updated_at: createdAt
             });
           }
+          const saleAccountById = new Map(saleAccountDocs.map((doc, index) => [saleAccountIds[index], doc]));
+          saleAccountById.forEach((account, accountId) => {
+            if (!account.exists || account.data().business_id !== ctx.businessId) throw new Error(`La cuenta ${accountId} no existe en esta sucursal.`);
+          });
+          const saleReversals = new Map();
+          saleSettlementRows.forEach(({ payment, index }) => {
+            const movement = saleMovementDocs[saleSettlementRows.findIndex(row => row.index === index)];
+            if (!movement?.exists || movement.data().estado === 'anulado') return;
+            saleReversals.set(payment.cuentaFinancieraId,
+              (saleReversals.get(payment.cuentaFinancieraId) || 0) + Number(payment.montoCentavos || 0));
+            transaction.update(saleMovementRefs[saleSettlementRows.findIndex(row => row.index === index)], {
+              estado: 'anulado', motivo_anulacion: reason, updated_at: createdAt,
+            });
+          });
+          saleReversals.forEach((amount, accountId) => {
+            const account = saleAccountById.get(accountId).data();
+            const current = Number(account.saldo_actual_centavos ?? account.saldo_inicial_centavos ?? 0);
+            transaction.update(saleAccountRefs[saleAccountIds.indexOf(accountId)], {
+              saldo_actual_centavos: current - amount, updated_at: createdAt,
+            });
+          });
           const payload = {
             ventaId: saleId, folio: sale.folio, motivo: reason, anuladaEn: createdAt,
             turnoId: sale.turnoId || null, cajeroNombre: sale.cajeroNombre || sale.usuarioNombre || null,

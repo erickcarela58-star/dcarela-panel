@@ -4921,18 +4921,25 @@
   function abrirGasto(state, expense = null) {
     if (!state.categories.length) { toast("Agrega primero una categoria de gasto."); return; }
     const item = expense || { metodoPago: "transferencia", fecha: new Date().toISOString(), activo: true };
+    const accounts = (finStateCache?.accounts || []).filter(account => !account.oculta && account.estado !== "eliminada");
+    if (!accounts.length) { toast("Agrega una cuenta financiera antes de registrar un gasto."); return; }
+    const defaultAccount = item.cuentaId || item.cuenta_id || finStateCache?.preferences?.cuenta_gasto_default_id
+      || accounts.find(account => account.tipo === "efectivo" && account.ligada_ventas)?.id
+      || accounts.find(account => account.tipo === "efectivo")?.id || accounts[0].id;
+    const accountOptions = accounts.map(account => `<option value="${esc(account.id)}"${selected(defaultAccount, account.id)}>${esc(account.nombre)} · ${money(finAccountBalance(account))}</option>`).join("");
     abrirEditor(expense ? "Editar gasto" : "Nuevo gasto", "El cambio quedara auditado y se sincronizara con todas las cajas.", `
       <label><span>Categoria</span><select name="categoriaId" required>${categoryOptions(state.categories, item.categoriaId)}</select></label>
       <label><span>Fecha</span><input name="fecha" type="datetime-local" required value="${esc(localDateTimeInput(item.fecha || item._latestAt))}"></label>
       <label class="field-wide"><span>Descripcion</span><input name="descripcion" required maxlength="500" value="${esc(item.descripcion || "")}"></label>
       <label><span>Monto (RD$)</span><input name="monto" type="number" min="0.01" step="0.01" required value="${pesoInput(item.montoCentavos)}"></label>
       <label><span>Metodo</span><select name="metodoPago">${methodOptions(item.metodoPago || item.metodo)}</select></label>
+      <label class="field-wide"><span>Cuenta de salida</span><select name="cuentaId" required>${accountOptions}</select></label>
       <label class="field-wide"><span>Nota</span><textarea name="nota" rows="3" maxlength="1200">${esc(item.nota || "")}</textarea></label>`, async form => {
       const category = state.categories.find(value => value.id === form.get("categoriaId"));
       await adminWrite("expense.upsert", expense?.id, {
         gastoId: expense?.id || null, categoriaId: form.get("categoriaId"), categoria: category?.nombre || null,
         descripcion: form.get("descripcion"), montoCentavos: centavosInput(form.get("monto")),
-        metodoPago: form.get("metodoPago"), nota: form.get("nota"), fecha: form.get("fecha")
+        metodoPago: form.get("metodoPago"), cuentaId: form.get("cuentaId"), nota: form.get("nota"), fecha: form.get("fecha")
       });
       cerrarEditor();
       await cargarProveedores(true);
@@ -5069,7 +5076,8 @@
       if (amount <= 0 || amount > numero(obligation.saldoCentavos)) throw new Error("El pago debe ser mayor que cero y no superar el saldo.");
       await adminWrite("cost.payment.create", obligation.id, {
         requestId, cuentaId: form.get("cuentaId"), obligacionId: obligation.id, concepto: obligation.concepto, montoCentavos: amount,
-        saldoCentavos: numero(obligation.saldoCentavos) - amount, metodoPago: form.get("metodoPago"), nota: form.get("nota")
+        saldoCentavos: numero(obligation.saldoCentavos) - amount, categoriaId: obligation.categoriaId || null,
+        acreedor: obligation.acreedor || null, metodoPago: form.get("metodoPago"), nota: form.get("nota")
       });
       cerrarEditor();
       await cargarProveedores(true);
@@ -5087,6 +5095,11 @@
 
   function abrirReciboPago(state) {
     const hasCategories = state.categories.length > 0;
+    const accounts = (finStateCache?.accounts || []).filter(account => !account.oculta && account.estado !== "eliminada");
+    const defaultAccount = finStateCache?.preferences?.cuenta_gasto_default_id
+      || accounts.find(account => account.tipo === "efectivo" && account.ligada_ventas)?.id
+      || accounts.find(account => account.tipo === "efectivo")?.id || accounts[0]?.id || "";
+    const accountOptions = `<option value="">Selecciona la cuenta si se registra como gasto</option>${accounts.map(account => `<option value="${esc(account.id)}"${selected(defaultAccount, account.id)}>${esc(account.nombre)}</option>`).join("")}`;
     abrirEditor("Nuevo recibo de pago", "Emite un comprobante para nomina, servicios u otros pagos y deja espacio para la firma del beneficiario.", `
       <label><span>Beneficiario</span><input name="beneficiario" required maxlength="180"></label>
       <label><span>Cedula / identificacion</span><input name="documentoIdentidad" maxlength="100"></label>
@@ -5095,6 +5108,7 @@
       <label><span>Fecha del pago</span><input name="pagadoEn" type="datetime-local" required value="${esc(localDateTimeInput())}"></label>
       <label><span>Metodo</span><select name="metodoPago">${methodOptions("transferencia")}</select></label>
       <label><span>Referencia</span><input name="referencia" maxlength="180"></label>
+      <label class="field-wide"><span>Cuenta de salida si es gasto</span><select name="cuentaId">${accountOptions}</select></label>
       <label class="field-wide"><span>Nota</span><textarea name="nota" rows="3" maxlength="1200"></textarea></label>
       <label class="check-row field-wide"><input name="registrarGasto" type="checkbox"${hasCategories ? " checked" : ""}${hasCategories ? "" : " disabled"}><span>Registrar tambien como gasto</span></label>
       ${hasCategories ? `<label class="field-wide"><span>Categoria del gasto</span><select name="categoriaId">${categoryOptions(state.categories)}</select></label>` : `<p class="field-hint field-wide">Agrega una categoria para asociar este recibo a Gastos.</p>`}`, async form => {
@@ -5104,9 +5118,10 @@
         const categoryId = form.get("categoriaId");
         const category = state.categories.find(value => value.id === categoryId);
         if (!category) throw new Error("Selecciona la categoria del gasto.");
+        if (!form.get("cuentaId")) throw new Error("Selecciona la cuenta de donde salio el pago.");
         const expense = await adminWrite("expense.upsert", null, {
           categoriaId, categoria: category.nombre, descripcion: form.get("concepto"), montoCentavos: amount,
-          metodoPago: form.get("metodoPago"), nota: `Recibo para ${form.get("beneficiario")}. ${form.get("nota") || ""}`.trim(),
+          metodoPago: form.get("metodoPago"), cuentaId: form.get("cuentaId"), nota: `Recibo para ${form.get("beneficiario")}. ${form.get("nota") || ""}`.trim(),
           fecha: form.get("pagadoEn")
         });
         gastoId = expense.event?.entity_id || null;

@@ -82,3 +82,18 @@ test('una transferencia web publica origen y destino en un unico evento ledger',
   assert.match(transfer, /transaction\.set\(eventRef, eventDocument/);
   assert.match(transfer, /sync_event_id: eventId/);
 });
+
+test('Caja y gastos materializan el mismo asiento que actualiza la cuenta', () => {
+  const sale = adapter.slice(adapter.indexOf('async function createFirebaseSale'), adapter.indexOf('const financeSignedAmount'));
+  const cash = adapter.slice(adapter.indexOf("if (action === 'cash.move')"), adapter.indexOf("if (action === 'shift.close')"));
+  const expense = adapter.slice(adapter.indexOf("if (action === 'expense.upsert')"), adapter.indexOf("if (action === 'expense.delete')"));
+  const payment = adapter.slice(adapter.indexOf("if (action === 'cost.payment.create')"), adapter.indexOf("if (action === 'receipt.create')"));
+  assert.match(sale, /fin_movements/);
+  assert.match(sale, /saldo_actual_centavos: current \+ amount/);
+  assert.match(sale, /LedgerMovimientoRegistrado/);
+  assert.match(cash, /fin_accounts/);
+  assert.match(cash, /saldo_actual_centavos: current \+ signed/);
+  assert.match(expense, /saldo_actual_centavos: current \+ delta/);
+  assert.match(payment, /saldo_actual_centavos: accountBalance - amount/);
+  assert.match(payment, /fin_movements/);
+});
