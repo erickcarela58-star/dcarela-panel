@@ -375,6 +375,7 @@
   };
 
   function mostrarVista(name) {
+    if (name === "conciliacion") name = "recalcular";
     if (name === "proveedores") {
       name = "finanzas";
       history.replaceState(null, "", `${location.pathname}${location.search}#finanzas`);
@@ -396,9 +397,10 @@
     if (EMBEDDED && window.parent !== window) {
       window.parent.postMessage({ type: "dcarela:panel-route", view: selected, businessId: BUSINESS }, location.origin);
     }
-    const loading = loaders[selected]().catch(error => { mostrarError(selected, error); throw error; });
+    const loading = cargarModulo(selected);
     if (selected === "caja-virtual") {
-      loading.then(() => {
+      loading.then(ok => {
+        if (!ok || location.hash.slice(1) !== "caja-virtual") return;
         if ($("saleOverlay")?.classList.contains("oculto")) return openSaleConsole(false);
       }).catch(() => {});
     }
@@ -3273,6 +3275,45 @@
     renderSaleCart();
     if (saleCart.length) setSaleStage("cart");
     setTimeout(() => (saleShift ? (saleCart.length ? $("saleCart") : $("saleSearch")) : $("saleOpening"))?.focus(), 0);
+  }
+
+  const moduleLoads = new Map();
+  function cargarModulo(selected) {
+    if (moduleLoads.has(selected)) return moduleLoads.get(selected);
+    const view = $("v-" + selected);
+    let status = view.querySelector(".module-load-status");
+    if (!status) {
+      status = document.createElement("div");
+      status.className = "module-load-status";
+      status.setAttribute("role", "status");
+      view.prepend(status);
+    }
+    view.setAttribute("aria-busy", "true");
+    status.hidden = false;
+    status.textContent = "Actualizando datos...";
+    const timer = setTimeout(() => {
+      status.textContent = "La conexion esta tardando. Puedes seguir navegando; esta consulta sigue en curso.";
+    }, 8000);
+    const pending = Promise.resolve().then(() => loaders[selected]()).then(() => {
+      status.hidden = true;
+      view.querySelectorAll("p.error").forEach(el => el.remove());
+      return true;
+    }).catch(error => {
+      mostrarError(selected, error);
+      status.textContent = "No se pudo actualizar. ";
+      const retry = document.createElement("button");
+      retry.type = "button";
+      retry.textContent = "Reintentar";
+      retry.addEventListener("click", () => cargarModulo(selected));
+      status.append(retry);
+      return false;
+    }).finally(() => {
+      clearTimeout(timer);
+      view.setAttribute("aria-busy", "false");
+      moduleLoads.delete(selected);
+    });
+    moduleLoads.set(selected, pending);
+    return pending;
   }
 
   function hideSaleConsoleForRouteChange() {
@@ -6725,22 +6766,34 @@
       .subscribe();
   }
 
+  let financeLoad = null;
   async function cargarProveedores(force = false) {
+    if (financeLoad) {
+      await financeLoad;
+      if (force || finStateCache?.month !== $("provMes").value) return cargarProveedores(force);
+      return;
+    }
+    financeLoad = cargarProveedoresData(force).finally(() => { financeLoad = null; });
+    return financeLoad;
+  }
+
+  async function cargarProveedoresData(force = false) {
     if (!$("provMes").value) $("provMes").value = inputDate(new Date()).slice(0, 7);
     const month = $("provMes").value;
     const from = inicioDia(`${month}-01`);
     const endDate = new Date(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0);
     const to = finDia(inputDate(endDate));
-    const [state, salesResult] = await Promise.all([cargarCostosCloud(force), ventasActivas(from, to, 20000)]);
+    // Start independent reads together; accounts can render while POS history loads.
+    const historyRequest = Promise.all([cargarCostosCloud(force), ventasActivas(from, to, 20000)]);
+    historyRequest.catch(() => {});
     try {
       // Money Manager debe existir antes de proyectar las ventas. Antes se
       // intentaba integrar contra null y luego esta carga borraba la proyeccion.
       await cargarCuentasFin(month);
     } catch (error) {
-      $("finCuentasCards").innerHTML = "";
-      $("finMovimientosTabla").innerHTML = `<div class="empty-state"><strong>No se pudo cargar Finanzas.</strong><p>${esc(error?.message || error)}</p></div>`;
       throw error;
     }
+    const [state, salesResult] = await historyRequest;
     const accountCutoffs = (finStateCache?.accounts || [])
       .map(account => account.reconciled_at || account.reconciledAt || account.created_at || account.createdAt)
       .filter(value => Number.isFinite(new Date(value).getTime()))
@@ -7512,7 +7565,7 @@
       const view = location.hash.slice(1) || "dashboard";
       if (view === "dashboard") cargarDashboard().catch(() => {});
       if (view === "notificaciones") cargarNotificaciones().catch(() => {});
-      if (["ventas", "caja-virtual", "caja", "turnos", "recalcular", "reportes", "inventario", "clientes", "finanzas", "money-manager", "asistente", "configuracion"].includes(view)) loaders[view]?.().catch(() => {});
+      if (["ventas", "caja-virtual", "caja", "turnos", "recalcular", "reportes", "inventario", "clientes", "finanzas", "money-manager", "asistente", "configuracion"].includes(view)) cargarModulo(view).catch(() => {});
     };
     liveRefreshTimer = setTimeout(refreshWhenIdle, 1200);
   }
@@ -8229,6 +8282,7 @@
       event.preventDefault();
       if (!editorSubmit) return;
       const button = $("btnGuardarEditor");
+      if (button.disabled) return;
       const previous = button.textContent;
       button.disabled = true;
       button.textContent = "Guardando...";

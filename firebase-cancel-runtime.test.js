@@ -63,7 +63,7 @@ function loadAdapterForWindowsSale() {
   };
   firebase.firestore.FieldValue = { increment: value => value };
   const window = { __DCARELA_FIREBASE_CONFIG: { projectId: 'test' } };
-  const context = vm.createContext({ window, firebase, console, Date, Math, Map, Promise, String, Number, Error });
+  const context = vm.createContext({ window, firebase, console, Date, Math, Map, Promise, String, Number, Error, setTimeout, clearTimeout });
   const source = fs.readFileSync(path.join(__dirname, 'firebase-adapter.js'), 'utf8');
   vm.runInContext(source, context, { filename: 'firebase-adapter.js' });
   return { api: window.DcarelaFirebase, transactionReads, transactionWrites };

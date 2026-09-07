@@ -94,7 +94,13 @@
     const requestKey = `${owner}|${key}`;
     if (collectionReadRequests.has(requestKey)) return collectionReadRequests.get(requestKey);
     if (Date.now() < firestoreReadRetryAt) throw firestoreQuotaError();
-    const pending = Promise.resolve().then(() => query.get()).catch(error => {
+    let timer;
+    const deadline = new Promise((_, reject) => {
+      timer = setTimeout(() => reject(Object.assign(
+        new Error('La consulta tardo demasiado. Reintenta cuando la conexion responda.'),
+        { code: 'deadline-exceeded' })), 20000);
+    });
+    const pending = Promise.race([Promise.resolve().then(() => query.get()), deadline]).catch(error => {
       if (error?.code === 'resource-exhausted' || error?.code === 'firestore/resource-exhausted'
         || /quota exceeded|RESOURCE_EXHAUSTED/i.test(String(error?.message || ''))) {
         firestoreReadRetryAt = Date.now() + FIRESTORE_QUOTA_PAUSE_MS;
@@ -104,7 +110,10 @@
     });
     collectionReadRequests.set(requestKey, pending);
     try { return await pending; }
-    finally { if (collectionReadRequests.get(requestKey) === pending) collectionReadRequests.delete(requestKey); }
+    finally {
+      clearTimeout(timer);
+      if (collectionReadRequests.get(requestKey) === pending) collectionReadRequests.delete(requestKey);
+    }
   }
 
   function syncQueryMarkerKey(queryKey) {

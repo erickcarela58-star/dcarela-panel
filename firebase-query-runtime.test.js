@@ -24,7 +24,7 @@ function harness(read, storageValues = {}) {
   };
   const clock = class extends Date {static now(){return now;}};
   vm.runInNewContext(fs.readFileSync(__dirname+'/firebase-adapter.js','utf8'),
-    {window,firebase,console,Date:clock,Map,Promise,Error,localStorage});
+    {window,firebase,console,Date:clock,Map,Promise,Error,localStorage,setTimeout,clearTimeout});
   return {api:window.DcarelaFirebase,calls,auth,advance:ms=>{now+=ms;}};
 }
 const snapshot = rows => ({docs:rows.map(row=>({id:row.id,data:()=>({...row})}))});

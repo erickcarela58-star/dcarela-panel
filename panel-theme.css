@@ -1,6 +1,15 @@
 /* D' Carela monochrome visual system v39 - canonical replacement layer.
    Loaded after panel.css. Visible workspaces use continuous ledgers, compact
    controls and one light/dark token system instead of the former card layout. */
+.module-load-status {
+  padding: 10px 14px;
+  margin-bottom: 12px;
+  border-block: 1px solid currentColor;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.module-load-status[hidden] { display: none; }
+.module-load-status button { margin-left: 8px; }
 :root,
 html[data-theme="dark"] {
   color-scheme: dark;
