@@ -10,6 +10,17 @@
   const INACTIVE_STATES = new Set(["anulado", "anulada", "cancelado", "cancelada", "cancelled", "inactivo", "inactiva", "eliminado", "eliminada"]);
 
   const normalizeText = value => String(value ?? "").trim().toLocaleLowerCase("es");
+  const normalizePaymentMethod = value => {
+    const normalized = normalizeText(value)
+      .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+      .replace(/\s+/g, "_");
+    return {
+      transferencia_bancaria: "transferencia",
+      deposito_bancario: "deposito",
+      tarjeta_de_debito: "tarjeta_debito",
+      tarjeta_de_credito: "tarjeta_credito",
+    }[normalized] || normalized;
+  };
   const finiteNumber = value => {
     const parsed = Number(value);
     return Number.isFinite(parsed) ? parsed : 0;
@@ -226,13 +237,15 @@
     const rows = Array.isArray(payload.pagos) ? payload.pagos : Array.isArray(payload.payments) ? payload.payments : [];
     const payments = rows.map((payment, index) => ({
       index,
-      method: normalizeText(payment?.metodo || payment?.method || payload.metodo || "otro").replace(/\s+/g, "_"),
+      method: normalizePaymentMethod(payment?.metodo || payment?.metodoPago || payment?.metodo_pago
+        || payment?.method || payment?.tipo || payload.metodo || payload.metodoPago
+        || payload.metodo_pago || payload.formaPago || "otro"),
       amount_cents: Math.abs(finiteNumber(payment?.montoCentavos ?? payment?.monto_centavos
         ?? payment?.amountCents ?? payment?.amount_cents ?? payment?.monto)),
       account_id: payment?.cuentaFinancieraId || payment?.cuenta_financiera_id
-        || payment?.accountId || payment?.account_id || null,
+        || payment?.accountId || payment?.account_id || payment?.cuentaId || payment?.cuenta_id || null,
       account_name: payment?.cuentaFinancieraNombre || payment?.cuenta_financiera_nombre
-        || payment?.accountName || payment?.account_name || null,
+        || payment?.accountName || payment?.account_name || payment?.cuentaNombre || payment?.cuenta_nombre || null,
     })).filter(payment => payment.amount_cents > 0);
     const amount = saleAmount(event);
     if (payments.length) {
@@ -250,7 +263,8 @@
     }
     return amount > 0 ? [{
       index: 0,
-      method: normalizeText(payload.metodo || payload.metodo_pago || payload.paymentMethod || "otro").replace(/\s+/g, "_"),
+      method: normalizePaymentMethod(payload.metodo || payload.metodoPago || payload.metodo_pago
+        || payload.paymentMethod || payload.formaPago || "otro"),
       amount_cents: amount,
       account_id: payload.cuentaFinancieraId || payload.cuenta_financiera_id || null,
       account_name: payload.cuentaFinancieraNombre || payload.cuenta_financiera_nombre || null,
@@ -259,7 +273,7 @@
 
   function salePaymentAccount(payment, accounts, options = {}) {
     const active = (accounts || []).filter(account => !account?.oculta && account?.estado !== "eliminada");
-    const method = normalizeText(payment?.method).replace(/\s+/g, "_");
+    const method = normalizePaymentMethod(payment?.method);
     const explicitId = String(payment?.account_id || "").trim();
     const explicitAccount = explicitId ? active.find(account => String(account.id) === explicitId) : null;
     if (explicitAccount && !(explicitAccount.tipo === "tarjeta_credito"
@@ -274,14 +288,15 @@
       return active.find(account => account.tipo === "efectivo" && account.ligada_ventas)?.id
         || active.find(account => account.tipo === "efectivo")?.id || null;
     }
-    if (["transferencia", "cheque", "deposito"].includes(method)) {
-      const preferred = String(options.transferAccountId || "").trim();
+    if (["transferencia", "cheque", "deposito", "tarjeta", "tarjeta_debito", "tarjeta_credito", "debito"].includes(method)) {
+      const preferred = String(options.transferAccountId || options.cardAccountId || options.saleAccountId || "").trim();
       if (preferred && active.some(account => String(account.id) === preferred && account.tipo === "banco")) return preferred;
       return active.find(account => account.tipo === "banco" && /popular/i.test(String(account.nombre || "")))?.id
         || active.find(account => account.tipo === "banco")?.id || null;
     }
-    // Una tarjeta de credito es una deuda, no la cuenta donde el adquirente
-    // deposita una venta. Sin cuenta de liquidacion explicita no se inventa.
+    // El credito queda pendiente en la cuenta del cliente; no entra al banco
+    // hasta que se cobre como abono. Las tarjetas/cheques ya se liquidan en
+    // el banco de ventas arriba, para que Caja y Finanzas compartan el mismo motor.
     return null;
   }
 

@@ -4211,6 +4211,16 @@
           throw new Error("La distribucion del pago no coincide con el total de la factura.");
         }
       } else payments = [{ metodo: method, montoCentavos: total }];
+      const transferAmount = payments.filter(payment => payment.metodo === "transferencia")
+        .reduce((sum, payment) => sum + payment.montoCentavos, 0);
+      const transferAccountId = form.get("cuentaFinancieraId") || "";
+      if (transferAmount > 0 && !transferAccountId) {
+        throw new Error("Selecciona la cuenta bancaria que recibio la transferencia.");
+      }
+      const transferAccount = accounts.find(account => account.id === transferAccountId);
+      payments = payments.map(payment => payment.metodo === "transferencia"
+        ? { ...payment, cuentaFinancieraId: transferAccountId, cuentaFinancieraNombre: transferAccount?.nombre || null }
+        : payment);
       const cashAmount = payments.filter(payment => payment.metodo === "efectivo").reduce((sum, payment) => sum + payment.montoCentavos, 0);
       const cashText = String(form.get("pagoCon") || "").trim();
       const cashReceived = cashAmount > 0 ? (cashText ? centavosInput(cashText) : cashAmount) : null;

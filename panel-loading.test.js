@@ -30,6 +30,11 @@ test("las entradas no dependen de que exista un catalogo de ingresos", () => {
   assert.match(panel, /categoryInput\.required = nuevo === "gasto"/);
 });
 
+test("la venta web conserva la cuenta bancaria dentro de cada transferencia", () => {
+  assert.match(panel, /const transferAmount = payments\.filter\(payment => payment\.metodo === "transferencia"\)/);
+  assert.match(panel, /cuentaFinancieraId: transferAccountId, cuentaFinancieraNombre: transferAccount\?\.nombre/);
+});
+
 test("el service worker conserva la última pantalla si el HTML tarda", () => {
   assert.match(serviceWorker, /Promise\.race\(\[network, new Promise/);
   assert.match(serviceWorker, /timer = setTimeout\(\(\) => resolve\(cached\), 2500\)/);

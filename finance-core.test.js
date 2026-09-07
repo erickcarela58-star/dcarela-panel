@@ -95,7 +95,7 @@ test("conserva folios iguales de terminales diferentes", () => {
   assert.equal(core.deduplicateSales(sales).length, 2);
 });
 
-test("separa los cobros de una venta por metodo y no carga tarjetas a una deuda", () => {
+test("separa los cobros de una venta por metodo y liquida tarjetas en banco", () => {
   const accounts = [
     { id: "cash", nombre: "Efectivo", tipo: "efectivo", ligada_ventas: true, estado: "activa" },
     { id: "popular", nombre: "Banco Popular", tipo: "banco", estado: "activa" },
@@ -112,7 +112,7 @@ test("separa los cobros de una venta por metodo y no carga tarjetas a una deuda"
   assert.deepEqual(movements.map(item => [item.metodo_pago, item.monto_centavos, item.cuenta_id]), [
     ["efectivo", 10000, "cash"],
     ["transferencia", 12000, "popular"],
-    ["tarjeta", 8000, null],
+    ["tarjeta", 8000, "popular"],
   ]);
   assert.equal(core.summarizeMovements(movements).ingresos_centavos, 30000);
 });
@@ -227,14 +227,32 @@ test("conserva el total de una venta aunque un cobro venga incompleto y no inven
   assert.equal(movements[1].cuenta_id, null);
 });
 
-test("una preferencia de efectivo no captura transferencias ni una tarjeta de deuda captura ventas", () => {
+test("una preferencia de efectivo no captura transferencias y el banco liquida tarjetas", () => {
   const accounts = [
     { id: "cash", nombre: "Efectivo", tipo: "efectivo", estado: "activa" },
     { id: "popular", nombre: "Banco Popular", tipo: "banco", estado: "activa" },
     { id: "debt", nombre: "Tarjeta de Credito Qik", tipo: "tarjeta_credito", estado: "activa" },
   ];
   assert.equal(core.salePaymentAccount({ method: "transferencia" }, accounts, { transferAccountId: "cash" }), "popular");
-  assert.equal(core.salePaymentAccount({ method: "tarjeta", account_id: "debt" }, accounts), null);
+  assert.equal(core.salePaymentAccount({ method: "tarjeta", account_id: "debt" }, accounts), "popular");
+  assert.equal(core.salePaymentAccount({ method: "credito" }, accounts), null);
+});
+
+test("normaliza metodos antiguos y conserva la cuenta bancaria de cada cobro", () => {
+  const accounts = [
+    { id: "cash", nombre: "Efectivo", tipo: "efectivo", estado: "activa" },
+    { id: "popular", nombre: "Banco Popular", tipo: "banco", estado: "activa" },
+  ];
+  const movements = core.projectSalePaymentsAsMovements([{
+    event_id: "sale-legacy-methods", created_at_local: "2026-09-01T10:00:00-04:00",
+    payload: { totalCobradoCentavos: 30000, pagos: [
+      { metodo_pago: "Tarjeta de débito", monto_centavos: 10000 },
+      { tipo: "transferencia", montoCentavos: 20000, cuenta_nombre: "Banco Popular" },
+    ] },
+  }], accounts);
+  assert.deepEqual(movements.map(item => [item.metodo_pago, item.cuenta_id]), [
+    ["tarjeta_debito", "popular"], ["transferencia", "popular"],
+  ]);
 });
 
 test("lee ventas Firebase cuando payload llega serializado como JSON", () => {
