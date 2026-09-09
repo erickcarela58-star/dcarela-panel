@@ -504,3 +504,18 @@ test('una fecha ayer contradictoria detiene propuestas en lugar de cambiar silen
   assert.match(reply.message.content, /Aclara la fecha/i);
   assert.equal(harness.writes(), 0);
 });
+
+test('el resumen excluye capital y conserva intereses como gasto sin escribir dinero', async () => {
+  const day = localDay();
+  const ctx = context(adapter({
+    getFinanceMovements: async () => [
+      { fecha: day, tipo: 'gasto', monto_centavos: 100000, afecta_resultado: false },
+      { fecha: day, tipo: 'gasto', monto_centavos: 15000, afecta_resultado: true },
+      { fecha: day, tipo: 'gasto', monto_centavos: 2000 },
+      { fecha: day, tipo: 'gasto', monto_centavos: 5000, estado: 'anulado' },
+    ],
+    adminAction: async () => { throw new Error('La consulta no puede escribir'); },
+  }));
+  const result = await assistant.request('chat', ctx, { message: 'Dame el resumen de ventas de hoy, gastos y saldo en cuentas.' });
+  assert.match(result.message.content, /Gastos registrados: \*\*2\*\* por \*\*RD\$\s?170\.00/);
+});

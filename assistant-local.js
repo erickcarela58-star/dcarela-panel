@@ -232,7 +232,7 @@
     item?.amount_cents
   );
   const movementDate = item => dayOf(item?.fecha || item?.created_at || item?.updated_at);
-  const isExpense = item => ['gasto', 'egreso', 'salida', 'ajuste_negativo'].includes(normalize(item?.tipo));
+  const isExpense = item => item?.afecta_resultado !== false && ['gasto', 'egreso', 'salida', 'ajuste_negativo'].includes(normalize(item?.tipo));
 
   async function loadSummary(ctx, requestedDay = today()) {
     const start = new Date(`${requestedDay}T00:00:00`);
@@ -395,7 +395,7 @@
         && normalize(item.estado) !== 'anulado';
     });
     const expenseRows = rows.filter(isExpense);
-    const incomeRows = rows.filter(item => ['ingreso', 'entrada', 'venta'].includes(normalize(item.tipo)));
+    const incomeRows = rows.filter(item => item.afecta_resultado !== false && ['ingreso', 'entrada', 'venta'].includes(normalize(item.tipo)));
     const transferRows = rows.filter(item => normalize(item.tipo).includes('transfer'));
     const categories = new Map();
     expenseRows.forEach(item => {
