@@ -37,3 +37,13 @@ Saldo de cuentas incluidas respeta la configuracion de inclusion de cada cuenta 
 ## Ventas con varios pagos
 
 El saldo empareja cada cobro proyectado con un asiento de la misma venta, cuenta e importe. Un asiento representa un solo pago; registrar la parte en efectivo no oculta la parte bancaria. El folio por si solo no identifica una venta entre terminales. Las ventas web nuevas conservan tambien el indice del pago. Esta proteccion no constituye una migracion de acumuladores Windows ni resuelve por si sola las anulaciones anteriores al cuadre.
+
+## Pagos de prestamos
+
+En Compromisos y deudas, selecciona Pagar y escribe capital, intereses y cargos. En un prestamo los tres deben sumar exactamente el importe pagado. Escribe capital cero cuando solo pagues intereses; dejarlo vacio no permite adivinar el desglose.
+
+El sistema descuenta el pago total de la cuenta una sola vez. El capital reduce deuda y no se considera gasto del periodo; intereses y cargos forman un asiento de gasto separado. Los saldos contractual, capital y cargos conocidos se reducen con su componente correspondiente; un saldo desconocido permanece desconocido. Las cuotas aplicadas se registran junto al pago. Un importe superior a un saldo conocido se rechaza para revisar primero el contrato.
+
+Para corregir un pago nuevo, abre su movimiento y elige Anular. El formulario indica Anular pago completo: revierte todos sus asientos, la cuenta y las cuotas en una sola transaccion, aunque hayas abierto la parte de intereses. Conserva pagos posteriores y el historial. El proximo vencimiento no se adivina ni se cambia al anular; el compromiso queda marcado para revisar esa fecha. En Editar puedes comprobarla y marcar que ya revisaste el calendario.
+
+Los pagos historicos sin el efecto original registrado y los pagos o anulaciones incorporados en un cuadre requieren la ruta de reversa historica, todavia pendiente. Se rechazan las anulaciones parciales en esos casos. No se migran ni corrigen automaticamente pagos anteriores. Las pruebas de este bloque se ejecutan en fixtures, sin pagos ficticios en produccion.

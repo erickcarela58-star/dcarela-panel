@@ -497,8 +497,45 @@
     return [...base, ...additions].sort((a, b) => String(b.fecha || "").localeCompare(String(a.fecha || "")));
   }
 
+  function planCommitmentPayment(commitment, data) {
+    const cents = (value, label, minimum = 0) => {
+      if (!Number.isSafeInteger(value) || value < minimum) throw new Error(label + ' debe ser un entero valido en centavos.');
+      return value;
+    };
+    const amount = cents(data.montoCentavos, 'El pago', 1);
+    const loan = ['prestamo', 'prestamos', 'loan'].includes(normalizeText(commitment.tipo).normalize('NFD').replace(/[\u0300-\u036f]/g, ''));
+    const interest = cents(data.interesCentavos ?? 0, 'El interes');
+    const charges = cents(data.cargosCentavos ?? 0, 'Los cargos');
+    if (loan && data.capitalCentavos == null) throw new Error('Indica el capital del prestamo, incluso si es cero.');
+    const capital = cents(data.capitalCentavos ?? 0, 'El capital');
+    if (capital + interest + charges > amount || (loan && capital + interest + charges !== amount)) {
+      throw new Error('Capital, interes y cargos deben sumar exactamente el pago del prestamo.');
+    }
+    const patch = {};
+    const reduceKnown = (field, paid) => {
+      if (commitment[field] == null) return;
+      const balance = cents(commitment[field], 'El saldo registrado');
+      if (loan && paid > balance) throw new Error('El pago supera el saldo registrado de ' + field + '. Revisa el contrato antes de pagar.');
+      patch[field] = Math.max(0, balance - paid);
+    };
+    reduceKnown('saldo_pendiente_centavos', amount);
+    if (loan) {
+      reduceKnown('capital_pendiente_centavos', capital);
+      reduceKnown('cargos_intereses_pendientes_centavos', interest + charges);
+      const installments = cents(data.cuotasAplicadas ?? 1, 'Las cuotas', 0);
+      patch.cuotas_pagadas = cents(commitment.cuotas_pagadas ?? 0, 'Las cuotas pagadas') + installments;
+      if (commitment.cuotas_totales != null && patch.cuotas_pagadas > commitment.cuotas_totales) throw new Error('Las cuotas aplicadas superan el total del contrato.');
+      if (commitment.cuota_actual != null) patch.cuota_actual = commitment.cuota_actual + installments;
+    }
+    const mainAmount = loan && capital > 0 ? capital : amount;
+    return { amount, capital, interest, charges, loan, patch, mainAmount,
+      mainAffectsResult: loan ? capital === 0 : data.afectaResultado !== false,
+      expenseAmount: loan && capital > 0 ? interest + charges : 0 };
+  }
+
   return {
     BUSINESS_TIME_ZONE,
+    planCommitmentPayment,
     businessDay,
     eventDay,
     normalizeMovementType,

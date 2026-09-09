@@ -81,6 +81,8 @@
       gasto_id: payload.gastoId || payload.gasto_id || null,
       caja_movimiento_id: payload.cajaMovimientoId || payload.movimientoCajaId || null,
       abono_id: payload.abonoId || null,
+      compromiso_id: payload.compromisoId || null,
+      pago_compromiso_id: payload.pagoCompromisoId || null,
       sync_event_id: event.event_id || event.id,
       observaciones: payload.observaciones || '',
       source: 'pos_sync_event',
@@ -579,8 +581,80 @@
       cajaMovimientoId: movement.caja_movimiento_id || null,
       gastoId: movement.gasto_id || null,
       abonoId: movement.abono_id || null,
+      compromisoId: movement.compromiso_id || null,
+      pagoCompromisoId: movement.pago_compromiso_id || null,
       afectaResultado: movement.afecta_resultado !== false,
     };
+  }
+
+  async function setCommitmentPaymentState(ctx, transaction, paymentId, restoring, data, createdAt) {
+    const d = ctx.d;
+    const paymentRef = d.collection('fin_commitment_payments').doc(paymentId);
+    const paymentDoc = await transaction.get(paymentRef);
+    if (!paymentDoc.exists || paymentDoc.data().business_id !== ctx.businessId) throw new Error('El pago no existe.');
+    const payment = paymentDoc.data();
+    if (payment.accounting_version !== 2 || !Array.isArray(payment.ledger_ids) || !payment.contract_effect) {
+      throw new Error('Pago historico sin efecto reversible completo. Requiere revision contable; no se anulara parcialmente.');
+    }
+    const targetState = restoring ? 'registrado' : 'anulado';
+    if (payment.estado === targetState) return;
+    if (payment.estado !== (restoring ? 'anulado' : 'registrado')) throw new Error('El estado del pago no permite esta operacion.');
+    const reason = text(data.motivo, 500);
+    if (!reason) throw new Error('Indica el motivo del cambio del pago.');
+    const accountRef = d.collection('fin_accounts').doc(payment.cuenta_id);
+    const commitmentRef = d.collection('fin_commitments').doc(payment.compromiso_id);
+    const ids = [...new Set(payment.ledger_ids)];
+    if (!ids.length || ids.length > 2) throw new Error('El pago tiene un enlace contable invalido.');
+    const [accountDoc, commitmentDoc, ...ledgerDocs] = await Promise.all([
+      transaction.get(accountRef), transaction.get(commitmentRef),
+      ...ids.map(id => transaction.get(d.collection('fin_movements').doc(id)))
+    ]);
+    if (!accountDoc.exists || accountDoc.data().business_id !== ctx.businessId
+      || !commitmentDoc.exists || commitmentDoc.data().business_id !== ctx.businessId) throw new Error('La cuenta o el compromiso no pertenece al negocio.');
+    const account = accountDoc.data();
+    const commitment = commitmentDoc.data();
+    const cutoff = Date.parse(account.reconciled_at || '');
+    const sourceTime = Date.parse(payment.fecha + 'T23:59:59-04:00');
+    if (!Number.isFinite(sourceTime)) throw new Error('El pago no tiene fecha efectiva valida.');
+    if (Number.isFinite(cutoff) && (sourceTime <= cutoff || (restoring && Date.parse(payment.updated_at) <= cutoff))) {
+      throw new Error('El pago o su anulacion ya esta incluido en un cuadre. Requiere reversa historica; no se alterara la base conciliada.');
+    }
+    const ledger = ledgerDocs.map(doc => doc.exists ? doc.data() : null);
+    if (ledger.some(row => !row || row.business_id !== ctx.businessId || row.pago_compromiso_id !== paymentId
+      || row.cuenta_id !== payment.cuenta_id || row.tipo !== 'gasto' || row.estado !== payment.estado)
+      || ledger.reduce((sum, row) => sum + Number(row.monto_centavos), 0) !== payment.monto_centavos) {
+      throw new Error('Los asientos del pago no coinciden. No se permite una reversa parcial.');
+    }
+    const effectFields = new Set(['saldo_pendiente_centavos', 'capital_pendiente_centavos',
+      'cargos_intereses_pendientes_centavos', 'cuotas_pagadas', 'cuota_actual']);
+    const patch = {};
+    for (const [field, delta] of Object.entries(payment.contract_effect)) {
+      const current = commitment[field];
+      if (!effectFields.has(field) || !Number.isSafeInteger(delta)
+        || !Number.isSafeInteger(current)) throw new Error('El contrato cambio y requiere revision antes de revertir el pago.');
+      const next = current + (restoring ? delta : -delta);
+      if (!Number.isSafeInteger(next) || next < 0) throw new Error('La reversa dejaria un saldo contractual invalido.');
+      patch[field] = next;
+    }
+    if (patch.cuotas_pagadas != null && commitment.cuotas_totales != null && patch.cuotas_pagadas > commitment.cuotas_totales) {
+      throw new Error('La restauracion supera las cuotas del contrato actual.');
+    }
+    const balance = Number(account.saldo_actual_centavos ?? account.saldo_inicial_centavos ?? 0);
+    const nextBalance = balance + (restoring ? -1 : 1) * payment.monto_centavos;
+    if (!Number.isSafeInteger(nextBalance)) throw new Error('Saldo de cuenta invalido.');
+    const revision = text(data.requestId, 80) || uuid();
+    ledger.forEach((row, index) => {
+      const eventId = 'ledger-payment-state-' + paymentId + '-' + revision + '-' + index;
+      const updated = { ...row, estado: targetState, motivo_anulacion: restoring ? null : reason, updated_at: createdAt };
+      transaction.update(d.collection('fin_movements').doc(ids[index]), { estado: targetState,
+        motivo_anulacion: updated.motivo_anulacion, updated_at: createdAt });
+      transaction.set(d.collection('sync_events').doc(eventId), eventDocument(ctx, eventId,
+        'LedgerMovimientoRegistrado', 'fin_movements', ids[index],
+        financeLedgerPayload({ ...updated, sync_event_id: eventId }, account), createdAt));
+    });
+    transaction.update(accountRef, { saldo_actual_centavos: nextBalance, updated_at: createdAt });
+    transaction.update(commitmentRef, { ...patch, schedule_review_required: true, updated_at: createdAt });
+    transaction.update(paymentRef, { estado: targetState, motivo_estado: reason, updated_at: createdAt });
   }
 
   async function firebaseAdminAction(ctx, action, entityId, data) {
@@ -1079,6 +1153,10 @@
         const movement = await transaction.get(ref);
         if (!movement.exists || movement.data().business_id !== ctx.businessId) throw new Error('El movimiento no existe.');
         const row = movement.data();
+        if (row.pago_compromiso_id) {
+          await setCommitmentPaymentState(ctx, transaction, row.pago_compromiso_id, restoring, data, createdAt);
+          return;
+        }
         const alreadyActive = row.estado !== 'anulado';
         if (alreadyActive === restoring) return;
         const amount = Number(row.monto_centavos || 0);
@@ -1232,9 +1310,19 @@
         cuotas_totales: data.cuotasTotales ?? null, cuota_actual: data.cuotaActual ?? null,
         cuotas_pagadas: Number(data.cuotasPagadas || 0), monto_variable: data.montoVariable === true,
         capital_es_variable: data.capitalEsVariable === true, activo: data.activo !== false,
+        ...(data.calendarioRevisado === true ? { schedule_review_required: false } : {}),
         nota: text(data.nota, 1400) || null, metadata: data.metadata || {}, updated_at: createdAt, ...actor
       }, { merge: true });
       return { ok: true, id, message: 'Compromiso guardado.' };
+    }
+
+    if (action === 'fin.commitment.payment.cancel' || action === 'fin.commitment.payment.restore') {
+      const paymentId = text(entityId, 160);
+      if (!paymentId) throw new Error('Selecciona el pago completo.');
+      await d.runTransaction(transaction => setCommitmentPaymentState(ctx, transaction, paymentId,
+        action.endsWith('.restore'), data, createdAt));
+      syncEventQueryCache.clear();
+      return { ok: true, id: paymentId, message: 'Estado del pago completo actualizado.' };
     }
 
     if (action === 'fin.commitment.payment') {
@@ -1254,33 +1342,48 @@
         if (!commitment.exists || commitment.data().business_id !== ctx.businessId) throw new Error('El compromiso no existe.');
         if (!account.exists || account.data().business_id !== ctx.businessId) throw new Error('La cuenta de pago no existe.');
         const accountBalance = Number(account.data().saldo_actual_centavos ?? account.data().saldo_inicial_centavos ?? 0);
-        const balance = Math.max(0, Number(commitment.data().saldo_pendiente_centavos || 0) - Number(data.capitalCentavos ?? amount));
+        const paymentPlan = window.DcarelaFinanceCore.planCommitmentPayment(commitment.data(), { ...data, montoCentavos: amount });
         const movement = {
           id: ledgerMovementId, business_id: ctx.businessId, tipo: 'gasto',
           fecha: text(data.fecha, 10) || createdAt.slice(0, 10), hora: createdAt.slice(11, 19),
-          monto_centavos: amount, cuenta_id: accountId, descripcion: `Pago: ${text(commitment.data().nombre, 180)}`,
+          monto_centavos: paymentPlan.mainAmount, cuenta_id: accountId, descripcion: `${paymentPlan.loan && paymentPlan.capital > 0 ? "Capital" : "Pago"}: ${text(commitment.data().nombre, 180)}`,
           nota: text(data.nota, 1200) || null, referencia: text(data.referencia, 180) || null,
-          origen: 'panel', estado: 'registrado', afecta_resultado: data.afectaResultado !== false,
+          origen: 'panel', estado: 'registrado', afecta_resultado: paymentPlan.mainAffectsResult,
           compromiso_id: commitmentId, pago_compromiso_id: id, sync_event_id: ledgerEventId,
           created_at: createdAt, updated_at: createdAt, created_by_uid: ctx.user.uid,
           created_by_email: ctx.user.email || '',
         };
         transaction.set(d.collection('fin_commitment_payments').doc(id), {
           business_id: ctx.businessId, compromiso_id: commitmentId, monto_centavos: amount,
-          capital_centavos: Number(data.capitalCentavos || 0), interes_centavos: Number(data.interesCentavos || 0),
-          cargos_centavos: Number(data.cargosCentavos || 0), cuenta_id: text(data.cuentaId, 160) || null,
-          numero_cuota: data.numeroCuota ?? null, cuotas_aplicadas: Number(data.cuotasAplicadas || 1),
+          accounting_version: 2, estado: 'registrado',
+          ledger_ids: [ledgerMovementId, ...(paymentPlan.expenseAmount > 0 ? [ledgerMovementId + '-finance-charge'] : [])],
+          contract_effect: Object.fromEntries(Object.entries(paymentPlan.patch).map(([field, value]) =>
+            [field, value - Number(commitment.data()[field] ?? 0)])),
+          capital_centavos: paymentPlan.capital, interes_centavos: paymentPlan.interest,
+          cargos_centavos: paymentPlan.charges, cuenta_id: text(data.cuentaId, 160) || null,
+          numero_cuota: data.numeroCuota ?? null, cuotas_aplicadas: Number(data.cuotasAplicadas ?? 1),
           proximo_vencimiento: data.proximoVencimiento || null, fecha: text(data.fecha, 10) || createdAt.slice(0, 10),
           referencia: text(data.referencia, 180) || null, nota: text(data.nota, 1200) || null,
           created_at: createdAt, ...actor
         });
-        transaction.update(commitmentRef, { saldo_pendiente_centavos: balance,
+        transaction.update(commitmentRef, { ...paymentPlan.patch,
           proximo_vencimiento: data.proximoVencimiento || commitment.data().proximo_vencimiento || null,
           updated_at: createdAt });
         transaction.set(d.collection('fin_movements').doc(ledgerMovementId), movement);
         transaction.set(d.collection('sync_events').doc(ledgerEventId), eventDocument(
           ctx, ledgerEventId, 'LedgerMovimientoRegistrado', 'fin_movements', ledgerMovementId,
           financeLedgerPayload(movement, account.data()), createdAt));
+        if (paymentPlan.expenseAmount > 0) {
+          const expenseId = ledgerMovementId + '-finance-charge';
+          const expenseEventId = 'ledger-' + expenseId;
+          const expense = { ...movement, id: expenseId, sync_event_id: expenseEventId,
+            monto_centavos: paymentPlan.expenseAmount, afecta_resultado: true,
+            descripcion: 'Intereses y cargos: ' + text(commitment.data().nombre, 180) };
+          transaction.set(d.collection('fin_movements').doc(expenseId), expense);
+          transaction.set(d.collection('sync_events').doc(expenseEventId), eventDocument(
+            ctx, expenseEventId, 'LedgerMovimientoRegistrado', 'fin_movements', expenseId,
+            financeLedgerPayload(expense, account.data()), createdAt));
+        }
         transaction.update(accountRef, { saldo_actual_centavos: accountBalance - amount, updated_at: createdAt });
       });
       return { ok: true, id, message: 'Pago del compromiso registrado.' };

@@ -21,7 +21,7 @@
     document.body?.classList.add("is-embedded");
   }
   const THEME_KEY = "dcarela.ui.theme";
-  const APP_BUILD = "1.0.76";
+  const APP_BUILD = "1.0.77";
   const financeCore = window.DcarelaFinanceCore;
   const moneyManagerCore = window.DcarelaMoneyManagerCore;
 
@@ -942,6 +942,8 @@
     "fin.category.upsert": "Guardar categoria financiera",
     "fin.movement.create": "Registrar movimiento financiero",
     "fin.movement.publish": "Sincronizar movimiento financiero",
+    "fin.commitment.payment.cancel": "Anular pago completo de compromiso",
+    "fin.commitment.payment.restore": "Restaurar pago completo de compromiso",
     "fin.movement.cancel": "Anular movimiento financiero",
     "fin.movement.restore": "Restaurar movimiento financiero",
     "fin.transfer.create": "Registrar transferencia",
@@ -5568,6 +5570,7 @@
       <label data-frequency-field="quincenal"><span>Segundo dia de pago</span><input name="diaMes2" type="number" min="1" max="31" value="${esc(item.dia_mes_2 ?? "")}" placeholder="Ej. 30"></label>
       <label data-frequency-field="personalizada"><span>Repetir cada cuantos dias</span><input name="intervaloDias" type="number" min="1" max="3650" value="${esc(item.intervalo_dias ?? "")}" placeholder="Ej. 10"></label>
       <label><span>Fecha de inicio</span><input name="fechaInicio" type="date" value="${esc(item.fecha_inicio || "")}"></label>
+      ${item.schedule_review_required ? '<label class="checkbox-field field-wide"><input name="calendarioRevisado" type="checkbox"><span>He revisado el proximo vencimiento despues del cambio del pago</span></label>' : ""}
       <label><span>Saldo contractual pendiente (RD$)</span><input name="saldoPendiente" type="number" min="0" step="0.01" value="${item.saldo_pendiente_centavos == null ? "" : pesoInput(item.saldo_pendiente_centavos)}"></label>
       <label><span>Capital pendiente (RD$)</span><input name="capitalPendiente" type="number" min="0" step="0.01" value="${item.capital_pendiente_centavos == null ? "" : pesoInput(item.capital_pendiente_centavos)}"></label>
       <label><span>Intereses y cargos pendientes (RD$)</span><input name="cargosPendientes" type="number" min="0" step="0.01" value="${item.cargos_intereses_pendientes_centavos == null ? "" : pesoInput(item.cargos_intereses_pendientes_centavos)}"></label>
@@ -5600,6 +5603,7 @@
         cuotasPagadas: optionalInteger(form.get("cuotasPagadas")) || 0,
         montoVariable: form.get("montoVariable") === "on", capitalEsVariable: form.get("capitalEsVariable") === "on",
         activo: form.get("activo") === "on", nota: form.get("nota"), metadata: item.metadata || {},
+        calendarioRevisado: form.get("calendarioRevisado") === "on",
       });
       cerrarEditor();
       await cargarProveedores(true);
@@ -5621,7 +5625,7 @@
     const requestId = crypto.randomUUID();
     const accountOptions = (finStateCache?.accounts || []).filter(item => item.estado !== "eliminada")
       .map(item => `<option value="${esc(item.id)}">${esc(item.nombre)}</option>`).join("");
-    abrirEditor("Registrar pago", `${commitment.nombre}. El saldo se reduce una sola vez y el desglose queda auditado.`, `
+    abrirEditor("Registrar pago", `${commitment.nombre}. En prestamos indica capital (cero si no aplica), intereses y cargos; deben sumar exactamente el pago. El capital reduce deuda, no es gasto del periodo.`, `
       <label><span>Fecha</span><input name="fecha" type="date" required value="${todayKey()}"></label>
       <label><span>Monto pagado (RD$)</span><input name="monto" type="number" min="0.01" step="0.01" required value="${pesoInput(commitment.monto_centavos)}"></label>
       <label><span>Abono a capital (RD$)</span><input name="capital" type="number" min="0" step="0.01" value=""></label>
@@ -5629,7 +5633,7 @@
       <label><span>Otros cargos (RD$)</span><input name="cargos" type="number" min="0" step="0.01" value=""></label>
       <label><span>Cuenta usada</span><select name="cuentaId" required><option value="">Selecciona la cuenta</option>${accountOptions}</select></label>
       <label><span>Numero de cuota</span><input name="numeroCuota" type="number" min="1" value="${esc(commitment.cuota_actual ?? "")}"></label>
-      <label><span>Cuotas aplicadas</span><input name="cuotasAplicadas" type="number" min="1" value="1"></label>
+      <label><span>Cuotas aplicadas (0 para abono extra)</span><input name="cuotasAplicadas" type="number" min="0" value="1"></label>
       <label><span>Siguiente vencimiento (opcional)</span><input name="proximoVencimiento" type="date"></label>
       <label><span>Referencia o recibo</span><input name="referencia" maxlength="180"></label>
       <label class="field-wide"><span>Nota</span><textarea name="nota" rows="3" maxlength="1200"></textarea></label>`, async form => {
@@ -5637,11 +5641,12 @@
       const capital = optionalCents(form.get("capital"));
       const interest = optionalCents(form.get("interes")) || 0;
       const charges = optionalCents(form.get("cargos")) || 0;
-      if ((capital ?? 0) + interest + charges > amount) throw new Error("Capital, interes y cargos no pueden superar el pago.");
+      financeCore.planCommitmentPayment(commitment, { montoCentavos: amount, capitalCentavos: capital,
+        interesCentavos: interest, cargosCentavos: charges, cuotasAplicadas: optionalInteger(form.get("cuotasAplicadas")) ?? 1 });
       await adminWrite("fin.commitment.payment", commitment.id, {
         requestId, fecha: form.get("fecha"), montoCentavos: amount, capitalCentavos: capital,
         interesCentavos: interest, cargosCentavos: charges, cuentaId: form.get("cuentaId") || null,
-        numeroCuota: optionalInteger(form.get("numeroCuota")), cuotasAplicadas: optionalInteger(form.get("cuotasAplicadas")) || 1,
+        numeroCuota: optionalInteger(form.get("numeroCuota")), cuotasAplicadas: optionalInteger(form.get("cuotasAplicadas")) ?? 1,
         proximoVencimiento: form.get("proximoVencimiento") || null,
         referencia: form.get("referencia"), nota: form.get("nota"),
       });
@@ -5717,7 +5722,7 @@
         ? `<button type="button" data-fin-legacy-obligation="${esc(item.legacy_id)}">Abrir en Facturas y deudas</button>`
         : canEdit ? `<div class="table-actions"><button type="button" data-fin-commitment-pay="${esc(item.id)}"${item.activo ? "" : " disabled"}>Pagar</button><button type="button" data-fin-commitment-edit="${esc(item.id)}">Editar</button>${item.activo ? `<button type="button" data-fin-commitment-off="${esc(item.id)}">Desactivar</button>` : ""}</div>` : "";
       return [
-        `<strong>${esc(item.nombre)}</strong><small>${esc(item.nota || "")}</small>`,
+        `<strong>${esc(item.nombre)}</strong><small>${esc(item.nota || "")}</small>${item.schedule_review_required ? '<small class="tag warn">Revisar proximo vencimiento tras cambiar un pago</small>' : ""}`,
         `<span>${esc(installments)}</span><small>${item.proximo_vencimiento ? `Proximo ${esc(dateOnly(item.proximo_vencimiento))}` : "Sin fecha fija"}</small>`,
         money(item.activo ? numero(due.monto_periodo_centavos,
           item.proximo_vencimiento && item.proximo_vencimiento <= (obligations?.to || "") ? item.monto_centavos : 0) : 0),
@@ -6355,10 +6360,12 @@
 
   function confirmarAnularMovimientoFin(movement) {
     const requestId = crypto.randomUUID();
-    abrirEditor("Anular movimiento", "El asiento queda visible en auditoria, pero deja de afectar saldos y reportes.", `
-      <div class="confirm-panel field-wide"><strong>${esc(movement.descripcion || movement.payee || "Movimiento")}</strong><p>${esc(dateOnly(movement.fecha))} &middot; ${money(movement.monto_centavos)}</p></div>
+    const linkedPayment = finStateCache?.commitmentPayments?.find(payment => payment.id === movement.pago_compromiso_id);
+    abrirEditor(movement.pago_compromiso_id ? "Anular pago completo" : "Anular movimiento",
+      movement.pago_compromiso_id ? "Se revierten juntos capital, intereses, cargos y cuotas del pago. Revisa despues el proximo vencimiento; la fecha no se cambia automaticamente." : "El asiento queda visible en auditoria, pero deja de afectar saldos y reportes.", `
+      <div class="confirm-panel field-wide"><strong>${esc(movement.descripcion || movement.payee || "Movimiento")}</strong><p>${esc(dateOnly(movement.fecha))} &middot; ${money(linkedPayment?.monto_centavos ?? movement.monto_centavos)}${linkedPayment ? " · Pago completo" : ""}</p></div>
       <label class="field-wide"><span>Motivo</span><textarea name="motivo" required rows="3" maxlength="500"></textarea></label>`, async form => {
-      await adminWrite("fin.movement.cancel", movement.id, { requestId, motivo: form.get("motivo") });
+      await adminWrite(movement.pago_compromiso_id ? "fin.commitment.payment.cancel" : "fin.movement.cancel", movement.pago_compromiso_id || movement.id, { requestId, motivo: form.get("motivo") });
       cerrarEditor();
       await cargarProveedores(true);
     });

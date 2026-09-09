@@ -19,16 +19,21 @@ function harness(role='admin') {
     doc(id){const key=`${name}/${id}`;return {key,async get(){if(!docs.has(key))throw new Error('missing-read');return snap(key);}};}
   });
   const db={collection:query,enablePersistence:async()=>{},async runTransaction(fn){
-    const writes=[];
-    const result=await fn({async get(ref){assert.equal(writes.length,0,'reads before writes');if(!docs.has(ref.key))throw new Error('missing-read');return snap(ref.key);},
+    for(let attempt=0;attempt<8;attempt++) {
+    const writes=[], reads=new Map();
+    const result=await fn({async get(ref){assert.equal(writes.length,0,'reads before writes');if(!docs.has(ref.key))throw new Error('missing-read');
+      const value=docs.get(ref.key);reads.set(ref.key,value);return {id:ref.key.split('/').pop(),exists:true,data:()=>value};},
       set:(ref,v,opts)=>writes.push({key:ref.key,v,merge:opts?.merge}),update:(ref,v)=>writes.push({key:ref.key,v,merge:true})});
     if(rejectCommit)throw new Error('offline');
+    if([...reads].some(([key,value])=>docs.get(key)!==value))continue;
     for(const w of writes){
       if(w.key.startsWith('sync_events/')&&docs.has(w.key))throw new Error('immutable-event');
       if(role==='cajero'&&/^fin_/.test(w.key))throw new Error('admin-only');
     }
     for(const w of writes){const next=w.merge?{...docs.get(w.key)}:{};for(const[k,v]of Object.entries(w.v))next[k]=v&&typeof v==='object'&&'increment'in v?(next[k]||0)+v.increment:v;docs.set(w.key,next);}
     return result;
+    }
+    throw new Error("transaction-contention");
   }};
   const auth={currentUser:{uid:'user',email:'test@example.test'}};
   const firebase={apps:[],initializeApp:()=>({}),auth:()=>auth,firestore:()=>db};
@@ -123,4 +128,102 @@ test('seguimiento rechaza asiento ajeno o incorrecto y falla sin escritura parci
   await assert.rejects(confirm(),/offline/);
   assert.equal(h.docs.get('fin_pending_transfers/p').estado,'pendiente');
   assert.equal(h.docs.has('sync_events/pending-transfer-p-confirmada'),false);
+});
+
+test('prestamo separa capital del resultado y actualiza deuda una sola vez',async()=>{
+  const h=harness();h.docs.set('fin_commitments/loan',{business_id:'test',nombre:'Prestamo fixture',tipo:'prestamo',saldo_pendiente_centavos:120000,capital_pendiente_centavos:100000,cargos_intereses_pendientes_centavos:20000,cuotas_pagadas:0,cuotas_totales:12,cuota_actual:1});
+  const pay={requestId:'loan-pay',cuentaId:'bank',montoCentavos:12000,capitalCentavos:10000,interesCentavos:1500,cargosCentavos:500,fecha:'2026-09-09'};
+  await h.api.adminAction('fin.commitment.payment','test','admin','loan',pay);
+  await h.api.adminAction('fin.commitment.payment','test','admin','loan',pay);
+  assert.equal(h.docs.get('fin_accounts/bank').saldo_actual_centavos,51410);
+  const loan=h.docs.get('fin_commitments/loan');
+  assert.equal(loan.saldo_pendiente_centavos,108000);assert.equal(loan.capital_pendiente_centavos,90000);assert.equal(loan.cargos_intereses_pendientes_centavos,18000);assert.equal(loan.cuotas_pagadas,1);
+  const movements=[...h.docs.entries()].filter(([k])=>k.startsWith('fin_movements/')).map(([,v])=>v);
+  assert.equal(movements.reduce((s,m)=>s+m.monto_centavos,0),12000);
+  assert.equal(core.summarizeMovements(movements).gastos_centavos,2000);
+});
+
+test('prestamo exige desglose exacto y no deja datos parciales si falla el commit',async()=>{
+  const h=harness();h.docs.set('fin_commitments/loan',{business_id:'test',tipo:'prestamo',saldo_pendiente_centavos:100000,capital_pendiente_centavos:90000,cargos_intereses_pendientes_centavos:10000});
+  const pay={requestId:'loan-pay',cuentaId:'bank',montoCentavos:2000,capitalCentavos:0,interesCentavos:2000};
+  await assert.rejects(h.api.adminAction('fin.commitment.payment','test','admin','loan',{...pay,capitalCentavos:null}),/Indica el capital/);
+  await assert.rejects(h.api.adminAction('fin.commitment.payment','test','admin','loan',{...pay,interesCentavos:1000}),/exactamente/);
+  h.fail();await assert.rejects(h.api.adminAction('fin.commitment.payment','test','admin','loan',pay),/offline/);
+  assert.equal(h.docs.get('fin_accounts/bank').saldo_actual_centavos,63410);assert.equal(h.docs.get('fin_commitments/loan').saldo_pendiente_centavos,100000);
+  assert.equal(h.docs.has('fin_commitment_payments/loan-pay'),false);
+});
+
+test('pago solo de intereses conserva capital y saldos desconocidos',()=>{
+ const plan=core.planCommitmentPayment({tipo:'prestamo',capital_pendiente_centavos:90000},{montoCentavos:2000,capitalCentavos:0,interesCentavos:2000});
+ assert.equal(plan.patch.capital_pendiente_centavos,90000);assert.equal('saldo_pendiente_centavos' in plan.patch,false);assert.equal(plan.mainAffectsResult,true);assert.equal(plan.expenseAmount,0);
+ assert.throws(()=>core.planCommitmentPayment({tipo:'prestamo',saldo_pendiente_centavos:1000},{montoCentavos:2000,capitalCentavos:2000}),/supera/);
+});
+
+const loanFixture=()=>{
+ const h=harness();h.docs.set('fin_commitments/loan',{business_id:'test',nombre:'Prestamo fixture',tipo:'prestamo',saldo_pendiente_centavos:120000,capital_pendiente_centavos:100000,cargos_intereses_pendientes_centavos:20000,cuotas_pagadas:0,cuota_actual:1,cuotas_totales:12,proximo_vencimiento:'2026-09-20'});return h;
+};
+const loanPay={requestId:'loan-pay',cuentaId:'bank',montoCentavos:12000,capitalCentavos:10000,interesCentavos:1500,cargosCentavos:500,fecha:'2026-09-09'};
+test('anular desde una parte revierte el pago entero; reintento y restauracion conservan cuenta y contrato',async()=>{
+ const h=loanFixture();await h.api.adminAction('fin.commitment.payment','test','admin','loan',loanPay);
+ const cancel={motivo:'Fixture',requestId:'cancel-loan'};
+ await h.api.adminAction('fin.movement.cancel','test','admin','commitment-payment-loan-pay-finance-charge',cancel);
+ await h.api.adminAction('fin.commitment.payment.cancel','test','admin','loan-pay',cancel);
+ assert.equal(h.docs.get('fin_accounts/bank').saldo_actual_centavos,63410);
+ assert.equal(h.docs.get('fin_commitments/loan').saldo_pendiente_centavos,120000);
+ assert.equal(h.docs.get('fin_commitments/loan').capital_pendiente_centavos,100000);
+ assert.equal(h.docs.get('fin_commitments/loan').cuotas_pagadas,0);
+ const rows=()=>[...h.docs.entries()].filter(([k])=>k.startsWith('fin_movements/')).map(([,v])=>v);
+ assert.equal(rows().filter(r=>r.estado==='anulado').length,2);assert.equal(core.summarizeMovements(rows()).gastos_centavos,0);
+ await h.api.adminAction('fin.movement.restore','test','admin','commitment-payment-loan-pay',{motivo:'Fixture',requestId:'restore-loan'});
+ assert.equal(h.docs.get('fin_accounts/bank').saldo_actual_centavos,51410);
+ assert.equal(h.docs.get('fin_commitments/loan').saldo_pendiente_centavos,108000);
+ assert.equal(core.summarizeMovements(rows()).gastos_centavos,2000);
+});
+test('anulacion de pago anterior conserva otro pago posterior y exige revisar calendario',async()=>{
+ const h=loanFixture();await h.api.adminAction('fin.commitment.payment','test','admin','loan',loanPay);
+ await h.api.adminAction('fin.commitment.payment','test','admin','loan',{...loanPay,requestId:'later',proximoVencimiento:'2026-10-20'});
+ await h.api.adminAction('fin.commitment.payment.cancel','test','admin','loan-pay',{motivo:'Fixture'});
+ const c=h.docs.get('fin_commitments/loan');assert.equal(c.saldo_pendiente_centavos,108000);assert.equal(c.cuotas_pagadas,1);
+ assert.equal(c.proximo_vencimiento,'2026-10-20');assert.equal(c.schedule_review_required,true);
+ assert.equal(h.docs.get('fin_accounts/bank').saldo_actual_centavos,51410);
+});
+test('fallo de reversa no deja pagos, asientos ni saldos parciales',async()=>{
+ const h=loanFixture();await h.api.adminAction('fin.commitment.payment','test','admin','loan',loanPay);
+ const before=JSON.stringify([...h.docs]);h.fail();
+ await assert.rejects(h.api.adminAction('fin.commitment.payment.cancel','test','admin','loan-pay',{motivo:'Fixture'}),/offline/);
+ assert.equal(JSON.stringify([...h.docs]),before);
+});
+test('pago historico o incluido en cuadre no se revierte parcialmente',async()=>{
+ const h=loanFixture();await h.api.adminAction('fin.commitment.payment','test','admin','loan',loanPay);
+ h.docs.get('fin_accounts/bank').reconciled_at='2026-09-10T03:59:59.999Z';
+ await assert.rejects(h.api.adminAction('fin.commitment.payment.cancel','test','admin','loan-pay',{motivo:'Fixture'}),/cuadre/);
+ delete h.docs.get('fin_accounts/bank').reconciled_at;delete h.docs.get('fin_commitment_payments/loan-pay').accounting_version;
+ await assert.rejects(h.api.adminAction('fin.movement.cancel','test','admin','commitment-payment-loan-pay',{motivo:'Fixture'}),/historico/);
+ assert.equal(h.docs.get('fin_accounts/bank').saldo_actual_centavos,51410);
+});
+
+test('dos anulaciones concurrentes desde partes distintas generan una sola reversa',async()=>{
+ const h=loanFixture();await h.api.adminAction('fin.commitment.payment','test','admin','loan',loanPay);
+ await Promise.all(['commitment-payment-loan-pay','commitment-payment-loan-pay-finance-charge'].map((id,i)=>
+  h.api.adminAction('fin.movement.cancel','test','admin',id,{motivo:'Fixture',requestId:'parallel-'+i})));
+ assert.equal(h.docs.get('fin_accounts/bank').saldo_actual_centavos,63410);
+ assert.equal(h.docs.get('fin_commitments/loan').cuotas_pagadas,0);
+ assert.equal([...h.docs.keys()].filter(k=>k.startsWith('sync_events/ledger-payment-state-')).length,2);
+});
+test('pago nuevo concurrente con anulacion conserva exactamente el pago nuevo',async()=>{
+ const h=loanFixture();await h.api.adminAction('fin.commitment.payment','test','admin','loan',loanPay);
+ await Promise.all([
+  h.api.adminAction('fin.commitment.payment.cancel','test','admin','loan-pay',{motivo:'Fixture'}),
+  h.api.adminAction('fin.commitment.payment','test','admin','loan',{...loanPay,requestId:'new-pay'})
+ ]);
+ assert.equal(h.docs.get('fin_accounts/bank').saldo_actual_centavos,51410);
+ assert.equal(h.docs.get('fin_commitments/loan').saldo_pendiente_centavos,108000);
+ assert.equal(h.docs.get('fin_commitments/loan').cuotas_pagadas,1);
+});
+
+test('abono extra de capital admite cero cuotas y no altera el contador de cuotas',()=>{
+ const p=core.planCommitmentPayment({tipo:'prestamo',saldo_pendiente_centavos:20000,capital_pendiente_centavos:20000,cuotas_pagadas:3,cuota_actual:4},
+  {montoCentavos:1000,capitalCentavos:1000,cuotasAplicadas:0});
+ assert.equal(p.patch.cuotas_pagadas,3);assert.equal(p.patch.cuota_actual,4);assert.equal(p.patch.capital_pendiente_centavos,19000);
+ assert.equal(p.mainAffectsResult,false);
 });
