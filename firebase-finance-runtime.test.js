@@ -93,3 +93,34 @@ test('venta mixta y anulacion revierten ambas cuentas y publican estado del diar
   const states=[...h.docs.values()].filter(x=>x.event_type==='LedgerMovimientoRegistrado'&&x.payload.estado==='anulado');
   assert.equal(states.length,2);
 });
+
+test('seguimiento confirmado exige asiento real y no vuelve a mover dinero',async()=>{
+  const h=harness();
+  h.docs.set('fin_pending_transfers/p',{business_id:'test',estado:'pendiente',cuenta_id:'bank',direccion:'entrada',monto_centavos:10000});
+  const act=(action,data)=>h.api.adminAction('fin.pending_transfer.'+action,'test','admin','p',data);
+  await assert.rejects(act('confirm',{nota:'Banco verificado'}),/movimiento financiero original/);
+  assert.equal(h.docs.get('fin_pending_transfers/p').estado,'pendiente');
+  await h.api.adminAction('fin.transfer.create','test','admin',null,{cuentaOrigenId:'cash',cuentaDestinoId:'bank',montoCentavos:10000,requestId:'original'});
+  const bank=h.docs.get('fin_accounts/bank').saldo_actual_centavos;
+  await act('confirm',{nota:'Banco verificado',movimientoId:'original'});
+  await act('confirm',{nota:'Reintento',movimientoId:'original'});
+  assert.equal(h.docs.get('fin_accounts/bank').saldo_actual_centavos,bank);
+  assert.equal(h.docs.get('fin_pending_transfers/p').movimiento_id,'original');
+  await assert.rejects(act('cancel',{nota:'Cambio'}),/cerrado/);
+});
+
+test('seguimiento rechaza asiento ajeno o incorrecto y falla sin escritura parcial',async()=>{
+  const h=harness();
+  h.docs.set('fin_pending_transfers/p',{business_id:'test',estado:'pendiente',cuenta_id:'bank',direccion:'entrada',monto_centavos:10000});
+  h.docs.set('fin_movements/m',{business_id:'other',estado:'registrado',tipo:'ingreso',cuenta_id:'bank',monto_centavos:10000});
+  const confirm=()=>h.api.adminAction('fin.pending_transfer.confirm','test','admin','p',{nota:'Verificado',movimientoId:'m'});
+  await assert.rejects(confirm(),/no existe/);
+  h.docs.get('fin_movements/m').business_id='test';
+  h.docs.get('fin_movements/m').monto_centavos=9999;
+  await assert.rejects(confirm(),/coincidir/);
+  h.docs.get('fin_movements/m').monto_centavos=10000;
+  h.fail();
+  await assert.rejects(confirm(),/offline/);
+  assert.equal(h.docs.get('fin_pending_transfers/p').estado,'pendiente');
+  assert.equal(h.docs.has('sync_events/pending-transfer-p-confirmada'),false);
+});

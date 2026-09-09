@@ -21,7 +21,7 @@
     document.body?.classList.add("is-embedded");
   }
   const THEME_KEY = "dcarela.ui.theme";
-  const APP_BUILD = "1.0.73";
+  const APP_BUILD = "1.0.74";
   const financeCore = window.DcarelaFinanceCore;
   const moneyManagerCore = window.DcarelaMoneyManagerCore;
 
@@ -5456,7 +5456,7 @@
     const cumuloCard = cumulo && numero(cumulo.total_centavos) > 0
       ? `<article class="fin-account cumulo"><button type="button" class="fin-account-open" data-fin-open-commitments title="Ver cuotas, capital y saldos pendientes"><span class="fin-account-name">Por saldar este mes</span><strong>${money(numero(cumulo.total_centavos))}</strong><small>${cumulo.compromisos_n || 0} vencimiento(s) &middot; prestamos pendientes ${money(numero(cumulo.deuda_prestamos_centavos))}</small></button></article>`
       : "";
-    $("finCuentasCards").innerHTML = `<article class="fin-account total ${patrimonio < 0 ? "neg" : "pos"}"><span class="fin-account-name">Patrimonio total</span><span class="fin-account-balance-row"><strong>${money(patrimonio)}</strong><em class="fin-account-sign">${patrimonio < 0 ? "Negativo" : "Positivo"}</em></span><small>Suma de cuentas incluidas</small></article>${cumuloCard}${cards}`;
+    $("finCuentasCards").innerHTML = `<article class="fin-account total ${patrimonio < 0 ? "neg" : "pos"}"><span class="fin-account-name">Saldo de cuentas incluidas</span><span class="fin-account-balance-row"><strong>${money(patrimonio)}</strong><em class="fin-account-sign">${patrimonio < 0 ? "Negativo" : "Positivo"}</em></span><small>Segun la configuracion de inclusion; no equivale al patrimonio neto.</small></article>${cumuloCard}${cards}`;
     $("finCuentasCards").querySelectorAll("[data-fin-account-ledger]").forEach(button => button.addEventListener("click", () => {
       const accountId = button.dataset.finAccountLedger;
       setCostTab("movimientos");
@@ -5515,10 +5515,17 @@
   function resolvePendingTransfer(id, confirmed) {
     const item = finStateCache?.pendingTransfers?.find(value => value.id === id);
     if (!item) return;
+    const originals = (finStateCache?.movements || []).filter(entry => {
+      if (entry.source === "pos_sync_event" || entry.origen === "pos_venta" || !financeCore.isActiveMovement(entry)) return false;
+      const delta = entry.tipo === "transferencia"
+        ? (entry.cuenta_destino_id === item.cuenta_id ? entry.monto_centavos : entry.cuenta_id === item.cuenta_id ? -entry.monto_centavos : 0)
+        : entry.cuenta_id === item.cuenta_id ? (entry.tipo === "ingreso" ? entry.monto_centavos : entry.tipo === "gasto" ? -entry.monto_centavos : 0) : 0;
+      return delta === (item.direccion === "salida" ? -1 : 1) * item.monto_centavos;
+    });
     abrirEditor(confirmed ? "Confirmar llegada" : "Cancelar seguimiento",
-      confirmed ? "Confirma solo si el banco ya refleja el importe. Esta accion no duplica el movimiento financiero original." : "El registro permanecera en auditoria como cancelado.",
-      '<label class="field-wide"><span>Nota de verificacion</span><textarea name="nota" rows="4" required maxlength="500" placeholder="Indica como verificaste el estado bancario"></textarea></label>', async form => {
-        await adminWrite(confirmed ? "fin.pending_transfer.confirm" : "fin.pending_transfer.cancel", id, { nota: form.get("nota") });
+      confirmed ? "Confirma solo si el banco refleja el importe. Esta accion no duplica el movimiento financiero original. Vincula su asiento; si falta, registralo primero en Movimientos con su origen real." : "El registro permanecera en auditoria como cancelado.",
+      (confirmed ? `<label class="field-wide"><span>Movimiento financiero original</span><select name="movimientoId" required><option value="">Selecciona el asiento registrado</option>${originals.map(entry => `<option value="${esc(entry.id)}">${esc(entry.fecha)} · ${esc(entry.descripcion)} · ${money(entry.monto_centavos)}</option>`).join("")}</select></label>` : '') + '<label class="field-wide"><span>Nota de verificacion</span><textarea name="nota" rows="4" required maxlength="500" placeholder="Indica como verificaste el estado bancario"></textarea></label>', async form => {
+        await adminWrite(confirmed ? "fin.pending_transfer.confirm" : "fin.pending_transfer.cancel", id, { nota: form.get("nota"), movimientoId: form.get("movimientoId") });
         cerrarEditor();
         toast(confirmed ? "Transferencia confirmada y documentada." : "Seguimiento cancelado.");
         await cargarProveedores(true);

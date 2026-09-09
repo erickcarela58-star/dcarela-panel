@@ -21,3 +21,15 @@ El saldo de una cuenta conciliada parte del ultimo cuadre confirmado y aplica un
 5. Usar Conciliar solamente para un importe fisico o bancario comprobado; no para compensar una carga pendiente.
 
 Los datos que aun no llegaron desde una caja sin conexion no pueden considerarse verificados. Un fallo al leer el diario no debe presentarse como saldo cero. Los saldos del sistema no sustituyen el conteo fisico de la gaveta ni el estado bancario.
+
+## Confirmar una transferencia pendiente
+
+El seguimiento es una espera bancaria, no una orden para crear dinero. Antes de confirmarlo, registra la operacion real en Movimientos si todavia falta, usando su origen y destino correctos. Si ya existe una venta, abono o traslado, no lo registres otra vez.
+
+En Finanzas > Cuentas, pulsa Confirmar llegada y selecciona el asiento original entre los que coinciden con la cuenta, direccion e importe. Escribe la evidencia bancaria y confirma. El sistema verifica el asiento activo y guarda su vinculo junto al cierre del seguimiento en una transaccion; no vuelve a sumar ni restar su importe. Un reintento conserva el cierre. Cancelar un seguimiento pendiente tampoco mueve dinero y no permite cancelar por esta via uno ya confirmado.
+
+La seleccion actual admite documentos del libro financiero cargados en el periodo. Un asiento presente solo como proyeccion de venta o evento historico aun no se puede vincular desde este formulario: no lo dupliques para hacerlo aparecer. Ese caso requiere ampliar el vinculo al diario completo. Los seguimientos historicos ya cerrados no se modifican automaticamente.
+
+## Alcance de las cifras
+
+Saldo de cuentas incluidas respeta la configuracion de inclusion de cada cuenta y no equivale necesariamente al patrimonio neto. Disponible, deuda de tarjeta, resultado del periodo y sumas de cierres tienen alcances distintos. El importe de la cuenta y su indicador de estado se muestran en lineas separadas para conservar la lectura del monto.

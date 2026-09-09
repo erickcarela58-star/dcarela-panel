@@ -4116,7 +4116,8 @@ html[data-theme].embedded-panel .update-platform-card:last-child {
 .fin-account.visual:not(.outline) .fin-account-open strong { color: #fff !important; }
 .fin-account.visual.outline { background: linear-gradient(145deg, var(--ui-canvas-raised), var(--ui-surface-soft)) !important; }
 .fin-account strong { margin: 8px 0 3px !important; overflow: hidden; font-size: clamp(17px, 1.65vw, 22px) !important; line-height: 1.12 !important; text-overflow: ellipsis; }
-.fin-account-balance-row { display: flex; align-items: end; justify-content: space-between; gap: 8px; }
+.fin-account-balance-row { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+.fin-account .fin-account-balance-row strong { max-width: 100%; overflow: visible; white-space: normal; overflow-wrap: anywhere; text-overflow: clip; }
 .fin-account-sign { flex: 0 0 auto; padding: 3px 6px; border: 1px solid currentColor; border-radius: 999px; font-size: 8px; font-style: normal; font-weight: 850; text-transform: uppercase; }
 .fin-account.pos .fin-account-sign { color: #8ff0d1; }
 .fin-account.neg .fin-account-sign { color: #ffb2b8; }

@@ -1179,11 +1179,43 @@
     if (action === 'fin.pending_transfer.confirm' || action === 'fin.pending_transfer.cancel') {
       const id = text(entityId, 160);
       if (!id) throw new Error('Selecciona la transferencia pendiente.');
-      await d.collection('fin_pending_transfers').doc(id).set({
-        estado: action.endsWith('.confirm') ? 'confirmada' : 'cancelada', nota_cierre: text(data.nota, 1200) || null,
-        updated_at: createdAt, ...actor
-      }, { merge: true });
-      return { ok: true, id, message: action.endsWith('.confirm') ? 'Transferencia confirmada.' : 'Transferencia cancelada.' };
+      const confirming = action.endsWith('.confirm');
+      const ref = d.collection('fin_pending_transfers').doc(id);
+      await d.runTransaction(async transaction => {
+        const pending = await transaction.get(ref);
+        if (!pending.exists || pending.data().business_id !== ctx.businessId) throw new Error('El seguimiento no existe.');
+        const row = pending.data();
+        const targetState = confirming ? 'confirmada' : 'cancelada';
+        if (row.estado === targetState) return;
+        if (row.estado !== 'pendiente') throw new Error('El seguimiento ya esta cerrado.');
+        const note = text(data.nota, 1200);
+        if (!note) throw new Error('Indica como verificaste el movimiento.');
+        let movementId = null;
+        if (confirming) {
+          // El seguimiento nunca prueba que sea dinero nuevo. Exige el asiento
+          // original: ventas, abonos y traslados pueden estar contabilizados.
+          movementId = text(data.movimientoId || row.movimiento_id, 160);
+          if (!movementId) throw new Error('Selecciona el movimiento financiero original antes de confirmar.');
+          const movement = await transaction.get(d.collection('fin_movements').doc(movementId));
+          if (!movement.exists || movement.data().business_id !== ctx.businessId) throw new Error('El movimiento original no existe.');
+          const entry = movement.data();
+          const core = window.DcarelaFinanceCore;
+          const delta = entry.tipo === 'transferencia'
+            ? (entry.cuenta_destino_id === row.cuenta_id ? Number(entry.monto_centavos) : entry.cuenta_id === row.cuenta_id ? -Number(entry.monto_centavos) : 0)
+            : entry.cuenta_id === row.cuenta_id ? financeSignedAmount(entry.tipo, Number(entry.monto_centavos)) : 0;
+          if (!core.isActiveMovement(entry) || delta !== (row.direccion === 'salida' ? -1 : 1) * Number(row.monto_centavos)) {
+            throw new Error('El asiento debe estar activo y coincidir con cuenta, direccion e importe.');
+          }
+        }
+        const eventId = 'pending-transfer-' + id + '-' + targetState;
+        transaction.update(ref, { estado: targetState, movimiento_id: movementId,
+          nota_cierre: note, updated_at: createdAt, ...actor });
+        transaction.set(d.collection('sync_events').doc(eventId), eventDocument(ctx, eventId,
+          'TransferenciaPendienteResuelta', 'fin_pending_transfers', id,
+          { id, estado: targetState, movimientoId: movementId, nota: note }, createdAt));
+      });
+      syncEventQueryCache.clear();
+      return { ok: true, id, message: confirming ? 'Transferencia vinculada al asiento y confirmada.' : 'Transferencia cancelada.' };
     }
 
     if (action === 'fin.commitment.upsert') {
