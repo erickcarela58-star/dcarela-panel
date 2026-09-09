@@ -4104,7 +4104,7 @@ html[data-theme].embedded-panel .update-platform-card:last-child {
 .fin-account { min-width: 0; min-height: 132px !important; border-radius: 12px !important; }
 .fin-account.total,.fin-account.cumulo { padding: 15px !important; background: linear-gradient(145deg, var(--ui-surface-strong), var(--ui-surface-soft)) !important; }
 .fin-account-open { min-height: 96px !important; padding: 14px 15px 10px !important; }
-.fin-account.visual:not(.outline) {
+html[data-theme].embedded-panel .fin-account.visual:not(.outline) {
   background: linear-gradient(135deg,
     color-mix(in srgb, var(--account-primary) 62%, #101114),
     color-mix(in srgb, var(--account-secondary) 55%, #30333a)) !important;
