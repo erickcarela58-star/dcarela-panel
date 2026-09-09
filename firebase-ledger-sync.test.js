@@ -100,3 +100,27 @@ test('ventas y gastos comparten diario; movimientos de gaveta conservan permisos
   assert.match(payment, /saldo_actual_centavos: accountBalance - amount/);
   assert.match(payment, /fin_movements/);
 });
+
+test('una consulta contable no reutiliza el fallback local de una consulta operativa', async () => {
+  const start = adapter.indexOf('async getSyncEvents(');
+  const end = adapter.indexOf('// El tope se aplica EN EL SERVIDOR.', start);
+  let reads = 0, online = false;
+  const query = { where() { return this; }, orderBy() { return this; }, limit() { return this; },
+    async get() { return {docs:[{id:'cached',data:()=>({event_id:'cached',received_at_cloud:'2026-09-01T12:00:00Z'})}]}; } };
+  const reader = vm.runInNewContext(`({ ${adapter.slice(start,end)} })`, {
+    initFirebase: () => ({db:{collection:()=>query}}), SYNC_EVENT_MAX_BATCH:5000,
+    SYNC_EVENT_QUERY_TTL_MS:120000, SYNC_EVENT_DELTA_BATCH:500,
+    syncEventQueryCache:new Map(), eventArchiveCache:new Map(),
+    hasSyncQueryMarker:()=>true, markSyncQueryPrimed:()=>{},
+    readFirestoreQuery:async()=>{ reads++; if (!online) throw new Error('network unavailable'); return {docs:[]}; },
+    console:{warn:()=>{}},
+  });
+  reader.getCollection = async()=>[];
+  const operational = await reader.getSyncEvents('fixture',{limit:5000});
+  assert.equal(operational.length,1);
+  await assert.rejects(reader.getSyncEvents('fixture',{limit:5000,includeArchives:true}),/network unavailable/);
+  assert.equal(reads,2);
+  online = true;
+  await Promise.all([reader.getSyncEvents('fixture',{limit:5000,includeArchives:true}), reader.getSyncEvents('fixture',{limit:5000,includeArchives:true})]);
+  assert.equal(reads,3, 'las lecturas verificadas concurrentes comparten una consulta y permiten reintentar tras fallo');
+});

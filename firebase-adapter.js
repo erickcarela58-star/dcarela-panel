@@ -1668,7 +1668,7 @@
       if (serverFrom) query = query.where('received_at_cloud', '>=', serverFrom);
       if (serverTo) query = query.where('received_at_cloud', '<=', serverTo);
       query = query.orderBy('received_at_cloud', 'desc').limit(maximum);
-      const queryKey = `${businessId}|${serverFrom}|${serverTo}|${maximum}`;
+      const queryKey = `${businessId}|${serverFrom}|${serverTo}|${maximum}|${includeArchives ? 'verified' : 'operational'}`;
       let cachedQuery = syncEventQueryCache.get(queryKey);
       if (!cachedQuery || Date.now() - cachedQuery.at > SYNC_EVENT_QUERY_TTL_MS
         || cachedQuery.limit < maximum) {

@@ -49,3 +49,5 @@ Para corregir un pago nuevo, abre su movimiento y elige Anular. El formulario in
 Los pagos historicos sin el efecto original registrado y los pagos o anulaciones incorporados en un cuadre requieren la ruta de reversa historica, todavia pendiente. Se rechazan las anulaciones parciales en esos casos. No se migran ni corrigen automaticamente pagos anteriores. Las pruebas de este bloque se ejecutan en fixtures, sin pagos ficticios en produccion.
 
 El resumen del asistente excluye de gastos el capital marcado sin efecto en resultados; el contexto de analisis tambien excluye de ingresos los cobros con esa marca. Esto no convierte todas las consultas del asistente en una vista completa del diario: cobertura historica y proyecciones siguen pendientes.
+
+Las consultas contables completas usan una cache separada de las consultas operativas que pueden admitir datos locales sin red. Un fallo de verificacion debe mostrarse como error y permitir reintentar; no convierte datos locales en un saldo confirmado. Las consultas completas concurrentes siguen compartiendo su lectura. Esto no elimina los topes historicos ni certifica tiempos de carga.
