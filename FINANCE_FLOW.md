@@ -33,3 +33,7 @@ La seleccion actual admite documentos del libro financiero cargados en el period
 ## Alcance de las cifras
 
 Saldo de cuentas incluidas respeta la configuracion de inclusion de cada cuenta y no equivale necesariamente al patrimonio neto. Disponible, deuda de tarjeta, resultado del periodo y sumas de cierres tienen alcances distintos. El importe de la cuenta y su indicador de estado se muestran en lineas separadas para conservar la lectura del monto.
+
+## Ventas con varios pagos
+
+El saldo empareja cada cobro proyectado con un asiento de la misma venta, cuenta e importe. Un asiento representa un solo pago; registrar la parte en efectivo no oculta la parte bancaria. El folio por si solo no identifica una venta entre terminales. Las ventas web nuevas conservan tambien el indice del pago. Esta proteccion no constituye una migracion de acumuladores Windows ni resuelve por si sola las anulaciones anteriores al cuadre.

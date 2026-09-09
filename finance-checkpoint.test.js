@@ -51,3 +51,27 @@ test('no vuelve a descontar gastos incorporados en el cuadre aunque se subieran 
   const rows=[{...expense('old',1728425),fecha:'2026-09-04',source_timestamp:'2026-09-05T03:59:59.999Z',created_at:'2026-09-06T06:00:00Z'}];
   assert.equal(core.effectiveAccountBalance(accounts[0],rows),3650000);
 });
+
+test('venta mixta materializada solo en efectivo conserva su pago bancario proyectado',()=>{
+  const sale={id:'sale',device_id:'terminal-a',payload:{ventaId:'sale',folio:10,vendidaEn:'2026-09-06T12:00:00Z',pagos:[{metodo:'efectivo',montoCentavos:4000},{metodo:'transferencia',montoCentavos:6000}]}};
+  const projected=core.projectSalePaymentsAsMovements([sale],accounts);
+  const ledger={id:'cash-payment',venta_id:'sale',cuenta_id:'cash',monto_centavos:4000,tipo:'ingreso',origen:'caja_web',fecha:'2026-09-06'};
+  const rows=[ledger,...projected];
+  assert.equal(core.effectiveAccountBalance(accounts[0],rows),3654000);
+  assert.equal(core.effectiveAccountBalance(accounts[1],rows),69410);
+});
+
+test('folio igual en dos terminales no suprime el cobro de otra venta',()=>{
+  const sales=['a','b'].map(id=>({id:'sale-'+id,device_id:id,payload:{ventaId:'sale-'+id,folio:10,vendidaEn:'2026-09-06T12:00:00Z',pagos:[{metodo:'efectivo',montoCentavos:4000}]}}));
+  const ledger={id:'cash-payment',venta_id:'sale-a',venta_folio:'10',cuenta_id:'cash',monto_centavos:4000,tipo:'ingreso',origen:'caja_web',fecha:'2026-09-06'};
+  assert.equal(core.effectiveAccountBalance(accounts[0],[ledger,...core.projectSalePaymentsAsMovements(sales,accounts)]),3658000);
+});
+
+test('dos pagos iguales de una venta se emparejan uno a uno con sus asientos',()=>{
+  const sale={id:'sale',payload:{ventaId:'sale',vendidaEn:'2026-09-06T12:00:00Z',pagos:[{metodo:'efectivo',montoCentavos:4000},{metodo:'efectivo',montoCentavos:4000}]}};
+  const ledger={id:'cash-payment',venta_id:'sale',cuenta_id:'cash',monto_centavos:4000,tipo:'ingreso',origen:'caja_web',fecha:'2026-09-06'};
+  const projected=core.projectSalePaymentsAsMovements([sale],accounts);
+  assert.equal(core.effectiveAccountBalance(accounts[0],[ledger,...projected]),3658000);
+  assert.equal(core.effectiveAccountBalance(accounts[0],[ledger,{...ledger,id:'cash-payment-2'},...projected]),3658000);
+  assert.equal(core.effectiveAccountBalance(accounts[0],[ledger,{...ledger,id:'cash-payment-2',estado:'anulado'},...projected]),3654000);
+});

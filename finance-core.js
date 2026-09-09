@@ -323,7 +323,7 @@
         source_timestamp: timestamp,
         venta_folio: folio ? String(folio) : "",
         sync_event_id: event?.event_id || event?.id || "",
-        metadata: { sale_identifiers: ids },
+        metadata: { sale_identifiers: ids, sale_keys: saleDeduplicationIdentifiers(event), payment_index: payment.index ?? paymentIndex },
         solo_lectura: true,
       }));
     }).filter(item => item.fecha && item.monto_centavos > 0);
@@ -341,22 +341,41 @@
     }).reduce((sum, item) => sum + item.monto_centavos, 0);
   }
 
+  function unrepresentedSalePayments(movements) {
+    const unique = deduplicateMovements(movements);
+    const strongKeys = item => {
+      if (Array.isArray(item.metadata?.sale_keys)) return item.metadata.sale_keys;
+      // A folio alone is local to its terminal and cannot identify a sale.
+      return [item.venta_id, item.ventaId, item.sale_id, item.saleId,
+        item.metadata?.venta_id, item.metadata?.ventaId, item.sync_event_id]
+        .filter(value => value != null && String(value).trim())
+        .map(value => 'id:' + String(value).trim().toLocaleLowerCase('es'));
+    };
+    const materialized = unique.filter(item => item.origen !== 'pos_venta' && item.tipo === 'ingreso');
+    const consumed = new Set();
+    return unique.filter(item => {
+      if (item.origen !== 'pos_venta') return true;
+      const keys = new Set(strongKeys(item));
+      const match = materialized.findIndex((row, index) => !consumed.has(index)
+        && row.cuenta_id === item.cuenta_id && row.monto_centavos === item.monto_centavos
+        && (row.metadata?.payment_index == null || item.metadata?.payment_index == null
+          || row.metadata.payment_index === item.metadata.payment_index)
+        && strongKeys(row).some(key => keys.has(key)));
+      if (match < 0) return true;
+      consumed.add(match);
+      return false;
+    });
+  }
+
   function projectedLedgerDeltaForAccount(account, movements) {
     if (!account?.id) return 0;
     const cutoffText = account.reconciled_at || account.reconciledAt || account.created_at || account.createdAt || "";
     const cutoff = cutoffText ? new Date(cutoffText).getTime() : Number.NaN;
     if (!Number.isFinite(cutoff)) return 0;
-    const uniqueMovements = deduplicateMovements(movements);
+    const uniqueMovements = unrepresentedSalePayments(movements);
     const fromCheckpoint = Number.isFinite(account.reconciled_balance_centavos);
-    const materializedSaleIds = new Set(uniqueMovements
-      .filter(item => item.origen !== "pos_venta" && item.source !== "pos_venta")
-      .flatMap(item => movementSaleIdentifiers(item)));
     return uniqueMovements.filter(item => {
       if (!isActiveMovement(item)) return false;
-      // Una venta de Caja ya materializada en fin_movimientos solo puede
-      // entrar por el saldo actualizado de la cuenta, no por la proyeccion
-      // POS una segunda vez.
-      if (item.origen === "pos_venta" && movementSaleIdentifiers(item).some(id => materializedSaleIds.has(id))) return false;
       // fin_movements ya fue materializado en saldo_actual_centavos. Solo se
       // proyectan ventas y eventos del ledger Windows que aun no viven en la
       // cuenta remota; asi una escritura web y su sync_event no se duplican.
@@ -500,6 +519,7 @@
     projectSalePaymentsAsMovements,
     projectedSalesDeltaForAccount,
     projectedLedgerDeltaForAccount,
+    unrepresentedSalePayments,
     effectiveAccountBalance,
     OPERATION_EVENT_TYPES,
     projectOperationsAsMovements,

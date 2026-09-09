@@ -492,7 +492,7 @@
           origen: 'caja_web', estado: 'registrado', afecta_resultado: true,
           venta_id: saleId, venta_folio: String(folio), metodo_pago: payment.metodo,
           sync_event_id: ledgerEventId, created_at: soldAt, updated_at: soldAt,
-          metadata: { sale_identifiers: [saleId, requestId, String(folio)] },
+          metadata: { sale_identifiers: [saleId, requestId, String(folio)], payment_index: index },
           created_by_uid: ctx.user.uid, created_by_email: ctx.user.email || '',
         };
         transaction.set(d.collection('fin_movements').doc(movementId), movement);
@@ -545,7 +545,7 @@
       ventaFolio: String(folio || ''),
       venta_folio: String(folio || ''),
       metodoPago: payment.metodo,
-      metadata: { sale_identifiers: [sale.ventaId, sale.idempotencyKey, String(folio || '')].filter(Boolean) },
+      metadata: { ...movement.metadata, sale_identifiers: [sale.ventaId, sale.idempotencyKey, String(folio || '')].filter(Boolean) },
       idempotencyKey: ledgerEventId,
     };
   }
