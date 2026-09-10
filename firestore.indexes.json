@@ -1,6 +1,20 @@
 {
   "indexes": [
     {
+      "collectionGroup": "sync_event_archives",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "business_id",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "events_to",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
       "collectionGroup": "sync_events",
       "queryScope": "COLLECTION",
       "fields": [

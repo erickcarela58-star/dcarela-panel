@@ -116,6 +116,10 @@ test('una consulta contable no reutiliza el fallback local de una consulta opera
     console:{warn:()=>{}},
   });
   reader.getCollection = async()=>[];
+  // El archivo se pide por su propio metodo desde que cada bloque declara el rango de fechas
+  // que contiene. Se anula igual que getCollection: lo que mide esta prueba es la separacion
+  // de caches entre la lectura operativa y la contable, no el archivo.
+  reader.getEventArchiveChunks = async()=>[];
   const operational = await reader.getSyncEvents('fixture',{limit:5000});
   assert.equal(operational.length,1);
   await assert.rejects(reader.getSyncEvents('fixture',{limit:5000,includeArchives:true}),/network unavailable/);

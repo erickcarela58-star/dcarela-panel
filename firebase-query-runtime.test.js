@@ -175,3 +175,74 @@ test('diario historico usa cada pago una vez y preserva saldo anterior al rango 
   assert.equal(empty.length,0);
   assert.equal(empty.sales.length,0);
 });
+
+// El archivo historico son 343 bloques y 77 MB, y se bajaba entero en cada consulta: esa es la
+// causa medida de que Finanzas tarde. Cada bloque declara ahora el rango de fechas efectivas
+// que contiene, asi que un periodo solo pide los bloques que lo tocan --10 de 343 para treinta
+// dias-- sin bajar los demas.
+test('un periodo solo pide los bloques del archivo que lo tocan',async()=>{
+  const viejo={id:'viejo',event_id:'viejo',business_id:'dcarela',event_type:'VentaCobrada',
+    received_at_cloud:'2023-05-02T16:00:00.000Z',payload:{vendidaEn:'2023-05-02T15:00:00.000Z',totalCobradoCentavos:1000}};
+  const reciente={id:'reciente',event_id:'reciente',business_id:'dcarela',event_type:'VentaCobrada',
+    received_at_cloud:'2026-08-05T16:00:00.000Z',payload:{vendidaEn:'2026-08-05T15:00:00.000Z',totalCobradoCentavos:7000}};
+  const h=harness(async(name,conditions)=>{
+    if(name==='sync_events') return snapshot([]);
+    if(name==='sync_event_archives'){
+      const corte=conditions.find(c=>Array.isArray(c)&&c[0]==='events_to');
+      const bloques=[
+        {id:'bloque-viejo',business_id:'dcarela',events:[viejo],events_from:'2023-01-01T00:00:00.000Z',events_to:'2023-06-30T00:00:00.000Z'},
+        {id:'bloque-reciente',business_id:'dcarela',events:[reciente],events_from:'2026-08-01T00:00:00.000Z',events_to:'2026-08-21T00:00:00.000Z'},
+      ];
+      // El servidor solo devuelve los que cumplen el filtro; asi se ve el ahorro real.
+      return snapshot(corte ? bloques.filter(b=>b.events_to>=corte[2]) : bloques);
+    }
+    return snapshot([]);
+  });
+  const filas=await h.api.getSyncEvents('dcarela',{
+    from:'2026-08-01T04:00:00.000Z',to:'2026-09-01T03:59:59.999Z',limit:5000,includeArchives:true
+  });
+  // Se copia a un array de ESTE realm: el que devuelve el VM tiene otro prototipo y
+  // deepStrictEqual falla enseñando dos listas identicas en pantalla.
+  assert.deepEqual([...filas.map(f=>f.event_id)],['reciente']);
+  const consulta=h.calls.find(c=>c.name==='sync_event_archives');
+  assert.ok(consulta.conditions.some(c=>Array.isArray(c)&&c[0]==='events_to'&&c[1]==='>='),
+    'sin acotar en el servidor no se ahorra nada: el filtro en el navegador ya baja los 77 MB');
+});
+
+// Sin fecha de inicio la consulta es del historial completo y tiene que bajarlo entero.
+// Recortar ahi seria perder movimientos, que es peor que tardar.
+test('el historial completo sigue bajando el archivo entero',async()=>{
+  const h=harness(async(name)=>{
+    if(name==='sync_event_archives') return snapshot([{id:'a',events:[{id:'arch',event_id:'arch',received_at_cloud:'2020-01-01T00:00:00Z'}]}]);
+    return snapshot([]);
+  });
+  await h.api.getSyncEvents('dcarela',{complete:true,includeArchives:true});
+  const consulta=h.calls.find(c=>c.name==='sync_event_archives');
+  assert.equal(consulta.conditions.some(c=>Array.isArray(c)&&c[0]==='events_to'),false,
+    'acotar el historial completo dejaria fuera movimientos sin decirlo');
+});
+
+// La cache del archivo tiene que separar por rango. Si no, una consulta de un mes deja
+// cacheado un archivo podado y la siguiente de historial completo lo reutiliza creyendo que lo
+// tiene todo: movimientos desaparecidos sin ningun error visible.
+test('la cache del archivo no mezcla un periodo con el historial completo',async()=>{
+  const antiguo={id:'antiguo',event_id:'antiguo',business_id:'dcarela',event_type:'VentaCobrada',
+    received_at_cloud:'2021-03-01T16:00:00.000Z',payload:{vendidaEn:'2021-03-01T15:00:00.000Z'}};
+  const nuevo={id:'nuevo',event_id:'nuevo',business_id:'dcarela',event_type:'VentaCobrada',
+    received_at_cloud:'2026-08-05T16:00:00.000Z',payload:{vendidaEn:'2026-08-05T15:00:00.000Z'}};
+  const h=harness(async(name,conditions)=>{
+    if(name==='sync_events') return snapshot([]);
+    if(name==='sync_event_archives'){
+      const corte=conditions.find(c=>Array.isArray(c)&&c[0]==='events_to');
+      return snapshot(corte
+        ? [{id:'reciente',events:[nuevo],events_to:'2026-08-21T00:00:00.000Z'}]
+        : [{id:'reciente',events:[nuevo],events_to:'2026-08-21T00:00:00.000Z'},
+           {id:'antiguo',events:[antiguo],events_to:'2021-12-31T00:00:00.000Z'}]);
+    }
+    return snapshot([]);
+  });
+  await h.api.getSyncEvents('dcarela',{from:'2026-08-01T04:00:00.000Z',limit:5000,includeArchives:true});
+  const completo=await h.api.getSyncEvents('dcarela',{complete:true,includeArchives:true});
+  assert.ok(completo.some(f=>f.event_id==='antiguo'),
+    'el historial completo heredo la cache podada del periodo anterior');
+});

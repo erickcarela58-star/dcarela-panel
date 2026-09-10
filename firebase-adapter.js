@@ -1517,6 +1517,36 @@
       return snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     },
 
+    // Bloques del archivo historico, acotados en el servidor cuando se puede.
+    //
+    // Cada bloque declara el rango de fechas EFECTIVAS de los eventos que trae
+    // (events_from / events_to). Esa fecha no es la de creacion: el panel resuelve
+    // primero vendidaEn / fechaEfectiva / fecha del payload, porque una venta
+    // registrada tarde pero fechada antes tiene que caer en su mes de verdad. El
+    // rango se calcula con esa misma resolucion; con cualquier otra, saltar un
+    // bloque haria desaparecer dinero de la vista.
+    //
+    // Se acota SOLO si hay fecha de inicio. Sin ella la consulta es del historial
+    // completo y tiene que bajarlo entero: recortar ahi seria perder movimientos.
+    // Y si el indice compuesto no esta publicado, Firestore responde
+    // failed-precondition y se vuelve a la consulta de siempre: mas lenta, nunca
+    // incompleta.
+    async getEventArchiveChunks(businessId, from) {
+      const { db: d } = initFirebase();
+      if (!d) throw new Error('Firestore no inicializado.');
+      const base = d.collection('sync_event_archives').where('business_id', '==', businessId);
+      const filas = snap => snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      if (from) {
+        try {
+          const acotado = base.where('events_to', '>=', from);
+          return filas(await readFirestoreQuery(acotado, JSON.stringify(['sync_event_archives', businessId, from])));
+        } catch (error) {
+          if (error?.code !== 'failed-precondition') throw error;
+        }
+      }
+      return filas(await readFirestoreQuery(base, JSON.stringify(['sync_event_archives', businessId, 'todo'])));
+    },
+
     // Lectura acotada en el servidor: ordena por la fecha indicada y corta en
     // `maximum` ANTES de facturar lecturas. Si el indice compuesto todavia no
     // esta publicado, Firestore responde failed-precondition; en ese caso se
@@ -1765,12 +1795,20 @@
       const recentWindow = from && Number.isFinite(Date.parse(from))
         && Date.parse(from) >= Date.now() - 45 * 24 * 60 * 60 * 1000;
       if (recentWindow && !includeArchives) return current;
-      const archiveKey = `${auth?.currentUser?.uid || 'signed-out'}|${businessId}`;
+      // El archivo historico son 343 bloques y 77 MB. Bajarlo entero en cada consulta es la
+      // causa medida de que Finanzas tarde. Cada bloque guarda el rango de fechas EFECTIVAS
+      // que contiene, asi que una consulta con fecha de inicio solo pide los bloques que la
+      // tocan: 10 de 343 para una ventana de treinta dias.
+      //
+      // El rango va en la CLAVE de cache. Sin eso, una consulta de un mes dejaria cacheado un
+      // archivo podado y la siguiente consulta de historial completo lo reutilizaria creyendo
+      // que lo tiene todo -- movimientos desaparecidos sin ningun error visible.
+      const archiveKey = `${auth?.currentUser?.uid || 'signed-out'}|${businessId}|${from || 'todo'}`;
       let archived = eventArchiveCache.get(archiveKey);
       if (!archived || Date.now() - archived.at > 5 * 60 * 1000) {
         archived = {
           at: Date.now(),
-          promise: this.getCollection('sync_event_archives', [['business_id', '==', businessId]])
+          promise: this.getEventArchiveChunks(businessId, from)
             .then(chunks => chunks.flatMap(chunk => Array.isArray(chunk.events) ? chunk.events : []))
         };
         eventArchiveCache.set(archiveKey, archived);
