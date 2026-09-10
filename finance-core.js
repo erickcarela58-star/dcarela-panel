@@ -6,6 +6,7 @@
   "use strict";
 
   const BUSINESS_TIME_ZONE = "America/Santo_Domingo";
+  const dayFormatters = new Map();
   const ACTIVE_STATES = new Set(["", "activo", "activa", "confirmado", "confirmada", "registrado", "registrada", "received"]);
   const INACTIVE_STATES = new Set(["anulado", "anulada", "cancelado", "cancelada", "cancelled", "inactivo", "inactiva", "eliminado", "eliminada"]);
 
@@ -43,9 +44,10 @@
     if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
     const date = new Date(text);
     if (Number.isNaN(date.getTime())) return text.slice(0, 10);
-    const parts = new Intl.DateTimeFormat("en-CA", {
+    if (!dayFormatters.has(timeZone)) dayFormatters.set(timeZone, new Intl.DateTimeFormat("en-CA", {
       timeZone, year: "numeric", month: "2-digit", day: "2-digit"
-    }).formatToParts(date);
+    }));
+    const parts = dayFormatters.get(timeZone).formatToParts(date);
     const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
     return `${values.year}-${values.month}-${values.day}`;
   }
