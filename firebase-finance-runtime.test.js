@@ -43,6 +43,39 @@ function harness(role='admin') {
   vm.runInNewContext(fs.readFileSync(__dirname+'/firebase-adapter.js','utf8'),{window,firebase,console,Date,Math,Map,Promise,String,Number,Error,setTimeout,clearTimeout});
   return {api:window.DcarelaFirebase,docs,fail:()=>{rejectCommit=true;}};
 }
+test('conciliacion usa diario, conserva evento exacto y no vuelve a aplicar un reintento',async()=>{
+  const h=harness();const initial=h.docs.get('fin_accounts/cash');
+  Object.assign(initial,{saldo_actual_centavos:1000,reconciled_balance_centavos:10000,reconciled_at:'2026-09-01T00:00:00Z'});
+  h.api.getFinanceAccounts=async()=>[{...h.docs.get('fin_accounts/cash'),id:'cash'}];
+  const rows=[{id:'sale',tipo:'ingreso',cuenta_id:'cash',monto_centavos:2000,source_timestamp:'2026-09-02T12:00:00Z',origen:'pos_venta'}];
+  h.api.getFinanceJournal=async()=>rows;
+  const request={cuentaId:'cash',saldoObjetivoCentavos:8000,motivo:'Conteo fixture',requestId:'reconcile-fixture'};
+  const result=await h.api.adminAction('fin.account.reconcile','test','admin',null,request);
+  assert.equal(result.difference,-4000);
+  const account={...h.docs.get('fin_accounts/cash'),id:'cash'};
+  const movement=h.docs.get('fin_movements/reconcile-fixture');
+  const event=h.docs.get('sync_events/ledger-reconcile-fixture');
+  assert.equal(event.payload.fechaEfectiva,account.reconciled_at);
+  assert.equal(core.effectiveAccountBalance(account,[...rows,movement]),8000);
+  await assert.rejects(h.api.adminAction('fin.movement.cancel','test','admin','reconcile-fixture',{motivo:'Fixture'}),/base auditada/);
+  assert.equal(h.docs.get('fin_accounts/cash').saldo_actual_centavos,8000);
+  await h.api.adminAction('fin.account.reconcile','test','admin',null,request);
+  assert.equal(h.docs.get('fin_accounts/cash').saldo_actual_centavos,8000);
+  await assert.rejects(h.api.adminAction('fin.account.reconcile','test','admin',null,{...request,saldoObjetivoCentavos:9000}),/otra conciliacion/);
+});
+
+test('conciliacion falla atomicamente y rechaza cuenta cambiada durante lectura',async()=>{
+  for(const offline of [false,true]){
+    const h=harness();h.api.getFinanceAccounts=async()=>[{...h.docs.get('fin_accounts/cash'),id:'cash'}];
+    h.api.getFinanceJournal=async()=>{if(!offline)h.docs.set('fin_accounts/cash',{...h.docs.get('fin_accounts/cash'),saldo_actual_centavos:9000});return [];};
+    if(offline)h.fail();
+    await assert.rejects(h.api.adminAction('fin.account.reconcile','test','admin',null,
+      {cuentaId:'cash',saldoObjetivoCentavos:8000,motivo:'Conteo fixture',requestId:'failed'}),offline?/offline/:/cambio/);
+    assert.equal(h.docs.has('fin_movements/failed'),false);
+    assert.equal(h.docs.has('sync_events/ledger-failed'),false);
+  }
+});
+
 test('pago, transferencia y reintentos son atomicos en ejecucion',async()=>{
   const h=harness();
   const pay={cuentaId:'cash',montoCentavos:814000,requestId:'payroll-request'};

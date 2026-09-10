@@ -59,3 +59,13 @@ Finanzas, Money Manager, saldos de cuentas y consultas financieras del asistente
 El resumen distingue ventas confirmadas, gastos del resultado y saldo neto de cuentas visibles (incluye deuda de tarjetas). El capital de prestamos y los abonos no se convierten en gastos o ingresos de resultado. Cuando el diario o saldo no se pueden verificar, el asistente muestra no disponible. Buscar movimientos tambien informa su estado activo o anulado.
 
 Prompts de solo lectura probados con datos aislados: “Dame el resumen de ventas de hoy, gastos y saldo en cuentas” con pago de capital/intereses y abono; la misma consulta sin conexion; y analisis de gastos con contexto financiero para el proveedor de IA simulado. No constituyen pruebas de escrituras contables en produccion ni del bot de WhatsApp.
+
+## Conciliar un saldo comprobado
+
+En Cuentas, pulsa Conciliar, escribe el saldo fisico o bancario comprobado ahora y su evidencia. El formulario incluye las operaciones recibidas del turno actual. Para tarjetas escribe la deuda con signo negativo; credito disponible se convierte en deuda usando el limite vigente. Un conteo que excluye un turno necesita un corte historico verificado y no debe introducirse como saldo actual en este formulario.
+
+La conciliacion calcula la diferencia contra el diario efectivo, guarda una nueva base y un asiento auditable con su evento inmutable en una transaccion. El asiento lleva la hora exacta del corte: no vuelve a sumarse sobre la base. Los movimientos posteriores conservan su efecto, incluidas ventas recibidas tarde con hora posterior al corte. Reintentar el mismo formulario conserva su identificador; si la cuenta cambio durante la comprobacion, se exige actualizar. Movimientos del dia sin hora efectiva requieren verificar el corte antes de continuar.
+
+Una diferencia sin identificar no inventa una venta, un pago ni un proveedor y no se convierte automaticamente en gasto del resultado. Su nota conserva la evidencia disponible para clasificarla despues sin duplicar dinero. Esta ruta verifica el diario web; la sincronizacion de acumuladores con Windows y las revisiones anteriores al cuadre siguen pendientes de validacion integral.
+
+El resumen de Finanzas, sus graficos diarios y categorias usan la misma clasificacion: abonos y capital sin efecto en resultados quedan fuera, las comisiones se cuentan una vez. Cuentas incluidas es saldo actual; Resultado del periodo es ingreso menos gasto; Ventas menos gastos excluye otros ingresos. La actividad reciente ordena por fecha efectiva antes de seleccionar las ultimas filas.

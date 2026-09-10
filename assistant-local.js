@@ -848,7 +848,7 @@
         'fin.account.reconcile',
         `Conciliar ${text(account.nombre, 120)} a ${money(targetCents)}`,
         {
-          cuentaId: account.id, cuentaNombre: text(account.nombre, 120), saldoObjetivoCentavos: targetCents,
+          requestId: uuid(), cuentaId: account.id, cuentaNombre: text(account.nombre, 120), saldoObjetivoCentavos: targetCents,
           fecha: effective.date, motivo: 'Conciliacion total informada al asistente; requiere aprobacion individual.',
         }
       ));

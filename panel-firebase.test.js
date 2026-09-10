@@ -63,7 +63,7 @@ test("Caja web y conciliacion usan operaciones Firebase transaccionales y audita
   assert.match(firebaseAdapter, /action === 'sale\.create'/);
   assert.match(firebaseAdapter, /action === 'sale\.cancel'/);
   assert.match(firebaseAdapter, /action === 'fin\.account\.reconcile'/);
-  assert.match(firebaseAdapter, /Conciliacion de saldo/);
+  assert.match(firebaseAdapter, /planAccountReconciliation/);
   assert.match(firebaseAdapter, /saldo_anterior_centavos/);
   assert.match(firebaseAdapter, /saldo_resultante_centavos/);
   assert.doesNotMatch(firebaseAdapter, /collection\('fin_movements'\)[\s\S]{0,250}\.delete\(/);

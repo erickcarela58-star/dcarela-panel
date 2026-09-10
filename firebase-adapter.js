@@ -564,7 +564,7 @@
       importeDopCentavos: Number(movement.monto_centavos || 0),
       monedaOriginal: 'DOP',
       estado: movement.estado || 'registrado',
-      fechaEfectiva: movement.fecha || movement.created_at,
+      fechaEfectiva: movement.source_timestamp || movement.fecha || movement.created_at,
       cuentaId: accountId,
       cuentaOrigenId: ['gasto', 'retiro', 'salida', 'comision', 'ajuste_negativo', 'transferencia'].includes(type) ? accountId : null,
       cuentaDestinoId: type === 'transferencia' ? movement.cuenta_destino_id || null
@@ -981,26 +981,43 @@
       if (!accountId || !reason) throw new Error('La cuenta y el motivo de conciliacion son obligatorios.');
       const target = integer(data.saldoObjetivoCentavos, 'saldo objetivo', Number.MIN_SAFE_INTEGER);
       const accountRef = d.collection('fin_accounts').doc(accountId);
-      const movementId = uuid();
+      const movementId = text(data.requestId, 160);
+      if (!movementId) throw new Error('La conciliacion requiere un identificador estable para reintentar.');
       const movementRef = d.collection('fin_movements').doc(movementId);
-      let difference = 0;
-      await d.runTransaction(async transaction => {
+      const eventId = `ledger-${movementId}`;
+      const previous = await optionalBusinessDocument(ctx, 'sync_events', eventId);
+      if (previous.exists) {
+        const row = previous.data();
+        if (row.created_by_uid !== ctx.user.uid || row.event_type !== 'LedgerMovimientoRegistrado'
+          || row.payload?.metadata?.reconciliation_target !== target || row.payload?.cuentaId !== accountId) {
+          throw new Error('El identificador pertenece a otra conciliacion.');
+        }
+        return { ok: true, id: movementId, deduplicated: true, message: 'Conciliacion ya registrada.' };
+      }
+      syncEventQueryCache.clear();
+      const accounts = await DcarelaFirebase.getFinanceAccounts(ctx.businessId);
+      const snapshot = accounts.find(account => account.id === accountId);
+      if (!snapshot) throw new Error('La cuenta financiera no existe.');
+      const journal = await DcarelaFirebase.getFinanceJournal(ctx.businessId, { accounts });
+      let difference;
+      const result = await eventTransaction(ctx, eventId, 'LedgerMovimientoRegistrado', async transaction => {
         const accountDoc = await transaction.get(accountRef);
         if (!accountDoc.exists || accountDoc.data().business_id !== ctx.businessId) throw new Error('La cuenta financiera no existe.');
-        const current = Number(accountDoc.data().saldo_actual_centavos ?? accountDoc.data().saldo_inicial_centavos ?? 0);
-        difference = target - current;
-        transaction.set(movementRef, {
-          business_id: ctx.businessId, tipo: difference >= 0 ? 'ajuste_positivo' : 'ajuste_negativo',
-          fecha: text(data.fecha, 10) || createdAt.slice(0, 10), hora: createdAt.slice(11, 19),
-          monto_centavos: Math.abs(difference), cuenta_id: accountId,
-          descripcion: 'Conciliacion de saldo', nota: reason,
-          referencia: `CONC-${createdAt.replace(/\D/g, '').slice(0, 14)}`,
-          origen: 'panel', estado: 'registrado', conciliado: true,
-          saldo_anterior_centavos: current, saldo_resultante_centavos: target,
-          afecta_resultado: false, created_at: createdAt, updated_at: createdAt, ...actor
-        });
-        transaction.update(accountRef, { saldo_actual_centavos: target, reconciled_balance_centavos: target, reconciled_at: createdAt, updated_at: createdAt });
+        if (['saldo_actual_centavos', 'saldo_inicial_centavos', 'reconciled_at', 'reconciled_balance_centavos', 'updated_at']
+          .some(key => accountDoc.data()[key] !== snapshot[key])) throw new Error('La cuenta cambio durante la verificacion. Actualiza y reintenta.');
+        const plan = window.DcarelaFinanceCore.planAccountReconciliation({ ...accountDoc.data(), id: accountId }, journal,
+          { target, cutoff: createdAt, createdAt, id: movementId, reason });
+        difference = plan.difference;
+        const movement = { ...plan.movement, ...actor };
+        transaction.set(movementRef, movement);
+        transaction.set(d.collection('sync_events').doc(eventId), eventDocument(ctx, eventId, 'LedgerMovimientoRegistrado',
+          'fin_movements', movementId, { ...financeLedgerPayload(movement, accountDoc.data()),
+            metadata: { reconciliation_target: target, reconciliation_before: plan.before } }, createdAt));
+        transaction.update(accountRef, plan.patch);
       });
+      if (result?.deduplicated && (result.payload?.metadata?.reconciliation_target !== target || result.payload?.cuentaId !== accountId)) {
+        throw new Error('El identificador pertenece a otra conciliacion.');
+      }
       return { ok: true, id: movementId, difference, message: 'Saldo conciliado mediante asiento auditable.' };
     }
 
@@ -1153,6 +1170,9 @@
         const movement = await transaction.get(ref);
         if (!movement.exists || movement.data().business_id !== ctx.businessId) throw new Error('El movimiento no existe.');
         const row = movement.data();
+        if (row.conciliado === true && /^ajuste_/.test(row.tipo || '')) {
+          throw new Error('La conciliacion conserva una base auditada. Corrige el saldo con una nueva conciliacion comprobada; no anules solo su asiento.');
+        }
         if (row.pago_compromiso_id) {
           await setCommitmentPaymentState(ctx, transaction, row.pago_compromiso_id, restoring, data, createdAt);
           return;

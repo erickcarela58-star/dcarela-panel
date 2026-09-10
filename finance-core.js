@@ -543,8 +543,42 @@
       expenseAmount: loan && capital > 0 ? interest + charges : 0 };
   }
 
+  function planAccountReconciliation(account, movements, options) {
+    const { target, cutoff, createdAt, id, reason } = options;
+    const instant = Date.parse(cutoff);
+    if (!account?.id || !id || !reason || !Array.isArray(movements)
+      || !Number.isSafeInteger(target) || !Number.isFinite(instant)
+      || instant > Date.parse(createdAt) || instant < Date.parse(account.reconciled_at || '')) {
+      throw new Error('Conciliacion invalida: revisa cuenta, importe, motivo y corte.');
+    }
+    const timestamp = row => Date.parse(row.source_timestamp || (row.fecha ? `${row.fecha}T23:59:59-04:00` : row.created_at));
+    const relevant = movements.filter(row => [row.cuenta_id, row.cuenta_origen_id, row.cuenta_destino_id].includes(account.id));
+    if (relevant.some(row => isActiveMovement(row) && !Number.isFinite(timestamp(row)))) throw new Error('Un movimiento no tiene fecha efectiva valida.');
+    if (relevant.some(row => isActiveMovement(row) && !row.source_timestamp && businessDay(row.fecha) === businessDay(cutoff))) {
+      throw new Error('Hay movimientos del dia sin hora efectiva. Verifica su corte antes de conciliar.');
+    }
+    if (!Number.isFinite(account.reconciled_balance_centavos) && relevant.some(row => timestamp(row) > instant
+      && !['pos_venta', 'pos_sync_event', 'pos_operation'].includes(row.origen || row.source))) {
+      throw new Error('La cuenta historica tiene movimientos posteriores al corte; requiere verificacion.');
+    }
+    const before = effectiveAccountBalance(account, movements.filter(row => timestamp(row) <= instant));
+    const difference = target - before;
+    if (!Number.isSafeInteger(before) || !Number.isSafeInteger(difference)) throw new Error('Saldo de conciliacion fuera de rango.');
+    return { before, difference,
+      patch: { saldo_actual_centavos: target, reconciled_balance_centavos: target,
+        reconciled_at: cutoff, reconciliation_id: id, updated_at: createdAt },
+      movement: { id, business_id: account.business_id, tipo: difference < 0 ? 'ajuste_negativo' : 'ajuste_positivo',
+        fecha: businessDay(cutoff), source_timestamp: cutoff, monto_centavos: Math.abs(difference),
+        cuenta_id: account.id, descripcion: 'Conciliacion de saldo', nota: reason,
+        origen: 'conciliacion_propietario', estado: 'registrado', conciliado: true, afecta_resultado: false,
+        saldo_anterior_centavos: before, saldo_resultante_centavos: target,
+        sync_event_id: `ledger-${id}`, created_at: createdAt, updated_at: createdAt }
+    };
+  }
+
   return {
     BUSINESS_TIME_ZONE,
+    planAccountReconciliation,
     planCommitmentPayment,
     businessDay,
     eventDay,

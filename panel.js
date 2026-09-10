@@ -21,7 +21,7 @@
     document.body?.classList.add("is-embedded");
   }
   const THEME_KEY = "dcarela.ui.theme";
-  const APP_BUILD = "1.0.81";
+  const APP_BUILD = "1.0.82";
   const financeCore = window.DcarelaFinanceCore;
   const moneyManagerCore = window.DcarelaMoneyManagerCore;
 
@@ -5988,33 +5988,34 @@
     }
 
     // Client-side financial analytics computation from state.movements
-    const periodMovements = financeCore.summarizeMovements(state.movements, range.from, range.to).movements;
+    const periodSummary = financeCore.summarizeMovements(state.movements, range.from, range.to);
+    const periodMovements = periodSummary.movements;
     if (!summary) {
-      const inc = periodMovements.filter(m => m.tipo === "ingreso").reduce((sum, m) => sum + numero(m.monto_centavos), 0);
-      const exp = periodMovements.filter(m => m.tipo === "gasto").reduce((sum, m) => sum + numero(m.monto_centavos), 0);
-      summary = { ingresos_centavos: inc, gastos_centavos: exp };
+      summary = periodSummary;
     }
 
     if (!dailyRows.length) {
       const byDay = new Map();
       periodMovements.forEach(m => {
-        const day = m.fecha;
+        const day = financeCore.businessDay(m.fecha);
         if (!byDay.has(day)) byDay.set(day, { fecha: day, ingresos_centavos: 0, gastos_centavos: 0 });
-        const entry = byDay.get(day);
-        if (m.tipo === "ingreso") entry.ingresos_centavos += numero(m.monto_centavos);
-        if (m.tipo === "gasto") entry.gastos_centavos += numero(m.monto_centavos);
       });
-      dailyRows = [...byDay.values()].sort((a, b) => a.fecha.localeCompare(b.fecha));
+      dailyRows = [...byDay.values()].map(row => ({ fecha: row.fecha,
+        ...financeCore.summarizeMovements(state.movements, row.fecha, row.fecha) }))
+        .sort((a, b) => a.fecha.localeCompare(b.fecha));
     }
 
     if (!categoryRows.length) {
       const catMap = new Map(state.categories.map(c => [c.id, c.nombre]));
       const byCat = new Map();
-      periodMovements.filter(m => m.tipo === "gasto").forEach(m => {
+      periodMovements.forEach(m => {
+        const contribution = (m.tipo === "gasto" && m.afecta_resultado !== false ? numero(m.monto_centavos) : 0)
+          + financeCore.transferCommissionCents(m, state.movements);
+        if (!contribution) return;
         const catId = m.categoria_id || "sin-categoria";
         const catName = catMap.get(catId) || m.payee || "Otros gastos";
         if (!byCat.has(catId)) byCat.set(catId, { categoria_id: catId, nombre: catName, total_centavos: 0 });
-        byCat.get(catId).total_centavos += numero(m.monto_centavos);
+        byCat.get(catId).total_centavos += contribution;
       });
       categoryRows = [...byCat.values()].sort((a, b) => b.total_centavos - a.total_centavos);
     }
@@ -6024,10 +6025,10 @@
     const net = income - expense;
     const patrimonio = (state.accounts || []).filter(item => item.incluir_en_total).reduce((sum, item) => sum + finAccountBalance(item), 0);
     $("finDashboardKpis").innerHTML = [
-      ["Patrimonio", money(patrimonio), "Suma de cuentas"],
-      ["Ingresos", money(income), range.label],
-      ["Gastos", money(expense), range.label],
-      ["Disponible", money(net), net >= 0 ? "Ingresos menos gastos" : "Gasto superior al ingreso"],
+      ["Cuentas incluidas", money(patrimonio), "Saldo actual segun inclusion"],
+      ["Ingresos del resultado", money(income), range.label],
+      ["Gastos del resultado", money(expense), range.label],
+      ["Resultado del periodo", money(net), "Ingresos menos gastos; no es saldo de caja"],
     ].map(([label, value, detail], index) => `<div class="metric-item ${index === 3 ? (net < 0 ? "bad" : "good") : ""}"><span>${esc(label)}</span><strong>${esc(value)}</strong><small>${esc(detail)}</small></div>`).join("");
     
     const availableRate = income > 0 ? Math.max(0, Math.min(100, Math.round(net * 100 / income))) : (expense > 0 ? 0 : 100);
@@ -6119,7 +6120,8 @@
     const state = finStateCache;
     const accounts = new Map(state.accounts.map(item => [item.id, item.nombre]));
     const rows = state.movements.filter(item => financeCore.isActiveMovement(item)
-      && financeCore.movementInRange(item, range.from, range.to)).slice(0, 8);
+      && financeCore.movementInRange(item, range.from, range.to))
+      .sort((a, b) => String(b.source_timestamp || b.fecha || '').localeCompare(String(a.source_timestamp || a.fecha || ''))).slice(0, 8);
     $("finRecentList").innerHTML = rows.length ? rows.map(item => {
       const expense = item.tipo === "gasto";
       return `<article><i class="${esc(item.tipo)}"></i><span><strong>${esc(item.descripcion || item.payee || (item.tipo === "transferencia" ? "Transferencia" : "Movimiento"))}</strong><small>${esc(accounts.get(item.cuenta_id) || "--")} &middot; ${esc(dateOnly(item.fecha))}</small></span><b class="${expense ? "neg" : item.tipo === "ingreso" ? "pos" : ""}">${expense ? "-" : item.tipo === "ingreso" ? "+" : ""}${money(item.monto_centavos)}</b></article>`;
@@ -6231,7 +6233,17 @@
 
   function abrirConciliacionCuentaFin(account) {
     if (!account) return;
-    toast("Conciliación temporalmente bloqueada: falta verificar el saldo y su sincronización con la caja. Puedes registrar movimientos identificados; no se ha cambiado ningún saldo.");
+    const requestId = crypto.randomUUID();
+    abrirEditor("Conciliar " + account.nombre, "Registra el saldo físico o bancario comprobado ahora.", `
+      <p class="field-hint field-wide">Saldo del diario: <strong>${money(finAccountBalance(account))}</strong>. Incluye las operaciones recibidas del turno actual. La conciliación conserva el historial y registra la diferencia.</p>
+      <label><span>Saldo comprobado (RD$)</span><input name="saldo" type="number" step="0.01" required value="${(finAccountBalance(account) / 100).toFixed(2)}"></label>
+      <label class="field-wide"><span>Motivo y evidencia</span><textarea name="motivo" rows="3" maxlength="500" required></textarea></label>
+      <p class="field-hint field-wide">${account.tipo === "tarjeta_credito" ? "Escribe la deuda con signo negativo; el crédito disponible no es el saldo de la cuenta. " : ""}No uses este formulario para excluir ventas de un turno ni para compensar datos pendientes de una terminal. Un conteo anterior requiere comprobar su hora de corte.</p>`, async form => {
+      await adminWrite("fin.account.reconcile", account.id, { requestId, cuentaId: account.id,
+        saldoObjetivoCentavos: centavosConSignoInput(form.get("saldo")), motivo: form.get("motivo") });
+      cerrarEditor();
+      await cargarProveedores(true);
+    }, "Guardar conciliación");
   }
 
   function abrirTransferenciaFin() {
@@ -6947,9 +6959,9 @@
 
     $("provResumen").innerHTML = metric("Ventas del mes", money(salesTotal)) + metric("Gastos Money Manager", money(ledgerExpensesTotal))
       + metric("Pagos documentados", money(paidTotal)) + metric("Por pagar este mes", money(dueTotal))
-      + metric("Vencido", money(overdueTotal)) + metric("Resultado disponible", money(net));
+      + metric("Vencido", money(overdueTotal)) + metric("Ventas menos gastos", money(net));
     $("provAnalisis").innerHTML = `<div class="surface-title"><div><h3>Analisis del mes</h3><p>Ventas contra gastos y compromisos registrados.</p></div></div>
-      <div class="analysis-result"><span>Ventas netas</span><strong>${money(salesTotal)}</strong><span>Gastos Money Manager</span><strong>${money(ledgerExpensesTotal)}</strong><span>Pagos documentados en deudas</span><strong>${money(paidTotal)}</strong><span>Gastado + pendiente</span><strong>${money(committed)}</strong><span>Disponible segun movimientos</span><strong class="net ${net < 0 ? "bad" : ""}">${money(net)}</strong></div>`;
+      <div class="analysis-result"><span>Ventas netas</span><strong>${money(salesTotal)}</strong><span>Gastos Money Manager</span><strong>${money(ledgerExpensesTotal)}</strong><span>Pagos documentados en deudas</span><strong>${money(paidTotal)}</strong><span>Gastado + pendiente</span><strong>${money(committed)}</strong><span>Ventas menos gastos (excluye otros ingresos)</span><strong class="net ${net < 0 ? "bad" : ""}">${money(net)}</strong></div>`;
     const upcoming = state.obligations.filter(item => ["vencida", "pendiente", "parcial"].includes(item.estado)).slice(0, 6);
     $("provVencimientos").innerHTML = upcoming.length ? upcoming.map(item => `<article class="due-item ${item.estado === "vencida" ? "overdue" : ""}"><strong>${esc(item.concepto)}</strong><span>${esc(item.acreedor || item.categoria)} | ${money(item.saldoCentavos)}</span><span>${item.estado === "vencida" ? "Vencida" : "Pagar"} ${esc(dateOnly(item.venceEn))}</span></article>`).join("") : '<div class="empty-state">No hay vencimientos pendientes.</div>';
 
