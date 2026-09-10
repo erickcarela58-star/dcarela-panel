@@ -1942,10 +1942,26 @@
       const from = options.from || '', to = options.to || '';
       if ((from && !Number.isFinite(Date.parse(from))) || (to && !Number.isFinite(Date.parse(to)))
         || (from && to && from > to)) throw new Error('Rango contable invalido.');
-      const [accounts, preferences, events, documents] = await Promise.all([
-        options.accounts || this.getFinanceAccounts(businessId),
+      // Las cuentas van primero porque de ellas sale hasta donde hay que mirar atras.
+      const accounts = options.accounts || await this.getFinanceAccounts(businessId);
+      // Finanzas pedia SIEMPRE el historial completo --los 343 bloques del archivo, 77 MB-- y
+      // aplicaba el rango despues, aqui en el navegador. Por eso la pantalla seguia tardando
+      // aunque se estuviera mirando un solo mes.
+      //
+      // Se puede pedir menos sin perder un centavo: todo lo anterior a una conciliacion YA esta
+      // dentro de reconciled_balance_centavos, asi que ningun evento previo al corte mas
+      // antiguo cambia un saldo. Se pide desde el MENOR de dos: ese corte y el inicio del rango
+      // que se esta mirando, para no quedarse corto en ninguno de los dos sentidos.
+      //
+      // Si alguna cuenta no tiene corte no se recorta nada: sin saldo base, el historial
+      // completo es obligatorio. Preferir tardar antes que ensenar un saldo incompleto.
+      const cortes = accounts.map(item => item?.reconciled_at || item?.reconciledAt || '');
+      const desde = cortes.length && cortes.every(Boolean)
+        ? [from, ...cortes].filter(Boolean).sort()[0]
+        : '';
+      const [preferences, events, documents] = await Promise.all([
         options.preferences || this.getFinancePreferences(businessId),
-        this.getSyncEvents(businessId, { complete: true, includeArchives: true, limit: SYNC_EVENT_MAX_BATCH }),
+        this.getSyncEvents(businessId, { complete: true, includeArchives: true, limit: SYNC_EVENT_MAX_BATCH, from: desde }),
         this.getCollection('fin_movements', [['business_id', '==', businessId]])
       ]);
       const transferAccountId = preferences?.cuenta_ingreso_default_id || null;

@@ -246,3 +246,41 @@ test('la cache del archivo no mezcla un periodo con el historial completo',async
   assert.ok(completo.some(f=>f.event_id==='antiguo'),
     'el historial completo heredo la cache podada del periodo anterior');
 });
+
+// Finanzas pedia SIEMPRE el historial completo y filtraba el rango despues, en el navegador:
+// por eso seguia tardando aunque se mirara un solo mes. Todo lo anterior a una conciliacion ya
+// esta dentro del saldo conciliado, asi que pedir desde el corte mas antiguo no cambia ningun
+// saldo y evita bajar los 77 MB del archivo.
+test('el diario financiero pide desde el corte mas antiguo, no desde el principio',async()=>{
+  const cuentas=[{id:'cash',nombre:'Efectivo',tipo:'efectivo',reconciled_at:'2026-09-10T12:08:27.274Z',reconciled_balance_centavos:3237000},
+    {id:'bank',nombre:'Banco',tipo:'banco',reconciled_at:'2026-09-10T12:39:44.298Z',reconciled_balance_centavos:94420}];
+  const h=harness(async(name)=>{ if(name==='sync_event_archives') return snapshot([]); return snapshot([]); });
+  await h.api.getFinanceJournal('dcarela',{accounts:cuentas,preferences:{}});
+  const archivo=h.calls.find(c=>c.name==='sync_event_archives');
+  const corte=archivo.conditions.find(c=>Array.isArray(c)&&c[0]==='events_to');
+  assert.ok(corte,'sin acotar, Finanzas vuelve a bajar el archivo entero en cada consulta');
+  assert.equal(corte[2],'2026-09-10T12:08:27.274Z','se pide desde el corte MAS ANTIGUO de las cuentas');
+});
+
+// Sin corte no hay saldo base, y entonces el historial completo es obligatorio: mejor tardar
+// que ensenar un saldo al que le faltan movimientos.
+test('una cuenta sin conciliar obliga a bajar el archivo completo',async()=>{
+  const cuentas=[{id:'cash',nombre:'Efectivo',tipo:'efectivo',reconciled_at:'2026-09-10T12:08:27.274Z'},
+    {id:'nueva',nombre:'Cuenta nueva',tipo:'banco'}];
+  const h=harness(async()=>snapshot([]));
+  await h.api.getFinanceJournal('dcarela',{accounts:cuentas,preferences:{}});
+  const archivo=h.calls.find(c=>c.name==='sync_event_archives');
+  assert.equal(archivo.conditions.some(c=>Array.isArray(c)&&c[0]==='events_to'),false,
+    'recortar sin saldo base esconderia movimientos de la cuenta sin conciliar');
+});
+
+// Y si se esta mirando un mes anterior al corte, manda el rango pedido: recortar en el corte
+// dejaria fuera justo los movimientos de ese mes.
+test('un mes anterior al corte manda sobre el corte',async()=>{
+  const cuentas=[{id:'cash',nombre:'Efectivo',tipo:'efectivo',reconciled_at:'2026-09-10T12:08:27.274Z'}];
+  const h=harness(async()=>snapshot([]));
+  await h.api.getFinanceJournal('dcarela',{accounts:cuentas,preferences:{},from:'2026-07-01T04:00:00.000Z'});
+  const archivo=h.calls.find(c=>c.name==='sync_event_archives');
+  const corte=archivo.conditions.find(c=>Array.isArray(c)&&c[0]==='events_to');
+  assert.equal(corte[2],'2026-07-01T04:00:00.000Z');
+});
