@@ -12,12 +12,13 @@ function harness(read, storageValues = {}) {
       doc:id=>query(name, [id]),
       orderBy:(...order)=>query(name,[...conditions,['orderBy',...order]]),
       limit:value=>query(name,[...conditions,['limit',value]]),
+      startAfter:doc=>query(name,[...conditions,['startAfter',doc.id]]),
       async get(options = {}){ calls.push({name,conditions,source:options?.source || 'server'}); return read(name,conditions,options); }};
   }
   const auth = {currentUser:user};
   const db = {collection:query, enablePersistence:async()=>{}};
   const firebase = {apps:[], initializeApp:()=>({}), auth:()=>auth, firestore:()=>db};
-  const window = {__DCARELA_FIREBASE_CONFIG:{projectId:'test'}};
+  const window = {__DCARELA_FIREBASE_CONFIG:{projectId:'test'}, DcarelaFinanceCore:require('./finance-core.js')};
   const localStorage = {
     getItem:key=>Object.prototype.hasOwnProperty.call(storageValues,key) ? storageValues[key] : null,
     setItem:(key,value)=>{storageValues[key]=String(value);}
@@ -139,4 +140,38 @@ test('una conciliacion completa no hereda una cache actual recortada',async()=>{
     &&condition[0]==='received_at_cloud'&&condition[1]==='>='),false);
   assert.ok(serverCall.conditions.some(condition=>Array.isArray(condition)
     &&condition[0]==='limit'&&condition[1]===5000));
+});
+
+test('diario completo pagina mas de 5000 eventos, conserva archivo y exige servidor',async()=>{
+  const all=Array.from({length:5003},(_,i)=>({id:'e'+i,event_id:'e'+i,received_at_cloud:'2026-09-01T12:00:00Z',event_type:'VentaCobrada'}));
+  const h=harness(async(name,conditions,options)=>{
+    if(name==='sync_event_archives') return snapshot([{id:'a',events:[{id:'arch',event_id:'arch',received_at_cloud:'2026-08-01T00:00:00Z'}]}]);
+    assert.equal(options.source,'server');
+    const cursor=conditions.find(c=>c[0]==='startAfter');
+    return snapshot(cursor ? all.slice(all.findIndex(x=>x.id===cursor[1])+1) : all.slice(0,5000));
+  });
+  const result=await h.api.getSyncEvents('dcarela',{complete:true});
+  assert.equal(result.length,5004);
+  assert.equal(h.calls.filter(c=>c.name==='sync_events').length,2);
+  assert.equal(h.calls.some(c=>c.source==='cache'),false);
+});
+
+test('diario historico usa cada pago una vez y preserva saldo anterior al rango consultado',async()=>{
+  const accounts=[{id:'cash',nombre:'Efectivo',tipo:'efectivo',reconciled_at:'2026-09-01T03:59:59Z',reconciled_balance_centavos:10000},{id:'bank',nombre:'Banco',tipo:'banco',reconciled_at:'2026-09-01T03:59:59Z',reconciled_balance_centavos:0}];
+  const sale={id:'s-event',event_id:'s-event',entity_id:'s1',event_type:'VentaCobrada',received_at_cloud:'2026-09-02T12:00:00Z',payload:{ventaId:'s1',vendidaEn:'2026-09-02T12:00:00Z',totalCobradoCentavos:3000,pagos:[{metodo:'efectivo',montoCentavos:1000,cuentaFinancieraId:'cash'},{metodo:'transferencia',montoCentavos:2000,cuentaFinancieraId:'bank'}]}};
+  const h=harness(async name=>{
+    if(name==='fin_accounts')return snapshot(accounts);
+    if(name==='sync_events')return snapshot([sale]);
+    if(name==='fin_movements')return snapshot([{id:'cash-pay',venta_id:'s1',tipo:'ingreso',monto_centavos:1000,cuenta_id:'cash',fecha:'2026-09-02'}]);
+    if(name==='fin_preferences')return {exists:true,data:()=>({})};
+    return snapshot([]);
+  });
+  const rows=await h.api.getFinanceJournal('dcarela',{from:'2026-09-02',to:'2026-09-02'});
+  assert.equal(rows.length,2);
+  assert.equal(rows.sales.length,1);
+  const state=await h.api.getFinanceAccountState('dcarela');
+  assert.deepEqual([...state.balances.map(x=>x.balance)],[11000,2000]);
+  const empty=await h.api.getFinanceJournal('dcarela',{from:'2026-09-03',to:'2026-09-03'});
+  assert.equal(empty.length,0);
+  assert.equal(empty.sales.length,0);
 });

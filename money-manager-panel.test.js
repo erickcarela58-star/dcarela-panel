@@ -47,7 +47,7 @@ test("Money Manager adapta tarjetas, filtros, calendario y barra inferior al tel
 
 test("recarga cierres desde el loader comun y escucha cambios en la ruta nueva", () => {
   const loader = script.slice(script.indexOf("async function cargarProveedores"), script.indexOf("function readSet"));
-  assert.match(loader, /finStateCache\.shiftClosings = \(await eventos\(\["CajaCerrada"\], from, to/);
+  assert.match(loader, /finStateCache\.shiftClosings = \(journal \? journal.closingEvents/);
   const refresh = script.slice(script.indexOf("function scheduleLiveRefresh"), script.indexOf("function conectarRealtime"));
   assert.match(refresh, /"money-manager"/);
   assert.match(script, /await cargarMoneyManager\(true\)\.catch/);

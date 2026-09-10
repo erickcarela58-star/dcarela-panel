@@ -142,7 +142,7 @@
   }
 
   function summarizeMovements(items, from = "", to = "") {
-    const allMovements = deduplicateMovements(items);
+    const allMovements = uniqueFinanceMovements(items);
     const movements = allMovements
       .filter(item => isActiveMovement(item) && movementInRange(item, from, to));
     const ingresos_centavos = movements.filter(item => item.tipo === "ingreso" && item.afecta_resultado !== false)
@@ -367,12 +367,20 @@
     });
   }
 
+  // Contrato de lectura compartido: un pago tiene una sola fila aunque exista
+  // como proyeccion de venta, evento inmutable y documento materializado.
+  // Se conservan los estados inactivos para que una anulacion no resucite una
+  // proyeccion; cada consumidor aplica su rango y estado despues de unir.
+  function uniqueFinanceMovements(movements) {
+    return unrepresentedSalePayments(movements);
+  }
+
   function projectedLedgerDeltaForAccount(account, movements) {
     if (!account?.id) return 0;
     const cutoffText = account.reconciled_at || account.reconciledAt || account.created_at || account.createdAt || "";
     const cutoff = cutoffText ? new Date(cutoffText).getTime() : Number.NaN;
     if (!Number.isFinite(cutoff)) return 0;
-    const uniqueMovements = unrepresentedSalePayments(movements);
+    const uniqueMovements = uniqueFinanceMovements(movements);
     const fromCheckpoint = Number.isFinite(account.reconciled_balance_centavos);
     return uniqueMovements.filter(item => {
       if (!isActiveMovement(item)) return false;
@@ -557,6 +565,7 @@
     projectedSalesDeltaForAccount,
     projectedLedgerDeltaForAccount,
     unrepresentedSalePayments,
+    uniqueFinanceMovements,
     effectiveAccountBalance,
     OPERATION_EVENT_TYPES,
     projectOperationsAsMovements,

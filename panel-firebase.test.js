@@ -117,7 +117,7 @@ test("todas las herramientas administrativas visibles tienen implementacion Fire
     assert.match(firebaseAdapter, new RegExp(`action === ['"]${action.replaceAll('.', '\\.')}['"]`), action);
   }
   assert.match(firebaseAdapter, /sync_event_archives/);
-  assert.match(firebaseAdapter, /events:\s*chunks\.flatMap/);
+  assert.match(firebaseAdapter, /then\(chunks => chunks\.flatMap/);
 });
 
 test("el sitio no publica respaldos comerciales ni datos personales como archivos seed", () => {

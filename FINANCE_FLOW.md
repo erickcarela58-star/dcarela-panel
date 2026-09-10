@@ -51,3 +51,11 @@ Los pagos historicos sin el efecto original registrado y los pagos o anulaciones
 El resumen del asistente excluye de gastos el capital marcado sin efecto en resultados; el contexto de analisis tambien excluye de ingresos los cobros con esa marca. Esto no convierte todas las consultas del asistente en una vista completa del diario: cobertura historica y proyecciones siguen pendientes.
 
 Las consultas contables completas usan una cache separada de las consultas operativas que pueden admitir datos locales sin red. Un fallo de verificacion debe mostrarse como error y permitir reintentar; no convierte datos locales en un saldo confirmado. Las consultas completas concurrentes siguen compartiendo su lectura. Esto no elimina los topes historicos ni certifica tiempos de carga.
+
+## Diario compartido y consultas verificadas
+
+Finanzas, Money Manager, saldos de cuentas y consultas financieras del asistente usan el diario compartido. Cada pago se cuenta una vez aunque exista como evento, documento y proyeccion. Los rangos de reportes se aplican despues de reconstruir el diario; el cuadre limita el calculo de saldo, no el historial consultable. Los eventos actuales se leen por paginas de hasta 5,000; una consulta completa no se recorta a una sola pagina y une los archivos conservados. Requiere respuesta del servidor y permite reintentar si una pagina falla.
+
+El resumen distingue ventas confirmadas, gastos del resultado y saldo neto de cuentas visibles (incluye deuda de tarjetas). El capital de prestamos y los abonos no se convierten en gastos o ingresos de resultado. Cuando el diario o saldo no se pueden verificar, el asistente muestra no disponible. Buscar movimientos tambien informa su estado activo o anulado.
+
+Prompts de solo lectura probados con datos aislados: “Dame el resumen de ventas de hoy, gastos y saldo en cuentas” con pago de capital/intereses y abono; la misma consulta sin conexion; y analisis de gastos con contexto financiero para el proveedor de IA simulado. No constituyen pruebas de escrituras contables en produccion ni del bot de WhatsApp.

@@ -97,11 +97,11 @@
     };
   }
 
-  async function readFirestoreQuery(query, key) {
+  async function readFirestoreQuery(query, key, options = {}) {
     // Deduplicate concurrent consumers only: do not cache balances or mutable
     // collections after completion, nor substitute empty rows for read errors.
     const owner = auth?.currentUser?.uid || 'signed-out';
-    const requestKey = `${owner}|${key}`;
+    const requestKey = `${owner}|${key}|${options.source || 'default'}`;
     if (collectionReadRequests.has(requestKey)) return collectionReadRequests.get(requestKey);
     if (Date.now() < firestoreReadRetryAt) throw firestoreQuotaError();
     let timer;
@@ -110,7 +110,7 @@
         new Error('La consulta tardo demasiado. Reintenta cuando la conexion responda.'),
         { code: 'deadline-exceeded' })), 20000);
     });
-    const pending = Promise.race([Promise.resolve().then(() => query.get()), deadline]).catch(error => {
+    const pending = Promise.race([Promise.resolve().then(() => query.get({ source: 'server', ...options })), deadline]).catch(error => {
       if (error?.code === 'resource-exhausted' || error?.code === 'firestore/resource-exhausted'
         || /quota exceeded|RESOURCE_EXHAUSTED/i.test(String(error?.message || ''))) {
         firestoreReadRetryAt = Date.now() + FIRESTORE_QUOTA_PAUSE_MS;
@@ -1649,10 +1649,11 @@
     async getSyncEvents(businessId = 'dcarela', options = {}) {
       const { db: d } = initFirebase();
       if (!d) throw new Error('Firestore no inicializado.');
-      const maximum = Math.max(1, Math.min(SYNC_EVENT_MAX_BATCH, Number(options.limit || 500)));
+      const maximum = options.complete === true ? SYNC_EVENT_MAX_BATCH : Math.max(1, Math.min(SYNC_EVENT_MAX_BATCH, Number(options.limit || 500)));
       const from = options.from ? String(options.from) : '';
       const to = options.to ? String(options.to) : '';
-      const includeArchives = options.includeArchives === true;
+      const includeArchives = options.includeArchives === true || options.complete === true;
+      const complete = options.complete === true;
       const eventTypes = new Set((Array.isArray(options.eventTypes) ? options.eventTypes : [])
         .map(value => String(value || '').trim()).filter(Boolean));
       // Un reporte contable se filtra por la fecha efectiva del movimiento,
@@ -1668,7 +1669,7 @@
       if (serverFrom) query = query.where('received_at_cloud', '>=', serverFrom);
       if (serverTo) query = query.where('received_at_cloud', '<=', serverTo);
       query = query.orderBy('received_at_cloud', 'desc').limit(maximum);
-      const queryKey = `${businessId}|${serverFrom}|${serverTo}|${maximum}|${includeArchives ? 'verified' : 'operational'}`;
+      const queryKey = `${auth?.currentUser?.uid || 'signed-out'}|${businessId}|${serverFrom}|${serverTo}|${maximum}|${includeArchives ? 'verified' : 'operational'}|${complete}`;
       let cachedQuery = syncEventQueryCache.get(queryKey);
       if (!cachedQuery || Date.now() - cachedQuery.at > SYNC_EVENT_QUERY_TTL_MS
         || cachedQuery.limit < maximum) {
@@ -1678,8 +1679,10 @@
           promise: (async () => {
             let cached = [];
             try {
-              const snapshot = await query.get({ source: 'cache' });
-              cached = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+              if (!includeArchives) {
+                const snapshot = await query.get({ source: 'cache' });
+                cached = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+              }
             } catch (_) {
               // Primera visita o persistencia no disponible: se completa desde servidor.
             }
@@ -1703,8 +1706,17 @@
             }
             let fresh;
             try {
-              const snapshot = await readFirestoreQuery(serverQuery, `sync-events|${queryKey}|${primed}`);
+              const snapshot = await readFirestoreQuery(serverQuery, `sync-events|${queryKey}|${primed}`,
+                includeArchives ? { source: 'server' } : {});
               fresh = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+              if (complete) {
+                let page = snapshot;
+                while (page.docs.length === maximum) {
+                  const last = page.docs[page.docs.length - 1];
+                  page = await readFirestoreQuery(query.startAfter(last), `sync-events|${queryKey}|after:${last.id}`, { source: 'server' });
+                  fresh.push(...page.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+                }
+              }
               markSyncQueryPrimed(queryKey);
             } catch (error) {
               if (includeArchives) throw error;
@@ -1715,15 +1727,17 @@
             const merged = new Map();
             cached.forEach(event => merged.set(event.event_id || event.id, event));
             fresh.forEach(event => merged.set(event.event_id || event.id, event));
-            return [...merged.values()].sort((a, b) => String(b.received_at_cloud || b.created_at_local || '')
-              .localeCompare(String(a.received_at_cloud || a.created_at_local || ''))).slice(0, maximum);
+            const result = [...merged.values()].sort((a, b) => String(b.received_at_cloud || b.created_at_local || '')
+              .localeCompare(String(a.received_at_cloud || a.created_at_local || '')));
+            return complete ? result : result.slice(0, maximum);
           })()
         };
         syncEventQueryCache.set(queryKey, cachedQuery);
       }
       let current;
       try {
-        current = (await cachedQuery.promise).slice(0, maximum);
+        current = await cachedQuery.promise;
+        if (!complete) current = current.slice(0, maximum);
       } catch (error) {
         if (syncEventQueryCache.get(queryKey) === cachedQuery) syncEventQueryCache.delete(queryKey);
         throw error;
@@ -1731,14 +1745,21 @@
       const recentWindow = from && Number.isFinite(Date.parse(from))
         && Date.parse(from) >= Date.now() - 45 * 24 * 60 * 60 * 1000;
       if (recentWindow && !includeArchives) return current;
-      let archived = eventArchiveCache.get(businessId);
+      const archiveKey = `${auth?.currentUser?.uid || 'signed-out'}|${businessId}`;
+      let archived = eventArchiveCache.get(archiveKey);
       if (!archived || Date.now() - archived.at > 5 * 60 * 1000) {
-        const chunks = await this.getCollection('sync_event_archives', [['business_id', '==', businessId]]);
         archived = {
           at: Date.now(),
-          events: chunks.flatMap(chunk => Array.isArray(chunk.events) ? chunk.events : [])
+          promise: this.getCollection('sync_event_archives', [['business_id', '==', businessId]])
+            .then(chunks => chunks.flatMap(chunk => Array.isArray(chunk.events) ? chunk.events : []))
         };
-        eventArchiveCache.set(businessId, archived);
+        eventArchiveCache.set(archiveKey, archived);
+      }
+      let archiveEvents;
+      try { archiveEvents = await archived.promise; }
+      catch (error) {
+        if (eventArchiveCache.get(archiveKey) === archived) eventArchiveCache.delete(archiveKey);
+        throw error;
       }
       const merged = new Map();
       const effectiveTimestamp = event => {
@@ -1761,15 +1782,16 @@
         return (!from || comparable >= from) && (!to || comparable <= to);
       };
       const matchesRequestedType = event => !eventTypes.size || eventTypes.has(String(event?.event_type || ''));
-      archived.events
+      archiveEvents
         .filter(inRequestedRange)
         .filter(matchesRequestedType)
         .forEach(event => merged.set(event.event_id || event.id, event));
       current.filter(inRequestedRange)
         .filter(matchesRequestedType)
         .forEach(event => merged.set(event.event_id || event.id, event));
-      return [...merged.values()].sort((a, b) => String(b.received_at_cloud || b.created_at_local || '')
-        .localeCompare(String(a.received_at_cloud || a.created_at_local || ''))).slice(0, maximum);
+      const result = [...merged.values()].sort((a, b) => String(b.received_at_cloud || b.created_at_local || '')
+        .localeCompare(String(a.received_at_cloud || a.created_at_local || '')));
+      return complete ? result : result.slice(0, maximum);
     },
 
     // El tope se aplica EN EL SERVIDOR. La version anterior descargaba la
@@ -1853,20 +1875,45 @@
     async getFinanceAccountState(businessId = 'dcarela', accounts = null) {
       const core = window.DcarelaFinanceCore;
       accounts = accounts || await this.getFinanceAccounts(businessId);
-      const dates = accounts.map(a => a.reconciled_at || a.created_at).filter(x => Number.isFinite(Date.parse(x))).sort();
-      if (!dates.length) return { accounts, movements: [], balances: accounts.map(a => ({ id: a.id, balance: core.effectiveAccountBalance(a, []) })) };
-      const from = dates[0], to = nowIso();
-      const preferences = await this.getFinancePreferences(businessId);
-      const transferAccountId = preferences?.cuenta_ingreso_default_id || null;
-      const [ledger, events, cancellations] = await Promise.all([
-        this.getFinanceLedgerMovements(businessId, { from, to, accounts, transferAccountId }),
-        this.getSyncEvents(businessId, { from, to, limit: SYNC_EVENT_MAX_BATCH, includeArchives: true, eventTypes: ['VentaCobrada'] }),
-        this.getCollection('sync_events', [['business_id', '==', businessId], ['event_type', '==', 'VentaCancelada']]),
-      ]);
-      const cancelled = new Set(cancellations.flatMap(core.saleIdentifiers));
-      const sales = core.deduplicateSales(events.filter(e => !core.saleIdentifiers(e).some(id => cancelled.has(id))));
-      const movements = [...ledger, ...core.projectSalePaymentsAsMovements(sales, accounts, {businessId,transferAccountId})];
+      const movements = await this.getFinanceJournal(businessId, { accounts });
       return { accounts, movements, balances: accounts.map(a => ({id:a.id, balance:core.effectiveAccountBalance(a, movements)})) };
+    },
+
+    async getFinanceJournal(businessId = 'dcarela', options = {}) {
+      const core = window.DcarelaFinanceCore;
+      const from = options.from || '', to = options.to || '';
+      if ((from && !Number.isFinite(Date.parse(from))) || (to && !Number.isFinite(Date.parse(to)))
+        || (from && to && from > to)) throw new Error('Rango contable invalido.');
+      const [accounts, preferences, events, documents] = await Promise.all([
+        options.accounts || this.getFinanceAccounts(businessId),
+        options.preferences || this.getFinancePreferences(businessId),
+        this.getSyncEvents(businessId, { complete: true, includeArchives: true, limit: SYNC_EVENT_MAX_BATCH }),
+        this.getCollection('fin_movements', [['business_id', '==', businessId]])
+      ]);
+      const transferAccountId = preferences?.cuenta_ingreso_default_id || null;
+      const merged = new Map();
+      events.filter(event => event.event_type === 'LedgerMovimientoRegistrado')
+        .sort((a,b) => String(a.created_at_local || a.received_at_cloud || '').localeCompare(String(b.created_at_local || b.received_at_cloud || '')))
+        .map(event => financeMovementFromLedgerEvent(event, businessId))
+        .forEach(item => merged.set(financeMovementKey(item), item));
+      documents.forEach(item => merged.set(financeMovementKey(item), item));
+      const ledger = [...merged.values()];
+      const cancellations = events.filter(event => event.event_type === 'VentaCancelada');
+      const cancelled = new Set(cancellations.flatMap(core.saleIdentifiers));
+      const sales = core.deduplicateSales(events.filter(e => e.event_type === 'VentaCobrada'
+        && !core.saleIdentifiers(e).some(id => cancelled.has(id))));
+      const rows = core.uniqueFinanceMovements([...ledger,
+        ...core.projectOperationsAsMovements(events, accounts, ledger, { businessId, transferAccountId }),
+        ...core.projectSalePaymentsAsMovements(sales, accounts, {businessId,transferAccountId})
+      ]).filter(row => (!from || core.businessDay(row.fecha) >= core.businessDay(from))
+        && (!to || core.businessDay(row.fecha) <= core.businessDay(to)));
+      Object.defineProperty(rows, 'sales', { value: sales.filter(event => {
+        const day = core.eventDay(event);
+        return (!from || day >= core.businessDay(from)) && (!to || day <= core.businessDay(to));
+      }), enumerable: false });
+      Object.defineProperty(rows, 'saleEvents', { value: events.filter(e => e.event_type === 'VentaCobrada'), enumerable: false });
+      Object.defineProperty(rows, 'closingEvents', { value: events.filter(e => e.event_type === 'CajaCerrada'), enumerable: false });
+      return rows;
     },
 
     async getFinanceMovements(businessId = 'dcarela', month = null) {
@@ -2240,6 +2287,7 @@
 
     invalidateReadCache() {
       syncEventQueryCache.clear();
+      eventArchiveCache.clear();
     },
 
     async assistantRequest(body = {}) {

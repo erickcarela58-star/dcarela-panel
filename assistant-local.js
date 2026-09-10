@@ -19,6 +19,8 @@
   const MAX_CONVERSATIONS = 80;
   const MAX_MESSAGES = 160;
   const MAX_CONTENT = 16000;
+  const financeCore = root?.DcarelaFinanceCore
+    || (typeof module !== 'undefined' && module.exports ? require('./finance-core.js') : null);
 
   const nowIso = () => new Date().toISOString();
   const uuid = () => root?.crypto?.randomUUID?.()
@@ -40,12 +42,8 @@
   const money = cents => new Intl.NumberFormat('es-DO', {
     style: 'currency', currency: 'DOP', minimumFractionDigits: 2
   }).format(number(cents) / 100);
-  const dayOf = value => text(value, 40).slice(0, 10);
-  const today = () => {
-    const date = new Date();
-    const offset = date.getTimezoneOffset() * 60000;
-    return new Date(date.getTime() - offset).toISOString().slice(0, 10);
-  };
+  const dayOf = value => financeCore.businessDay(value);
+  const today = () => dayOf(nowIso());
   const roleAdmin = role => ['owner', 'admin'].includes(normalize(role));
   const capabilities = role => ({
     can_use: true,
@@ -234,16 +232,27 @@
   const movementDate = item => dayOf(item?.fecha || item?.created_at || item?.updated_at);
   const isExpense = item => item?.afecta_resultado !== false && ['gasto', 'egreso', 'salida', 'ajuste_negativo'].includes(normalize(item?.tipo));
 
+  async function readFinanceJournal(ctx, options = {}) {
+    const verified = typeof ctx.adapter.getFinanceJournal === 'function';
+    const source = verified
+      ? await ctx.adapter.getFinanceJournal(ctx.businessId, options)
+      : await ctx.adapter.getFinanceMovements(ctx.businessId);
+    return { rows: financeCore.uniqueFinanceMovements(source || []), sales: source?.sales,
+      complete: verified && !source?.partial_error,
+      warning: source?.partial_error || (!verified ? 'El adaptador no entrega el diario financiero completo.' : '') };
+  }
+
   async function loadSummary(ctx, requestedDay = today()) {
-    const start = new Date(`${requestedDay}T00:00:00`);
-    const end = new Date(`${requestedDay}T23:59:59.999`);
+    const start = new Date(`${requestedDay}T00:00:00-04:00`);
+    const end = new Date(`${requestedDay}T23:59:59.999-04:00`);
+    const hasJournal = typeof ctx.adapter.getFinanceJournal === 'function';
     const canReadLedger = typeof ctx.adapter.getSyncEvents === 'function';
     const settled = await Promise.allSettled([
-      ctx.adapter.getSales(ctx.businessId, 2000),
-      ctx.adapter.getFinanceMovements(ctx.businessId),
+      hasJournal ? Promise.resolve([]) : ctx.adapter.getSales(ctx.businessId, 2000),
+      readFinanceJournal(ctx, { from: requestedDay, to: requestedDay }),
       ctx.adapter.getFinanceAccounts(ctx.businessId),
       ctx.adapter.getCashShifts(ctx.businessId, 80),
-      canReadLedger ? ctx.adapter.getSyncEvents(ctx.businessId, {
+      !hasJournal && canReadLedger ? ctx.adapter.getSyncEvents(ctx.businessId, {
         from: start.toISOString(), to: end.toISOString(), limit: 2000,
       }) : Promise.resolve(null),
     ]);
@@ -264,27 +273,33 @@
       };
       mergedSales.set(saleKeys(item)[0] || `event:${item.source_event_id}`, item);
     });
-    const sales = [...mergedSales.values()].filter(item => saleDate(item) === requestedDay
+    const legacySales = [...mergedSales.values()].filter(item => saleDate(item) === requestedDay
       && !['cancelled', 'anulado'].includes(normalize(item.status))
       && !saleKeys(item).some(key => cancelled.has(key)));
-    const financeRows = value(1);
-    const expenses = financeRows.filter(item => movementDate(item) === requestedDay && isExpense(item) && normalize(item.estado) !== 'anulado');
+    const journal = settled[1].status === 'fulfilled' ? settled[1].value : null;
+    const journalSales = Array.isArray(journal?.sales) ? journal.sales : null;
+    const sales = journalSales || legacySales;
+    const financeRows = journal?.rows || [];
+    const totals = financeCore.summarizeMovements(financeRows, requestedDay, requestedDay);
+    const expenses = totals.movements.filter(isExpense);
+    const legacyFees = totals.movements.filter(item => financeCore.transferCommissionCents(item, financeRows) > 0);
     const accounts = value(2).filter(item => item.oculta !== true && normalize(item.estado || 'activa') !== 'inactiva');
     const shifts = value(3);
-    const salesCents = sales.reduce((sum, item) => sum + saleTotal(item), 0);
-    const expenseCents = expenses.reduce((sum, item) => sum + movementAmount(item), 0);
-    const accountState = ctx.adapter.getFinanceAccountState
-      ? await ctx.adapter.getFinanceAccountState(ctx.businessId, accounts) : null;
-    const accountCents = accountState ? accountState.balances.reduce((sum, item) => sum + item.balance, 0)
-      : accounts.reduce((sum, item) => sum + number(item.saldo_actual_centavos, item.saldoActualCentavos, item.saldo_inicial_centavos), 0);
+    const salesCents = sales.reduce((sum, item) => sum + (journalSales ? financeCore.saleAmount(item) : saleTotal(item)), 0);
+    let accountState = null;
+    if (settled[2].status === 'fulfilled' && ctx.adapter.getFinanceAccountState) {
+      try { accountState = await ctx.adapter.getFinanceAccountState(ctx.businessId, accounts); } catch (_) { /* Se informa sin convertir el fallo en saldo cero. */ }
+    }
+    const accountCents = accountState ? accountState.balances.reduce((sum, item) => sum + item.balance, 0) : null;
+    const salesUnavailable = hasJournal ? !journalSales : settled[0].status === 'rejected' && settled[4].status === 'rejected';
     const openShift = shifts.find(item => normalize(item.status) === 'open') || null;
     return `### Resumen real del ${requestedDay}\n\n`
-      + `- Ventas confirmadas: **${sales.length}** por **${money(salesCents)}**.\n`
-      + `- Gastos registrados: **${expenses.length}** por **${money(expenseCents)}**.\n`
-      + `- Saldo visible en ${accounts.length} cuenta(s): **${money(accountCents)}**.\n`
-      + `- Caja web: **${openShift ? 'turno abierto' : 'sin turno abierto'}**.\n`
-      + (canReadLedger && settled[4].status === 'rejected' ? '- Advertencia: **consulta de ventas parcial**; Firebase no entregó el ledger POS Windows.\n' : '')
-      + (financeRows.partial_error ? '- Advertencia: **consulta financiera parcial**; Firebase no entregó el ledger Windows.\n' : '')
+      + (salesUnavailable ? '- Ventas confirmadas: **no disponibles**.\n' : `- Ventas confirmadas: **${sales.length}** por **${money(salesCents)}**.\n`)
+      + (journal ? `- Gastos registrados: **${expenses.length + legacyFees.length}** por **${money(totals.gastos_centavos)}**${legacyFees.length ? ' (incluye comisiones)' : ''}.\n` : '- Gastos registrados: **no disponibles**; no se pudo verificar el diario.\n')
+      + (accountCents == null ? '- Saldo de cuentas: **no disponible**; requiere el diario verificado.\n' : `- Saldo neto de ${accounts.length} cuenta(s) visibles, incluida deuda de tarjetas: **${money(accountCents)}**.\n`)
+      + `- Caja web: **${settled[3].status === 'rejected' ? 'estado no disponible' : openShift ? 'turno abierto' : 'sin turno abierto'}**.\n`
+      + (!hasJournal && canReadLedger && settled[4].status === 'rejected' ? '- Advertencia: **consulta de ventas parcial**; Firebase no entregó el ledger POS Windows.\n' : '')
+      + (!journal?.complete ? '- Advertencia: **consulta financiera parcial**; el diario completo no estuvo disponible.\n' : '')
       + '\n'
       + 'Los valores provienen de Firebase y no incluyen datos inventados ni estimaciones.';
   }
@@ -337,16 +352,16 @@
       'nada', 'crea', 'crear', 'crees', 'favor'
     ]);
     const terms = normalize(query).split(' ').filter(word => word.length > 2 && !ignored.has(word));
-    const rows = await ctx.adapter.getFinanceMovements(ctx.businessId);
+    const journal = await readFinanceJournal(ctx);
+    const rows = journal.rows;
     const matches = (rows || []).filter(item => {
       const haystack = normalize([item.payee, item.descripcion, item.nota, item.referencia, item.tipo, item.fecha].join(' '));
       return terms.length && terms.every(term => haystack.includes(term));
     }).slice(0, 12);
-    const hasWindowsLedger = (rows || []).some(item => item?.source === 'pos_sync_event');
-    if (!matches.length && (rows.partial_error || !hasWindowsLedger)) return 'No pude completar la búsqueda: **Firebase no entregó una vista verificable del ledger Windows**. El evento puede estar sincronizado aunque la lectura esté limitada o todavía no sea visible para el panel; vuelve a intentar después de restablecerse la cuota. No crearé un gasto duplicado.';
+    if (!matches.length && !journal.complete) return 'No pude completar la búsqueda: **Firebase no entregó una vista verificable del ledger Windows**. El evento puede estar sincronizado aunque la lectura esté limitada o todavía no sea visible para el panel; vuelve a intentar después de restablecerse la cuota. No crearé un gasto duplicado.';
     if (!matches.length) return `No encontre movimientos confirmados que coincidan con **${text(query, 160)}**. No creare un gasto para rellenar ese vacio.`;
     return `### Movimientos encontrados (${matches.length})\n\n` + matches.map(item =>
-      `- ${movementDate(item) || '--'} · ${text(item.descripcion || item.payee || item.tipo, 140)} · **${money(movementAmount(item))}**`
+      `- ${movementDate(item) || '--'} · ${text(item.descripcion || item.payee || item.tipo, 140)} · **${money(movementAmount(item))}** · ${financeCore.isActiveMovement(item) ? 'activo' : 'anulado/inactivo'}`
     ).join('\n');
   }
 
@@ -381,19 +396,18 @@
   }
 
   async function financeAnalysisContext(ctx, query) {
+    const range = financeWindow(query);
     const [movementResult, accountResult] = await Promise.allSettled([
-      ctx.adapter.getFinanceMovements(ctx.businessId),
+      readFinanceJournal(ctx, range),
       ctx.adapter.getFinanceAccounts(ctx.businessId),
     ]);
-    const movements = movementResult.status === 'fulfilled' ? (movementResult.value || []) : [];
+    const journal = movementResult.status === 'fulfilled' ? movementResult.value : null;
+    if (!journal?.complete) throw new Error('El diario completo no estuvo disponible para verificar el periodo.');
+    const movements = journal.rows;
     const accounts = accountResult.status === 'fulfilled'
       ? activeFinanceAccounts(accountResult.value || []) : [];
-    const range = financeWindow(query);
-    const rows = movements.filter(item => {
-      const day = movementDate(item);
-      return day && day >= range.from && day <= range.to
-        && normalize(item.estado) !== 'anulado';
-    });
+    const totals = financeCore.summarizeMovements(movements, range.from, range.to);
+    const rows = totals.movements;
     const expenseRows = rows.filter(isExpense);
     const incomeRows = rows.filter(item => item.afecta_resultado !== false && ['ingreso', 'entrada', 'venta'].includes(normalize(item.tipo)));
     const transferRows = rows.filter(item => normalize(item.tipo).includes('transfer'));
@@ -410,11 +424,11 @@
         : number(account.saldo_actual_centavos, account.saldoActualCentavos, account.saldo_inicial_centavos);
       return `- ${text(account.nombre || account.name, 100)} (${text(account.tipo || 'cuenta', 60)}): ${money(balance)}`;
     });
-    const partial = movementResult.status === 'rejected' || movements.partial_error;
+    const partial = accountResult.status === 'rejected';
     return [
       `CONTEXTO FINANCIERO VERIFICADO (${range.label}, ${range.from} a ${range.to}):`,
-      `- Movimientos visibles: ${rows.length}. Ingresos: ${incomeRows.length} por ${money(incomeRows.reduce((sum, item) => sum + movementAmount(item), 0))}.`,
-      `- Gastos: ${expenseRows.length} por ${money(expenseRows.reduce((sum, item) => sum + movementAmount(item), 0))}. Transferencias: ${transferRows.length}; no cuentan como ingreso ni gasto.`,
+      `- Movimientos visibles: ${rows.length}. Ingresos de resultado: ${incomeRows.length} por ${money(totals.ingresos_centavos)}.`,
+      `- Gastos de resultado (incluye comisiones): ${money(totals.gastos_centavos)}. Transferencias: ${transferRows.length}; su principal no cuenta como ingreso ni gasto.`,
       topCategories.length ? `- Gastos por categoria/concepto: ${topCategories.map(([label, amount]) => `${label}: ${money(amount)}`).join('; ')}.` : '- No hay gastos verificables en el periodo.',
       accountLines.length ? `CUENTAS VISIBLES:\n${accountLines.join('\n')}` : 'CUENTAS VISIBLES: ninguna entregada por Firebase.',
       partial ? 'ADVERTENCIA: la lectura financiera fue parcial; no afirmes que un movimiento inexistente no existe.' : 'La lectura financiera no reporto errores parciales.',

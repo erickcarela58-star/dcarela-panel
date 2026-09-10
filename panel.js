@@ -21,7 +21,7 @@
     document.body?.classList.add("is-embedded");
   }
   const THEME_KEY = "dcarela.ui.theme";
-  const APP_BUILD = "1.0.79";
+  const APP_BUILD = "1.0.80";
   const financeCore = window.DcarelaFinanceCore;
   const moneyManagerCore = window.DcarelaMoneyManagerCore;
 
@@ -5285,7 +5285,9 @@
         const results = await Promise.allSettled([
           window.DcarelaFirebase.getFinanceAccounts(BUSINESS),
           window.DcarelaFirebase.getFinanceCategories(BUSINESS),
-          cargarMovimientosFinMes(month),
+          // Inicia el diario completo junto a los catalogos; se integra despues
+          // con las cuentas y nunca se presenta esta lista provisional.
+          window.DcarelaFirebase.getSyncEvents(BUSINESS, {complete:true,includeArchives:true,limit:5000}).then(() => []),
           window.DcarelaFirebase.getFinanceCards(BUSINESS),
           window.DcarelaFirebase.getFinanceBudgets(BUSINESS),
           window.DcarelaFirebase.getFinancePreferences(BUSINESS),
@@ -6828,7 +6830,7 @@
     const endDate = new Date(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0);
     const to = finDia(inputDate(endDate));
     // Start independent reads together; accounts can render while POS history loads.
-    const historyRequest = Promise.all([cargarCostosCloud(force), ventasActivas(from, to, 20000)]);
+    const historyRequest = Promise.all([cargarCostosCloud(force), authProvider === "firebase" ? null : ventasActivas(from, to, 20000)]);
     historyRequest.catch(() => {});
     try {
       // Money Manager debe existir antes de proyectar las ventas. Antes se
@@ -6837,14 +6839,22 @@
     } catch (error) {
       throw error;
     }
-    const [state, salesResult] = await historyRequest;
+    const journal = authProvider === "firebase" ? await window.DcarelaFirebase.getFinanceJournal(BUSINESS, {
+      accounts: finStateCache.accounts, preferences: finStateCache.preferences
+    }) : null;
+    const [state, legacySalesResult] = await historyRequest;
+    const monthSales = journal?.sales.filter(event => financeCore.eventDay(event).startsWith(month)) || [];
+    const rawMonthSales = journal?.saleEvents.filter(event => financeCore.eventDay(event).startsWith(month)) || [];
+    const uniqueMonthSales = financeCore.deduplicateSales(rawMonthSales);
+    const salesResult = journal ? { active: monthSales, raw: rawMonthSales,
+      excluded: uniqueMonthSales.length - monthSales.length, duplicates: rawMonthSales.length - uniqueMonthSales.length } : legacySalesResult;
     const accountCutoffs = (finStateCache?.accounts || [])
       .map(account => account.reconciled_at || account.reconciledAt || account.created_at || account.createdAt)
       .filter(value => Number.isFinite(new Date(value).getTime()))
       .sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
     const balanceFrom = accountCutoffs.length ? new Date(accountCutoffs[0]).toISOString() : "";
     const balanceTo = new Date().toISOString();
-    const [balanceSalesResult, balanceLedgerResult] = await Promise.all([
+    const [balanceSalesResult, balanceLedgerResult] = journal ? [{ active: journal.sales }, {rows:journal,error:""}] : await Promise.all([
       balanceFrom
         ? ventasActivas(balanceFrom, balanceTo, 20000)
         : Promise.resolve({ active: [], excluded: 0, duplicates: 0, raw: [] }),
@@ -6866,6 +6876,13 @@
     const salesTotal = salesResult.active.reduce((sum, item) => sum + totalDe(P(item)), 0);
     let integratedSales = [];
     if (finStateCache) {
+      if (journal) {
+        integratedSales = financeCore.projectSalePaymentsAsMovements(monthSales, finStateCache.accounts, {
+          businessId: BUSINESS, transferAccountId: finStateCache.preferences?.cuenta_ingreso_default_id || null
+        });
+        finStateCache.accountBalanceMovements = journal;
+        finStateCache.movements = journal.filter(item => String(item.fecha || '').startsWith(`${month}-`));
+      } else {
       const activeSaleIdentifiers = new Set(salesResult.active.flatMap(event => financeCore.saleIdentifiers(event)));
       const baseMovements = financeCore.deduplicateMovements([
         ...finStateCache.movements,
@@ -6895,12 +6912,13 @@
       }
       finStateCache.movements = [...baseMovements, ...integratedSales]
         .sort((a, b) => String(b.fecha || "").localeCompare(String(a.fecha || "")));
+      }
       finStateCache.costObligations = state.obligations || [];
       finStateCache.costPayments = state.payments || [];
       finStateCache.costRecurrents = state.recurrents || [];
       if (location.hash.slice(1) === "money-manager") {
         try {
-          finStateCache.shiftClosings = (await eventos(["CajaCerrada"], from, to, 2000))
+          finStateCache.shiftClosings = (journal ? journal.closingEvents.filter(event => financeCore.eventDay(event).startsWith(month)) : await eventos(["CajaCerrada"], from, to, 2000))
             .filter(item => item.event_type === "CajaCerrada");
         } catch (error) {
           finStateCache.shiftClosings = null;

@@ -108,7 +108,7 @@ test('una consulta contable no reutiliza el fallback local de una consulta opera
   const query = { where() { return this; }, orderBy() { return this; }, limit() { return this; },
     async get() { return {docs:[{id:'cached',data:()=>({event_id:'cached',received_at_cloud:'2026-09-01T12:00:00Z'})}]}; } };
   const reader = vm.runInNewContext(`({ ${adapter.slice(start,end)} })`, {
-    initFirebase: () => ({db:{collection:()=>query}}), SYNC_EVENT_MAX_BATCH:5000,
+    auth: {currentUser:{uid:'fixture'}}, initFirebase: () => ({db:{collection:()=>query}}), SYNC_EVENT_MAX_BATCH:5000,
     SYNC_EVENT_QUERY_TTL_MS:120000, SYNC_EVENT_DELTA_BATCH:500,
     syncEventQueryCache:new Map(), eventArchiveCache:new Map(),
     hasSyncQueryMarker:()=>true, markSyncQueryPrimed:()=>{},

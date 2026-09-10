@@ -33,6 +33,7 @@ function adapter(overrides = {}) {
     getSales: async () => [{ id: 'sale-1', vendidaEn: `${day}T12:00:00`, totalCobradoCentavos: 125000, status: 'closed' }],
     getFinanceMovements: async () => [{ id: 'expense-1', fecha: day, tipo: 'gasto', monto_centavos: 25000, descripcion: 'Comida' }],
     getFinanceAccounts: async () => [{ id: 'cash', nombre: 'Efectivo', tipo: 'efectivo', estado: 'activa', saldo_actual_centavos: 461500 }],
+    getFinanceAccountState: async () => ({ balances: [{id:'cash',balance:461500}] }),
     getCashShifts: async () => [{ id: 'shift-1', status: 'open', abiertoEn: `${day}T08:00:00`, cajaNombre: 'Caja web' }],
     getProducts: async () => [
       { id: 'p1', nombre: 'Producto correcto', activo: true, precioFinalCentavos: 5000, categoriaId: 'c1', stock: 8 },
@@ -248,7 +249,7 @@ test('si Gemini agota cuota informa la caida y responde con el cerebro local', a
 test('automatico entrega a Gemini una pregunta que el buscador local no puede contestar', async () => {
   const requests = [];
   const ctx = { ...context(adapter({
-    getFinanceMovements: async () => [
+    getFinanceJournal: async () => [
       { id: 'food', fecha: `${localDay().slice(0, 7)}-01`, tipo: 'gasto', monto_centavos: 50000, categoria: 'Comida' },
       { id: 'sale', fecha: `${localDay().slice(0, 7)}-02`, tipo: 'ingreso', monto_centavos: 125000, descripcion: 'Venta POS' },
     ],
@@ -518,4 +519,28 @@ test('el resumen excluye capital y conserva intereses como gasto sin escribir di
   }));
   const result = await assistant.request('chat', ctx, { message: 'Dame el resumen de ventas de hoy, gastos y saldo en cuentas.' });
   assert.match(result.message.content, /Gastos registrados: \*\*2\*\* por \*\*RD\$\s?170\.00/);
+});
+
+test('resumen consulta el diario unico sin repetir ventas ni sumar capital o abonos al resultado',async()=>{
+  const day=localDay();
+  const rows=[{id:'principal',fecha:day,tipo:'gasto',monto_centavos:100000,afecta_resultado:false},
+    {id:'interes',fecha:day,tipo:'gasto',monto_centavos:10000},
+    {id:'abono',fecha:day,tipo:'ingreso',monto_centavos:15000,afecta_resultado:false}];
+  Object.defineProperty(rows,'sales',{value:[{event_type:'VentaCobrada',payload:{vendidaEn:day,totalCobradoCentavos:30000}}]});
+  const ctx=context(adapter({getFinanceJournal:async()=>rows,
+    getSales:async()=>{throw new Error('no usar fuente paralela');},
+    getSyncEvents:async()=>{throw new Error('no usar lectura parcial');},
+    getFinanceMovements:async()=>{throw new Error('no usar fuente parcial');}}));
+  const result=await assistant.request('chat',ctx,{message:'Dame el resumen de ventas de hoy, gastos y saldo en cuentas.'});
+  assert.match(result.message.content,/Ventas confirmadas: \*\*1\*\* por \*\*RD\$300\.00/);
+  assert.match(result.message.content,/Gastos registrados: \*\*1\*\* por \*\*RD\$100\.00/);
+  assert.doesNotMatch(result.message.content,/consulta financiera parcial/);
+});
+
+test('resumen no presenta cero cuando falla el diario ni usa acumulador como saldo efectivo',async()=>{
+  const ctx=context(adapter({getFinanceJournal:async()=>{throw new Error('offline');},getFinanceAccountState:async()=>{throw new Error('offline');}}));
+  const result=await assistant.request('chat',ctx,{message:'Dame el resumen de ventas de hoy, gastos y saldo en cuentas.'});
+  assert.match(result.message.content,/Ventas confirmadas: \*\*no disponibles/);
+  assert.match(result.message.content,/Gastos registrados: \*\*no disponibles/);
+  assert.match(result.message.content,/Saldo de cuentas: \*\*no disponible/);
 });
