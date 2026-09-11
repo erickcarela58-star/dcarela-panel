@@ -186,6 +186,23 @@ test('prestamo exige desglose exacto y no deja datos parciales si falla el commi
   assert.equal(h.docs.has('fin_commitment_payments/loan-pay'),false);
 });
 
+test('compra a cuotas sin intereses se paga con los tres campos en cero',()=>{
+ // El motor de PION: tipo prestamo, sin capital ni cargos guardados. Antes esto
+ // lanzaba "deben sumar exactamente el pago" y la cuota no se podia registrar.
+ const pion={tipo:'prestamo',nombre:'Prestamo PION (motor)',saldo_pendiente_centavos:6663900,capital_pendiente_centavos:null,cargos_intereses_pendientes_centavos:null,cuotas_pagadas:2,cuota_actual:3};
+ const plan=core.planCommitmentPayment(pion,{montoCentavos:700000,capitalCentavos:0,interesCentavos:0,cargosCentavos:0,cuotasAplicadas:1});
+ assert.equal(plan.capital,700000);assert.equal(plan.interest,0);assert.equal(plan.charges,0);
+ assert.equal(plan.patch.saldo_pendiente_centavos,5963900);
+ assert.equal('capital_pendiente_centavos' in plan.patch,false);
+ assert.equal(plan.patch.cuotas_pagadas,3);assert.equal(plan.patch.cuota_actual,4);
+ assert.equal(plan.mainAmount,700000);assert.equal(plan.mainAffectsResult,false);assert.equal(plan.expenseAmount,0);
+ // Dejarlo todo en blanco vale igual que dejarlo en cero.
+ assert.equal(core.planCommitmentPayment(pion,{montoCentavos:700000}).capital,700000);
+ // Pero declarar un interes sigue obligando al desglose completo.
+ assert.throws(()=>core.planCommitmentPayment(pion,{montoCentavos:700000,interesCentavos:5000}),/Indica el capital/);
+ assert.throws(()=>core.planCommitmentPayment(pion,{montoCentavos:700000,capitalCentavos:600000,interesCentavos:5000}),/exactamente/);
+});
+
 test('pago solo de intereses conserva capital y saldos desconocidos',()=>{
  const plan=core.planCommitmentPayment({tipo:'prestamo',capital_pendiente_centavos:90000},{montoCentavos:2000,capitalCentavos:0,interesCentavos:2000});
  assert.equal(plan.patch.capital_pendiente_centavos,90000);assert.equal('saldo_pendiente_centavos' in plan.patch,false);assert.equal(plan.mainAffectsResult,true);assert.equal(plan.expenseAmount,0);

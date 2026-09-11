@@ -516,8 +516,15 @@
     const loan = ['prestamo', 'prestamos', 'loan'].includes(normalizeText(commitment.tipo).normalize('NFD').replace(/[\u0300-\u036f]/g, ''));
     const interest = cents(data.interesCentavos ?? 0, 'El interes');
     const charges = cents(data.cargosCentavos ?? 0, 'Los cargos');
-    if (loan && data.capitalCentavos == null) throw new Error('Indica el capital del prestamo, incluso si es cero.');
-    const capital = cents(data.capitalCentavos ?? 0, 'El capital');
+    // Una compra a cuotas sin intereses (el motor de PION) tambien es un prestamo, y
+    // exigirle desglose la dejaba impagable: con capital, interes y cargos en cero la
+    // suma nunca daba el pago y el formulario se trancaba. Cuando no se declara ningun
+    // interes ni cargo, el pago entero es capital por definicion -- en una deuda, lo
+    // que no es interes ni cargo baja el saldo. Si se declara alguno, se sigue exigiendo
+    // el desglose completo, para que nadie tape un descuadre.
+    const sinDesglose = !interest && !charges && !data.capitalCentavos;
+    if (loan && !sinDesglose && data.capitalCentavos == null) throw new Error('Indica el capital del prestamo, incluso si es cero.');
+    const capital = loan && sinDesglose ? amount : cents(data.capitalCentavos ?? 0, 'El capital');
     if (capital + interest + charges > amount || (loan && capital + interest + charges !== amount)) {
       throw new Error('Capital, interes y cargos deben sumar exactamente el pago del prestamo.');
     }

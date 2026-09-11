@@ -21,7 +21,7 @@
     document.body?.classList.add("is-embedded");
   }
   const THEME_KEY = "dcarela.ui.theme";
-  const APP_BUILD = "1.0.84";
+  const APP_BUILD = "1.0.85";
   const financeCore = window.DcarelaFinanceCore;
   const moneyManagerCore = window.DcarelaMoneyManagerCore;
 
@@ -5627,10 +5627,10 @@
     const requestId = crypto.randomUUID();
     const accountOptions = (finStateCache?.accounts || []).filter(item => item.estado !== "eliminada")
       .map(item => `<option value="${esc(item.id)}">${esc(item.nombre)}</option>`).join("");
-    abrirEditor("Registrar pago", `${commitment.nombre}. En prestamos indica capital (cero si no aplica), intereses y cargos; deben sumar exactamente el pago. El capital reduce deuda, no es gasto del periodo.`, `
+    abrirEditor("Registrar pago", `${commitment.nombre}. Si el prestamo no cobra intereses, deja capital, interes y cargos en CERO: el pago completo baja la deuda. Si los cobra, indica los tres y deben sumar exactamente el pago. El capital reduce deuda, no es gasto del periodo.`, `
       <label><span>Fecha</span><input name="fecha" type="date" required value="${todayKey()}"></label>
       <label><span>Monto pagado (RD$)</span><input name="monto" type="number" min="0.01" step="0.01" required value="${pesoInput(commitment.monto_centavos)}"></label>
-      <label><span>Abono a capital (RD$)</span><input name="capital" type="number" min="0" step="0.01" value=""></label>
+      <label><span>Abono a capital (RD$)</span><input name="capital" type="number" min="0" step="0.01" value="" placeholder="cero si no hay intereses"></label>
       <label><span>Interes (RD$)</span><input name="interes" type="number" min="0" step="0.01" value=""></label>
       <label><span>Otros cargos (RD$)</span><input name="cargos" type="number" min="0" step="0.01" value=""></label>
       <label><span>Cuenta usada</span><select name="cuentaId" required><option value="">Selecciona la cuenta</option>${accountOptions}</select></label>

@@ -23,6 +23,16 @@ test('formulario de prestamo rechaza capital desconocido antes de enviar y conse
  assert.equal(h.writes.length,1);assert.equal(h.writes[0][0],'fin.commitment.payment');
  assert.equal(h.writes[0][2].capitalCentavos,10000);assert.equal(h.writes[0][2].montoCentavos,12000);
 });
+test('cuota sin intereses se registra con los tres campos en cero',async()=>{
+ // Lo que el dueno tenia en pantalla con el motor de PION: 7000 pagados, 0 y 0 y 0.
+ const h=formHarness('abrirPagoCompromisoFin','desactivarCompromisoFin');
+ h.scope.abrirPagoCompromisoFin({id:'pion',nombre:'Prestamo PION (motor)',tipo:'prestamo',monto_centavos:700000,saldo_pendiente_centavos:6663900,cuota_actual:3});
+ assert.match(h.editor.description,/deja capital, interes y cargos en CERO/);
+ const form=new Map([['monto','7000'],['capital','0'],['interes','0'],['cargos','0'],['cuentaId','bank'],['fecha','2026-09-10'],['numeroCuota','3'],['cuotasAplicadas','1']]);
+ await h.editor.submit(form);
+ assert.equal(h.writes.length,1);assert.equal(h.writes[0][0],'fin.commitment.payment');
+ assert.equal(h.writes[0][2].montoCentavos,700000);assert.equal(h.writes[0][2].capitalCentavos,0);
+});
 test('confirmacion desde intereses muestra el total y solicita anular todo el pago',async()=>{
  const h=formHarness('confirmarAnularMovimientoFin','abrirCategoriaFin',{finStateCache:{commitmentPayments:[{id:'p',monto_centavos:12000}]}});
  h.scope.confirmarAnularMovimientoFin({id:'interest',pago_compromiso_id:'p',monto_centavos:2000,fecha:'2026-09-09'});
