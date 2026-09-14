@@ -60,6 +60,12 @@ test("el formulario de acceso abandona Validando cuando Firebase no responde", (
   assert.match(source, /finally \{\s*button\.disabled = false;\s*button\.textContent = "Entrar";/);
 });
 
+test("un error de cuota de Firebase no se presenta como una restriccion de Supabase", () => {
+  assert.match(source, /code === "auth\/quota-exceeded"/);
+  assert.match(source, /code === "firestore\/resource-exhausted"/);
+  assert.match(source, /Firebase rechazo temporalmente la solicitud por cuota/);
+});
+
 test("un arranque Firebase vencido se invalida antes de que pueda abrir el panel", () => {
   const start = source.indexOf("async function iniciarConSesion");
   const end = source.indexOf("async function restaurarSesion", start);

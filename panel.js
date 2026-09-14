@@ -21,7 +21,7 @@
     document.body?.classList.add("is-embedded");
   }
   const THEME_KEY = "dcarela.ui.theme";
-  const APP_BUILD = "1.0.86";
+  const APP_BUILD = "1.0.87";
   const financeCore = window.DcarelaFinanceCore;
   const moneyManagerCore = window.DcarelaMoneyManagerCore;
 
@@ -329,10 +329,15 @@
 
   function mensajeAutenticacion(error, fallback = "No se pudo validar la sesion.") {
     const message = String(error?.message || error || "").toLowerCase();
+    const code = String(error?.code || "").toLowerCase();
     if (message.includes("timeout") || message.includes("tiempo")) return "La nube tardÃ³ demasiado. Revisa internet e intenta de nuevo.";
     if (message.includes("jwt") || message.includes("token") || message.includes("session")) return "Tu sesion expiro. Inicia sesion nuevamente.";
     if (message.includes("permission") || message.includes("policy") || message.includes("row-level") || message.includes("rls")) return "Tu cuenta esta autenticada, pero no tiene permiso para consultar esta sucursal.";
     if (message.includes("membres") || message.includes("acceso activo")) return "Tu cuenta no tiene una membresia activa para esta sucursal.";
+    if (code === "auth/quota-exceeded" || code === "resource-exhausted" || code === "firestore/resource-exhausted"
+      || message.includes("firestore") || message.includes("resource_exhausted") || message.includes("resource-exhausted")) {
+      return "Firebase rechazo temporalmente la solicitud por cuota. Espera unos minutos y vuelve a intentar; no se modificaron datos.";
+    }
     if (message.includes("quota") || message.includes("restricted") || message.includes("spend caps") || message.includes("egress") || message.includes("storage_size")) {
       return "El proyecto Supabase esta restringido por limite de cuota (egress/almacenamiento). Revisa el panel de Supabase.";
     }
