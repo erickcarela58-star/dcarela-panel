@@ -31,9 +31,9 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="favicon.svg">
   <link rel="apple-touch-icon" href="dcarela-logo.png">
-  <link rel="stylesheet" href="panel.css?v=2026.09.14.1.0.87.0">
-  <link rel="stylesheet" href="panel-theme.css?v=2026.09.14.1.0.87.0">
-  <link rel="stylesheet" href="visual-fidelity.css?v=2026.09.14.1.0.87.0">
+  <link rel="stylesheet" href="panel.css?v=2026.09.14.1.0.88.0">
+  <link rel="stylesheet" href="panel-theme.css?v=2026.09.14.1.0.88.0">
+  <link rel="stylesheet" href="visual-fidelity.css?v=2026.09.14.1.0.88.0">
 </head>
 <body>
   <section id="access" class="access-shell">
@@ -224,6 +224,31 @@
             <button class="virtual-command" type="button" data-virtual-action="wholesale"><kbd>F11</kbd><strong>Mayoreo</strong><small>Precio autorizado</small></button>
             <button class="virtual-command" type="button" data-virtual-action="checkout"><kbd>F12</kbd><strong>Cobrar</strong><small>Efectivo, banco o mixto</small></button>
           </nav>
+
+          <section id="plazaSetup" class="surface oculto" aria-label="Preparacion Plaza Artesanal">
+            <div class="surface-title"><div><h3>Preparar Plaza Artesanal</h3><p>Catalogo completo, existencias propias y conteo de efectivo.</p></div></div>
+            <p id="plazaCatalogStatus" role="status">Consultando catalogo de la sucursal...</p>
+            <div class="plaza-setup-actions">
+              <button id="btnPlazaImport" type="button" class="primary">Importar productos con stock cero</button>
+              <button id="btnPlazaStock" type="button" class="secondary">Registrar inventario inicial</button>
+              <a class="button-link" href="#inventario">Ver productos y existencias</a>
+            </div>
+            <p>La importacion conserva precios, categorias y combos. Solo agrega los productos pendientes; repetirla no cambia existencias ya registradas. Los articulos sin stock no se pueden cobrar.</p>
+            <details id="plazaManual" open>
+              <summary>Manual de la caja virtual de Plaza Artesanal</summary>
+              <ol>
+                <li><strong>Verifica la sucursal.</strong> Selecciona Plaza Artesanal arriba. Las ventas, clientes, turnos y existencias pertenecen a esa sucursal.</li>
+                <li><strong>Importa el catalogo.</strong> La administracion pulsa Importar productos con stock cero. Si se interrumpe la conexion, vuelve a pulsar para continuar.</li>
+                <li><strong>Cuenta los productos.</strong> En Registrar inventario inicial selecciona el articulo, escribe la cantidad fisica y guarda el motivo. Para combos por componentes, registra las piezas que incluyen. No copies las existencias de la central.</li>
+                <li><strong>Abre tu turno.</strong> En Nueva venta pulsa Contar billetes y monedas. Introduce la cantidad de piezas de cada denominacion y confirma el fondo inicial. Si no recibes fondo, confirma un conteo de cero.</li>
+                <li><strong>Registra cada venta.</strong> Busca o escanea el producto, revisa cantidad y precio, selecciona pago y cobra. El stock disponible se valida al guardar. Conserva el ticket y no repitas el cobro si ya aparece confirmado.</li>
+                <li><strong>Documenta movimientos.</strong> Usa Entrada para dinero de ventas anteriores, caja chica o dinero dejado por un cliente, seleccionando su origen. Usa Salida con motivo para retiros; una entrada de dinero anterior no es una venta nueva.</li>
+                <li><strong>Cierra por denominaciones.</strong> Cuenta billetes y monedas, confirma el total y explica cualquier diferencia. El desglose queda en el arqueo. Un cierre de cero requiere confirmacion expresa.</li>
+                <li><strong>Comprueba la conexion.</strong> Actualiza y revisa la actividad de esta caja. Si Firebase rechaza una operacion o no hay internet, no la consideres registrada hasta recibir confirmacion.</li>
+              </ol>
+              <p>Billetes: RD$2,000, 1,000, 500, 200, 100 y 50. Monedas: RD$25, 10, 5 y 1. Escribe cantidades de piezas, no importes.</p>
+            </details>
+          </section>
 
           <div id="virtualMetrics" class="virtual-metrics-grid" aria-label="Resumen del turno"></div>
           <div class="virtual-detail-grid">
@@ -1024,6 +1049,7 @@
       <div id="saleShiftGate" class="sale-shift-gate oculto">
         <div><strong>Abre la Caja virtual</strong><p>El fondo inicial, las ventas y el cierre quedan separados por terminal y sincronizados con las cajas de Windows.</p></div>
         <label><span>Fondo inicial</span><input id="saleOpening" inputmode="decimal" value="0.00"></label>
+        <button id="btnSaleCountOpening" class="secondary" type="button">Contar billetes y monedas</button>
         <button id="btnSaleOpenShift" class="primary" type="button">Abrir caja y comenzar</button>
       </div>
 
@@ -1145,17 +1171,18 @@
   <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
-  <script src="finance-core.js?v=2026.09.14.1.0.87.0"></script>
-  <script src="money-manager-core.js?v=2026.09.14.1.0.87.0"></script>
-  <script src="client-period-filter.js?v=2026.09.14.1.0.87.0"></script>
-  <script src="firebase-adapter.js?v=2026.09.14.1.0.87.0"></script>
-  <script src="assistant-local.js?v=2026.09.14.1.0.87.0"></script>
+  <script src="finance-core.js?v=2026.09.14.1.0.88.0"></script>
+  <script src="money-manager-core.js?v=2026.09.14.1.0.88.0"></script>
+  <script src="client-period-filter.js?v=2026.09.14.1.0.88.0"></script>
+  <script src="virtual-cash-core.js?v=2026.09.14.1.0.88.0"></script>
+  <script src="firebase-adapter.js?v=2026.09.14.1.0.88.0"></script>
+  <script src="assistant-local.js?v=2026.09.14.1.0.88.0"></script>
   <script src="jspdf.umd.min.js"></script>
   <script src="jspdf.plugin.autotable.min.js"></script>
-  <script src="ticket-termico.js?v=2026.09.14.1.0.87.0"></script>
-  <script src="panel-sale-pending.js?v=2026.09.14.1.0.87.0"></script>
-  <script src="panel.js?v=2026.09.14.1.0.87.0"></script>
-  <script src="visual-fidelity.js?v=2026.09.14.1.0.87.0"></script>
+  <script src="ticket-termico.js?v=2026.09.14.1.0.88.0"></script>
+  <script src="panel-sale-pending.js?v=2026.09.14.1.0.88.0"></script>
+  <script src="panel.js?v=2026.09.14.1.0.88.0"></script>
+  <script src="visual-fidelity.js?v=2026.09.14.1.0.88.0"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));

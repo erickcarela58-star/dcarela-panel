@@ -21,7 +21,7 @@
     document.body?.classList.add("is-embedded");
   }
   const THEME_KEY = "dcarela.ui.theme";
-  const APP_BUILD = "1.0.87";
+  const APP_BUILD = "1.0.88";
   const financeCore = window.DcarelaFinanceCore;
   const moneyManagerCore = window.DcarelaMoneyManagerCore;
 
@@ -133,6 +133,7 @@
   let businessCatalog = [];
   let businessMemberships = [];
   let saleShift = null;
+  let saleOpeningCount = null;
   let saleCart = [];
   let salePayments = [];
   let saleBankAccounts = [];
@@ -3127,6 +3128,7 @@
     $("saleWorkbench").classList.toggle("oculto", !open);
     $("saleCommandStrip")?.classList.toggle("sale-shift-closed", !open);
     $("saleShiftPill").textContent = open ? `Turno abierto | ${fecha(saleShift.abiertoEn || saleShift.openedAt)}` : "Caja cerrada";
+    $("saleOpening").readOnly = BUSINESS === "plaza-artesanal";
     syncSaleMobileSummary();
   }
 
@@ -3159,7 +3161,57 @@
     })[capability] || capability;
   }
 
+  async function refreshPlazaSetup() {
+    if (BUSINESS !== "plaza-artesanal") return;
+    const branch = BUSINESS;
+    const [snapshot, products] = await Promise.all([
+      window.DcarelaFirebase.getDocument("catalog_snapshots", "plaza-artesanal-initial-v1"),
+      window.DcarelaFirebase.getProducts(branch)
+    ]);
+    if (BUSINESS !== branch) return;
+    const catalog = window.DcarelaVirtualCash.catalogDocuments(snapshot, branch);
+    const actual = new Set(products.map(p=>p.id));
+    const missing = catalog.products.filter(p=>!actual.has(p.id)).length;
+    const stocked = products.filter(p=>Number(p.stock)>0).length;
+    $("plazaCatalogStatus").textContent = `${products.length} productos en Plaza · ${missing} pendientes de importar · ${stocked} con existencias. Catalogo inicial: ${catalog.products.length} productos.`;
+    $("btnPlazaImport").disabled = !["owner","admin"].includes(String(memberRole).toLowerCase());
+    $("btnPlazaStock").disabled = !["owner","admin"].includes(String(memberRole).toLowerCase()) || !products.length;
+  }
+
+  async function importPlazaCatalog() {
+    if (BUSINESS !== "plaza-artesanal") return;
+    const button = $("btnPlazaImport"); button.disabled = true;
+    try {
+      $("plazaCatalogStatus").textContent = "Importando catalogo con existencias iniciales en cero...";
+      const result = await adminWrite("plaza.catalog.import", null, {});
+      productCatalog = null;
+      toast(result?.message || "Catalogo importado. Registra las existencias antes de vender.");
+      await refreshPlazaSetup();
+    } catch(error) { $("plazaCatalogStatus").textContent = error.message + " Puedes reintentar sin reiniciar las existencias."; }
+    finally { button.disabled = !["owner","admin"].includes(String(memberRole).toLowerCase()); }
+  }
+
+  async function openPlazaInventory() {
+    if (BUSINESS !== "plaza-artesanal") return;
+    await cargarCatalogoCloud(true);
+    const branch=BUSINESS;
+    const products=(productCatalog||[]).filter(p=>p.inventory_mode!=="components");
+    if(!products.length){toast("Importa el catalogo primero.");return;}
+    abrirEditor("Inventario inicial de Plaza Artesanal", "Registra la cantidad fisica por producto. Los combos por componentes consumen las piezas de su composicion.",
+      `<label class="field-wide"><span>Producto</span><select name="productoId" required>${products.map(p=>`<option value="${esc(p.id)}">${esc(p.nombre)} — actual: ${esc(p.stock||0)}</option>`).join("")}</select></label>
+       <label><span>Cantidad fisica</span><input name="cantidad" type="number" min="0" step="0.001" required inputmode="decimal"></label>
+       <label class="field-wide"><span>Motivo</span><input name="motivo" required maxlength="300" value="Conteo inicial Plaza Artesanal"></label>`,async form=>{
+         if(BUSINESS!==branch)throw new Error("La sucursal cambio. Abre de nuevo el inventario.");
+         const product=products.find(p=>p.id===form.get("productoId"));
+         if(!product)throw new Error("Selecciona un producto de Plaza.");
+         await adminWrite("inventory.set",product.id,{productoId:product.id,nombre:product.nombre,cantidadNueva:decimalInput(form.get("cantidad")),motivo:form.get("motivo")});
+         cerrarEditor();productCatalog=null;await refreshPlazaSetup();toast("Existencia guardada. Ya puedes vender las unidades disponibles.");
+       },"Guardar existencia");
+  }
+
   async function cargarCajaVirtual() {
+    $("plazaSetup").classList.toggle("oculto", BUSINESS !== "plaza-artesanal");
+    if(BUSINESS === "plaza-artesanal") refreshPlazaSetup().catch(error=>{$("plazaCatalogStatus").textContent=error.message;});
     const status = await saleApi("status");
     setSaleAccess({ role: status.role || saleAccess.role, ...(status.permissions || {}), loaded: true });
     saleShift = status.shift || null;
@@ -3812,7 +3864,11 @@
     const button = $("btnSaleOpenShift");
     button.disabled = true;
     try {
-      const result = await saleApi("shift.open", { montoAperturaCentavos: centavosInput($("saleOpening").value || "0") }, saleUuid());
+      if(BUSINESS === "plaza-artesanal" && (!saleOpeningCount || saleOpeningCount.business !== BUSINESS)) throw new Error("Cuenta primero el fondo por billetes y monedas.");
+      const opening = centavosInput($("saleOpening").value || "0");
+      const count = saleOpeningCount?.business === BUSINESS && window.DcarelaVirtualCash.countCash(saleOpeningCount.rows) === opening ? saleOpeningCount.rows : null;
+      const result = await saleApi("shift.open", { montoAperturaCentavos: opening, ...(count ? {conteoDenominaciones:count} : {}) }, saleUuid());
+      saleOpeningCount=null;
       saleShift = result.shift;
       renderSaleShift();
       setSaleStage("catalog", true);
@@ -3825,6 +3881,25 @@
   // Denominaciones RD$ (billetes y monedas). El conteo por denominacion es
   // obligatorio: el servidor rechaza el cierre sin desglose (pos-web-sale).
   const DENOMINACIONES = [2000, 1000, 500, 200, 100, 50, 25, 10, 5, 1];
+
+  function openSaleOpeningCount() {
+    const branch=BUSINESS;
+    const rows=DENOMINACIONES.map(v=>`<label class="conteo-fila"><span>${v>=50?"Billete":"Moneda"} ${money(v*100)}</span><input name="open_${v}" type="number" min="0" step="1" inputmode="numeric" value="0" data-opening-den="${v}" aria-label="Cantidad de ${v} pesos"><small data-opening-subtotal="${v}">${money(0)}</small></label>`).join("");
+    abrirEditor("Contar fondo inicial", "Escribe cuantas piezas recibes. El total es el fondo de apertura, no una venta.",
+      `<div class="conteo-grid">${rows}</div><p class="field-wide">Total contado: <strong id="openingCountTotal">${money(0)}</strong></p>`,async form=>{
+        if(BUSINESS!==branch)throw new Error("La sucursal cambio. Repite el conteo.");
+        const count=DENOMINACIONES.map(v=>({valorCentavos:v*100,cantidad:Number(form.get(`open_${v}`))}));
+        const total=window.DcarelaVirtualCash.countCash(count);
+        saleOpeningCount={business:branch,rows:count};$("saleOpening").value=(total/100).toFixed(2);cerrarEditor();
+      },"Confirmar fondo contado");
+    document.querySelectorAll("[data-opening-den]").forEach(input=>input.addEventListener("input",()=>{
+      try{
+        const count=[...document.querySelectorAll("[data-opening-den]")].map(el=>({valorCentavos:Number(el.dataset.openingDen)*100,cantidad:Number(el.value)}));
+        $("openingCountTotal").textContent=money(window.DcarelaVirtualCash.countCash(count));
+        count.forEach(row=>{const el=document.querySelector(`[data-opening-subtotal="${row.valorCentavos/100}"]`);if(el)el.textContent=money(row.valorCentavos*row.cantidad);});
+      }catch(error){$("openingCountTotal").textContent=error.message;}
+    }));
+  }
 
   function openSaleCloseShift() {
     if (!saleAccess.canCloseShift) { toast("Tu cuenta no puede cerrar la caja web."); return; }
@@ -3843,14 +3918,14 @@
          <div><span>Total contado</span><b id="conteoTotal">RD$ 0.00</b></div>
          <div><span>Validacion protegida</span><b>Se muestra al cerrar</b></div>
        </div>
+       <label class="check-row field-wide"><input type="checkbox" name="confirmarCero"><span>Confirmo que no hay efectivo fisico (solo para cierre en cero).</span></label>
        <label class="field-wide"><span>Motivo (obligatorio si hay diferencia)</span>
          <textarea name="nota" rows="5" maxlength="2000" placeholder="Documenta la explicacion completa; no se recortara visualmente"></textarea></label>`,
       async form => {
         const conteo = DENOMINACIONES
-          .map(v => ({ valorCentavos: v * 100, cantidad: Math.max(0, Math.trunc(numero(form.get(`den_${v}`)))) }))
-          .filter(d => d.cantidad > 0);
-        if (!conteo.length) throw new Error("Cuenta el efectivo por denominacion antes de cerrar.");
-        const contado = conteo.reduce((t, d) => t + d.valorCentavos * d.cantidad, 0);
+          .map(v => ({ valorCentavos: v * 100, cantidad: Number(form.get(`den_${v}`) || 0) }));
+        const contado = window.DcarelaVirtualCash.countCash(conteo);
+        if (contado === 0 && !form.has("confirmarCero")) throw new Error("Cuenta el efectivo por denominacion o confirma el cierre en cero.");
         const nota = String(form.get("nota") || "").trim();
         const result = await saleApi("shift.close",
           { efectivoContadoCentavos: contado, conteoDenominaciones: conteo, nota: nota || null },
@@ -8109,6 +8184,9 @@
     on("btnVirtualCashOut", "click", () => openVirtualCashMovement("salida"));
     on("btnVirtualClose", "click", openSaleCloseShift);
     on("btnVirtualRefresh", "click", () => cargarCajaVirtual().catch(error => { $("virtualCashError").textContent = error.message; }));
+    on("btnPlazaImport", "click", importPlazaCatalog);
+    on("btnPlazaStock", "click", () => openPlazaInventory().catch(error=>toast(error.message)));
+    on("btnSaleCountOpening", "click", openSaleOpeningCount);
     document.querySelectorAll("[data-virtual-route]").forEach(button => button.addEventListener("click", () => {
       location.hash = `#${button.dataset.virtualRoute}`;
     }));

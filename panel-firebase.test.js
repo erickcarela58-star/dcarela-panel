@@ -87,7 +87,7 @@ test("una anulacion administrativa no exige turno abierto y acepta ventas sincro
   assert.match(cancelAction, /shouldReadSaleDocument = !sourceEventRef \|\| sourceIsWebSale/);
   assert.doesNotMatch(cancelAction, /transaction\.get\(eventRef\)/);
   assert.doesNotMatch(cancelAction, /transaction\.get\(sourceEventRef\)/);
-  assert.match(cancelAction, /materializedWebSale \? sale\.lineas \|\| \[\] : \[\]/);
+  assert.match(cancelAction, /materializedWebSale \? sale\.inventoryConsumption \|\| sale\.lineas \|\| \[\] : \[\]/);
   assert.match(cancelAction, /transaction\.set\(eventRef, eventDocument/);
   assert.match(cancelAction, /previous = await eventRef\.get\(\)/);
   assert.match(cancelAction, /row\.event_type === 'VentaCancelada'/);

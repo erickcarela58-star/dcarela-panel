@@ -19,6 +19,18 @@ test("Caja virtual es un modulo visible en shell, panel y movil", () => {
   assert.match(html, /id="btnVirtualCashOut"/);
 });
 
+test("Plaza ofrece preparacion y manual, y carga el motor de conteo antes del adaptador en web y movil",()=>{
+  for(const id of ['plazaSetup','plazaManual','btnPlazaImport','btnPlazaStock','btnSaleCountOpening'])assert.match(html,new RegExp(`id="${id}"`));
+  assert.match(panel,/BUSINESS !== "plaza-artesanal"/);
+  assert.match(panel,/adminWrite\("plaza.catalog.import"/);
+  assert.match(panel,/conteoDenominaciones:count/);
+  for(const source of [html,index,fs.readFileSync('mobile/index.html','utf8')]){
+    assert.ok(source.indexOf('virtual-cash-core.js')>=0);
+    assert.ok(source.indexOf('virtual-cash-core.js')<source.indexOf('firebase-adapter.js'));
+  }
+  assert.match(sw,/virtual-cash-core.js/);
+});
+
 test("Caja virtual consume el resumen real y movimientos auditados", () => {
   assert.match(panel, /"caja-virtual": cargarCajaVirtual/);
   assert.match(panel, /saleApi\("cash\.move"/);

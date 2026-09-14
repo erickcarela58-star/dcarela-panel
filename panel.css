@@ -3853,3 +3853,22 @@ body.sale-printing .thermal-ticket {
   .money-manager-kpi strong { font-size: 17px; }
   .money-manager-account-strip { grid-template-columns: 1fr 1fr; }
 }
+
+/* Preparacion de la sucursal y conteo, usable dentro de la caja y en movil. */
+#plazaSetup { margin-block: 16px; padding: clamp(14px, 3vw, 24px); }
+.plaza-setup-actions { display:flex; flex-wrap:wrap; gap:10px; margin-block:16px; }
+#plazaManual { margin-top:18px; line-height:1.65; }
+#plazaManual summary { cursor:pointer; font-weight:700; padding:12px 0; }
+#plazaManual li { margin-bottom:12px; padding-left:4px; }
+#plazaManual ol { padding-left:24px; }
+.conteo-fila:has([data-opening-den]) { flex-wrap:wrap; }
+.conteo-fila [data-opening-subtotal] { flex-basis:100%; text-align:right; }
+#saleShiftGate { grid-template-columns:minmax(0,1fr) minmax(120px,180px); }
+#saleShiftGate > div { grid-column:1 / -1; }
+#saleShiftGate button { min-height:44px; white-space:normal; }
+@media(max-width:520px) {
+  .plaza-setup-actions > * { width:100%; min-height:44px; white-space:normal; }
+  .conteo-grid { grid-template-columns:1fr; }
+  #plazaManual ol { padding-left:20px; }
+  #saleShiftGate { grid-template-columns:1fr; }
+}

@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 const core = require('./finance-core');
-function harness(role='admin') {
+function harness(role='admin',business='test') {
   let rejectCommit=false;
   const docs = new Map([
     ['fin_accounts/cash',{business_id:'test',tipo:'efectivo',nombre:'Efectivo',ligada_ventas:true,saldo_actual_centavos:3650000}],
@@ -12,6 +12,7 @@ function harness(role='admin') {
     ['products/product',{business_id:'test',nombre:'Foto',precioFinalCentavos:10000,usaInventario:false}],
     ['cost_obligations/payroll',{business_id:'test',saldoCentavos:814000}],
   ]);
+  for(const [key,value] of docs)docs.set(key,{...value,business_id:business});
   const snap=(key)=>({id:key.split('/').pop(),exists:docs.has(key),data:()=>docs.get(key)});
   const query=(name,filters=[])=>({
     where:(...f)=>query(name,[...filters,f]),limit:()=>query(name,filters),orderBy:()=>query(name,filters),
@@ -50,10 +51,58 @@ function harness(role='admin') {
   const firebase={apps:[],initializeApp:()=>({}),auth:()=>auth,firestore:()=>db};
   firebase.firestore.FieldValue={increment:value=>({increment:value})};
   firebase.firestore.FieldPath={documentId:()=> '__name__'};
-  const window={__DCARELA_FIREBASE_CONFIG:{projectId:'test'},DcarelaFinanceCore:core};
+  const window={__DCARELA_FIREBASE_CONFIG:{projectId:'test'},DcarelaFinanceCore:core,DcarelaVirtualCash:require('./virtual-cash-core')};
   vm.runInNewContext(fs.readFileSync(__dirname+'/firebase-adapter.js','utf8'),{window,firebase,console,Date,Math,Map,Promise,String,Number,Error,setTimeout,clearTimeout});
   return {api:window.DcarelaFirebase,docs,fail:()=>{rejectCommit=true;}};
 }
+test('Plaza bloquea stock cero incluso forzado y dos ventas no consumen la misma unidad',async()=>{
+  const b='plaza-artesanal',h=harness('admin',b);
+  h.docs.set('products/product',{...h.docs.get('products/product'),stock:0});
+  const data={lineas:[{productoId:'product',cantidad:1}],pagos:[{metodo:'efectivo',montoCentavos:10000}],pagoConCentavos:10000,forzarInventario:true,motivoInventario:'forzar fixture'};
+  await assert.rejects(h.api.webSaleAction('sale.create',b,'admin',data,'plaza-zero'),/Registra inventario/);
+  assert.equal(h.docs.has('sync_events/plaza-zero'),false);
+  h.docs.set('products/product',{...h.docs.get('products/product'),stock:1});
+  const result=await Promise.allSettled(['plaza-a','plaza-b'].map(id=>h.api.webSaleAction('sale.create',b,'admin',data,id)));
+  assert.equal(result.filter(r=>r.status==='fulfilled').length,1);
+  assert.equal(h.docs.get('products/product').stock,0);
+  assert.equal(h.docs.get('cash_shifts/shift').saleCount,1);
+});
+
+test('Plaza apertura y cierre conservan denominaciones y rechazan total alterado',async()=>{
+  const b='plaza-artesanal',h=harness('admin',b);h.docs.delete('cash_shifts/shift');h.api.getSyncEvents=async()=>[];
+  await assert.rejects(h.api.webSaleAction('shift.open',b,'admin',{montoAperturaCentavos:10000},'open-no-count'),/billetes/);
+  const count=[{valorCentavos:10000,cantidad:1}];
+  await assert.rejects(h.api.webSaleAction('shift.open',b,'admin',{montoAperturaCentavos:50000,conteoDenominaciones:count},'open-wrong'),/no coincide/);
+  const opened=await h.api.webSaleAction('shift.open',b,'admin',{montoAperturaCentavos:10000,conteoDenominaciones:count},'open-count');
+  assert.deepEqual(opened.shift.conteoDenominaciones,count);
+  await assert.rejects(h.api.webSaleAction('shift.close',b,'admin',{efectivoContadoCentavos:50000,conteoDenominaciones:count},'close-wrong'),/no coincide/);
+  const closed=await h.api.webSaleAction('shift.close',b,'admin',{efectivoContadoCentavos:10000,conteoDenominaciones:count},'close-count');
+  assert.equal(closed.summary.diferenciaCentavos,0);assert.deepEqual(h.docs.get('sync_events/close-count').payload.conteoDenominaciones,count);
+});
+
+test('Plaza combo consume componentes y la anulacion devuelve esas mismas unidades una sola vez',async()=>{
+  const b='plaza-artesanal',h=harness('admin',b);
+  h.docs.set('products/product',{...h.docs.get('products/product'),stock:4});
+  h.docs.set('products/combo',{business_id:b,nombre:'Combo',precioFinalCentavos:10000,usaInventario:false,inventory_mode:'components',componentes:[{productoId:'product',cantidad:2}],stock:0});
+  const sale=await h.api.webSaleAction('sale.create',b,'admin',{lineas:[{productoId:'combo',cantidad:1}],pagos:[{metodo:'efectivo',montoCentavos:10000}],pagoConCentavos:10000},'combo-sale');
+  assert.equal(h.docs.get('products/product').stock,2);assert.equal(h.docs.get('products/combo').stock,0);
+  const cancel={ventaId:sale.sale.ventaId,motivo:'fixture',sourceEventId:'combo-sale'};
+  await h.api.webSaleAction('sale.cancel',b,'admin',cancel,'combo-cancel');
+  await h.api.webSaleAction('sale.cancel',b,'admin',cancel,'combo-cancel');
+  assert.equal(h.docs.get('products/product').stock,4);assert.equal(h.docs.get('products/combo').stock,0);
+});
+
+test('Plaza importa sin existencias y reintentar conserva stock ingresado y excluye la central',async()=>{
+  const b='plaza-artesanal',h=harness('admin',b);
+  h.docs.set('catalog_snapshots/plaza-artesanal-initial-v1',{schema:1,version:'fixture',business_id:b,categories:[{id:'plaza-cat',nombre:'Fotos'}],products:[{id:'plaza-p',nombre:'Producto',categoriaId:'plaza-cat',precioFinalCentavos:100,costoCentavos:0,precioMayoreoCentavos:0,stock:99}]});
+  const first=await h.api.adminAction('plaza.catalog.import',b,'admin',null,{});assert.equal(first.added,2);
+  assert.equal(h.docs.get('products/plaza-p').stock,0);
+  h.docs.set('products/plaza-p',{...h.docs.get('products/plaza-p'),stock:7});
+  const second=await h.api.adminAction('plaza.catalog.import',b,'admin',null,{});assert.equal(second.added,0);assert.equal(h.docs.get('products/plaza-p').stock,7);
+  await assert.rejects(h.api.adminAction('plaza.catalog.import','dcarela','admin',null,{}),/exclusiva/);
+  await assert.rejects(h.api.adminAction('plaza.catalog.import',b,'cajero',null,{}));
+});
+
 test('conciliacion no reutiliza un evento de otra sucursal ni acepta una cuenta ajena',async()=>{
   const h=harness();
   h.api.getFinanceAccounts=async()=>[{...h.docs.get('fin_accounts/cash'),id:'cash'}];

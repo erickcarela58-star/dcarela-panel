@@ -349,6 +349,7 @@
       if (common && !['owner', 'admin'].includes(ctx.role)) throw new Error('Tu usuario no puede registrar ventas comunes.');
       const productId = common ? (text(input.productoId, 160) || `comun-${uuid()}`) : text(input.productoId, 160);
       const product = common ? null : products.get(productId);
+      if (product && product.business_id !== ctx.businessId) throw new Error('El producto pertenece a otra sucursal.');
       if (!common && (!product || product.activo === false)) throw new Error(`El producto de la linea ${index + 1} ya no esta activo.`);
       const name = common ? text(input.nombre, 180) : text(product.nombre, 180);
       if (!name) throw new Error(`La linea ${index + 1} no tiene descripcion.`);
@@ -375,12 +376,12 @@
       const usesInventory = common ? false : product.usaInventario !== false && product.usa_inventario !== false;
       const currentStock = Number(product?.stock ?? 0);
       const required = quantity / 1000;
-      if (usesInventory && currentStock < required && !(data.forzarInventario && ['owner', 'admin'].includes(ctx.role) && text(data.motivoInventario, 500))) {
+      if (ctx.businessId !== 'plaza-artesanal' && usesInventory && currentStock < required && !(data.forzarInventario && ['owner', 'admin'].includes(ctx.role) && text(data.motivoInventario, 500))) {
         const error = new Error(`Inventario requiere confirmacion: ${name}, disponible ${currentStock}, requerido ${quantityText(quantity)}.`);
         error.code = 'inventory_confirmation';
         throw error;
       }
-      if (usesInventory) stockUpdates.push({ id: productId, stock: currentStock - required });
+      if (ctx.businessId !== 'plaza-artesanal' && usesInventory) stockUpdates.push({ id: productId, stock: currentStock - required });
       lines.push({
         productoId: productId, nombre: name, cantidad: quantityText(quantity),
         precioUnitarioCentavos: requested, importeBrutoCentavos: gross,
@@ -437,10 +438,26 @@
     const settledAccountIds = [...new Set(settledPayments.map(payment => payment.cuentaFinancieraId).filter(Boolean))];
     const settledAccountRefs = settledAccountIds.map(accountId => d.collection('fin_accounts').doc(accountId));
     const saleMovementRows = settledPayments.map((payment, index) => ({ payment, index }));
+    const plazaProducts = ctx.businessId === 'plaza-artesanal' ? await DcarelaFirebase.getProducts(ctx.businessId) : null;
+    const plazaRequired = plazaProducts ? window.DcarelaVirtualCash.stockRequirements(lines, plazaProducts) : [];
+    if (plazaProducts) window.DcarelaVirtualCash.checkStock(plazaRequired, plazaProducts);
     const counterBefore = await optionalBusinessDocument(ctx, 'counters', `${ctx.businessId}_web_sale`);
     const materializeAccounts = ['owner', 'admin'].includes(ctx.role);
     let salePayload = null;
     const committed = await eventTransaction(ctx, requestId, 'VentaCobrada', async transaction => {
+      const currentPlazaProducts = plazaProducts ? await Promise.all(plazaProducts.filter(p =>
+        plazaRequired.dependencyIds.includes(p.id)).map(p => transaction.get(d.collection('products').doc(p.id)))) : [];
+      if (plazaProducts) {
+        // Inventory is read inside the transaction, so simultaneous sales retry
+        // against current stock rather than overselling a previously read value.
+        const fresh = currentPlazaProducts.map(p => ({ ...p.data(), id:p.id }));
+        for (const p of fresh) {
+          const original = plazaProducts.find(old => old.id === p.id);
+          if (JSON.stringify(p.componentes || []) !== JSON.stringify(original.componentes || []) || p.inventory_mode !== original.inventory_mode)
+            throw new Error('El combo cambio. Actualiza el catalogo antes de cobrar.');
+        }
+        stockUpdates.splice(0, stockUpdates.length, ...window.DcarelaVirtualCash.checkStock(plazaRequired, fresh));
+      }
       const [shiftDoc, counter, ...accountDocs] = await Promise.all([
         transaction.get(shiftRef), counterBefore.exists ? transaction.get(counterRef) : Promise.resolve(counterBefore),
         ...settledAccountRefs.map(ref => transaction.get(ref)),
@@ -454,6 +471,7 @@
       });
       const folio = Math.max(1, Number(counter.data()?.next || 900000));
       salePayload = {
+        ...(plazaProducts ? { inventoryConsumption: plazaRequired.map(r => ({ productoId:r.id, cantidad:r.quantity, usaInventario:true })) } : {}),
         ventaId: saleId, folio, turnoId: shift.id, cajaNombre: shift.cajaNombre || 'Caja web',
         clienteId: clientId, clienteNombre: client ? text(client.nombre, 180) : null,
         clienteTelefono: client ? text(client.telefono, 80) || null : null,
@@ -678,6 +696,42 @@
       await batch.commit();
       return { ok: true, id: documentId, event: { id: eventId, entity_id: documentId }, message };
     };
+
+    if (action === 'plaza.catalog.import') {
+      if (ctx.businessId !== 'plaza-artesanal' || !['owner','admin'].includes(ctx.role)) throw new Error('Importacion exclusiva de la administracion de Plaza Artesanal.');
+      const snapshot = await DcarelaFirebase.getDocument('catalog_snapshots', 'plaza-artesanal-initial-v1');
+      const catalog = window.DcarelaVirtualCash.catalogDocuments(snapshot, ctx.businessId);
+      const existing = new Set();
+      for (const collection of ['categories','products','product_combos']) {
+        const rows = await DcarelaFirebase.getCollection(collection, [['business_id','==',ctx.businessId]]);
+        rows.forEach(row => existing.add(collection+'/'+row.id));
+      }
+      const rows = [...catalog.categories.map(value=>({collection:'categories',value})), ...catalog.products.map(value=>({collection:'products',value})),
+        ...catalog.products.filter(p=>p.componentes?.length).map(p=>({collection:'product_combos',value:{id:p.id,comboId:p.id,business_id:ctx.businessId,componentes:p.componentes}}))];
+      let added = 0;
+      for (let start=0;start<rows.length;start+=70) {
+        const eventId = `plaza-catalog-${snapshot.version}-${start}`;
+        const prior = await optionalBusinessDocument(ctx,'sync_events',eventId);
+        if (prior.exists) continue;
+        const missing = rows.slice(start,start+70).filter(row=>!existing.has(row.collection+'/'+row.value.id));
+        const result = await eventTransaction(ctx,eventId,'CatalogoInicialImportado',async transaction=>{
+          missing.forEach(({collection,value})=>transaction.set(d.collection(collection).doc(value.id), {...value,created_at:createdAt,updated_at:createdAt,...actor}));
+          transaction.set(d.collection('sync_events').doc(eventId),eventDocument(ctx,eventId,'CatalogoInicialImportado','catalog_snapshots',snapshot.id,
+            {version:snapshot.version,stockInicial:0,documentos:missing.map(r=>({coleccion:r.collection,id:r.value.id}))},createdAt));
+        });
+        if(!result?.deduplicated)added+=missing.length;
+      }
+      const accounts = await DcarelaFirebase.getFinanceAccounts(ctx.businessId);
+      if(!accounts.some(a=>a.tipo==='efectivo')) {
+        const eventId='plaza-cash-account-initial-v1';
+        const prior=await optionalBusinessDocument(ctx,'sync_events',eventId);
+        if(!prior.exists)await eventTransaction(ctx,eventId,'CuentaFinancieraCreada',async transaction=>{
+          transaction.set(d.collection('fin_accounts').doc('plaza-artesanal-cash'),{business_id:ctx.businessId,nombre:'Efectivo Plaza Artesanal',tipo:'efectivo',moneda:'DOP',estado:'activa',ligada_ventas:true,incluir_en_total:true,oculta:false,saldo_inicial_centavos:0,saldo_actual_centavos:0,created_at:createdAt,updated_at:createdAt,...actor});
+          transaction.set(d.collection('sync_events').doc(eventId),eventDocument(ctx,eventId,'CuentaFinancieraCreada','fin_accounts','plaza-artesanal-cash',{saldoInicialCentavos:0},createdAt));
+        });
+      }
+      return {ok:true,added,products:catalog.products.length,categories:catalog.categories.length,message:'Catalogo importado. Registra las existencias reales antes de vender.'};
+    }
 
     if (action === 'sale.create') return createFirebaseSale(ctx, data, text(data?.requestId, 80) || uuid());
 
@@ -2058,12 +2112,16 @@
         const current = await openWebShift(ctx);
         if (current) return { ok: true, shift: current, deduplicated: true };
         const openedAt = nowIso();
+        const openingCount = Array.isArray(data.conteoDenominaciones) ? data.conteoDenominaciones : null;
+        if (ctx.businessId === 'plaza-artesanal' && !openingCount) throw new Error('Cuenta el fondo inicial por billetes y monedas.');
+        if (openingCount && window.DcarelaVirtualCash.countCash(openingCount) !== Number(data.montoAperturaCentavos || 0)) throw new Error('El fondo inicial no coincide con el conteo.');
         const shiftId = uuid();
         const shift = {
           id: shiftId, business_id: ctx.businessId, status: 'open',
           cajaId: `web-${ctx.user.uid}`, cajaNombre: 'Caja web',
           opened_by_uid: ctx.user.uid, opened_by_email: ctx.user.email || '',
           montoAperturaCentavos: integer(data.montoAperturaCentavos || 0, 'monto de apertura', 0),
+          conteoDenominaciones: openingCount || [],
           saleCount: 0, grossSalesCentavos: 0, cashSalesCentavos: 0,
           customerCashPaymentsCentavos: 0, entriesCentavos: 0,
           previousSalesCashEntriesCentavos: 0, pettyCashEntriesCentavos: 0, customerDepositsCentavos: 0,
@@ -2073,6 +2131,7 @@
         const payload = {
           turnoId: shiftId, cajaId: shift.cajaId, cajaNombre: shift.cajaNombre,
           montoAperturaCentavos: shift.montoAperturaCentavos, abiertoEn: openedAt,
+          conteoDenominaciones: shift.conteoDenominaciones,
           usuarioId: ctx.user.uid, usuarioNombre: ctx.user.email || 'Caja web Firebase'
         };
         await eventTransaction(ctx, id, 'CajaAbierta', async transaction => {
@@ -2145,6 +2204,8 @@
       }
 
       if (action === 'shift.close') {
+        if (ctx.businessId === 'plaza-artesanal' && !Array.isArray(data.conteoDenominaciones)) throw new Error('Cuenta los billetes y monedas antes de cerrar.');
+        if (Array.isArray(data.conteoDenominaciones) && window.DcarelaVirtualCash.countCash(data.conteoDenominaciones) !== Number(data.efectivoContadoCentavos)) throw new Error('El efectivo contado no coincide con las denominaciones.');
         const events = await this.getSyncEvents(ctx.businessId, {
           from: shift.abiertoEn || shift.opened_at,
           to: nowIso(),
@@ -2164,8 +2225,9 @@
           .reduce((sum, item) => sum + Number(item.payload?.montoCentavos || 0), 0);
         const exits = shiftEvents.filter(item => item.event_type === 'SalidaEfectivo')
           .reduce((sum, item) => sum + Number(item.payload?.montoCentavos || 0), 0);
-        const expected = Number(shift.montoAperturaCentavos || 0) + cash + tips + entries - exits;
+        const expected = ctx.businessId === 'plaza-artesanal' ? webShiftSummary(shift).expectedCashCentavos : Number(shift.montoAperturaCentavos || 0) + cash + tips + entries - exits;
         const counted = integer(data.efectivoContadoCentavos, 'efectivo contado', 0);
+        if(ctx.businessId==='plaza-artesanal' && counted!==expected && !text(data.nota,1000)) throw new Error('Documenta el motivo de la diferencia antes de cerrar.');
         const closedAt = nowIso();
         const payload = {
           turnoId: shift.id, cajaId: shift.cajaId, cajaNombre: shift.cajaNombre,
@@ -2179,10 +2241,24 @@
           cerradoEn: closedAt, usuarioId: ctx.user.uid, usuarioNombre: ctx.user.email || 'Caja web Firebase'
         };
         await eventTransaction(ctx, id, 'CajaCerrada', async transaction => {
+          const latest = await transaction.get(ctx.d.collection('cash_shifts').doc(shift.id));
+          if(!latest.exists || latest.data().business_id!==ctx.businessId || latest.data().opened_by_uid!==ctx.user.uid || latest.data().status!=='open')throw new Error('El turno ya esta cerrado o pertenece a otro usuario.');
+          if(ctx.businessId==='plaza-artesanal') {
+            const summary=webShiftSummary(latest.data());
+            payload.efectivoEsperadoCentavos=summary.expectedCashCentavos;
+            payload.diferenciaCentavos=counted-summary.expectedCashCentavos;
+            payload.ventasEfectivoCentavos=summary.cashSalesCentavos;
+            payload.entradasCentavos=summary.entriesCentavos;
+            payload.salidasCentavos=summary.exitsCentavos;
+            payload.devolucionesCentavos=summary.cashRefundsCentavos;
+            payload.abonosClientesCentavos=summary.customerCashPaymentsCentavos;
+            if(payload.diferenciaCentavos!==0&&!text(data.nota,1000))throw new Error('Documenta el motivo de la diferencia antes de cerrar.');
+          }
           transaction.update(ctx.d.collection('cash_shifts').doc(shift.id), {
             status: 'closed', cerradoEn: closedAt, closed_at: closedAt,
-            efectivoEsperadoCentavos: expected, efectivoContadoCentavos: counted,
-            diferenciaCentavos: counted - expected, updated_at: closedAt
+            efectivoEsperadoCentavos: payload.efectivoEsperadoCentavos, efectivoContadoCentavos: counted,
+            diferenciaCentavos: payload.diferenciaCentavos, updated_at: closedAt,
+            conteoDenominaciones:payload.conteoDenominaciones
           });
           transaction.set(eventRef, eventDocument(ctx, id, 'CajaCerrada', 'turnos', shift.id, payload, closedAt));
         });
@@ -2241,7 +2317,7 @@
           // proyecciones Firestore. Las ventas Windows se revierten en cada
           // terminal al aplicar el evento VentaCancelada, sin inflar stock o
           // reducir credito dos veces en la nube.
-          const inventoryLines = (materializedWebSale ? sale.lineas || [] : []).filter(line => line.usaInventario
+          const inventoryLines = (materializedWebSale ? sale.inventoryConsumption || sale.lineas || [] : []).filter(line => line.usaInventario
             && !String(line.productoId || '').startsWith('comun-'));
           const productRefs = inventoryLines.map(line => ctx.d.collection('products').doc(line.productoId));
           const credit = (materializedWebSale ? sale.pagos || [] : []).filter(item => item.metodo === 'credito')
