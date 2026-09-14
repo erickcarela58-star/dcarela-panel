@@ -69,3 +69,18 @@ La conciliacion calcula la diferencia contra el diario efectivo, guarda una nuev
 Una diferencia sin identificar no inventa una venta, un pago ni un proveedor y no se convierte automaticamente en gasto del resultado. Su nota conserva la evidencia disponible para clasificarla despues sin duplicar dinero. Esta ruta verifica el diario web; la sincronizacion de acumuladores con Windows y las revisiones anteriores al cuadre siguen pendientes de validacion integral.
 
 El resumen de Finanzas, sus graficos diarios y categorias usan la misma clasificacion: abonos y capital sin efecto en resultados quedan fuera, las comisiones se cuentan una vez. Cuentas incluidas es saldo actual; Resultado del periodo es ingreso menos gasto; Ventas menos gastos excluye otros ingresos. La actividad reciente ordena por fecha efectiva antes de seleccionar las ultimas filas.
+
+### Correccion de permisos web/PWA 1.0.86
+
+La comprobacion previa de documentos nuevos usa una consulta por sucursal y un
+rango cerrado de identificador. La igualdad directa por nombre de documento
+provocaba `permission-denied` cuando el registro aun no existia bajo las reglas
+que validan `resource.data.business_id`. La consulta acotada devuelve cero filas
+correctamente y permite crear el asiento con las reglas vigentes. Aplica a
+conciliaciones, gastos y comprobaciones previas de ventas web; conserva eventos
+inmutables, reintentos y aislamiento entre sucursales.
+
+Verificado con Firebase autenticado: consulta original rechazada, consulta
+acotada aceptada y conciliacion autorizada con cuenta, asiento y evento guardados
+atomicamente. Un reintento devolvio el resultado previo sin mover dinero otra vez.
+Los detalles contables se conservan exclusivamente en evidencia privada.

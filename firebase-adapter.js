@@ -298,8 +298,11 @@
   }
 
   async function optionalBusinessDocument(ctx, collection, id) {
+    // An exact __name__ equality can be evaluated as a missing-document read,
+    // which resource.data tenant rules deny. A bounded collection query can
+    // safely return no rows while preserving the mandatory business filter.
     const result = await ctx.d.collection(collection).where('business_id', '==', ctx.businessId)
-      .where(firebase.firestore.FieldPath.documentId(), '==', id).limit(1).get();
+      .orderBy(firebase.firestore.FieldPath.documentId()).startAt(id).endAt(id).limit(1).get({ source: 'server' });
     return result.docs[0] || { exists: false, data: () => undefined };
   }
 

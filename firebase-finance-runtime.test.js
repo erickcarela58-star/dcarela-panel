@@ -15,7 +15,18 @@ function harness(role='admin') {
   const snap=(key)=>({id:key.split('/').pop(),exists:docs.has(key),data:()=>docs.get(key)});
   const query=(name,filters=[])=>({
     where:(...f)=>query(name,[...filters,f]),limit:()=>query(name,filters),orderBy:()=>query(name,filters),
-    async get(){return {docs:[...docs.keys()].filter(k=>k.startsWith(name+'/')&&filters.every(([field,op,v])=>op==='=='&&(field==='__name__'?k.split('/').pop():docs.get(k)[field])===v)).map(snap)};},
+    startAt:id=>query(name,[...filters,['__name__','>=',id]]),
+    endAt:id=>query(name,[...filters,['__name__','<=',id]]),
+    async get(){
+      const exactId=filters.find(([field,op])=>field==='__name__'&&op==='==');
+      // Firestore evaluates an exact document-name lookup against the missing
+      // resource. Tenant rules based on resource.data reject this before create.
+      if(exactId&&!docs.has(name+'/'+exactId[2]))throw new Error('permission-denied: missing resource');
+      return {docs:[...docs.keys()].filter(k=>k.startsWith(name+'/')&&filters.every(([field,op,v])=>{
+        const value=field==='__name__'?k.split('/').pop():docs.get(k)[field];
+        return op==='=='?value===v:op==='>='?value>=v:op==='<='?value<=v:false;
+      })).map(snap)};
+    },
     doc(id){const key=`${name}/${id}`;return {key,async get(){if(!docs.has(key))throw new Error('missing-read');return snap(key);}};}
   });
   const db={collection:query,enablePersistence:async()=>{},async runTransaction(fn){
@@ -43,6 +54,22 @@ function harness(role='admin') {
   vm.runInNewContext(fs.readFileSync(__dirname+'/firebase-adapter.js','utf8'),{window,firebase,console,Date,Math,Map,Promise,String,Number,Error,setTimeout,clearTimeout});
   return {api:window.DcarelaFirebase,docs,fail:()=>{rejectCommit=true;}};
 }
+test('conciliacion no reutiliza un evento de otra sucursal ni acepta una cuenta ajena',async()=>{
+  const h=harness();
+  h.api.getFinanceAccounts=async()=>[{...h.docs.get('fin_accounts/cash'),id:'cash'}];
+  h.api.getFinanceJournal=async()=>[];
+  const before={...h.docs.get('fin_accounts/cash')};
+  h.docs.set('sync_events/ledger-foreign',{business_id:'other',created_by_uid:'user',event_type:'LedgerMovimientoRegistrado',payload:{cuentaId:'cash',metadata:{reconciliation_target:8000}}});
+  await assert.rejects(h.api.adminAction('fin.account.reconcile','test','admin',null,
+    {cuentaId:'cash',saldoObjetivoCentavos:8000,motivo:'Fixture',requestId:'foreign'}),/immutable-event/);
+  assert.deepEqual(h.docs.get('fin_accounts/cash'),before);
+  assert.equal(h.docs.has('fin_movements/foreign'),false);
+  h.docs.set('fin_accounts/cash',{...before,business_id:'other'});
+  await assert.rejects(h.api.adminAction('fin.account.reconcile','test','admin',null,
+    {cuentaId:'cash',saldoObjetivoCentavos:8000,motivo:'Fixture',requestId:'fresh'}),/no existe/);
+  assert.equal(h.docs.has('fin_movements/fresh'),false);
+});
+
 test('conciliacion usa diario, conserva evento exacto y no vuelve a aplicar un reintento',async()=>{
   const h=harness();const initial=h.docs.get('fin_accounts/cash');
   Object.assign(initial,{saldo_actual_centavos:1000,reconciled_balance_centavos:10000,reconciled_at:'2026-09-01T00:00:00Z'});
