@@ -21,7 +21,7 @@
     document.body?.classList.add("is-embedded");
   }
   const THEME_KEY = "dcarela.ui.theme";
-  const APP_BUILD = "1.0.88";
+  const APP_BUILD = "1.0.89";
   const financeCore = window.DcarelaFinanceCore;
   const moneyManagerCore = window.DcarelaMoneyManagerCore;
 
@@ -7321,6 +7321,16 @@
     toast("Contrasena actualizada correctamente.");
   }
 
+  function releaseParaSucursal(manifest, business = BUSINESS) {
+    const release = manifest?.desktop_releases?.[business]
+      || (business === "plaza-artesanal" ? null : manifest?.desktop_release);
+    if (!release) return null;
+    const filename = String(release.release_url || "").split("/").pop();
+    const plaza = filename.startsWith("DCARELA_PLAZA_ARTESANAL_");
+    if ((business === "plaza-artesanal") !== plaza) return null;
+    return release;
+  }
+
   async function consultarVersion() {
     const response = await fetch(`./app-version.json?desktop=${Date.now()}`, {
       cache: "no-store",
@@ -7328,9 +7338,9 @@
     });
     if (!response.ok) throw new Error(`Manifiesto público de versiones no disponible (HTTP ${response.status}).`);
     const body = await response.json();
-    const latest = body?.desktop_release || body?.latest || body?.data || (body?.version ? body : null);
+    const latest = releaseParaSucursal(body);
     if (!latest?.version || !latest?.release_url || !latest?.sha256) {
-      throw new Error("El manifiesto público de la caja está incompleto.");
+      throw new Error("No hay un instalador verificado para esta sucursal en el manifiesto público.");
     }
     return latest;
   }
@@ -7394,7 +7404,8 @@
   function renderDescargasAplicacion(downloads, releasePageUrl = "") {
     const target = $("updateDownloads");
     if (!target) return;
-    const files = Array.isArray(downloads) ? downloads.filter(file => file?.url) : [];
+    const files = Array.isArray(downloads)
+      ? downloads.filter(file => file?.url && (!file.business_id || file.business_id === BUSINESS)) : [];
     const releaseLink = $("downloadReleasePage");
     if (releaseLink) {
       releaseLink.classList.toggle("oculto", !releasePageUrl);
@@ -7531,7 +7542,7 @@
         consultarVersionAplicacion().catch(() => null),
         registroPwa().catch(() => null),
       ]);
-      const latest = manifest?.desktop_release || remoteLatest;
+      const latest = releaseParaSucursal(manifest) || remoteLatest;
       const webDifferent = manifest && String(manifest.web_version) !== APP_BUILD;
       if (webDifferent || registration?.waiting) {
         $("updateTitle").textContent = `Panel ${manifest?.web_version || "nuevo"} disponible`;
@@ -7554,7 +7565,7 @@
       consultarVersionAplicacion(),
       registroPwa(forzar),
     ]);
-    const manifestDesktop = application.status === "fulfilled" ? application.value?.desktop_release : null;
+    const manifestDesktop = application.status === "fulfilled" ? releaseParaSucursal(application.value) : null;
     if (manifestDesktop || desktop.status === "fulfilled") renderVersionEscritorio(manifestDesktop || desktop.value);
     else {
       marcarEstadoActualizacion("desktopUpdateState", "Sin conexión", "warn");

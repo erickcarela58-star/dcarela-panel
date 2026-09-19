@@ -29,7 +29,7 @@ test("la vista principal muestra la aplicacion completa de forma standalone y re
 test("el manifiesto publica el instalador y las dos IPA con integridad verificable", () => {
   assert.match(manifest.web_version, /^1\.0\.\d+$/);
   assert.match(manifest.desktop_release.version, /^1\.0\.\d+$/);
-  assert.equal(manifest.downloads.length, 3);
+  assert.ok(manifest.downloads.length >= 3);
   for (const file of manifest.downloads) {
     assert.match(
       file.url,
@@ -45,6 +45,28 @@ test("el manifiesto publica el instalador y las dos IPA con integridad verificab
   assert.ok(desktop);
   assert.match(manifest.desktop_release.release_url, /\.exe$/i);
   assert.equal(desktop.url, manifest.desktop_release.release_url);
+  const plaza = manifest.downloads.find(file => file.business_id === "plaza-artesanal");
+  if (plaza) {
+    assert.equal(plaza.url, manifest.desktop_releases["plaza-artesanal"].release_url);
+    assert.match(plaza.url, /DCARELA_PLAZA_ARTESANAL_/);
+    assert.notEqual(plaza.url, desktop.url);
+  }
+});
+
+test("la seleccion de instalador mantiene aisladas las sucursales", () => {
+  const vm = require("node:vm");
+  const start = panelJs.indexOf("  function releaseParaSucursal(");
+  const end = panelJs.indexOf("  async function consultarVersion()", start);
+  const context = { BUSINESS: "dcarela" };
+  vm.createContext(context);
+  vm.runInContext(panelJs.slice(start, end), context);
+  const select = context.releaseParaSucursal;
+  const plazaRelease = { version: "1.0.66", release_url: "https://github.com/erickcarela58-star/dcarela-panel/releases/download/pos-v1.0.66/DCARELA_PLAZA_ARTESANAL_1.0.66_Setup.exe" };
+  const withPlaza = { ...manifest, desktop_releases: { "plaza-artesanal": plazaRelease } };
+  assert.equal(select(manifest, "dcarela"), manifest.desktop_release);
+  assert.equal(select(withPlaza, "plaza-artesanal"), plazaRelease);
+  assert.equal(select({ desktop_release: manifest.desktop_release }, "plaza-artesanal"), null);
+  assert.equal(select({ desktop_releases: { "plaza-artesanal": manifest.desktop_release } }, "plaza-artesanal"), null);
 });
 
 test("Finanzas vigente y los dos CRM se publican por dominios oficiales", () => {
