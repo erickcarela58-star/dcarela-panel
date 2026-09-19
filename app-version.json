@@ -7,7 +7,7 @@
   "ios_version": "5.2.1",
   "ios_build": "493",
   "ios_release_url": "https://panel.dcarelacompufoto.com/ios-releases/Brujula-5.2.1-493-AltStore.ipa",
-  "published_at": "2026-09-19T20:00:00.000Z",
+  "published_at": "2026-09-19T18:13:41.000Z",
   "channel": "stable",
   "notes": "Web/PWA 1.0.89: el centro de actualizaciones selecciona el instalador de la sucursal y evita ofrecer el instalador Central a Plaza Artesanal. Conserva el manual de caja virtual, catalogo sin stock y conteo de billetes. Windows 1.0.66 esta en preparacion: el instalador publicado sigue siendo Central 1.0.64 hasta verificar los nuevos paquetes.",
   "release_page_url": "https://panel.dcarelacompufoto.com/#descargar",
