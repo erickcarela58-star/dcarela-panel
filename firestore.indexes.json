@@ -1,5 +1,8 @@
 {
   "indexes": [
+    {"collectionGroup":"devices","queryScope":"COLLECTION","fields":[{"fieldPath":"business_id","order":"ASCENDING"},{"fieldPath":"last_seen_at","order":"DESCENDING"}]},
+    {"collectionGroup":"fin_movements","queryScope":"COLLECTION","fields":[{"fieldPath":"business_id","order":"ASCENDING"},{"fieldPath":"created_at","order":"DESCENDING"}]},
+    {"collectionGroup":"backup_snapshots","queryScope":"COLLECTION","fields":[{"fieldPath":"business_id","order":"ASCENDING"},{"fieldPath":"created_at","order":"DESCENDING"}]},
     {
       "collectionGroup": "sync_event_archives",
       "queryScope": "COLLECTION",

@@ -3,7 +3,10 @@
 
   document.documentElement.dataset.panelModule = "started";
   const $ = id => document.getElementById(id);
-  const cfg = JSON.parse(localStorage.getItem("dcarela.cfg") || "null") || window.__DCARELA_DEFAULT || null;
+  const cfg = (() => {
+    try { return JSON.parse(localStorage.getItem("dcarela.cfg") || "null") || window.__DCARELA_DEFAULT || null; }
+    catch { return window.__DCARELA_DEFAULT || null; }
+  })();
   // Sucursal por URL (?b=<business_id>) para paneles divididos con una sola
   // publicacion. El parametro manda; sin el, la publicacion usa su negocio por
   // defecto. Cada sucursal se abre con su propia direccion y ve solo sus datos.
@@ -21,7 +24,7 @@
     document.body?.classList.add("is-embedded");
   }
   const THEME_KEY = "dcarela.ui.theme";
-  const APP_BUILD = "1.0.89";
+  const APP_BUILD = "1.0.90";
   const financeCore = window.DcarelaFinanceCore;
   const moneyManagerCore = window.DcarelaMoneyManagerCore;
 
@@ -5365,9 +5368,11 @@
         const results = await Promise.allSettled([
           window.DcarelaFirebase.getFinanceAccounts(BUSINESS),
           window.DcarelaFirebase.getFinanceCategories(BUSINESS),
-          // Inicia el diario completo junto a los catalogos; se integra despues
-          // con las cuentas y nunca se presenta esta lista provisional.
-          window.DcarelaFirebase.getSyncEvents(BUSINESS, {complete:true,includeArchives:true,limit:5000}).then(() => []),
+          // El diario verificado se carga una sola vez mas abajo con
+          // getFinanceJournal(). No hagas aqui otra lectura completa de
+          // eventos: duplicaba lecturas, agotaba cuota y podia presentar un
+          // estado provisional antes de consolidar el libro real.
+          Promise.resolve([]),
           window.DcarelaFirebase.getFinanceCards(BUSINESS),
           window.DcarelaFirebase.getFinanceBudgets(BUSINESS),
           window.DcarelaFirebase.getFinancePreferences(BUSINESS),
@@ -5385,14 +5390,14 @@
         const optional = (index, fallback) => results[index].status === "fulfilled" ? results[index].value : fallback;
         const accounts = required(0, "las cuentas financieras");
         const movements = required(2, "los movimientos financieros");
-        const categories = optional(1, []);
+        const categories = required(1, "las categorias financieras");
         const cards = required(3, "las tarjetas");
-        const budgets = optional(4, []);
+        const budgets = required(4, "los presupuestos");
         const preferences = optional(5, null);
         const currencies = optional(6, []);
         const commitments = required(7, "los compromisos");
         const commitmentPayments = required(8, "los abonos de compromisos");
-        const pendingTransfers = optional(9, []);
+        const pendingTransfers = required(9, "las transferencias pendientes");
         cuentasRes = { data: accounts || [] };
         accountVisualsRes = { data: [] };
         catsRes = { data: categories || [] };
@@ -5443,6 +5448,9 @@
       partialError: movs.partial_error || "",
       month,
     };
+    // Do not render provisional empty movements while the verified journal is
+    // still loading. The final render below owns the whole financial snapshot.
+    if (authProvider === "firebase") return;
     dispararAlertaCumuloMensual();
     finDashboardPeriod = finStateCache.preferences?.periodo_dashboard || finDashboardPeriod;
     if (authProvider !== "firebase") renderFinAccounts();
@@ -5457,6 +5465,7 @@
   }
 
   function dispararAlertaCumuloMensual() {
+    if (authProvider === "firebase") return;
     if (!canEdit) return;
     try {
       const hoy = inputDate(new Date());
@@ -6003,6 +6012,7 @@
   }
 
   function abrirConsumoTarjetaFin(accountId) {
+    const requestId = crypto.randomUUID();
     const state = finStateCache;
     const account = state?.accounts.find(item => item.id === accountId);
     if (!account) { toast("Tarjeta no encontrada."); return; }
@@ -6016,7 +6026,7 @@
       const amount = centavosInput(form.get("monto"));
       if (amount <= 0) throw new Error("Escribe un monto mayor que cero.");
       await adminWrite("fin.movement.create", null, {
-        tipo: "gasto", montoCentavos: amount, cuentaId: accountId,
+        requestId, tipo: "gasto", montoCentavos: amount, cuentaId: accountId,
         categoriaId: form.get("categoriaId"), fecha: form.get("fecha"), payee: form.get("payee"),
         descripcion: form.get("descripcion"), nota: form.get("nota"), origen: "panel",
       });
@@ -6223,6 +6233,7 @@
 
 
   function abrirCuentaFin(account = null) {
+    const accountId = account?.id || crypto.randomUUID();
     const item = account || {
       nombre: "", tipo: "banco", grupo: "", moneda: "DOP", saldo_inicial_centavos: 0,
       incluir_en_total: true, ligada_ventas: false, oculta: false, orden: 10,
@@ -6272,7 +6283,7 @@
       const tipo = form.get("tipo");
       let saldo = centavosConSignoInput(form.get("saldoInicial"));
       if (tipo === "tarjeta_credito") saldo = -Math.abs(saldo);
-      await adminWrite("fin.account.upsert", account?.id, {
+      await adminWrite("fin.account.upsert", accountId, {
         nombre: form.get("nombre"), tipo, grupo: form.get("grupo"),
         moneda: form.get("moneda"), saldoInicialCentavos: saldo,
         incluirEnTotal: form.get("incluirEnTotal") === "on", ligadaVentas: form.get("ligadaVentas") === "on",
@@ -6884,6 +6895,7 @@
   }
 
   function subscribeFinanceRealtime() {
+    if (authProvider === "firebase") return;
     if (finRealtimeChannel || !sb) return;
     let timer = null;
     const refresh = () => {
@@ -6910,7 +6922,13 @@
       if (force || finStateCache?.month !== $("provMes").value) return cargarProveedores(force);
       return;
     }
-    financeLoad = cargarProveedoresData(force).finally(() => { financeLoad = null; });
+    const previousFinance = finStateCache;
+    const previousCosts = costStateCache;
+    financeLoad = cargarProveedoresData(force).catch(error => {
+      finStateCache = previousFinance;
+      costStateCache = previousCosts;
+      throw error;
+    }).finally(() => { financeLoad = null; });
     return financeLoad;
   }
 
@@ -6932,7 +6950,7 @@
       throw error;
     }
     const journal = authProvider === "firebase" ? await window.DcarelaFirebase.getFinanceJournal(BUSINESS, {
-      accounts: finStateCache.accounts, preferences: finStateCache.preferences
+      accounts: finStateCache.accounts, preferences: finStateCache.preferences, historyFrom: from
     }) : null;
     const [state, legacySalesResult] = await historyRequest;
     const monthSales = journal?.sales.filter(event => financeCore.eventDay(event).startsWith(month)) || [];
@@ -7021,6 +7039,9 @@
       renderFinCards();
       renderFinCommitments();
       renderFinMovements();
+      renderFinPendingTransfers();
+      await renderFinBudgets();
+      renderFinSettings();
       await renderFinDashboard();
     }
     const syncStatus = $("finPosSyncStatus");
@@ -8449,9 +8470,9 @@
       catch (error) { $("cfgClaveEstado").textContent = error.message; toast(error.message); }
       finally { button.disabled = false; button.textContent = previous; }
     });
-    on("btnCerrarEditor", "click", cerrarEditor);
-    on("btnCancelarEditor", "click", cerrarEditor);
-    on("editorOverlay", "click", event => { if (event.target === $("editorOverlay")) cerrarEditor(); });
+    on("btnCerrarEditor", "click", () => { if (!$("btnGuardarEditor").disabled) cerrarEditor(); });
+    on("btnCancelarEditor", "click", () => { if (!$("btnGuardarEditor").disabled) cerrarEditor(); });
+    on("editorOverlay", "click", event => { if (!$("btnGuardarEditor").disabled && event.target === $("editorOverlay")) cerrarEditor(); });
     on("editorForm", "submit", async event => {
       event.preventDefault();
       if (!editorSubmit) return;
@@ -8462,10 +8483,14 @@
       button.textContent = "Guardando...";
       $("editorError").textContent = "";
       try { await editorSubmit(new FormData(event.currentTarget)); }
-      catch (error) { $("editorError").textContent = error?.message || String(error); }
+      catch (error) {
+        const message = error?.message || String(error);
+        if ($("editorOverlay").classList.contains("oculto")) toast(`El registro se guardo, pero no se pudo actualizar la vista: ${message}`);
+        else $("editorError").textContent = message;
+      }
       finally { button.disabled = false; button.textContent = previous; }
     });
-    window.addEventListener("keydown", event => { if (event.key === "Escape" && !$("editorOverlay").classList.contains("oculto")) cerrarEditor(); });
+    window.addEventListener("keydown", event => { if (event.key === "Escape" && !$("btnGuardarEditor").disabled && !$("editorOverlay").classList.contains("oculto")) cerrarEditor(); });
     on("alertFilter", "change", () => cargarNotificaciones().catch(() => {}));
     on("btnLeerTodas", "click", async () => {
       const alerts = await obtenerAlertas();

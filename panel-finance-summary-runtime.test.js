@@ -38,3 +38,17 @@ test('formulario de conciliacion conserva deuda negativa e identificador en rein
  assert.equal(requests[0][2].saldoObjetivoCentavos,-43210);
  assert.equal(requests[0][2].requestId,requests[1][2].requestId);
 });
+
+test('consumo de tarjeta conserva centavos, cuenta y requestId incluso al reintentar', async () => {
+ let submit;const requests=[];
+ const code=source.slice(source.indexOf('  function abrirConsumoTarjetaFin('),source.indexOf('  function renderFinSettings('));
+ vm.runInNewContext(code+'\nabrirConsumoTarjetaFin("qik")',{
+   crypto:{randomUUID:()=> 'consumo-fixture'},finStateCache:{accounts:[{id:'qik',nombre:'Qik'}]},
+   abrirEditor:(title,desc,html,callback)=>{submit=callback;},finCategoryOptions:()=>'',inputDate:()=> '2026-09-20',
+   centavosInput:x=>Math.round(Number(x)*100),adminWrite:async(...args)=>requests.push(args),cerrarEditor:()=>{},cargarProveedores:async()=>{}
+ });
+ const form=new Map([['monto','3712.63'],['fecha','2026-09-20'],['descripcion','Comida']]);
+ await submit(form);await submit(form);
+ assert.equal(requests[0][2].montoCentavos,371263);assert.equal(requests[0][2].cuentaId,'qik');
+ assert.ok(requests[0][2].requestId);assert.equal(requests[0][2].requestId,requests[1][2].requestId);
+});

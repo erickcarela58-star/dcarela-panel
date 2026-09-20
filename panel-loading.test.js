@@ -15,7 +15,7 @@ test("la carga de módulos conserva la vista y ofrece reintento", () => {
 
 test("las consultas compartidas terminan y no se acumulan al cambiar de módulo", () => {
   assert.match(panel, /let financeLoad = null/);
-  assert.match(panel, /financeLoad = cargarProveedoresData\(force\)\.finally/);
+  assert.match(panel, /financeLoad = cargarProveedoresData\(force\)\.catch/);
   assert.match(adapter, /setTimeout\(\(\) => reject\(Object\.assign\(/);
   assert.match(adapter, /La consulta tardo demasiado/);
 });

@@ -58,7 +58,7 @@ test("Money Manager limita el ledger al mes y tolera modulos secundarios", () =>
   assert.match(financeMethod, /getSyncEvents\(businessId, \{ from, to, limit: SYNC_EVENT_MAX_BATCH,[\s\S]{0,120}includeArchives: true, eventTypes: \['LedgerMovimientoRegistrado'\] \}\)/);
   assert.match(panel, /const results = await Promise\.allSettled\(\[/);
   assert.match(panel, /const accounts = required\(0, "las cuentas financieras"\)/);
-  assert.match(panel, /const budgets = optional\(4, \[\]\)/);
+  assert.match(panel, /const budgets = required\(4, "los presupuestos"\)/);
 });
 
 test("cada escritura de Money Manager recarga tambien las ventas proyectadas", () => {

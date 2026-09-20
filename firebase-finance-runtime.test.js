@@ -3,6 +3,94 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 const core = require('./finance-core');
+
+test('crear cuenta no lee un documento inexistente, conserva identidad y no altera un cuadre al editar',async()=>{
+ const h=harness();
+ const data={nombre:'Cuenta fixture',tipo:'banco',saldoInicialCentavos:12345,incluirEnTotal:true};
+ await h.api.adminAction('fin.account.upsert','test','admin','new-account',data);
+ await h.api.adminAction('fin.account.upsert','test','admin','new-account',data);
+ assert.equal(h.docs.get('fin_accounts/new-account').saldo_actual_centavos,12345);
+ h.docs.set('fin_accounts/new-account',{...h.docs.get('fin_accounts/new-account'),reconciled_at:'2026-09-10T12:00:00Z',reconciled_balance_centavos:12345});
+ await assert.rejects(h.api.adminAction('fin.account.upsert','test','admin','new-account',{...data,saldoInicialCentavos:99999}),/concili/);
+ assert.equal(h.docs.get('fin_accounts/new-account').saldo_actual_centavos,12345);
+});
+
+test('anular y restaurar un gasto anterior al cuadre afecta al saldo visible una sola vez', async () => {
+ const h=harness();
+ const account={...h.docs.get('fin_accounts/cash'),reconciled_at:'2026-09-10T12:00:00Z',reconciled_balance_centavos:100000,saldo_actual_centavos:100000};
+ h.docs.set('fin_accounts/cash',account);
+ h.docs.set('fin_movements/historical',{id:'historical',business_id:'test',tipo:'gasto',cuenta_id:'cash',monto_centavos:10000,fecha:'2026-09-05',estado:'registrado',origen:'panel'});
+ await h.api.adminAction('fin.movement.cancel','test','admin','historical',{requestId:'rev-1',motivo:'Error documentado'});
+ let row=h.docs.get('fin_movements/historical');
+ assert.equal(core.effectiveAccountBalance({...h.docs.get('fin_accounts/cash'),id:'cash'},[row]),110000);
+ await h.api.adminAction('fin.movement.restore','test','admin','historical',{requestId:'rev-2'});
+ row=h.docs.get('fin_movements/historical');
+ assert.equal(core.effectiveAccountBalance({...h.docs.get('fin_accounts/cash'),id:'cash'},[row]),100000);
+ assert.equal(row.balance_effects.length,3);
+ assert.equal(h.docs.get('sync_events/ledger-state-rev-2').payload.balance_effects.length,3);
+});
+
+test('Central: dos cobros simultaneos no consumen la misma ultima unidad', async () => {
+  const h = harness();
+  h.docs.set('products/product', {...h.docs.get('products/product'), usaInventario:true, stock:1});
+  const sale = {lineas:[{productoId:'product',cantidad:1}],pagos:[{metodo:'efectivo',montoCentavos:10000}],pagoConCentavos:10000};
+  const results = await Promise.allSettled(['stock-a','stock-b'].map(id => h.api.webSaleAction('sale.create','test','admin',sale,id)));
+  assert.equal(results.filter(r => r.status === 'fulfilled').length, 1);
+  assert.equal(h.docs.get('products/product').stock, 0);
+  assert.equal(h.docs.get('fin_accounts/cash').saldo_actual_centavos, 3660000);
+});
+
+test('Central: lineas repetidas acumulan consumo y anulacion sin perder unidades', async () => {
+  const h = harness();
+  h.docs.set('products/product', {...h.docs.get('products/product'), usaInventario:true, stock:5});
+  const sale = await h.api.webSaleAction('sale.create','test','admin',{
+    lineas:[{productoId:'product',cantidad:1},{productoId:'product',cantidad:2}],
+    pagos:[{metodo:'efectivo',montoCentavos:30000}],pagoConCentavos:30000
+  },'repeat-products');
+  assert.equal(h.docs.get('products/product').stock, 2);
+  await h.api.webSaleAction('sale.cancel','test','admin',{ventaId:sale.sale.ventaId,sourceEventId:'repeat-products',motivo:'Prueba'},'cancel-repeat');
+  assert.equal(h.docs.get('products/product').stock, 5);
+});
+
+test('Credito valida sucursal y saldo actual en cada intento de transaccion', async () => {
+  const h = harness();
+  h.docs.set('clients/customer',{business_id:'test',nombre:'Fixture',activo:true,saldoCentavos:0,limiteCreditoCentavos:15000});
+  const sale = {clienteId:'customer',lineas:[{productoId:'product',cantidad:1}],pagos:[{metodo:'credito',montoCentavos:10000}]};
+  const results = await Promise.allSettled(['credit-a','credit-b'].map(id => h.api.webSaleAction('sale.create','test','admin',sale,id)));
+  assert.equal(results.filter(r => r.status === 'fulfilled').length, 1);
+  assert.equal(h.docs.get('clients/customer').saldoCentavos,10000);
+  h.docs.set('clients/customer',{...h.docs.get('clients/customer'),business_id:'otra',saldoCentavos:0});
+  await assert.rejects(h.api.webSaleAction('sale.create','test','admin',sale,'foreign-client'),/sucursal/);
+});
+
+test('Un tipo de movimiento desconocido no puede aumentar saldo', async () => {
+  const h = harness();
+  await assert.rejects(h.api.adminAction('fin.movement.create','test','admin',null,{
+    requestId:'bad-type',cuentaId:'cash',tipo:'transferncia',montoCentavos:10000
+  }),/tipo|Tipo/);
+  assert.equal(h.docs.get('fin_accounts/cash').saldo_actual_centavos,3650000);
+  assert.equal(h.docs.has('fin_movements/bad-type'),false);
+});
+
+test('Cierre Central incluye abonos, propinas y devoluciones, exige lectura completa y admite reintento', async () => {
+  const h = harness();
+  h.docs.set('cash_shifts/shift',{...h.docs.get('cash_shifts/shift'),montoAperturaCentavos:10000});
+  const event = (id,event_type,payload) => ({id,event_type,payload:{turnoId:'shift',...payload}});
+  h.api.getSyncEvents = async (business,opts) => {
+    assert.equal(opts.complete,true);
+    return [event('s','VentaCobrada',{ventaId:'s',pagos:[{metodo:'efectivo',montoCentavos:20000}],propinaCentavos:500}),
+      event('p','AbonoClienteRegistrado',{metodo:'efectivo',montoCentavos:3000}),
+      event('r','DevolucionRegistrada',{metodo:'efectivo',montoCentavos:1000}),
+      event('e','EntradaEfectivo',{montoCentavos:2000}),event('x','SalidaEfectivo',{montoCentavos:4000})];
+  };
+  const input = {efectivoContadoCentavos:30500};
+  const first = await h.api.webSaleAction('shift.close','test','admin',input,'close-complete');
+  assert.equal(first.summary.efectivoEsperadoCentavos,30500);
+  assert.equal(first.summary.diferenciaCentavos,0);
+  const retry = await h.api.webSaleAction('shift.close','test','admin',input,'close-complete');
+  assert.equal(retry.summary.efectivoEsperadoCentavos,30500);
+  assert.equal(retry.deduplicated,true);
+});
 function harness(role='admin',business='test') {
   let rejectCommit=false;
   const docs = new Map([

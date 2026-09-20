@@ -284,3 +284,17 @@ test('un mes anterior al corte manda sobre el corte',async()=>{
   const corte=archivo.conditions.find(c=>Array.isArray(c)&&c[0]==='events_to');
   assert.equal(corte[2],'2026-07-01T04:00:00.000Z');
 });
+
+test('el mes del informe conserva ventas previas al cuadre sin recortar movimientos que forman el saldo', async () => {
+  const h=harness(async()=>snapshot([]));
+  let requested;
+  h.api.getSyncEvents=async (business,opts)=>{requested=opts; return [
+    {id:'early',event_type:'VentaCobrada',created_at_local:'2026-09-05T16:00:00Z',payload:{ventaId:'early',totalCobradoCentavos:10000,pagos:[{metodo:'efectivo',montoCentavos:10000}]}},
+    {id:'after',event_type:'VentaCobrada',created_at_local:'2026-09-16T16:00:00Z',payload:{ventaId:'after',totalCobradoCentavos:20000,pagos:[{metodo:'efectivo',montoCentavos:20000}]}}
+  ].filter(e => e.created_at_local >= opts.from);};
+  const accounts=[{id:'cash',nombre:'Efectivo',tipo:'efectivo',reconciled_at:'2026-09-10T16:00:00Z',reconciled_balance_centavos:100000}];
+  const journal=await h.api.getFinanceJournal('dcarela',{accounts,preferences:{},historyFrom:'2026-09-01T04:00:00Z'});
+  assert.equal(requested.from,'2026-09-01T04:00:00Z');
+  assert.equal(journal.sales.length,2);
+  assert.equal(require('./finance-core').effectiveAccountBalance(accounts[0],journal),120000);
+});

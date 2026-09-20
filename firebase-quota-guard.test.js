@@ -51,7 +51,7 @@ test('el cierre de caja limita sus eventos al turno abierto', () => {
   const end = adapter.indexOf("if (action === 'sale.cancel')", start);
   const method = adapter.slice(start, end);
   assert.match(method, /from: shift\.abiertoEn \|\| shift\.opened_at/);
-  assert.match(method, /limit: 1600/);
+  assert.match(method, /complete: true/);
 });
 
 test('el listener en vivo solo observa eventos recientes y no interrumpe formularios', () => {

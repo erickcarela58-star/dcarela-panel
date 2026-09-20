@@ -67,7 +67,7 @@
       importe_dop_centavos: Number(payload.importeDopCentavos ?? payload.importe_dop_centavos ?? 0),
       moneda: payload.monedaOriginal || 'DOP',
       estado: String(payload.estado || 'confirmado').trim().toLowerCase(),
-      fecha: businessDay(payload.fechaEfectiva || event.created_at_local || event.received_at_cloud || ''),
+      fecha: businessDay(payload.fecha || payload.fechaEfectiva || event.created_at_local || event.received_at_cloud || ''),
       cuenta_id: sourceAccount || targetAccount || null,
       cuenta_origen_id: sourceAccount || null,
       cuenta_destino_id: targetAccount || null,
@@ -89,6 +89,7 @@
       updated_at: event.created_at_local || event.received_at_cloud,
       afecta_resultado: payload.afecta_resultado ?? payload.afectaResultado,
       metadata: payload.metadata || {},
+      ...(payload.balance_effects ? {balance_effects:payload.balance_effects, balance_effect_version:payload.balance_effect_version || 1} : {}),
       idempotency_key: payload.idempotencyKey || payload.idempotency_key || null,
       comision_centavos: payload.comision_centavos ?? payload.comisionCentavos ?? 0,
       comision_movimiento_id: payload.comision_movimiento_id || payload.fee_movement_id || null,
@@ -337,7 +338,7 @@
       throw new Error('La venta necesita entre 1 y 200 lineas.');
     }
 
-    const productIds = [...new Set(data.lineas.filter(line => !line.comun).map(line => text(line.productoId, 160)))];
+    const productIds = [...new Set(data.lineas.filter(line => !line.comun && !text(line.productoId, 160).startsWith('comun-')).map(line => text(line.productoId, 160)))];
     const productDocs = await Promise.all(productIds.map(id => d.collection('products').doc(id).get()));
     const products = new Map(productDocs.filter(doc => doc.exists).map(doc => [doc.id, doc.data()]));
     const lines = [];
@@ -408,6 +409,7 @@
     const clientId = text(data.clienteId, 160) || null;
     const clientDoc = clientId ? await d.collection('clients').doc(clientId).get() : null;
     const client = clientDoc?.exists ? clientDoc.data() : null;
+    if (client && client.business_id !== ctx.businessId) throw new Error('El cliente pertenece a otra sucursal.');
     const credit = payments.filter(item => item.metodo === 'credito').reduce((sum, item) => sum + item.montoCentavos, 0);
     if (credit && (!clientId || !client || client.activo === false)) throw new Error('Una venta a credito necesita un cliente activo.');
     const limit = Number(client?.limiteCreditoCentavos ?? client?.limite_credito_centavos ?? 0);
@@ -445,6 +447,37 @@
     const materializeAccounts = ['owner', 'admin'].includes(ctx.role);
     let salePayload = null;
     const committed = await eventTransaction(ctx, requestId, 'VentaCobrada', async transaction => {
+      // Price/catalog validation, stock and credit must share the commit's read
+      // set. A previous query is not a lock: two terminals can charge together.
+      const currentProducts = await Promise.all(productIds.map(id => transaction.get(d.collection('products').doc(id))));
+      const currentClient = clientId ? await transaction.get(d.collection('clients').doc(clientId)) : null;
+      const currentDebt = Number(currentClient?.data()?.saldoCentavos ?? currentClient?.data()?.saldo_centavos ?? 0);
+      if (currentClient && (!currentClient.exists || currentClient.data().business_id !== ctx.businessId)) throw new Error('El cliente no existe en esta sucursal.');
+      if (credit) {
+        const row = currentClient.data();
+        const currentLimit = Number(row.limiteCreditoCentavos ?? row.limite_credito_centavos ?? 0);
+        if (row.activo === false) throw new Error('Una venta a credito necesita un cliente activo.');
+        if (currentLimit > 0 && currentDebt + credit > currentLimit) throw new Error('El credito supera el disponible del cliente.');
+      }
+      const priceFields = ['nombre','precioFinalCentavos','precio_final_centavos','precioMayoreoCentavos','precio_mayoreo_centavos','tasaItbis','tasa_itbis','usaInventario','usa_inventario','costoCentavos','costo_centavos'];
+      currentProducts.forEach(doc => {
+        const fresh = doc.data(), old = products.get(doc.id);
+        if (!doc.exists || fresh.business_id !== ctx.businessId || fresh.activo === false
+          || priceFields.some(field => fresh[field] !== old[field])) throw new Error('El producto cambio. Actualiza el catalogo antes de cobrar.');
+      });
+      if (!plazaProducts) {
+        stockUpdates.length = 0;
+        currentProducts.forEach(doc => {
+          const used = lines.filter(line => line.productoId === doc.id && line.usaInventario)
+            .reduce((sum, line) => sum + milli(line.cantidad), 0) / 1000;
+          if (!used) return;
+          const stock = Number(doc.data().stock || 0);
+          if (stock < used && !(data.forzarInventario && ['owner','admin'].includes(ctx.role) && text(data.motivoInventario,500))) {
+            throw Object.assign(new Error(`Inventario requiere confirmacion: ${doc.data().nombre}, disponible ${stock}, requerido ${used}.`), {code:'inventory_confirmation'});
+          }
+          stockUpdates.push({id:doc.id, stock:stock-used});
+        });
+      }
       const currentPlazaProducts = plazaProducts ? await Promise.all(plazaProducts.filter(p =>
         plazaRequired.dependencyIds.includes(p.id)).map(p => transaction.get(d.collection('products').doc(p.id)))) : [];
       if (plazaProducts) {
@@ -471,7 +504,8 @@
       });
       const folio = Math.max(1, Number(counter.data()?.next || 900000));
       salePayload = {
-        ...(plazaProducts ? { inventoryConsumption: plazaRequired.map(r => ({ productoId:r.id, cantidad:r.quantity, usaInventario:true })) } : {}),
+        inventoryConsumption: plazaProducts ? plazaRequired.map(r => ({ productoId:r.id, cantidad:r.quantity, usaInventario:true }))
+          : stockUpdates.map(item => ({productoId:item.id, cantidad:lines.filter(line => line.productoId === item.id && line.usaInventario).reduce((sum,line) => sum + milli(line.cantidad),0) / 1000, usaInventario:true})),
         ventaId: saleId, folio, turnoId: shift.id, cajaNombre: shift.cajaNombre || 'Caja web',
         clienteId: clientId, clienteNombre: client ? text(client.nombre, 180) : null,
         clienteTelefono: client ? text(client.telefono, 80) || null : null,
@@ -533,7 +567,7 @@
         });
       });
       stockUpdates.forEach(item => transaction.update(d.collection('products').doc(item.id), { stock: item.stock, updated_at: soldAt }));
-      if (credit && clientId) transaction.update(d.collection('clients').doc(clientId), { saldoCentavos: debt + credit, updated_at: soldAt });
+      if (credit && clientId) transaction.update(d.collection('clients').doc(clientId), { saldoCentavos: currentDebt + credit, updated_at: soldAt });
     });
     if (committed?.deduplicated) salePayload = committed.payload;
     return { ok: true, sale: salePayload, event: { id: requestId }, warnings: [] };
@@ -586,6 +620,7 @@
       monedaOriginal: 'DOP',
       estado: movement.estado || 'registrado',
       fechaEfectiva: movement.source_timestamp || movement.fecha || movement.created_at,
+      fecha: movement.fecha || businessDay(movement.created_at),
       cuentaId: accountId,
       cuentaOrigenId: ['gasto', 'retiro', 'salida', 'comision', 'ajuste_negativo', 'transferencia'].includes(type) ? accountId : null,
       cuentaDestinoId: type === 'transferencia' ? movement.cuenta_destino_id || null
@@ -596,6 +631,7 @@
       observaciones: text(movement.nota, 1200) || '',
       origen: movement.origen || 'panel',
       requestId: movement.id,
+      ...(movement.balance_effects ? {balance_effects:movement.balance_effects, balance_effect_version:movement.balance_effect_version || 1} : {}),
       idempotencyKey: movement.sync_event_id || `ledger-${movement.id}`,
       ventaId: movement.venta_id || null,
       ventaFolio: movement.venta_folio || null,
@@ -606,6 +642,15 @@
       pagoCompromisoId: movement.pago_compromiso_id || null,
       afectaResultado: movement.afecta_resultado !== false,
     };
+  }
+
+  function reviseFinancialMovement(previous, next, accounts, revisionId, createdAt) {
+    const revised = window.DcarelaFinanceCore.reviseMovement(previous, next, {revisionId, createdAt});
+    for (const account of accounts) {
+      if (account.reconciled_at && window.DcarelaFinanceCore.accountRevisionDelta(account, revised) === null)
+        throw new Error('El movimiento no tiene hora comprobada y coincide con el dia del cuadre. Verifica su hora antes de corregirlo.');
+    }
+    return revised;
   }
 
   async function setCommitmentPaymentState(ctx, transaction, paymentId, restoring, data, createdAt) {
@@ -849,9 +894,10 @@
           estado: 'registrado', business_id: ctx.businessId, updated_at: createdAt, ...actor,
         };
         const account = accountById.get(accountId).data();
-        const movement = {
+        let movement = {
           id: movementId, business_id: ctx.businessId, tipo: 'gasto',
           fecha: businessDay(data.fecha || createdAt), hora: createdAt.slice(11, 19), monto_centavos: amount,
+          source_timestamp: previousMovement?.source_timestamp || (businessDay(data.fecha || createdAt) === businessDay(createdAt) ? createdAt : businessDay(data.fecha)),
           cuenta_id: accountId, categoria_id: text(data.categoriaId, 160) || null,
           payee: text(data.payee || data.proveedor, 180) || null,
           descripcion: text(data.descripcion, 500) || 'Gasto', nota: text(data.nota, 1200) || null,
@@ -859,6 +905,8 @@
           gasto_id: id, sync_event_id: ledgerEventId, created_at: previous.created_at || createdAt,
           updated_at: createdAt, created_by_uid: ctx.user.uid, created_by_email: ctx.user.email || '',
         };
+        if (previousMovement) movement = reviseFinancialMovement({...previousMovement,id:movementId}, movement,
+          accountDocs.map((doc,index)=>({...doc.data(),id:accountIds[index]})), ledgerEventId, createdAt);
         transaction.set(expenseRef, saved, { merge: true });
         transaction.set(movementRef, movement);
         transaction.set(ledgerEventRef, eventDocument(ctx, ledgerEventId, 'LedgerMovimientoRegistrado',
@@ -898,11 +946,14 @@
           business_id: ctx.businessId, updated_at: createdAt, ...actor };
         transaction.set(expenseRef, payload, { merge: true });
         if (movement && movement.estado !== 'anulado') {
-          transaction.update(movementRef, { estado: 'anulado', motivo_anulacion: text(data.motivo, 500), updated_at: createdAt });
           const ledgerEventId = `ledger-expense-cancel-${eventId}`;
+          const revised = reviseFinancialMovement({...movement,id:movement.id || `expense-${id}`},
+            {...movement,id:movement.id || `expense-${id}`,estado:'anulado'}, [{...accountDoc.data(),id:accountId}], ledgerEventId, createdAt);
+          transaction.update(movementRef, { estado: 'anulado', motivo_anulacion: text(data.motivo, 500), updated_at: createdAt,
+            balance_effects:revised.balance_effects, balance_effect_version:1 });
           transaction.set(d.collection('sync_events').doc(ledgerEventId), eventDocument(ctx, ledgerEventId,
             'LedgerMovimientoRegistrado', 'fin_movements', movement.id || `expense-${id}`,
-            financeLedgerPayload({ ...movement, id: movement.id || `expense-${id}`, estado: 'anulado', sync_event_id: ledgerEventId }, accountDoc.data()), createdAt));
+            financeLedgerPayload({ ...revised, sync_event_id: ledgerEventId }, accountDoc.data()), createdAt));
           const current = Number(accountDoc.data().saldo_actual_centavos ?? accountDoc.data().saldo_inicial_centavos ?? 0);
           transaction.update(accountRef, { saldo_actual_centavos: current + Math.abs(Number(movement.monto_centavos || 0)), updated_at: createdAt });
         }
@@ -1007,11 +1058,15 @@
     if (action === 'fin.account.upsert') {
       const id = text(entityId, 160) || uuid();
       const ref = d.collection('fin_accounts').doc(id);
-      await d.runTransaction(async transaction => {
-        const previous = await transaction.get(ref);
+      if (!text(data.nombre,120)) throw new Error('El nombre de la cuenta es obligatorio.');
+      const before = await optionalBusinessDocument(ctx, 'fin_accounts', id);
+      const saveAccount = async transaction => {
+        const previous = before.exists ? await transaction.get(ref) : before;
         const old = previous.exists ? previous.data() : {};
+        if (previous.exists && old.business_id !== ctx.businessId) throw new Error('La cuenta pertenece a otra sucursal.');
         const nextInitial = integer(data.saldoInicialCentavos ?? 0, 'saldo inicial', Number.MIN_SAFE_INTEGER);
         const oldInitial = Number(old.saldo_inicial_centavos || 0);
+        if (old.reconciled_at && nextInitial !== oldInitial) throw new Error('Una cuenta conciliada se corrige con Conciliar, no cambiando su saldo inicial.');
         const oldCurrent = Number(old.saldo_actual_centavos ?? oldInitial);
         transaction.set(ref, {
           business_id: ctx.businessId, nombre: text(data.nombre, 120),
@@ -1028,7 +1083,11 @@
           updated_at: createdAt, ...actor,
           ...(previous.exists ? {} : { created_at: createdAt })
         }, { merge: true });
-      });
+        if (!before.exists) transaction.set(d.collection('sync_events').doc(`account-created-${id}`),eventDocument(ctx,`account-created-${id}`,
+          'CuentaFinancieraCreada','fin_accounts',id,{cuentaId:id,nombre:text(data.nombre,120),saldoInicialCentavos:nextInitial},createdAt));
+      };
+      if (before.exists) await d.runTransaction(saveAccount);
+      else await eventTransaction(ctx,`account-created-${id}`,'CuentaFinancieraCreada',saveAccount);
       return { ok: true, id, message: 'Cuenta guardada con historial preservado.' };
     }
 
@@ -1081,6 +1140,8 @@
     if (action === 'fin.movement.create') {
       const accountId = text(data.cuentaId, 160);
       const type = text(data.tipo, 40).toLowerCase();
+      if (!['ingreso','gasto','compra','retiro','salida','entrada','deposito','venta','comision','ajuste_positivo','ajuste_negativo'].includes(type)) throw new Error('Tipo de movimiento invalido. Las transferencias requieren origen y destino.');
+      if (!accountId) throw new Error('Selecciona una cuenta financiera.');
       const amount = integer(data.montoCentavos, 'monto', 1);
       const signed = financeSignedAmount(type, amount);
       const accountRef = d.collection('fin_accounts').doc(accountId);
@@ -1100,7 +1161,8 @@
         const current = Number(accountDoc.data().saldo_actual_centavos ?? accountDoc.data().saldo_inicial_centavos ?? 0);
         const movement = {
           id: movementId,
-          business_id: ctx.businessId, tipo: type, fecha: text(data.fecha, 10) || createdAt.slice(0, 10),
+          business_id: ctx.businessId, tipo: type, fecha: text(data.fecha, 10) || businessDay(createdAt),
+          source_timestamp: businessDay(data.fecha || createdAt) === businessDay(createdAt) ? createdAt : businessDay(data.fecha),
           hora: createdAt.slice(11, 19), monto_centavos: amount, cuenta_id: accountId,
           categoria_id: categoryId, payee: text(data.payee, 180) || null,
           descripcion: text(data.descripcion, 500) || type, nota: text(data.nota, 1200) || null,
@@ -1180,7 +1242,8 @@
         const targetBalance = Number(targetDoc.data().saldo_actual_centavos ?? targetDoc.data().saldo_inicial_centavos ?? 0);
         const movement = {
           id: movementId,
-          business_id: ctx.businessId, tipo: 'transferencia', fecha: text(data.fecha, 10) || createdAt.slice(0, 10),
+          business_id: ctx.businessId, tipo: 'transferencia', fecha: text(data.fecha, 10) || businessDay(createdAt),
+          source_timestamp: businessDay(data.fecha || createdAt) === businessDay(createdAt) ? createdAt : businessDay(data.fecha),
           hora: createdAt.slice(11, 19), monto_centavos: amount, comision_centavos: fee,
           cuenta_id: sourceId, cuenta_destino_id: targetId,
           descripcion: text(data.descripcion, 500) || 'Transferencia entre cuentas', nota: text(data.nota, 1200) || null,
@@ -1193,7 +1256,7 @@
             ledgerId: movementId, tipo: 'TRANSFERENCIA', categoria: 'Transferencia',
             descripcion: movement.descripcion, importeDopCentavos: amount,
             importeOriginalCentavos: amount, monedaOriginal: 'DOP', tipoCambio: '1',
-            estado: 'confirmado', fechaEfectiva: movement.fecha,
+            estado: 'confirmado', fechaEfectiva: movement.source_timestamp,
             cuentaOrigenId: sourceId, cuentaDestinoId: targetId,
             cuentaOrigenNombre: text(sourceDoc.data().nombre, 120),
             cuentaDestinoNombre: text(targetDoc.data().nombre, 120),
@@ -1241,10 +1304,18 @@
         const account = await transaction.get(accountRef);
         if (!account.exists || account.data().business_id !== ctx.businessId) throw new Error('La cuenta del movimiento no existe.');
         const current = Number(account.data().saldo_actual_centavos || 0);
+        const nextState = restoring ? 'registrado' : 'anulado';
+        const revised = window.DcarelaFinanceCore.reviseMovement({...row,id}, {...row,id,estado:nextState}, {revisionId:eventId,createdAt});
+        const validateRevision = (doc, accountId) => {
+          if (doc.data().reconciled_at && window.DcarelaFinanceCore.accountRevisionDelta({...doc.data(),id:accountId},revised) === null)
+            throw new Error('El movimiento no tiene hora comprobada y coincide con el dia del cuadre. Verifica su hora antes de corregirlo.');
+        };
+        validateRevision(account,row.cuenta_id);
         if (row.tipo === 'transferencia' && row.cuenta_destino_id) {
           const targetRef = d.collection('fin_accounts').doc(row.cuenta_destino_id);
           const target = await transaction.get(targetRef);
           if (!target.exists || target.data().business_id !== ctx.businessId) throw new Error('La cuenta destino no existe.');
+          validateRevision(target,row.cuenta_destino_id);
           const fee = Number(row.comision_centavos || 0);
           const direction = restoring ? -1 : 1;
           transaction.update(accountRef, { saldo_actual_centavos: current + direction * (amount + fee), updated_at: createdAt });
@@ -1255,10 +1326,11 @@
           transaction.update(accountRef, { saldo_actual_centavos: current + delta, updated_at: createdAt });
         }
         transaction.update(ref, { estado: restoring ? 'registrado' : 'anulado',
+          balance_effects:revised.balance_effects, balance_effect_version:1,
           motivo_anulacion: restoring ? null : text(data.motivo, 500), updated_at: createdAt });
         transaction.set(d.collection('sync_events').doc(eventId), eventDocument(ctx, eventId,
           'LedgerMovimientoRegistrado', 'fin_movements', id,
-          financeLedgerPayload({ ...row, id, estado: restoring ? 'registrado' : 'anulado', sync_event_id: eventId }, account.data()), createdAt));
+          financeLedgerPayload({ ...revised, sync_event_id: eventId }, account.data()), createdAt));
       });
       return { ok: true, id, message: restoring ? 'Movimiento restaurado.' : 'Movimiento anulado sin borrarlo.' };
     }
@@ -1422,7 +1494,8 @@
         const paymentPlan = window.DcarelaFinanceCore.planCommitmentPayment(commitment.data(), { ...data, montoCentavos: amount });
         const movement = {
           id: ledgerMovementId, business_id: ctx.businessId, tipo: 'gasto',
-          fecha: text(data.fecha, 10) || createdAt.slice(0, 10), hora: createdAt.slice(11, 19),
+          fecha: text(data.fecha, 10) || businessDay(createdAt), hora: createdAt.slice(11, 19),
+          source_timestamp: businessDay(data.fecha || createdAt) === businessDay(createdAt) ? createdAt : businessDay(data.fecha),
           monto_centavos: paymentPlan.mainAmount, cuenta_id: accountId, descripcion: `${paymentPlan.loan && paymentPlan.capital > 0 ? "Capital" : "Pago"}: ${text(commitment.data().nombre, 180)}`,
           nota: text(data.nota, 1200) || null, referencia: text(data.referencia, 180) || null,
           origen: 'panel', estado: 'registrado', afecta_resultado: paymentPlan.mainAffectsResult,
@@ -1981,7 +2054,15 @@
           const instant = Date.parse(item.source_timestamp || `${item.fecha}T00:00:00-04:00`);
           return Number.isFinite(instant) && instant >= fromTime && instant <= toTime;
         }).forEach(item => merged.set(financeMovementKey(item), item));
-      documents.forEach(item => merged.set(financeMovementKey(item), item));
+      documents.forEach(item => {
+        const key = financeMovementKey(item), event = merged.get(key);
+        // A late materialized document must not resurrect an older state over
+        // a newer immutable cancellation/edit. Preserve extra document fields.
+        const eventTime = Date.parse(event?.updated_at || '');
+        const documentTime = Date.parse(item.updated_at || item.created_at || '');
+        merged.set(key, event && Number.isFinite(documentTime) && eventTime > documentTime
+          ? {...item,...event} : {...event,...item});
+      });
       const ledger = [...merged.values()];
       return [...ledger, ...window.DcarelaFinanceCore.projectOperationsAsMovements(
         events, options.accounts || [], ledger, options)];
@@ -1997,6 +2078,8 @@
     async getFinanceJournal(businessId = 'dcarela', options = {}) {
       const core = window.DcarelaFinanceCore;
       const from = options.from || '', to = options.to || '';
+      const historyFrom = options.historyFrom || '';
+      if (historyFrom && !Number.isFinite(Date.parse(historyFrom))) throw new Error('Inicio del historial invalido.');
       if ((from && !Number.isFinite(Date.parse(from))) || (to && !Number.isFinite(Date.parse(to)))
         || (from && to && from > to)) throw new Error('Rango contable invalido.');
       // Las cuentas van primero porque de ellas sale hasta donde hay que mirar atras.
@@ -2014,7 +2097,7 @@
       // completo es obligatorio. Preferir tardar antes que ensenar un saldo incompleto.
       const cortes = accounts.map(item => item?.reconciled_at || item?.reconciledAt || '');
       const desde = cortes.length && cortes.every(Boolean)
-        ? [from, ...cortes].filter(Boolean).sort()[0]
+        ? [historyFrom, from, ...cortes].filter(Boolean).sort()[0]
         : '';
       const [preferences, events, documents] = await Promise.all([
         options.preferences || this.getFinancePreferences(businessId),
@@ -2107,6 +2190,20 @@
       if (!permissions.canUse) throw new Error('Tu cuenta no tiene permiso para usar la Caja virtual.');
       const id = text(requestId, 80) || uuid();
       const eventRef = ctx.d.collection('sync_events').doc(id);
+      const replayType = {'shift.open':'CajaAbierta','shift.close':'CajaCerrada','cash.move':data.tipo === 'salida' ? 'SalidaEfectivo' : 'EntradaEfectivo'}[action];
+      if (replayType) {
+        const prior = await optionalBusinessDocument(ctx, 'sync_events', id);
+        if (prior.exists) {
+          const row = prior.data();
+          if (row.event_type !== replayType || row.created_by_uid !== ctx.user.uid) throw new Error('El identificador pertenece a otra operacion.');
+          if (action === 'shift.open') {
+            const opened = await optionalBusinessDocument(ctx, 'cash_shifts', row.payload.turnoId);
+            if (!opened.exists) throw new Error('El turno registrado requiere revision.');
+            return {ok:true, shift:{id:opened.id,...opened.data()}, deduplicated:true};
+          }
+          return {ok:true, [action === 'shift.close' ? 'summary' : 'movement']:row.payload, deduplicated:true};
+        }
+      }
 
       if (action === 'shift.open') {
         const current = await openWebShift(ctx);
@@ -2209,7 +2306,7 @@
         const events = await this.getSyncEvents(ctx.businessId, {
           from: shift.abiertoEn || shift.opened_at,
           to: nowIso(),
-          limit: 1600,
+          complete: true,
         });
         const shiftEvents = events.filter(item => item.payload?.turnoId === shift.id);
         const sales = shiftEvents.filter(item => item.event_type === 'VentaCobrada');
@@ -2225,7 +2322,12 @@
           .reduce((sum, item) => sum + Number(item.payload?.montoCentavos || 0), 0);
         const exits = shiftEvents.filter(item => item.event_type === 'SalidaEfectivo')
           .reduce((sum, item) => sum + Number(item.payload?.montoCentavos || 0), 0);
-        const expected = ctx.businessId === 'plaza-artesanal' ? webShiftSummary(shift).expectedCashCentavos : Number(shift.montoAperturaCentavos || 0) + cash + tips + entries - exits;
+        const amountOf = item => Number(item.payload?.montoCentavos ?? item.payload?.monto_centavos ?? item.payload?.totalCentavos ?? 0);
+        const customerPayments = shiftEvents.filter(item => item.event_type === 'AbonoClienteRegistrado'
+          && String(item.payload?.metodo || item.payload?.metodoPago || item.payload?.metodo_pago || '').toLowerCase() === 'efectivo').reduce((sum,item) => sum+amountOf(item),0);
+        const refunds = shiftEvents.filter(item => item.event_type === 'DevolucionRegistrada'
+          && String(item.payload?.metodoReembolso || item.payload?.metodo || '').toLowerCase() === 'efectivo').reduce((sum,item) => sum+amountOf(item),0);
+        const expected = Number(shift.montoAperturaCentavos || 0) + cash + tips + customerPayments + entries - exits - refunds;
         const counted = integer(data.efectivoContadoCentavos, 'efectivo contado', 0);
         if(ctx.businessId==='plaza-artesanal' && counted!==expected && !text(data.nota,1000)) throw new Error('Documenta el motivo de la diferencia antes de cerrar.');
         const closedAt = nowIso();
@@ -2233,6 +2335,7 @@
           turnoId: shift.id, cajaId: shift.cajaId, cajaNombre: shift.cajaNombre,
           montoAperturaCentavos: Number(shift.montoAperturaCentavos || 0),
           ventasEfectivoCentavos: cash, propinasCentavos: tips,
+          abonosEfectivoCentavos: customerPayments, abonosClientesCentavos: customerPayments, devolucionesCentavos: refunds,
           entradasCentavos: entries, salidasCentavos: exits,
           efectivoEsperadoCentavos: expected, efectivoContadoCentavos: counted,
           diferenciaCentavos: counted - expected,
@@ -2243,17 +2346,10 @@
         await eventTransaction(ctx, id, 'CajaCerrada', async transaction => {
           const latest = await transaction.get(ctx.d.collection('cash_shifts').doc(shift.id));
           if(!latest.exists || latest.data().business_id!==ctx.businessId || latest.data().opened_by_uid!==ctx.user.uid || latest.data().status!=='open')throw new Error('El turno ya esta cerrado o pertenece a otro usuario.');
-          if(ctx.businessId==='plaza-artesanal') {
-            const summary=webShiftSummary(latest.data());
-            payload.efectivoEsperadoCentavos=summary.expectedCashCentavos;
-            payload.diferenciaCentavos=counted-summary.expectedCashCentavos;
-            payload.ventasEfectivoCentavos=summary.cashSalesCentavos;
-            payload.entradasCentavos=summary.entriesCentavos;
-            payload.salidasCentavos=summary.exitsCentavos;
-            payload.devolucionesCentavos=summary.cashRefundsCentavos;
-            payload.abonosClientesCentavos=summary.customerCashPaymentsCentavos;
-            if(payload.diferenciaCentavos!==0&&!text(data.nota,1000))throw new Error('Documenta el motivo de la diferencia antes de cerrar.');
-          }
+          // Reject a stale close instead of hiding a sale/movement that arrived
+          // while the full journal was being read. Retrying recalculates it.
+          const closingFields = ['updated_at','saleCount','cashSalesCentavos','entriesCentavos','exitsCentavos','customerCashPaymentsCentavos','cashRefundsCentavos'];
+          if (closingFields.some(field => latest.data()[field] !== shift[field])) throw new Error('La caja recibio movimientos mientras se preparaba el cierre. Actualiza y vuelve a contar antes de cerrar.');
           transaction.update(ctx.d.collection('cash_shifts').doc(shift.id), {
             status: 'closed', cerradoEn: closedAt, closed_at: closedAt,
             efectivoEsperadoCentavos: payload.efectivoEsperadoCentavos, efectivoContadoCentavos: counted,

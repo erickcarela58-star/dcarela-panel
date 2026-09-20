@@ -1,8 +1,9 @@
 (function(root, factory) {
-  const api = factory();
+  const revisions = typeof module === "object" && module.exports ? require('./finance-revision-core') : root?.DcarelaFinanceRevisions;
+  const api = factory(revisions);
   if (typeof module === "object" && module.exports) module.exports = api;
   if (root) root.DcarelaFinanceCore = api;
-})(typeof globalThis !== "undefined" ? globalThis : this, function() {
+})(typeof globalThis !== "undefined" ? globalThis : this, function(revisions) {
   "use strict";
 
   const BUSINESS_TIME_ZONE = "America/Santo_Domingo";
@@ -385,6 +386,7 @@
     const uniqueMovements = uniqueFinanceMovements(movements);
     const fromCheckpoint = Number.isFinite(account.reconciled_balance_centavos);
     return uniqueMovements.filter(item => {
+      if (fromCheckpoint && item.balance_effects != null) return true;
       if (!isActiveMovement(item)) return false;
       // fin_movements ya fue materializado en saldo_actual_centavos. Solo se
       // proyectan ventas y eventos del ledger Windows que aun no viven en la
@@ -395,6 +397,12 @@
       return item.origen === "pos_venta" || item.source === "pos_operation"
         || (item.source === "pos_sync_event" && !materializedOrigin);
     }).reduce((sum, item) => {
+      if (fromCheckpoint && item.balance_effects != null) {
+        if (!revisions) throw new Error('Falta el motor de revisiones. Actualiza el panel.');
+        const delta = revisions.accountRevisionDelta(account, item);
+        if (delta === null) throw new Error('Hay una correccion del mismo dia del cuadre sin hora comprobada. Requiere verificar el movimiento original.');
+        return sum + delta;
+      }
       const timestamp = new Date(item.source_timestamp || (item.fecha ? `${item.fecha}T23:59:59-04:00` : item.created_at)
         || `${item.fecha}T23:59:59-04:00`).getTime();
       if (!Number.isFinite(timestamp) || timestamp <= cutoff) return sum;
@@ -584,6 +592,14 @@
   }
 
   return {
+    reviseMovement: (...args) => {
+      if (!revisions) throw new Error('Falta el motor de revisiones. Actualiza el panel.');
+      return revisions.reviseMovement(...args);
+    },
+    accountRevisionDelta: (...args) => {
+      if (!revisions) throw new Error('Falta el motor de revisiones. Actualiza el panel.');
+      return revisions.accountRevisionDelta(...args);
+    },
     BUSINESS_TIME_ZONE,
     planAccountReconciliation,
     planCommitmentPayment,
