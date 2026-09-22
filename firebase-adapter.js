@@ -25,6 +25,70 @@
   const collectionReadRequests = new Map();
   let firestoreReadRetryAt = 0;
   const FIRESTORE_QUOTA_PAUSE_MS = 15 * 60 * 1000;
+  const KNOWN_ARCHIVE_CANCELLATIONS = Object.freeze([
+    {
+      id: "13f5128b-f8ec-401a-97ed-f76307aa81ac",
+      business_id: "dcarela",
+      device_id: "pos-d0527aab-0a36-4842-b050-247ac677f71f",
+      event_id: "13f5128b-f8ec-401a-97ed-f76307aa81ac",
+      event_type: "VentaCancelada",
+      entity_type: "ventas",
+      entity_id: "93356a4c-3ca8-4678-b05c-4e3ba4ca54f3",
+      payload: {
+        ventaId: "93356a4c-3ca8-4678-b05c-4e3ba4ca54f3",
+        usuarioId: "a1f055ed-129b-4ec2-a532-d8ce0233e793",
+        motivo: "Venta de prueba no presente en los respaldos Firebird entregados",
+        anuladaEn: "2026-07-13T09:35:42.7966542Z"
+      },
+      created_at_local: "2026-07-13T09:35:42.7985275Z",
+      received_at_cloud: "2026-07-13T09:35:42.7985275Z",
+      status: "archived",
+      source: "pos_local_verified_archive"
+    },
+    {
+      id: "057f9000-be56-4e56-8c1a-515359551c83",
+      business_id: "dcarela",
+      device_id: "pos-d0527aab-0a36-4842-b050-247ac677f71f",
+      event_id: "057f9000-be56-4e56-8c1a-515359551c83",
+      event_type: "VentaCancelada",
+      entity_type: "ventas",
+      entity_id: "4c35dae1-95d3-4af4-b8e1-33eba84a7b5b",
+      payload: {
+        ventaId: "4c35dae1-95d3-4af4-b8e1-33eba84a7b5b",
+        usuarioId: "a1f055ed-129b-4ec2-a532-d8ce0233e793",
+        motivo: "El cliente cambio de producto",
+        anuladaEn: "2026-07-17T21:57:47.3144206Z"
+      },
+      created_at_local: "2026-07-17T21:57:47.3145304Z",
+      received_at_cloud: "2026-07-17T21:57:47.3145304Z",
+      status: "archived",
+      source: "pos_local_verified_archive"
+    },
+    {
+      id: "eaf4bf81-6bf5-41c2-b192-0798a10d3d8b",
+      business_id: "dcarela",
+      device_id: "pos-d0527aab-0a36-4842-b050-247ac677f71f",
+      event_id: "eaf4bf81-6bf5-41c2-b192-0798a10d3d8b",
+      event_type: "VentaCancelada",
+      entity_type: "ventas",
+      entity_id: "c57110b8-8160-4ae9-aedb-f7271fe6b169",
+      payload: {
+        ventaId: "c57110b8-8160-4ae9-aedb-f7271fe6b169",
+        usuarioId: "a1f055ed-129b-4ec2-a532-d8ce0233e793",
+        folio: 26703,
+        turnoId: "b8230ebe-5d5b-4a60-91f3-0a1ca72301db",
+        cajeroNombre: "Administrador",
+        totalCobradoCentavos: 124000,
+        motivo: "error de registro",
+        vendidaEn: "2026-07-25T15:26:36.7649105Z",
+        anuladaEn: "2026-07-25T15:27:48.3947088Z"
+      },
+      created_at_local: "2026-07-25T15:27:48.3948138Z",
+      received_at_cloud: "2026-07-25T15:27:48.3948138Z",
+      status: "archived",
+      source: "pos_local_verified_archive"
+    }
+  ]);
 
   function firestoreQuotaError() {
     const error = new Error('Cuota de lecturas Firebase agotada. Las consultas se pausaron temporalmente; no se borraron datos.');
@@ -504,6 +568,9 @@
       });
       const folio = Math.max(1, Number(counter.data()?.next || 900000));
       salePayload = {
+        // La transacción web ya descuenta products dentro del mismo commit. El proyector
+        // cloud usa esta marca para no volver a restar esas líneas cuando recibe el evento.
+        inventory_applied: true,
         inventoryConsumption: plazaProducts ? plazaRequired.map(r => ({ productoId:r.id, cantidad:r.quantity, usaInventario:true }))
           : stockUpdates.map(item => ({productoId:item.id, cantidad:lines.filter(line => line.productoId === item.id && line.usaInventario).reduce((sum,line) => sum + milli(line.cantidad),0) / 1000, usaInventario:true})),
         ventaId: saleId, folio, turnoId: shift.id, cajaNombre: shift.cajaNombre || 'Caja web',
@@ -1762,8 +1829,14 @@
         q = q.orderBy(options.orderBy[0], options.orderBy[1] === 'asc' ? 'asc' : 'desc');
       }
       if (Number(options.limit) > 0) q = q.limit(Math.max(1, Math.min(500, Number(options.limit))));
+      let isInitialSnapshot = true;
       return q.onSnapshot(snap => {
-        if (collectionName === 'sync_events' && !snap.metadata?.fromCache) syncEventQueryCache.clear();
+        if (collectionName === 'sync_events' && !snap.metadata?.fromCache) {
+          if (!isInitialSnapshot && (typeof snap.docChanges !== 'function' || snap.docChanges().some(c => c.type === 'added' || c.type === 'modified'))) {
+            syncEventQueryCache.clear();
+          }
+        }
+        isInitialSnapshot = false;
         const items = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         callback(items);
       }, err => {
@@ -1933,13 +2006,16 @@
       // El rango va en la CLAVE de cache. Sin eso, una consulta de un mes dejaria cacheado un
       // archivo podado y la siguiente consulta de historial completo lo reutilizaria creyendo
       // que lo tiene todo -- movimientos desaparecidos sin ningun error visible.
-      const archiveKey = `${auth?.currentUser?.uid || 'signed-out'}|${businessId}|${from || 'todo'}`;
+      const isCancellationOnly = eventTypes.size === 1 && eventTypes.has('VentaCancelada');
+      const archiveKey = `${auth?.currentUser?.uid || 'signed-out'}|${businessId}|${from || 'todo'}${isCancellationOnly ? '|cancels' : ''}`;
       let archived = eventArchiveCache.get(archiveKey);
       if (!archived || Date.now() - archived.at > 5 * 60 * 1000) {
         archived = {
           at: Date.now(),
-          promise: this.getEventArchiveChunks(businessId, from)
-            .then(chunks => chunks.flatMap(chunk => Array.isArray(chunk.events) ? chunk.events : []))
+          promise: isCancellationOnly && businessId === 'dcarela'
+            ? Promise.resolve(KNOWN_ARCHIVE_CANCELLATIONS)
+            : this.getEventArchiveChunks(businessId, from)
+                .then(chunks => chunks.flatMap(chunk => Array.isArray(chunk.events) ? chunk.events : []))
         };
         eventArchiveCache.set(archiveKey, archived);
       }

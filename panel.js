@@ -127,6 +127,21 @@
   let lastReportExport = null;
   let lastTurnExport = null;
   let lastReconciliation = null;
+  let dashboardViewCache = null;
+  let ventasViewCache = null;
+  let cajaViewCache = null;
+  let turnosViewCache = null;
+  let reporteViewCache = null;
+
+  function invalidateViewCaches() {
+    dashboardViewCache = null;
+    ventasViewCache = null;
+    cajaViewCache = null;
+    turnosViewCache = null;
+    reporteViewCache = null;
+    clientPeriodSalesCache = { key: "", at: 0, rows: [] };
+    if (finStateCache) finStateCache._renderedAt = 0;
+  }
   let iaStatusCache = null;
   let iaConversationId = null;
   let iaConversations = [];
@@ -833,6 +848,7 @@
       costStateCache = null;
       finStateCache = null;
       alertasCache = null;
+      invalidateViewCaches();
       if (action !== "ui.preference.upsert") toast(result.message || "Cambio guardado en Firebase.");
       return result;
     }
@@ -851,6 +867,7 @@
     costStateCache = null;
     finStateCache = null;
     alertasCache = null;
+    invalidateViewCaches();
     if (action !== "ui.preference.upsert") toast(result.message || "Cambio guardado y enviado a sincronizacion.");
     return result;
   }
@@ -2048,11 +2065,29 @@
       : `Faltante de ${money(Math.abs(diferencia))}: revisa devueltas, salidas y denominaciones omitidas.`;
   }
 
-  async function cargarTurnos() {
+  function focusTurnoRow() {
+    const focus = sessionStorage.getItem("dcarela.turno.focus");
+    if (focus) {
+      sessionStorage.removeItem("dcarela.turno.focus");
+      const row = document.getElementById(`turn-${focus}`);
+      row?.classList.add("focused");
+      row?.scrollIntoView({ block: "center", behavior: "smooth" });
+    }
+  }
+
+  async function cargarTurnos(force = false) {
     if (!$("turDesde").value) {
       const today = inputDate(new Date());
       $("turDesde").value = today;
       $("turHasta").value = today;
+    }
+    const rangeKey = `${$("turDesde").value}|${$("turHasta").value}`;
+    if (!force && turnosViewCache && turnosViewCache.key === rangeKey && Date.now() - turnosViewCache.at < 60000) {
+      lastTurnExport = turnosViewCache.lastTurnExport;
+      $("turnosResumen").innerHTML = turnosViewCache.resumen;
+      $("turnosTabla").innerHTML = turnosViewCache.tabla;
+      focusTurnoRow();
+      return;
     }
     const from = inicioDia($("turDesde").value);
     const to = finDia($("turHasta").value);
@@ -2068,6 +2103,7 @@
 
     if (!turnos.length) {
       $("turnosTabla").innerHTML = '<div class="empty-state">No hay turnos ni arqueos en el rango seleccionado.</div>';
+      turnosViewCache = { key: rangeKey, at: Date.now(), lastTurnExport, resumen: $("turnosResumen").innerHTML, tabla: $("turnosTabla").innerHTML };
       return;
     }
     const rows = turnos.map(turno => {
@@ -2079,13 +2115,8 @@
       return `<tr class="turn-row" id="turn-${esc(turno.id)}"><td>${esc(fecha(turno.inicio))}</td><td>${turno.fin ? esc(fecha(turno.fin)) : "En curso"}</td><td>${esc(turno.cajero)}</td><td>${esc(turno.caja)}</td><td class="amount">${turno.apertura === null ? "--" : money(turno.apertura)}</td><td class="amount">${turno.entregar === null ? "--" : money(turno.entregar)}</td><td class="amount">${turno.esperado === null ? "--" : money(turno.esperado)}</td><td class="amount">${turno.contado === null ? "--" : money(turno.contado)}</td><td class="amount ${diferenciaClase}" title="${esc(turno.motivo)}">${esc(diferenciaTexto)}</td><td><span class="tag ${turno.estado === "cerrado" ? "ok" : "warn"}">${esc(turno.estado)}</span></td><td>${pista ? `<span class="cash-clue ${diferencia > 0 ? "surplus" : "shortage"}">${esc(pista)}</span>` : esc(turno.motivo || "Sin observaciones")}</td></tr>`;
     }).join("");
     $("turnosTabla").innerHTML = `<table><thead><tr><th>Entrada</th><th>Salida</th><th>Cajero(s)</th><th>Caja</th><th class="amount">Apertura</th><th class="amount">A entregar</th><th class="amount">Esperado fisico</th><th class="amount">Contado</th><th class="amount">Diferencia</th><th>Estado</th><th>Observacion</th></tr></thead><tbody>${rows}</tbody></table>`;
-    const focus = sessionStorage.getItem("dcarela.turno.focus");
-    if (focus) {
-      sessionStorage.removeItem("dcarela.turno.focus");
-      const row = document.getElementById(`turn-${focus}`);
-      row?.classList.add("focused");
-      row?.scrollIntoView({ block: "center", behavior: "smooth" });
-    }
+    focusTurnoRow();
+    turnosViewCache = { key: rangeKey, at: Date.now(), lastTurnExport, resumen: $("turnosResumen").innerHTML, tabla: $("turnosTabla").innerHTML };
   }
 
   const RECON_EVENT_TYPES = [
@@ -2700,7 +2731,10 @@
     return data || [];
   }
 
-  async function cargarDashboard() {
+  async function cargarDashboard(force = false) {
+    if (!force && dashboardViewCache && Date.now() - dashboardViewCache.at < 45000) {
+      return;
+    }
     try {
       let from = inicioDia();
       let to = finDia();
@@ -2772,7 +2806,9 @@
       ].map(([title, detail, value, tone]) => `<div class="health-row"><span class="health-dot ${tone}"></span><div><b>${esc(title)}</b><small>${esc(detail)}</small></div><span class="health-value">${esc(value)}</span></div>`).join("");
       renderAlertPreview();
       $("pillVivo").textContent = "en vivo";
+      dashboardViewCache = { at: Date.now() };
     } catch (dashErr) {
+      dashboardViewCache = null;
       console.warn("cargarDashboard auto-recovery:", dashErr);
       $("kVenta").textContent = "$0.00";
       $("kNum").textContent = "0";
@@ -3838,8 +3874,9 @@
       syncSaleMobileSummary();
       if (printAfter) setTimeout(printSaleReceipt, 80);
       cancelCache.at = 0;
+      invalidateViewCaches();
       toast(`Venta #${result.sale.folio} registrada y enviada a las cajas.`);
-      cargarVentas().catch(() => {});
+      cargarVentas(true).catch(() => {});
       if ((location.hash.slice(1) || "dashboard") === "caja-virtual") cargarCajaVirtual().catch(() => {});
     } catch (error) {
       if (error.status === 409 && /Inventario requiere confirmacion/i.test(error.message) && !inventoryReason && saleAccess.canForceInventory) {
@@ -3980,8 +4017,9 @@
       await saleApi("sale.cancel", { ventaId: saleId, motivo: reason, sourceEventId }, saleUuid());
       cerrarEditor();
       cancelCache.at = 0;
+      invalidateViewCaches();
       toast(`Venta #${folio || "--"} anulada y enviada a sincronizacion.`);
-      await cargarVentas();
+      await cargarVentas(true);
     }, "Anular venta");
   }
 
@@ -4404,10 +4442,26 @@
     updatePaymentMode();
   }
 
-  async function cargarVentas() {
+  function attachVentasEvents() {
+    document.querySelectorAll(".detail-toggle").forEach(button => button.addEventListener("click", () => $(button.dataset.detail).classList.toggle("oculto")));
+    $("ventasTabla").querySelectorAll("[data-turno]").forEach(button => button.addEventListener("click", () => {
+      sessionStorage.setItem("dcarela.turno.focus", button.dataset.turno);
+      location.hash = "turnos";
+    }));
+    $("ventasTabla").querySelectorAll("[data-cancel-sale]").forEach(button => button.addEventListener("click", () => cancelSaleWeb(button.dataset.cancelSale, button.dataset.cancelFolio, button.dataset.cancelEvent || "")));
+  }
+
+  async function cargarVentas(force = false) {
     if (!$("venDesde").value) {
       $("venDesde").value = inputDate(new Date(Date.now() - 30 * 86400000));
       $("venHasta").value = inputDate(new Date());
+    }
+    const rangeKey = `${$("venDesde").value}|${$("venHasta").value}`;
+    if (!force && ventasViewCache && ventasViewCache.key === rangeKey && Date.now() - ventasViewCache.at < 60000) {
+      $("ventasResumen").innerHTML = ventasViewCache.resumen;
+      $("ventasTabla").innerHTML = ventasViewCache.tabla;
+      attachVentasEvents();
+      return;
     }
     const from = inicioDia($("venDesde").value);
     const to = finDia($("venHasta").value);
@@ -4431,6 +4485,7 @@
     $("ventasResumen").innerHTML = metric("Ventas validas", String(active.length)) + metric("Total", money(total)) + metric("ITBIS", money(tax)) + metric("Anuladas excluidas", String(excluded));
     if (!active.length) {
       $("ventasTabla").innerHTML = '<div class="empty-state">Sin ventas validas en ese rango.</div>';
+      ventasViewCache = { key: rangeKey, at: Date.now(), resumen: $("ventasResumen").innerHTML, tabla: $("ventasTabla").innerHTML };
       return;
     }
     const rows = active.map((event, index) => {
@@ -4448,15 +4503,16 @@
         <tr id="sale-${index}" class="detail-row oculto"><td colspan="8"><div class="detail-box">${lines || "Sin lineas sincronizadas"}<br>Subtotal: ${money(payload.subtotalSinItbisCentavos)} | ITBIS: ${money(itbisDe(payload))} | Ajuste: ${money(payload.ajusteRedondeoCentavos)}${cuentasTransferencia.length ? `<br>Cuenta receptora: ${esc(cuentasTransferencia.join(" / "))}` : ""}${referenciaPago ? `<br>Referencia: ${esc(referenciaPago)}` : ""}${payload.nota ? `<br>Nota: ${esc(payload.nota)}` : ""}</div></td></tr>`;
     }).join("");
     $("ventasTabla").innerHTML = `<table><thead><tr><th>Fecha</th><th>Folio</th><th>Cajero</th><th>Turno</th><th>Metodo</th><th>Cliente</th><th class="amount">Total</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
-    document.querySelectorAll(".detail-toggle").forEach(button => button.addEventListener("click", () => $(button.dataset.detail).classList.toggle("oculto")));
-    $("ventasTabla").querySelectorAll("[data-turno]").forEach(button => button.addEventListener("click", () => {
-      sessionStorage.setItem("dcarela.turno.focus", button.dataset.turno);
-      location.hash = "turnos";
-    }));
-    $("ventasTabla").querySelectorAll("[data-cancel-sale]").forEach(button => button.addEventListener("click", () => cancelSaleWeb(button.dataset.cancelSale, button.dataset.cancelFolio, button.dataset.cancelEvent || "")));
+    attachVentasEvents();
+    ventasViewCache = { key: rangeKey, at: Date.now(), resumen: $("ventasResumen").innerHTML, tabla: $("ventasTabla").innerHTML };
   }
 
-  async function cargarCaja() {
+  async function cargarCaja(force = false) {
+    if (!force && cajaViewCache && Date.now() - cajaViewCache.at < 60000) {
+      $("cajaResumen").innerHTML = cajaViewCache.resumen;
+      $("cajaTabla").innerHTML = cajaViewCache.tabla;
+      return;
+    }
     const types = ["CajaAbierta", "CajaCerrada", "EntradaEfectivo", "SalidaEfectivo", "CierreConDiferencia", "TurnoCambiado"];
     const items = await eventos(types, null, null, 500);
     const closings = items.filter(item => item.event_type === "CajaCerrada");
@@ -4475,12 +4531,42 @@
         : "--";
       return [fecha(fechaEventoIso(event)), event.event_type, amount ? money(amount) : "--", payload.usuarioNombre || payload.cajeroNombre || "--", payload.motivo || payload.explicacion || payload.nota || "", diferenciaHtml];
     }, ["Fecha", "Evento", "Monto", "Usuario", "Motivo / nota", "Diferencia"]);
+    cajaViewCache = { at: Date.now(), resumen: $("cajaResumen").innerHTML, tabla: $("cajaTabla").innerHTML };
   }
 
-  async function cargarReporte() {
+  function attachReporteEvents() {
+    $("repGrafica").querySelectorAll("[data-report-day]").forEach(button => {
+      const abrirDia = () => {
+        const day = button.dataset.reportDay;
+        $("venDesde").value = day;
+        $("venHasta").value = day;
+        location.hash = "#ventas";
+        cargarVentas().catch(error => mostrarError("ventas", error));
+      };
+      button.addEventListener("click", abrirDia);
+      button.addEventListener("keydown", event => {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        event.preventDefault();
+        abrirDia();
+      });
+    });
+  }
+
+  async function cargarReporte(force = false) {
     if (!$("repDesde").value) {
       $("repDesde").value = inputDate(new Date(Date.now() - 29 * 86400000));
       $("repHasta").value = inputDate(new Date());
+    }
+    const rangeKey = `${$("repDesde").value}|${$("repHasta").value}`;
+    if (!force && reporteViewCache && reporteViewCache.key === rangeKey && Date.now() - reporteViewCache.at < 60000) {
+      lastReportExport = reporteViewCache.lastReportExport;
+      $("repResumen").innerHTML = reporteViewCache.resumen;
+      $("repGrafica").innerHTML = reporteViewCache.grafica;
+      $("repMetodos").innerHTML = reporteViewCache.metodos;
+      $("repPorDia").innerHTML = reporteViewCache.porDia;
+      $("repTop").innerHTML = reporteViewCache.top;
+      attachReporteEvents();
+      return;
     }
     const from = inicioDia($("repDesde").value);
     const to = finDia($("repHasta").value);
@@ -4543,24 +4629,20 @@
       productos: Object.entries(products).sort((a, b) => b[1] - a[1]).slice(0, 50)
     };
     $("repGrafica").innerHTML = days.length ? reportWaveChart(days) : '<div class="empty-state">Sin datos para graficar.</div>';
-    $("repGrafica").querySelectorAll("[data-report-day]").forEach(button => {
-      const abrirDia = () => {
-        const day = button.dataset.reportDay;
-        $("venDesde").value = day;
-        $("venHasta").value = day;
-        location.hash = "#ventas";
-        cargarVentas().catch(error => mostrarError("ventas", error));
-      };
-      button.addEventListener("click", abrirDia);
-      button.addEventListener("keydown", event => {
-        if (event.key !== "Enter" && event.key !== " ") return;
-        event.preventDefault();
-        abrirDia();
-      });
-    });
+    attachReporteEvents();
     $("repMetodos").innerHTML = tablaSimple(Object.entries(methods).sort((a, b) => b[1] - a[1]), ["Metodo", "Total"], value => money(value));
     $("repPorDia").innerHTML = tabla(days, ([day, value]) => [fechaCorta(`${day}T12:00:00`), value.sales, money(value.total), money(value.tax), money(value.refunds), money(value.total - value.refunds)], ["Dia", "Ventas", "Bruto", "ITBIS", "Devuelto", "Neto"]);
     $("repTop").innerHTML = tablaSimple(Object.entries(products).sort((a, b) => b[1] - a[1]).slice(0, 20), ["Producto", "Importe"], value => money(value));
+    reporteViewCache = {
+      key: rangeKey,
+      at: Date.now(),
+      lastReportExport,
+      resumen: $("repResumen").innerHTML,
+      grafica: $("repGrafica").innerHTML,
+      metodos: $("repMetodos").innerHTML,
+      porDia: $("repPorDia").innerHTML,
+      top: $("repTop").innerHTML
+    };
   }
 
   async function cargarInventario() {
@@ -6922,6 +7004,18 @@
       if (force || finStateCache?.month !== $("provMes").value) return cargarProveedores(force);
       return;
     }
+    if (!force && finStateCache && finStateCache.month === $("provMes").value && finStateCache.accounts?.length && Date.now() - (finStateCache._renderedAt || 0) < 60000) {
+      renderFinAccounts();
+      renderFinCards();
+      renderFinCommitments();
+      renderFinMovements();
+      renderFinPendingTransfers();
+      await renderFinBudgets();
+      renderFinSettings();
+      await renderFinDashboard();
+      if (moneyManagerCore && !$("v-money-manager")?.classList.contains("oculto")) renderMoneyManager();
+      return;
+    }
     const previousFinance = finStateCache;
     const previousCosts = costStateCache;
     financeLoad = cargarProveedoresData(force).catch(error => {
@@ -7043,6 +7137,7 @@
       await renderFinBudgets();
       renderFinSettings();
       await renderFinDashboard();
+      finStateCache._renderedAt = Date.now();
     }
     const syncStatus = $("finPosSyncStatus");
     if (syncStatus) {
@@ -7754,8 +7849,9 @@
         liveRefreshTimer = setTimeout(refreshWhenIdle, 1200);
         return;
       }
+      invalidateViewCaches();
       const view = location.hash.slice(1) || "dashboard";
-      if (view === "dashboard") cargarDashboard().catch(() => {});
+      if (view === "dashboard") cargarDashboard(true).catch(() => {});
       if (view === "notificaciones") cargarNotificaciones().catch(() => {});
       if (["ventas", "caja-virtual", "caja", "turnos", "recalcular", "reportes", "inventario", "clientes", "finanzas", "money-manager", "asistente", "configuracion"].includes(view)) cargarModulo(view).catch(() => {});
     };
@@ -7774,6 +7870,7 @@
           if (newest?.event_type === "VentaCancelada") cancelCache.at = 0;
           if (newest && COST_EVENTS.includes(newest.event_type)) costStateCache = null;
           alertasCache = null;
+          invalidateViewCaches();
           scheduleLiveRefresh();
         }, { orderBy: ["received_at_cloud", "desc"], limit: 80 }),
         window.DcarelaFirebase.listenCollection("system_alerts", [["business_id", "==", BUSINESS]], () => {
@@ -7793,6 +7890,7 @@
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "sync_events", filter: `business_id=eq.${BUSINESS}` }, change => {
         if (change.new?.event_type === "VentaCancelada") cancelCache.at = 0;
         if (COST_EVENTS.includes(change.new?.event_type)) costStateCache = null;
+        invalidateViewCaches();
         if (RELEVANT_EVENTS.includes(change.new?.event_type)) {
           alertasCache = null;
           const summary = resumenEvento(change.new);
@@ -8364,13 +8462,13 @@
     });
     window.addEventListener("keydown", handleSaleShortcut);
     updateSalePendingButton();
-    on("btnVentas", "click", () => cargarVentas().catch(error => mostrarError("ventas", error)));
-    on("btnTurnos", "click", () => cargarTurnos().catch(error => mostrarError("turnos", error)));
+    on("btnVentas", "click", () => cargarVentas(true).catch(error => mostrarError("ventas", error)));
+    on("btnTurnos", "click", () => cargarTurnos(true).catch(error => mostrarError("turnos", error)));
     on("btnTurnosPdf", "click", () => { try { descargarTurnosPdf(); } catch (error) { toast(error.message); } });
     on("btnRecalcular", "click", () => cargarRecalculador().catch(error => mostrarError("recalcular", error)));
     on("btnRecalcularPdf", "click", () => { try { descargarRecalculoPdf(); } catch (error) { toast(error.message); } });
     on("recDiferencia", "keydown", event => { if (event.key === "Enter") { event.preventDefault(); $("btnRecalcular").click(); } });
-    on("btnReporte", "click", () => cargarReporte().catch(error => mostrarError("reportes", error)));
+    on("btnReporte", "click", () => cargarReporte(true).catch(error => mostrarError("reportes", error)));
     on("btnReportePdf", "click", () => { try { descargarReportePdf(); } catch (error) { toast(error.message); } });
     document.querySelectorAll("[data-report-focus]").forEach(button => button.addEventListener("click", () => {
       document.querySelectorAll("[data-report-focus]").forEach(item => item.classList.toggle("act", item === button));
