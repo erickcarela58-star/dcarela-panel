@@ -105,6 +105,22 @@ Los siguientes saldos han sido verificados, consolidados y auditados directament
   3. Se avanzaron las próximas fechas de cobro en `cost_recurrents` a octubre de 2026 (`2026-10-18`).
   4. En el parser y asistente de WhatsApp se implementó la detección de frases como *"ya se había cobrado el 18"*, *"registra el gasto pero no cambies el saldo"* y *"suscripción de Adobe"*, activando el flag `no_cambiar_saldo` y asignando la fecha histórica sin alterar saldos bancarios consolidados.
 
+### IRREGULARIDAD 9: Inconsistencias de Contraste y Componentes entre Tema Oscuro y Tema Claro
+- **Ubicación:** `panel-theme.css`, `panel.css`, `panel.js`.
+- **Problemas detectados:**
+  1. **Botones `.primary` en Modo Oscuro:** Tenían `background: #09090b` sobre un lienzo de `#09090b`, quedando como texto blanco flotante sin bordes ni contraste sobre el fondo.
+  2. **Selector de ITBIS (`.itbis-opt.act`) en Modo Oscuro:** Tenía asignado dinámicamente `background: var(--navy); color: #FFF;`. En modo oscuro `--navy` equivale a `#fafafa` (blanco), resultando en texto blanco sobre fondo blanco (completamente ilegible).
+  3. **Teclado numérico y tipos de operación rápida (`.fin-quick-types`, `.fin-number-pad`) en Modo Oscuro:** Tenían `color: var(--navy)` sobre fondos blancos semi-transparentes (`rgba(255,255,255,.66)`), provocando números blancos sobre teclas blancas.
+  4. **Display de monto rápido (`.fin-quick-entry output`) en Modo Claro:** El modal era forzado oscuro (`#121216`) pero el output usaba `color: var(--navy)` que en modo claro es `#18181b` (casi negro), mostrando el monto en negro sobre fondo negro.
+  5. **Acciones de tabla (`.table-actions button`) en Modo Claro:** Tenían `color: #fafafa !important` fijo, haciendo el texto blanco invisible sobre filas de tabla claras.
+  6. **Menús desplegables (`select option`):** No tenían colores de fondo explícitos para Chromium en Windows, causando que algunas listas nativas se dibujaran con letras claras sobre fondo blanco.
+- **Correcciones aplicadas:**
+  - Sustitución de colores rígidos por tokens semánticos: `.primary` usa `color: var(--ui-canvas); background: var(--ui-text);` (alto contraste en ambos modos).
+  - Reglas dedicadas para `.fin-quick-types button`, `.fin-number-pad button`, `.itbis-opt` y `.itbis-opt.act` adaptativas a variables del tema.
+  - Eliminación de estilos `style="..."` inline en `panel.js` en favor de clases CSS.
+  - Soporte completo para `.editor-dialog` en `html[data-theme="light"]` y selectores `option` nativos con fondo explícito en ambos modos.
+  - Corrección de `.table-actions button` con `color: var(--ui-text)` y `.danger` accesible.
+
 ---
 
 ## 4. INSTRUCCIONES PARA ASISTENTES IA AUTOMATIZADOS

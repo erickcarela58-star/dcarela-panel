@@ -210,12 +210,15 @@ input:focus, select:focus, textarea:focus {
 html[data-theme="dark"] input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(1) opacity(.7); }
 
 .primary, .button-link {
-  color: #fff;
-  background: #09090b;
-  border-color: color-mix(in srgb, var(--ui-text) 22%, transparent);
+  color: var(--ui-canvas);
+  background: var(--ui-text);
+  border-color: var(--ui-text);
   box-shadow: 0 7px 18px rgba(9, 9, 11, .16);
 }
-.primary:hover, .button-link:hover { background: #27272a; transform: translateY(-1px); }
+.primary:hover, .button-link:hover {
+  filter: contrast(.9);
+  transform: translateY(-1px);
+}
 .secondary, .text-button, .icon-button {
   color: var(--ui-brand);
   background: var(--ui-surface);
@@ -590,6 +593,180 @@ tbody tr:hover { background: color-mix(in srgb, var(--ui-accent) 7%, transparent
   color: #ffffff !important;
 }
 
+html[data-theme="dark"] .editor-dialog select option {
+  color: #fafafa !important;
+  background: #18181b !important;
+}
+
+html[data-theme="light"] .editor-dialog {
+  background: rgba(255, 255, 255, .98) !important;
+  border: 1px solid rgba(24, 24, 27, .14) !important;
+  color: #18181b !important;
+  box-shadow: 0 25px 70px rgba(0, 0, 0, .2) !important;
+}
+html[data-theme="light"] .editor-header {
+  border-bottom: 1px solid rgba(24, 24, 27, .08) !important;
+}
+html[data-theme="light"] .editor-header h2 {
+  color: #18181b !important;
+}
+html[data-theme="light"] .editor-header p {
+  color: #71717a !important;
+}
+html[data-theme="light"] .editor-header #btnCerrarEditor {
+  color: #71717a !important;
+  background: rgba(24, 24, 27, .06) !important;
+  border: 1px solid rgba(24, 24, 27, .12) !important;
+}
+html[data-theme="light"] .editor-header #btnCerrarEditor:hover {
+  color: #18181b !important;
+  background: rgba(24, 24, 27, .14) !important;
+  border-color: rgba(24, 24, 27, .25) !important;
+}
+html[data-theme="light"] .editor-dialog input:not([type="checkbox"]),
+html[data-theme="light"] .editor-dialog select,
+html[data-theme="light"] .editor-dialog textarea {
+  background: #ffffff !important;
+  border: 1px solid rgba(24, 24, 27, .16) !important;
+  color: #18181b !important;
+}
+html[data-theme="light"] .editor-dialog input:focus,
+html[data-theme="light"] .editor-dialog select:focus,
+html[data-theme="light"] .editor-dialog textarea:focus {
+  border-color: #2563eb !important;
+  background: #ffffff !important;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, .2) !important;
+}
+html[data-theme="light"] .editor-dialog select option {
+  color: #18181b !important;
+  background: #ffffff !important;
+}
+html[data-theme="light"] .form-grid .checkbox-field {
+  background: rgba(24, 24, 27, .04) !important;
+  border: 1px solid rgba(24, 24, 27, .08) !important;
+  color: #18181b !important;
+}
+html[data-theme="light"] .form-grid .checkbox-field:hover {
+  background: rgba(24, 24, 27, .08) !important;
+  border-color: rgba(24, 24, 27, .16) !important;
+}
+html[data-theme="light"] .editor-dialog [data-frequency-field] {
+  background: rgba(24, 24, 27, .03) !important;
+  border: 1px solid rgba(24, 24, 27, .08) !important;
+}
+html[data-theme="light"] .editor-actions {
+  border-top: 1px solid rgba(24, 24, 27, .08) !important;
+}
+html[data-theme="light"] .editor-actions button.secondary {
+  background: rgba(24, 24, 27, .06) !important;
+  color: #18181b !important;
+  border: 1px solid rgba(24, 24, 27, .14) !important;
+}
+html[data-theme="light"] .editor-actions button.secondary:hover {
+  background: rgba(24, 24, 27, .12) !important;
+}
+
+/* Quick finance entry modal keypad and segmented buttons */
+.fin-quick-types {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+.fin-quick-types button {
+  color: var(--ui-text) !important;
+  background: var(--ui-surface-soft) !important;
+  border: 1px solid var(--ui-line) !important;
+  border-radius: 8px !important;
+  padding: 10px 4px !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  white-space: nowrap !important;
+  cursor: pointer !important;
+  transition: all .15s ease !important;
+}
+.fin-quick-types button:hover {
+  background: var(--ui-surface-strong) !important;
+  border-color: var(--ui-rim) !important;
+}
+.fin-quick-types button.act {
+  color: var(--ui-canvas) !important;
+  background: var(--ui-text) !important;
+  border-color: var(--ui-text) !important;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, .2) !important;
+}
+.fin-quick-entry output {
+  min-height: 78px !important;
+  display: grid !important;
+  place-items: center !important;
+  color: var(--ui-text) !important;
+  font-size: clamp(32px, 7vw, 48px) !important;
+  font-weight: 850 !important;
+  font-variant-numeric: tabular-nums !important;
+}
+.fin-number-pad {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+.fin-number-pad button {
+  height: 52px !important;
+  padding: 0 !important;
+  color: var(--ui-text) !important;
+  background: var(--ui-surface-soft) !important;
+  border: 1px solid var(--ui-line) !important;
+  border-radius: 8px !important;
+  font-size: 18px !important;
+  font-weight: 700 !important;
+  box-shadow: none !important;
+  cursor: pointer !important;
+  transition: all .12s ease !important;
+}
+.fin-number-pad button:hover {
+  background: var(--ui-surface-strong) !important;
+  border-color: var(--ui-rim) !important;
+  transform: translateY(-1px) !important;
+}
+.fin-number-pad button:active {
+  transform: scale(.96) !important;
+}
+
+/* ITBIS options in transfer and expense modals */
+.itbis-opt {
+  padding: 8px 14px !important;
+  border-radius: 6px !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  cursor: pointer !important;
+  border: 1px solid var(--ui-line) !important;
+  background: var(--ui-surface-soft) !important;
+  color: var(--ui-text) !important;
+  transition: all .15s ease !important;
+}
+.itbis-opt:hover {
+  background: var(--ui-surface-strong) !important;
+  border-color: var(--ui-rim) !important;
+}
+.itbis-opt.act {
+  color: var(--ui-canvas) !important;
+  background: var(--ui-text) !important;
+  border-color: var(--ui-text) !important;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, .18) !important;
+}
+
+.confirm-panel {
+  padding: 16px !important;
+  border: 1px solid var(--ui-line) !important;
+  border-radius: 8px !important;
+  background: var(--ui-surface-soft) !important;
+  color: var(--ui-text) !important;
+}
+.confirm-panel strong {
+  color: var(--ui-text) !important;
+}
+.confirm-panel p {
+  color: var(--ui-muted) !important;
+}
+
 /* High contrast tags and table actions across Finanzas */
 .tag.ok {
   color: #34d399 !important;
@@ -616,9 +793,9 @@ tbody tr:hover { background: color-mix(in srgb, var(--ui-accent) 7%, transparent
 .table-actions button {
   min-height: 28px !important;
   padding: 4px 10px !important;
-  color: #fafafa !important;
-  background: rgba(255, 255, 255, .08) !important;
-  border: 1px solid rgba(255, 255, 255, .15) !important;
+  color: var(--ui-text) !important;
+  background: var(--ui-surface-soft) !important;
+  border: 1px solid var(--ui-line) !important;
   border-radius: 6px !important;
   font-size: 11px !important;
   font-weight: 600 !important;
@@ -626,13 +803,21 @@ tbody tr:hover { background: color-mix(in srgb, var(--ui-accent) 7%, transparent
   transition: all .15s ease;
 }
 .table-actions button:hover:not(:disabled) {
-  background: rgba(255, 255, 255, .16) !important;
-  border-color: rgba(255, 255, 255, .28) !important;
+  background: var(--ui-surface-strong) !important;
+  border-color: var(--ui-rim) !important;
   transform: translateY(-1px);
 }
 .table-actions button:disabled {
   opacity: .4 !important;
   cursor: not-allowed;
+}
+.table-action.danger, .table-actions button.danger {
+  color: var(--ui-danger) !important;
+  border-color: color-mix(in srgb, var(--ui-danger) 35%, transparent) !important;
+  background: color-mix(in srgb, var(--ui-danger) 10%, transparent) !important;
+}
+.table-action.danger:hover, .table-actions button.danger:hover {
+  background: color-mix(in srgb, var(--ui-danger) 22%, transparent) !important;
 }
 
 .web-sale-picker,
@@ -4401,6 +4586,12 @@ svg[data-current-metric="true"] .current-metric-inner,
     color: #fafafa !important;
     border: 1px solid rgba(255, 255, 255, 0.12) !important;
     box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5) !important;
+  }
+  html[data-theme="light"] .auth-panel {
+    background: rgba(255, 255, 255, 0.96) !important;
+    color: #18181b !important;
+    border: 1px solid rgba(24, 24, 27, 0.14) !important;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.15) !important;
   }
 }
 

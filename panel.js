@@ -6446,8 +6446,8 @@
           b.style.color = "";
         });
         btn.classList.add("act");
-        btn.style.background = "var(--navy, #0A3679)";
-        btn.style.color = "#FFFFFF";
+        btn.style.background = "";
+        btn.style.color = "";
         activeRate = Number(btn.dataset.itbisRate || 0);
         if (activeRate === 0) {
           comisionInput.value = "0.00";
@@ -6476,8 +6476,8 @@
       <div class="field-wide">
         <label><span>¿Lleva impuesto / ITBIS bancario?</span></label>
         <div class="fin-itbis-buttons" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:4px;margin-bottom:6px;">
-          <button type="button" class="itbis-opt act" data-itbis-rate="0" style="padding:8px 12px;border-radius:6px;font-weight:700;cursor:pointer;background:var(--navy,#0A3679);color:#FFF;">Sin ITBIS</button>
-          <button type="button" class="itbis-opt" data-itbis-rate="0.002" style="padding:8px 12px;border-radius:6px;font-weight:700;cursor:pointer;">0.20% (RD$<span class="itbis-calc">0.00</span>)</button>
+          <button type="button" class="itbis-opt act" data-itbis-rate="0">Sin ITBIS</button>
+          <button type="button" class="itbis-opt" data-itbis-rate="0.002">0.20% (RD$<span class="itbis-calc">0.00</span>)</button>
         </div>
       </div>
       <label><span>Comision / ITBIS (RD$)</span><input name="comision" type="number" min="0" step="0.01" value="0.00"></label>
@@ -6537,8 +6537,8 @@
         <div class="field-wide">
           <label><span>¿Lleva impuesto / ITBIS bancario?</span></label>
           <div class="fin-itbis-buttons" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:4px;margin-bottom:6px;">
-            <button type="button" class="itbis-opt act" data-itbis-rate="0" style="padding:8px 12px;border-radius:6px;font-weight:700;cursor:pointer;background:var(--navy,#0A3679);color:#FFF;">Sin ITBIS</button>
-            <button type="button" class="itbis-opt" data-itbis-rate="0.002" style="padding:8px 12px;border-radius:6px;font-weight:700;cursor:pointer;">0.20% (RD$<span class="itbis-calc">0.00</span>)</button>
+            <button type="button" class="itbis-opt act" data-itbis-rate="0">Sin ITBIS</button>
+            <button type="button" class="itbis-opt" data-itbis-rate="0.002">0.20% (RD$<span class="itbis-calc">0.00</span>)</button>
           </div>
         </div>
         <label><span>Comision / ITBIS (RD$)</span><input name="comision" type="number" min="0" step="0.01" value="0.00"${esTransfer ? "" : " disabled"}></label>
@@ -6699,8 +6699,8 @@
       <div class="field-wide">
         <label><span>¿Lleva impuesto / ITBIS bancario?</span></label>
         <div class="fin-itbis-buttons" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:4px;margin-bottom:6px;">
-          <button type="button" class="itbis-opt act" data-itbis-rate="0" style="padding:8px 12px;border-radius:6px;font-weight:700;cursor:pointer;background:var(--navy,#0A3679);color:#FFF;">Sin ITBIS</button>
-          <button type="button" class="itbis-opt" data-itbis-rate="0.002" style="padding:8px 12px;border-radius:6px;font-weight:700;cursor:pointer;">0.20% (RD$<span class="itbis-calc">0.00</span>)</button>
+          <button type="button" class="itbis-opt act" data-itbis-rate="0">Sin ITBIS</button>
+          <button type="button" class="itbis-opt" data-itbis-rate="0.002">0.20% (RD$<span class="itbis-calc">0.00</span>)</button>
         </div>
       </div>
       <label><span>Comision / ITBIS (RD$)</span><input name="comision" type="number" min="0" step="0.01" value="0.00"></label>

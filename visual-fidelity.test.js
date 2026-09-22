@@ -27,3 +27,14 @@ test("reportes y finanzas usan areas SVG degradadas reales", () => {
   assert.match(panelJs, /--wave-fill:url\(#\$\{gradientId\}\)/);
   assert.match(panelJs, /--report-wave-fill:url\(#reportNetArea\)/);
 });
+
+test("los controles, modales, teclado y acciones de tabla conservan contraste accesible en tema claro y oscuro", () => {
+  assert.match(themeCss, /\.primary,\s*\.button-link\s*\{\s*color:\s*var\(--ui-canvas\)/);
+  assert.match(themeCss, /\.itbis-opt\.act\s*\{[\s\S]*?color:\s*var\(--ui-canvas\)/);
+  assert.doesNotMatch(panelJs, /class="itbis-opt[^"]*"[^>]*background:var\(--navy/);
+  assert.match(themeCss, /\.fin-quick-types button\.act\s*\{[\s\S]*?color:\s*var\(--ui-canvas\)/);
+  assert.match(themeCss, /\.fin-number-pad button\s*\{[\s\S]*?color:\s*var\(--ui-text\)/);
+  assert.match(themeCss, /html\[data-theme="light"\] \.editor-dialog\s*\{\s*background:\s*rgba\(255,\s*255,\s*255/);
+  assert.match(themeCss, /\.table-actions button\s*\{[\s\S]*?color:\s*var\(--ui-text\)/);
+});
+
