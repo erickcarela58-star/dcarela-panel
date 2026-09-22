@@ -96,6 +96,15 @@ Los siguientes saldos han sido verificados, consolidados y auditados directament
 - **Problema detectado:** Al navegar a Finanzas o Resumen, el sistema realizaba descargas repetidas de todos los eventos históricos (`sync_events`) y colecciones completas sin caché en memoria, tardando más de 12 segundos en terminales móviles o con conexiones lentas.
 - **Corrección aplicada:** Se implementó bypass de archivos históricos en consultas activas, caché en memoria de 60 segundos por rango de fechas (`finStateCache`, `reporteViewCache`, `cajaViewCache`) e invalidación reactiva inmediata solo ante nuevos eventos en tiempo real.
 
+### IRREGULARIDAD 8: Regularización de Suscripciones Históricas sin Alterar Saldos Conciliados
+- **Ubicación:** `whatsapp-finance-parser.js`, `whatsapp-owner-assistant.js`, `expenses` y `fin_movements`.
+- **Problema detectado:** Cuando el propietario indicaba que un compromiso o suscripción recurrente (como ChatGPT o Adobe) ya había sido cobrado en una fecha pasada (ej. 18 de septiembre), registrar el gasto hoy como gasto regular debitaba el saldo disponible del Banco Popular por segunda vez, o dejaba el compromiso como vencido e impago en septiembre.
+- **Corrección aplicada:**
+  1. Se regularizaron los gastos de **ChatGPT** (`RD$ 1,680.00`) y **Adobe** (`RD$ 1,675.04`) con fecha y `source_timestamp` del `2026-09-18T12:00:00.000Z`, vinculados a Banco Popular.
+  2. Al tener un timestamp anterior a `reconciled_at` (`2026-09-22T23:59:59-04:00`), `financeCore.effectiveAccountBalance` no los vuelve a restar del saldo base conciliado, manteniendo el Banco Popular en sus **RD$ 9,466.46** exactos.
+  3. Se avanzaron las próximas fechas de cobro en `cost_recurrents` a octubre de 2026 (`2026-10-18`).
+  4. En el parser y asistente de WhatsApp se implementó la detección de frases como *"ya se había cobrado el 18"*, *"registra el gasto pero no cambies el saldo"* y *"suscripción de Adobe"*, activando el flag `no_cambiar_saldo` y asignando la fecha histórica sin alterar saldos bancarios consolidados.
+
 ---
 
 ## 4. INSTRUCCIONES PARA ASISTENTES IA AUTOMATIZADOS
@@ -103,13 +112,16 @@ Los siguientes saldos han sido verificados, consolidados y auditados directament
 1. **Lectura obligatoria antes de operar:**
    - Antes de modificar saldos o registrar lotes, consulte `fin_accounts` y compruebe los campos `reconciled_balance_centavos` y `reconciled_at`.
    - Si una cuenta está conciliada a las `23:59:59-04:00`, cualquier gasto o movimiento con fecha de ese mismo día debe llevar un `source_timestamp` anterior al corte si ya está incluido en el saldo, o posterior si es un movimiento adicional.
-2. **Tratamiento del dinero en efectivo:**
+2. **Suscripciones y compromisos históricos:**
+   - Cuando el dueño indique que un pago o suscripción ya fue cobrado en el banco en días previos pero no estaba registrado, **NO** reduzca el saldo disponible actual.
+   - Genere el gasto con `source_timestamp` correspondiente a la fecha de cobro real (anterior a la conciliación) y avance la `proximaFecha` del recurrente en `cost_recurrents`.
+3. **Tratamiento del dinero en efectivo:**
    - El saldo de la cuenta `Efectivo` (`a8a05570-a058-4b59-935a-80a8e556d729`) representa el dinero físico disponible fuera de la caja registradora.
    - Las ventas del turno activo permanecen en la gaveta hasta la emisión de `CajaCerrada`.
    - Cuando se produzca el cierre, el monto a transferir a `Efectivo` es estrictamente `efectivoAEntregarCentavos`.
-3. **Gastos recurrentes y suscripciones:**
+4. **Gastos recurrentes y suscripciones:**
    - Toda suscripción recurrente debe tener su documento en `cost_recurrents`, su gasto en `expenses` y su movimiento en `fin_movements` con el evento `LedgerMovimientoRegistrado` en `sync_events`.
    - Ejemplo verificado: Antropic mensual RD$ 1,224.92 asignado a Banco Popular (`786b5ffd-169c-40f6-8fbc-8f0e6bc69a02`).
-4. **Despliegues y versionado PWA:**
+5. **Despliegues y versionado PWA:**
    - Cada modificación en el panel web debe incrementar el `build` en `app-version.json`, `index.html`, `mobile/index.html`, `panel.html` y `sw.js`.
    - La suite de 243 pruebas en `dcarela-panel-publish` debe ejecutarse con `node --test *.test.js` y aprobar al 100% antes de desplegar.
