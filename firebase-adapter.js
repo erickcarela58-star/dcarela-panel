@@ -2325,7 +2325,20 @@
       // original y debe poder ejecutarse aunque ese turno ya haya cerrado o la
       // venta provenga de una caja Windows.
       const requiresOpenShift = action === 'cash.move' || action === 'shift.close';
-      const shift = requiresOpenShift ? await openWebShift(ctx) : null;
+      let shift = null;
+      if (requiresOpenShift) {
+        if (data.turnoId) {
+          const rows = await DcarelaFirebase.getCashShifts(ctx.businessId, 250);
+          shift = rows.find(item => item.id === data.turnoId && item.status === 'open') || null;
+        }
+        if (!shift) {
+          shift = await openWebShift(ctx);
+        }
+        if (!shift && ['owner', 'admin'].includes(ctx.role)) {
+          const rows = await DcarelaFirebase.getCashShifts(ctx.businessId, 250);
+          shift = rows.find(item => item.status === 'open') || null;
+        }
+      }
       if (requiresOpenShift && !shift) throw new Error('No hay un turno web abierto.');
 
       if (action === 'cash.move') {
@@ -2418,14 +2431,17 @@
           abonosEfectivoCentavos: customerPayments, abonosClientesCentavos: customerPayments, devolucionesCentavos: refunds,
           entradasCentavos: entries, salidasCentavos: exits,
           efectivoEsperadoCentavos: expected, efectivoContadoCentavos: counted,
+          efectivoAEntregarCentavos: Math.max(0, counted - Number(shift.montoAperturaCentavos || 0)),
           diferenciaCentavos: counted - expected,
           conteoDenominaciones: Array.isArray(data.conteoDenominaciones) ? data.conteoDenominaciones : [],
           nota: text(data.nota, 1000) || null, abiertoEn: shift.abiertoEn || shift.opened_at,
           cerradoEn: closedAt, usuarioId: ctx.user.uid, usuarioNombre: ctx.user.email || 'Caja web Firebase'
         };
+        const isOwnerOrAdmin = ['owner', 'admin'].includes(String(ctx.role || '').toLowerCase());
         await eventTransaction(ctx, id, 'CajaCerrada', async transaction => {
           const latest = await transaction.get(ctx.d.collection('cash_shifts').doc(shift.id));
-          if(!latest.exists || latest.data().business_id!==ctx.businessId || latest.data().opened_by_uid!==ctx.user.uid || latest.data().status!=='open')throw new Error('El turno ya esta cerrado o pertenece a otro usuario.');
+          if(!latest.exists || latest.data().business_id!==ctx.businessId || latest.data().status!=='open') throw new Error('El turno ya esta cerrado o no pertenece al negocio.');
+          if(latest.data().opened_by_uid!==ctx.user.uid && !isOwnerOrAdmin) throw new Error('El turno pertenece a otro usuario y solo un administrador puede cerrarlo.');
           // Reject a stale close instead of hiding a sale/movement that arrived
           // while the full journal was being read. Retrying recalculates it.
           const closingFields = ['updated_at','saleCount','cashSalesCentavos','entriesCentavos','exitsCentavos','customerCashPaymentsCentavos','cashRefundsCentavos'];
