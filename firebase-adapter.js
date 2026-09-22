@@ -1417,7 +1417,7 @@
 
     if (action === 'fin.card.payment') {
       return firebaseAdminAction(ctx, 'fin.transfer.create', null, {
-        ...data, descripcion: data.nota || 'Pago de tarjeta', comisionCentavos: 0
+        ...data, descripcion: data.nota || 'Pago de tarjeta', comisionCentavos: Number(data.comisionCentavos || 0)
       });
     }
 
@@ -1738,7 +1738,11 @@
           const acotado = base.where('events_to', '>=', from);
           return filas(await readFirestoreQuery(acotado, JSON.stringify(['sync_event_archives', businessId, from])));
         } catch (error) {
-          if (error?.code !== 'failed-precondition') throw error;
+          const code = String(error?.code || '');
+          const isFailedPrecondition = code === 'failed-precondition'
+            || code === 'firestore/failed-precondition'
+            || /requires an index|FAILED_PRECONDITION/i.test(String(error?.message || ''));
+          if (!isFailedPrecondition) throw error;
         }
       }
       return filas(await readFirestoreQuery(base, JSON.stringify(['sync_event_archives', businessId, 'todo'])));

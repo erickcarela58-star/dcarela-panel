@@ -261,6 +261,7 @@
   };
   const finDia = value => {
     const d = value ? new Date(`${value}T23:59:59.999`) : new Date();
+    if (!value) d.setHours(23, 59, 59, 999);
     return d.toISOString();
   };
   const fechaEventoIso = event => P(event).vendidaEn || P(event).vendida_en
@@ -2748,18 +2749,13 @@
 
       let dayLabel = "hoy";
       if (!active.length) {
-        const recentSalesEvents = await eventos(["VentaCobrada"], null, null, 200).catch(() => []);
+        const recentSalesEvents = await eventos(["VentaCobrada"], null, null, 20).catch(() => []);
         if (recentSalesEvents.length) {
           const latestDateIso = fechaEventoIso(recentSalesEvents[0]);
-          if (latestDateIso) {
-            const latestDay = latestDateIso.slice(0, 10);
-            const latestActive = await ventasActivas(inicioDia(latestDay), finDia(latestDay), 5000).catch(() => null);
-            if (latestActive?.active?.length) {
-              active = latestActive.active;
-              excluded = latestActive.excluded;
-              dayLabel = `ultimo dia activo (${fechaCorta(latestDay + "T12:00:00")})`;
-            }
-          }
+          const latestDay = latestDateIso ? latestDateIso.slice(0, 10) : "";
+          dayLabel = latestDay ? `sin ventas hoy (último día activo: ${fechaCorta(latestDay + "T12:00:00")})` : "sin ventas hoy";
+        } else {
+          dayLabel = "sin ventas hoy";
         }
       }
 
@@ -6419,6 +6415,53 @@
     }, "Guardar conciliación");
   }
 
+  function bindTransferItbisOptions(container) {
+    if (!container) return;
+    const montoInput = container.querySelector("input[name=monto]") || container.querySelector("input[name=montoCentavos]");
+    const comisionInput = container.querySelector("input[name=comision]");
+    const buttons = container.querySelectorAll(".itbis-opt");
+    const calcLabel = container.querySelector(".itbis-calc");
+    if (!buttons.length || !comisionInput) return;
+
+    let activeRate = 0;
+
+    const updateCalc = () => {
+      let rawVal = 0;
+      if (montoInput) {
+        if (montoInput.type === "number") rawVal = Number(montoInput.value || 0);
+        else rawVal = numero(montoInput.value) / 100;
+      }
+      const itbisAmount = Math.round(rawVal * 0.002 * 100) / 100;
+      if (calcLabel) calcLabel.textContent = itbisAmount.toFixed(2);
+      if (activeRate > 0) {
+        comisionInput.value = itbisAmount.toFixed(2);
+      }
+    };
+
+    buttons.forEach(btn => {
+      btn.addEventListener("click", () => {
+        buttons.forEach(b => {
+          b.classList.remove("act");
+          b.style.background = "";
+          b.style.color = "";
+        });
+        btn.classList.add("act");
+        btn.style.background = "var(--navy, #0A3679)";
+        btn.style.color = "#FFFFFF";
+        activeRate = Number(btn.dataset.itbisRate || 0);
+        if (activeRate === 0) {
+          comisionInput.value = "0.00";
+        } else {
+          updateCalc();
+        }
+      });
+    });
+
+    if (montoInput) {
+      montoInput.addEventListener("input", updateCalc);
+    }
+  }
+
   function abrirTransferenciaFin() {
     const requestId = crypto.randomUUID();
     const accounts = (finStateCache?.accounts || []).filter(account => account.estado !== "eliminada" && !account.oculta);
@@ -6430,7 +6473,14 @@
       <label><span>Cuenta de origen</span><select name="cuentaOrigenId">${options(bank.id)}</select></label>
       <label><span>Cuenta de destino</span><select name="cuentaDestinoId">${options(target.id)}</select></label>
       <label><span>Monto (RD$)</span><input name="monto" type="number" min="0.01" step="0.01" required></label>
-      <label><span>Comision (RD$)</span><input name="comision" type="number" min="0" step="0.01" value="0.00"></label>
+      <div class="field-wide">
+        <label><span>¿Lleva impuesto / ITBIS bancario?</span></label>
+        <div class="fin-itbis-buttons" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:4px;margin-bottom:6px;">
+          <button type="button" class="itbis-opt act" data-itbis-rate="0" style="padding:8px 12px;border-radius:6px;font-weight:700;cursor:pointer;background:var(--navy,#0A3679);color:#FFF;">Sin ITBIS</button>
+          <button type="button" class="itbis-opt" data-itbis-rate="0.002" style="padding:8px 12px;border-radius:6px;font-weight:700;cursor:pointer;">0.20% (RD$<span class="itbis-calc">0.00</span>)</button>
+        </div>
+      </div>
+      <label><span>Comision / ITBIS (RD$)</span><input name="comision" type="number" min="0" step="0.01" value="0.00"></label>
       <label><span>Fecha</span><input name="fecha" type="date" required value="${inputDate(new Date())}"></label>
       <label class="field-wide"><span>Descripcion</span><input name="descripcion" maxlength="500" placeholder="Ej. Deposito de efectivo a Banco Popular"></label>
       <label class="field-wide"><span>Nota</span><textarea name="nota" rows="3" maxlength="1200"></textarea></label>`, async form => {
@@ -6443,6 +6493,7 @@
       cerrarEditor();
       await cargarProveedores(true);
     });
+    bindTransferItbisOptions($("editorFields"));
   }
 
   function finCategoryOptions(type, current = "") {
@@ -6483,7 +6534,14 @@
       <div id="finQuickTransfer" class="fin-quick-group${esTransfer ? "" : " oculto"}">
         <label><span>Cuenta de origen</span><select name="cuentaOrigenId"${esTransfer ? "" : " disabled"}>${accountOptions(bank && bank.id)}</select></label>
         <label><span>Cuenta de destino</span><select name="cuentaDestinoId"${esTransfer ? "" : " disabled"}>${accountOptions(otra && otra.id)}</select></label>
-        <label><span>Comision (RD$)</span><input name="comision" type="number" min="0" step="0.01" value="0.00"${esTransfer ? "" : " disabled"}></label>
+        <div class="field-wide">
+          <label><span>¿Lleva impuesto / ITBIS bancario?</span></label>
+          <div class="fin-itbis-buttons" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:4px;margin-bottom:6px;">
+            <button type="button" class="itbis-opt act" data-itbis-rate="0" style="padding:8px 12px;border-radius:6px;font-weight:700;cursor:pointer;background:var(--navy,#0A3679);color:#FFF;">Sin ITBIS</button>
+            <button type="button" class="itbis-opt" data-itbis-rate="0.002" style="padding:8px 12px;border-radius:6px;font-weight:700;cursor:pointer;">0.20% (RD$<span class="itbis-calc">0.00</span>)</button>
+          </div>
+        </div>
+        <label><span>Comision / ITBIS (RD$)</span><input name="comision" type="number" min="0" step="0.01" value="0.00"${esTransfer ? "" : " disabled"}></label>
       </div>
       <label><span>Fecha</span><input name="fecha" type="date" required value="${inputDate(new Date())}"></label>
       <label class="field-wide"><span>Descripcion</span><input name="descripcion" id="finQuickDesc" maxlength="500"${esTransfer ? "" : " required"} placeholder="Ej. Compra de materiales"></label>
@@ -6524,6 +6582,7 @@
       const cents = numero(digits || 0);
       amountInput.value = String(cents);
       $("finQuickAmount").textContent = money(cents);
+      amountInput.dispatchEvent(new Event("input"));
     };
     $("editorFields").querySelectorAll("[data-fin-key]").forEach(button => button.addEventListener("click", () => {
       if (button.dataset.finKey === "back") digits = digits.slice(0, -1);
@@ -6543,6 +6602,7 @@
       descInput.required = !transfer;
       if (!transfer) categoryInput.innerHTML = finCategoryOptions(nuevo);
     }));
+    bindTransferItbisOptions($("editorFields"));
   }
 
   function confirmarAnularMovimientoFin(movement) {
@@ -6629,21 +6689,33 @@
     const sources = state.accounts.filter(item => item.id !== accountId && item.tipo !== "tarjeta_credito" && !item.oculta);
     if (!card || !sources.length) { toast("Configura la tarjeta y una cuenta de pago antes de continuar."); return; }
     const sourceOptions = sources.map(item => `<option value="${esc(item.id)}"${selected(card.cuenta_pago_id, item.id)}>${esc(item.nombre)} &middot; ${money(finAccountBalance(item))}</option>`).join("");
+    const debtCents = Math.max(0, -finAccountBalance(account));
+    const debtValue = debtCents > 0 ? (debtCents / 100) : 0;
     abrirEditor("Pagar tarjeta", "Este pago reduce la cuenta de origen y la deuda de la tarjeta. No se registra como gasto otra vez.", `
-      <div class="confirm-panel field-wide"><strong>${esc(account.nombre)}</strong><p>Deuda actual: ${money(Math.max(0, -finAccountBalance(account)))}</p></div>
+      <div class="confirm-panel field-wide"><strong>${esc(account.nombre)}</strong><p>Deuda actual: ${money(debtCents)}</p></div>
       <label><span>Cuenta de origen</span><select name="cuentaOrigenId">${sourceOptions}</select></label>
       <input type="hidden" name="cuentaDestinoId" value="${esc(accountId)}">
-      <label><span>Monto (RD$)</span><input name="monto" type="number" min="0.01" step="0.01" required></label>
+      <label><span>Monto (RD$)</span><input name="monto" type="number" min="0.01" step="0.01" required value="${debtValue > 0 ? debtValue.toFixed(2) : ""}"></label>
+      <div class="field-wide">
+        <label><span>¿Lleva impuesto / ITBIS bancario?</span></label>
+        <div class="fin-itbis-buttons" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:4px;margin-bottom:6px;">
+          <button type="button" class="itbis-opt act" data-itbis-rate="0" style="padding:8px 12px;border-radius:6px;font-weight:700;cursor:pointer;background:var(--navy,#0A3679);color:#FFF;">Sin ITBIS</button>
+          <button type="button" class="itbis-opt" data-itbis-rate="0.002" style="padding:8px 12px;border-radius:6px;font-weight:700;cursor:pointer;">0.20% (RD$<span class="itbis-calc">0.00</span>)</button>
+        </div>
+      </div>
+      <label><span>Comision / ITBIS (RD$)</span><input name="comision" type="number" min="0" step="0.01" value="0.00"></label>
       <label><span>Fecha</span><input name="fecha" type="date" required value="${inputDate(new Date())}"></label>
       <label class="field-wide"><span>Nota</span><textarea name="nota" rows="2" maxlength="1200"></textarea></label>`, async form => {
       await adminWrite("fin.card.payment", null, {
         requestId,
         cuentaOrigenId: form.get("cuentaOrigenId"), cuentaDestinoId: accountId,
-        montoCentavos: centavosInput(form.get("monto")), fecha: form.get("fecha"), nota: form.get("nota"),
+        montoCentavos: centavosInput(form.get("monto")), comisionCentavos: centavosInput(form.get("comision") || "0"),
+        fecha: form.get("fecha"), nota: form.get("nota"),
       });
       cerrarEditor();
       await cargarProveedores(true);
     });
+    bindTransferItbisOptions($("editorFields"));
   }
 
   function abrirDivisaFin(currency = null) {

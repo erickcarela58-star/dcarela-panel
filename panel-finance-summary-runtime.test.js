@@ -52,3 +52,38 @@ test('consumo de tarjeta conserva centavos, cuenta y requestId incluso al reinte
  assert.equal(requests[0][2].montoCentavos,371263);assert.equal(requests[0][2].cuentaId,'qik');
  assert.ok(requests[0][2].requestId);assert.equal(requests[0][2].requestId,requests[1][2].requestId);
 });
+
+test('transferencia incluye selector de ITBIS 0.20% y Sin ITBIS calculando centavos exactos', async () => {
+ let formHtml;
+ const requests = [];
+ const code = source.slice(source.indexOf('  function bindTransferItbisOptions('), source.indexOf('  function finCategoryOptions('));
+ const accounts = [
+   { id: 'pop', nombre: 'Banco Popular', tipo: 'banco', estado: 'activa' },
+   { id: 'qik', nombre: 'Cuenta Corriente Qik', tipo: 'banco', estado: 'activa' }
+ ];
+ let submitCallback;
+ vm.runInNewContext(code + '\nabrirTransferenciaFin()', {
+   crypto: { randomUUID: () => 'trf-itbis-test' },
+   finStateCache: { accounts },
+   abrirEditor: (title, desc, html, callback) => { formHtml = html; submitCallback = callback; },
+   toast: () => {}, finAccountBalance: () => 100000, money: String, esc: String, selected: () => '',
+   inputDate: () => '2026-09-22', centavosInput: x => Math.round(Number(x) * 100),
+   adminWrite: async (...args) => requests.push(args), cerrarEditor: () => {}, cargarProveedores: async () => {},
+   $: () => ({ querySelector: () => null, querySelectorAll: () => [] })
+ });
+ assert.match(formHtml, /Sin ITBIS/);
+ assert.match(formHtml, /0\.20%/);
+ assert.match(formHtml, /name="comision"/);
+
+ const form = new Map([
+   ['cuentaOrigenId', 'pop'], ['cuentaDestinoId', 'qik'],
+   ['monto', '8100.00'], ['comision', '16.20'], ['fecha', '2026-09-22'],
+   ['descripcion', 'Transferencia con ITBIS'], ['nota', '']
+ ]);
+ await submitCallback(form);
+ assert.equal(requests[0][2].montoCentavos, 810000);
+ assert.equal(requests[0][2].comisionCentavos, 1620);
+ assert.equal(requests[0][2].cuentaOrigenId, 'pop');
+ assert.equal(requests[0][2].cuentaDestinoId, 'qik');
+});
+
