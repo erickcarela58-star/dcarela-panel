@@ -31,9 +31,9 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="favicon.svg">
   <link rel="apple-touch-icon" href="dcarela-logo.png">
-  <link rel="stylesheet" href="panel.css?v=2026.09.22.1.0.90.6">
-  <link rel="stylesheet" href="panel-theme.css?v=2026.09.22.1.0.90.6">
-  <link rel="stylesheet" href="visual-fidelity.css?v=2026.09.22.1.0.90.6">
+  <link rel="stylesheet" href="panel.css?v=2026.09.22.1.0.90.7">
+  <link rel="stylesheet" href="panel-theme.css?v=2026.09.22.1.0.90.7">
+  <link rel="stylesheet" href="visual-fidelity.css?v=2026.09.22.1.0.90.7">
 </head>
 <body>
   <section id="access" class="access-shell">
@@ -1108,10 +1108,11 @@
               <label><span>Monto</span><input id="salePaymentAmount" inputmode="decimal" value="0.00"></label>
               <label id="saleReferenceField" class="oculto"><span>Referencia</span><input id="saleReference" maxlength="180"></label>
               <label id="saleBankField" class="oculto"><span>Cuenta bancaria</span><select id="saleBankAccount"><option value="">Seleccionar</option></select></label>
+              <button id="btnSaleFillRemaining" class="secondary" type="button" title="Llenar con el monto restante por cobrar">Resto</button>
               <button id="btnSaleAddPayment" class="secondary" type="button">Agregar pago</button>
             </div>
             <div id="salePayments" class="sale-payments"></div>
-            <label id="saleCashReceivedField" class="sale-cash-received oculto"><span>Efectivo recibido</span><input id="saleCashReceived" inputmode="decimal" value="0.00"><small id="saleChange">Devuelta: RD$0.00</small></label>
+            <label id="saleCashReceivedField" class="sale-cash-received oculto"><span>Efectivo recibido</span><input id="saleCashReceived" inputmode="decimal" value="0.00"><div class="sale-cash-chips" id="saleCashChips"><button type="button" class="quick-chip" data-action="exact" title="Pagar monto exacto">Exacto</button><button type="button" class="quick-chip" data-add="100">+100</button><button type="button" class="quick-chip" data-add="200">+200</button><button type="button" class="quick-chip" data-add="500">+500</button><button type="button" class="quick-chip" data-add="1000">+1,000</button><button type="button" class="quick-chip" data-add="2000">+2,000</button><button type="button" class="quick-chip" data-action="clear" title="Limpiar monto">Limpiar</button></div><small id="saleChange">Devuelta: RD$0.00</small></label>
             </div>
           </details>
           <p id="saleError" class="error" role="alert"></p>
@@ -1171,19 +1172,19 @@
   <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
-  <script src="finance-revision-core.js?v=2026.09.22.1.0.90.6"></script>
-  <script src="finance-core.js?v=2026.09.22.1.0.90.6"></script>
-  <script src="money-manager-core.js?v=2026.09.22.1.0.90.6"></script>
-  <script src="client-period-filter.js?v=2026.09.22.1.0.90.6"></script>
-  <script src="virtual-cash-core.js?v=2026.09.22.1.0.90.6"></script>
-  <script src="firebase-adapter.js?v=2026.09.22.1.0.90.6"></script>
-  <script src="assistant-local.js?v=2026.09.22.1.0.90.6"></script>
+  <script src="finance-revision-core.js?v=2026.09.22.1.0.90.7"></script>
+  <script src="finance-core.js?v=2026.09.22.1.0.90.7"></script>
+  <script src="money-manager-core.js?v=2026.09.22.1.0.90.7"></script>
+  <script src="client-period-filter.js?v=2026.09.22.1.0.90.7"></script>
+  <script src="virtual-cash-core.js?v=2026.09.22.1.0.90.7"></script>
+  <script src="firebase-adapter.js?v=2026.09.22.1.0.90.7"></script>
+  <script src="assistant-local.js?v=2026.09.22.1.0.90.7"></script>
   <script src="jspdf.umd.min.js"></script>
   <script src="jspdf.plugin.autotable.min.js"></script>
-  <script src="ticket-termico.js?v=2026.09.22.1.0.90.6"></script>
-  <script src="panel-sale-pending.js?v=2026.09.22.1.0.90.6"></script>
-  <script src="panel.js?v=2026.09.22.1.0.90.6"></script>
-  <script src="visual-fidelity.js?v=2026.09.22.1.0.90.6"></script>
+  <script src="ticket-termico.js?v=2026.09.22.1.0.90.7"></script>
+  <script src="panel-sale-pending.js?v=2026.09.22.1.0.90.7"></script>
+  <script src="panel.js?v=2026.09.22.1.0.90.7"></script>
+  <script src="visual-fidelity.js?v=2026.09.22.1.0.90.7"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));

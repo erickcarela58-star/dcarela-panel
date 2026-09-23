@@ -3575,6 +3575,30 @@ html[data-theme].embedded-panel .update-platform-card:last-child {
   color: var(--ui-danger);
 }
 
+.sale-cash-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.sale-cash-chips button {
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 6px;
+  background: var(--ui-input, rgba(32, 32, 35, .95));
+  color: var(--ui-text, #fafafa);
+  border: 1px solid var(--ui-line, rgba(255, 255, 255, .10));
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.sale-cash-chips button:hover {
+  background: var(--ui-surface-soft, rgba(39, 39, 42, .72));
+  border-color: var(--ui-rim, rgba(255, 255, 255, .16));
+}
+
 .sale-final-actions {
   position: sticky;
   bottom: -14px;

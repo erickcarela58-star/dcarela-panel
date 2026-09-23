@@ -8484,6 +8484,28 @@
     on("saleTip", "input", () => { try { updateSaleCashChange(); } catch {} });
     on("salePaymentMethod", "change", updateSalePaymentFields);
     on("saleCashReceived", "input", () => { try { updateSaleCashChange(); } catch {} });
+    on("saleCashChips", "click", event => {
+      const chip = event.target.closest("button");
+      if (!chip) return;
+      const due = saleExactTotals().total + centavosInput($("saleTip")?.value || "0");
+      if (chip.dataset.action === "exact") {
+        $("saleCashReceived").value = pesoInput(due);
+      } else if (chip.dataset.action === "clear") {
+        $("saleCashReceived").value = "0.00";
+      } else if (chip.dataset.add) {
+        const addAmount = Number(chip.dataset.add) * 100;
+        let current = 0;
+        try { current = centavosInput($("saleCashReceived").value || "0"); } catch {}
+        $("saleCashReceived").value = pesoInput(current + addAmount);
+      }
+      try { updateSaleCashChange(); } catch {}
+      $("saleCashReceived").focus();
+    });
+    on("btnSaleFillRemaining", "click", () => {
+      syncSalePaymentDraft(true);
+      $("salePaymentAmount").focus();
+      $("salePaymentAmount").select();
+    });
     on("btnSaleAddPayment", "click", () => { try { addSalePayment(); } catch (error) { toast(error.message); } });
     on("btnSaleSubmit", "click", () => submitSale());
     on("btnSaleSubmitPrint", "click", previewCurrentTicket);
