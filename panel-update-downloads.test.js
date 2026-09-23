@@ -45,9 +45,15 @@ test("el manifiesto publica el instalador y las dos IPA con integridad verificab
   assert.ok(desktop);
   assert.match(manifest.desktop_release.release_url, /\.exe$/i);
   assert.equal(desktop.url, manifest.desktop_release.release_url);
+  assert.equal(desktop.version, manifest.desktop_version);
+  assert.equal(desktop.sha256, manifest.desktop_release.sha256);
+  assert.equal(desktop.size_bytes, manifest.desktop_release.size_bytes);
   const plaza = manifest.downloads.find(file => file.business_id === "plaza-artesanal");
   if (plaza) {
     assert.equal(plaza.url, manifest.desktop_releases["plaza-artesanal"].release_url);
+    assert.equal(plaza.version, manifest.desktop_releases["plaza-artesanal"].version);
+    assert.equal(plaza.sha256, manifest.desktop_releases["plaza-artesanal"].sha256);
+    assert.equal(plaza.size_bytes, manifest.desktop_releases["plaza-artesanal"].size_bytes);
     assert.match(plaza.url, /DCARELA_PLAZA_ARTESANAL_/);
     assert.notEqual(plaza.url, desktop.url);
   }
