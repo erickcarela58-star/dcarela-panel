@@ -24,7 +24,7 @@
     document.body?.classList.add("is-embedded");
   }
   const THEME_KEY = "dcarela.ui.theme";
-  const APP_BUILD = "1.0.90";
+  const APP_BUILD = "1.0.91";
   const financeCore = window.DcarelaFinanceCore;
   const moneyManagerCore = window.DcarelaMoneyManagerCore;
 
@@ -5438,12 +5438,13 @@
     return rows;
   }
 
-  async function cargarCuentasFin(month) {
+  async function cargarCuentasFin(month, historyFrom = "") {
     let cuentasRes, accountVisualsRes, catsRes, movs = [], cardsRes, budgetsRes, preferencesRes, currenciesRes, cumuloRes, commitmentsRes, commitmentPaymentsRes, pendingTransfersRes;
+    let journalRequest = null;
     try {
       if (authProvider === "firebase") {
         if (!window.DcarelaFirebase?.isAvailable) throw new Error("Firebase no está disponible.");
-        const results = await Promise.allSettled([
+        const requests = [
           window.DcarelaFirebase.getFinanceAccounts(BUSINESS),
           window.DcarelaFirebase.getFinanceCategories(BUSINESS),
           // El diario verificado se carga una sola vez mas abajo con
@@ -5458,7 +5459,16 @@
           window.DcarelaFirebase.getFinanceCommitments(BUSINESS),
           window.DcarelaFirebase.getFinanceCommitmentPayments(BUSINESS),
           window.DcarelaFirebase.getFinancePendingTransfers(BUSINESS)
-        ]);
+        ];
+        // El diario solo depende de cuentas y preferencias. Iniciarlo en cuanto
+        // lleguen esas dos lecturas evita esperar por tarjetas, presupuestos y
+        // obligaciones antes de empezar a verificar ventas y saldos.
+        journalRequest = Promise.all([requests[0], requests[5].catch(() => null)])
+          .then(([accounts, preferences]) => window.DcarelaFirebase.getFinanceJournal(BUSINESS, {
+            accounts, preferences, historyFrom
+          }));
+        journalRequest.catch(() => {});
+        const results = await Promise.allSettled(requests);
         const required = (index, label) => {
           if (results[index].status === "rejected") {
             throw new Error(`No se pudo cargar ${label}: ${results[index].reason?.message || results[index].reason}`);
@@ -5528,7 +5538,7 @@
     };
     // Do not render provisional empty movements while the verified journal is
     // still loading. The final render below owns the whole financial snapshot.
-    if (authProvider === "firebase") return;
+    if (authProvider === "firebase") return { journalRequest };
     dispararAlertaCumuloMensual();
     finDashboardPeriod = finStateCache.preferences?.periodo_dashboard || finDashboardPeriod;
     if (authProvider !== "firebase") renderFinAccounts();
@@ -7108,16 +7118,15 @@
     // Start independent reads together; accounts can render while POS history loads.
     const historyRequest = Promise.all([cargarCostosCloud(force), authProvider === "firebase" ? null : ventasActivas(from, to, 20000)]);
     historyRequest.catch(() => {});
+    let accountLoad;
     try {
       // Money Manager debe existir antes de proyectar las ventas. Antes se
       // intentaba integrar contra null y luego esta carga borraba la proyeccion.
-      await cargarCuentasFin(month);
+      accountLoad = await cargarCuentasFin(month, from);
     } catch (error) {
       throw error;
     }
-    const journal = authProvider === "firebase" ? await window.DcarelaFirebase.getFinanceJournal(BUSINESS, {
-      accounts: finStateCache.accounts, preferences: finStateCache.preferences, historyFrom: from
-    }) : null;
+    const journal = authProvider === "firebase" ? await accountLoad.journalRequest : null;
     const [state, legacySalesResult] = await historyRequest;
     const monthSales = journal?.sales.filter(event => financeCore.eventDay(event).startsWith(month)) || [];
     const rawMonthSales = journal?.saleEvents.filter(event => financeCore.eventDay(event).startsWith(month)) || [];

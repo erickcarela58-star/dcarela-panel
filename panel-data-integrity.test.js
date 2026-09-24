@@ -56,7 +56,7 @@ test("los rangos contables unen eventos actuales y archivos retenidos", () => {
 test("Money Manager limita el ledger al mes y tolera modulos secundarios", () => {
   const financeMethod = adapter.slice(adapter.indexOf("async getFinanceMovements"), adapter.indexOf("async webSaleAction"));
   assert.match(financeMethod, /getSyncEvents\(businessId, \{ from, to, limit: SYNC_EVENT_MAX_BATCH,[\s\S]{0,120}includeArchives: true, eventTypes: \['LedgerMovimientoRegistrado'\] \}\)/);
-  assert.match(panel, /const results = await Promise\.allSettled\(\[/);
+  assert.match(panel, /const results = await Promise\.allSettled\(requests\)/);
   assert.match(panel, /const accounts = required\(0, "las cuentas financieras"\)/);
   assert.match(panel, /const budgets = required\(4, "los presupuestos"\)/);
 });
@@ -75,7 +75,7 @@ test("Finanzas abre en el dia comercial de Santo Domingo y no en UTC", () => {
 });
 
 test("Finanzas integra las ventas activas del POS y muestra su procedencia", () => {
-  const loadAccountsAt = panel.indexOf("await cargarCuentasFin(month);");
+  const loadAccountsAt = panel.indexOf("await cargarCuentasFin(month, from);");
   const projectSalesAt = panel.indexOf("integratedSales = financeCore.projectSalePaymentsAsMovements");
   assert.ok(loadAccountsAt >= 0 && projectSalesAt > loadAccountsAt,
     "Money Manager debe cargar antes de proyectar ventas");
