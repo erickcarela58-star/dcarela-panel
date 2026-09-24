@@ -24,7 +24,7 @@
     document.body?.classList.add("is-embedded");
   }
   const THEME_KEY = "dcarela.ui.theme";
-  const APP_BUILD = "1.0.91";
+  const APP_BUILD = "1.0.92";
   const financeCore = window.DcarelaFinanceCore;
   const moneyManagerCore = window.DcarelaMoneyManagerCore;
 
@@ -2122,7 +2122,7 @@
 
   const RECON_EVENT_TYPES = [
     "VentaCobrada", "VentaCancelada", "CajaAbierta", "CajaCerrada", "CierreConDiferencia",
-    "EntradaEfectivo", "SalidaEfectivo", "DevolucionRegistrada", "AbonoClienteRegistrado"
+    "EntradaEfectivo", "SalidaEfectivo", "DevolucionRegistrada", "AbonoClienteRegistrado", "AbonoClienteDevuelto"
   ];
 
   const folioVenta = event => {
@@ -2376,6 +2376,7 @@
       else if (event.event_type === "SalidaEfectivo") item.exits += montoDe(payload);
       else if (event.event_type === "DevolucionRegistrada" && String(payload.metodoReembolso || "").toLowerCase() === "efectivo") item.refunds += montoDe(payload);
       else if (event.event_type === "AbonoClienteRegistrado" && metodoDe(payload) === "efectivo") item.cashPayments += montoDe(payload);
+      else if (event.event_type === "AbonoClienteDevuelto" && metodoDe(payload) === "efectivo") item.cashPayments -= montoDe(payload);
     });
     activeSales.forEach(event => {
       const turnId = identificadorTurno(event) || "sin-turno";

@@ -428,7 +428,7 @@
   }
 
   const OPERATION_EVENT_TYPES = ["GastoRegistrado", "GastoEditado", "GastoAnulado", "GastoEliminado",
-    "AbonoClienteRegistrado", "EntradaEfectivo", "SalidaEfectivo"];
+    "AbonoClienteRegistrado", "AbonoClienteDevuelto", "EntradaEfectivo", "SalidaEfectivo"];
 
   function projectOperationsAsMovements(events, accounts, represented = [], options = {}) {
     const latest = new Map();
@@ -449,8 +449,9 @@
       if (!expense && expenseCashIds.has(id)) return [];
       const entry = event.event_type === "EntradaEfectivo";
       if (entry && p.origenEntrada !== "dinero_cliente") return [];
-      const abono = event.event_type === "AbonoClienteRegistrado";
-      const type = expense || event.event_type === "SalidaEfectivo" ? "gasto" : "ingreso";
+      const refund = event.event_type === "AbonoClienteDevuelto";
+      const abono = refund || event.event_type === "AbonoClienteRegistrado";
+      const type = expense || refund || event.event_type === "SalidaEfectivo" ? "gasto" : "ingreso";
       const accountId = salePaymentAccount({ method: p.metodo || p.metodoPago || "efectivo",
         account_id: p.cuentaFinancieraId || p.cuentaId, account_name: p.cuentaFinancieraNombre }, accounts, options);
       const timestamp = p.fecha || p.registradoEn || event.created_at_local;
@@ -459,9 +460,9 @@
         estado: /Anulado|Eliminado/.test(event.event_type) || p.activo === false ? "anulado" : "registrado",
         monto_centavos: p.montoCentavos, cuenta_id: accountId, fecha: businessDay(timestamp),
         source_timestamp: timestamp, source: "pos_operation", origen: "caja_operacion",
-        descripcion: p.descripcion || p.motivo || (abono ? "Abono de cliente" : "Movimiento de caja"),
+        descripcion: p.descripcion || p.motivo || (refund ? "Devolucion de abono de cliente" : abono ? "Abono de cliente" : "Movimiento de caja"),
         payee: p.clienteNombre || null, nota: p.nota || null, categoria_id: p.categoriaId || null,
-        afecta_resultado: type === "gasto", gasto_id: expense ? id : null,
+        afecta_resultado: type === "gasto" && !refund, gasto_id: expense ? id : null,
         caja_movimiento_id: expense ? p.movimientoCajaId : !abono ? id : null,
         abono_id: abono ? id : null, sync_event_id: event.event_id || event.id, solo_lectura: true,
       })];

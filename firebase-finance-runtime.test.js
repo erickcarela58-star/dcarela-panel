@@ -91,6 +91,16 @@ test('Cierre Central incluye abonos, propinas y devoluciones, exige lectura comp
   assert.equal(retry.summary.efectivoEsperadoCentavos,30500);
   assert.equal(retry.deduplicated,true);
 });
+test('Cierre: devolver un abono de un corte anterior resta el efectivo actual', async () => {
+  const h=harness();
+  h.docs.set('cash_shifts/shift',{...h.docs.get('cash_shifts/shift'),montoAperturaCentavos:10000});
+  h.api.getSyncEvents = async () => [{event_type:'AbonoClienteDevuelto',payload:{turnoId:'shift',metodo:'efectivo',montoCentavos:3000}}];
+  const result = await h.api.webSaleAction('shift.close','test','admin',{efectivoContadoCentavos:7000},'refund-cut');
+  assert.equal(result.summary.efectivoEsperadoCentavos,7000);
+  assert.equal(result.summary.abonosEfectivoCentavos,-3000);
+  assert.equal(result.summary.diferenciaCentavos,0);
+});
+
 function harness(role='admin',business='test') {
   let rejectCommit=false;
   const docs = new Map([

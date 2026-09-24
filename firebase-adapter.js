@@ -2416,8 +2416,8 @@
         const exits = shiftEvents.filter(item => item.event_type === 'SalidaEfectivo')
           .reduce((sum, item) => sum + Number(item.payload?.montoCentavos || 0), 0);
         const amountOf = item => Number(item.payload?.montoCentavos ?? item.payload?.monto_centavos ?? item.payload?.totalCentavos ?? 0);
-        const customerPayments = shiftEvents.filter(item => item.event_type === 'AbonoClienteRegistrado'
-          && String(item.payload?.metodo || item.payload?.metodoPago || item.payload?.metodo_pago || '').toLowerCase() === 'efectivo').reduce((sum,item) => sum+amountOf(item),0);
+        const customerPayments = shiftEvents.filter(item => ['AbonoClienteRegistrado', 'AbonoClienteDevuelto'].includes(item.event_type)
+          && String(item.payload?.metodo || item.payload?.metodoPago || item.payload?.metodo_pago || '').toLowerCase() === 'efectivo').reduce((sum,item) => sum + (item.event_type === 'AbonoClienteDevuelto' ? -1 : 1) * amountOf(item),0);
         const refunds = shiftEvents.filter(item => item.event_type === 'DevolucionRegistrada'
           && String(item.payload?.metodoReembolso || item.payload?.metodo || '').toLowerCase() === 'efectivo').reduce((sum,item) => sum+amountOf(item),0);
         const expected = Number(shift.montoAperturaCentavos || 0) + cash + tips + customerPayments + entries - exits - refunds;

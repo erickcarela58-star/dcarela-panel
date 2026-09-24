@@ -39,6 +39,43 @@ test('abonos alimentan la cuenta de cobro pero no duplican el ingreso de la vent
   assert.equal(core.summarizeMovements(rows).ingresos_centavos,0);
   assert.equal(core.salePaymentAccount({method:'credito',account_id:'cash'},accounts),null);
 });
+test('devolver un abono resta dinero sin convertirlo en gasto ni duplicar el reintento',()=>{
+  for (const metodo of ['efectivo','transferencia']) {
+    const events=[
+      event('AbonoClienteRegistrado','a',{movimientoId:'original',metodo,montoCentavos:20000}),
+      event('AbonoClienteDevuelto','r',{movimientoId:'reversa',abonoOriginalId:'original',metodo,montoCentavos:20000}),
+      event('AbonoClienteDevuelto','r-retry',{movimientoId:'reversa',abonoOriginalId:'original',metodo,montoCentavos:20000})
+    ];
+    const rows=core.projectOperationsAsMovements(events,accounts);
+    assert.equal(rows.length,2);
+    for (const account of accounts) assert.equal(core.effectiveAccountBalance(account,rows),account.reconciled_balance_centavos);
+    assert.equal(core.summarizeMovements(rows).gastos_centavos,0);
+    assert.equal(core.summarizeMovements(rows).ingresos_centavos,0);
+  }
+});
+
+test('devolucion posterior al cuadre resta solo la reversa, no vuelve a sumar el abono anterior',()=>{
+  const account={...accounts[0],reconciled_at:'2026-09-06T12:00:00Z',reconciled_balance_centavos:90000};
+  const rows=core.projectOperationsAsMovements([
+    event('AbonoClienteRegistrado','before',{movimientoId:'original',metodo:'efectivo',montoCentavos:125050,registradoEn:'2026-09-05T15:00:00Z'}),
+    event('AbonoClienteDevuelto','after',{movimientoId:'refund',abonoOriginalId:'original',metodo:'efectivo',montoCentavos:125050,registradoEn:'2026-09-06T13:00:00Z'})
+  ],[account]);
+  assert.equal(core.effectiveAccountBalance(account,rows),-35050);
+  assert.equal(core.summarizeMovements(rows,'2026-09-06','2026-09-06').gastos_centavos,0);
+});
+
+test('reversa ya materializada se identifica por su recibo y no suprime el abono original',()=>{
+  const events=[
+    event('AbonoClienteRegistrado','paid',{movimientoId:'original',metodo:'efectivo',montoCentavos:12345}),
+    event('AbonoClienteDevuelto','refunded',{movimientoId:'refund',abonoOriginalId:'original',metodo:'efectivo',montoCentavos:12345})
+  ];
+  const materialized={id:'ledger-refund',abono_id:'refund',tipo:'gasto',cuenta_id:'cash',monto_centavos:12345,afecta_resultado:false,source_timestamp:'2026-09-06T14:00:00Z',fecha:'2026-09-06'};
+  const projected=core.projectOperationsAsMovements(events,accounts,[materialized]);
+  assert.equal(projected.length,1);
+  assert.equal(projected[0].abono_id,'original');
+  assert.equal(core.effectiveAccountBalance(accounts[0],[materialized,...projected]),accounts[0].reconciled_balance_centavos);
+});
+
 test('gasto enlazado al asiento no duplica ni resucita una anulacion',()=>{
   const events=[event('GastoRegistrado','g',{gastoId:'g',montoCentavos:7000})];
   assert.equal(core.projectOperationsAsMovements(events,accounts,[{gasto_id:'g',estado:'anulado'}]).length,0);
