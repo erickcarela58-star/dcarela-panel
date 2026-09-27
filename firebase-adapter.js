@@ -685,7 +685,8 @@
       descripcion: text(movement.descripcion, 500),
       importeDopCentavos: Number(movement.monto_centavos || 0),
       monedaOriginal: 'DOP',
-      estado: movement.estado || 'registrado',
+      // El diario web usa "registrado"; SQLite de Caja acepta "confirmado".
+      estado: movement.estado === 'registrado' ? 'confirmado' : (movement.estado || 'confirmado'),
       fechaEfectiva: movement.source_timestamp || movement.fecha || movement.created_at,
       fecha: movement.fecha || businessDay(movement.created_at),
       cuentaId: accountId,

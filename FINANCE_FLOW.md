@@ -86,3 +86,7 @@ Verificado con Firebase autenticado: consulta original rechazada, consulta
 acotada aceptada y conciliacion autorizada con cuenta, asiento y evento guardados
 atomicamente. Un reintento devolvio el resultado previo sin mover dinero otra vez.
 Los detalles contables se conservan exclusivamente en evidencia privada.
+
+### Estado de asientos enviados a Caja Windows
+
+Desde web/PWA 1.0.93, un movimiento activo conserva `registrado` en el diario web y se publica como `confirmado` en el evento que consume Caja Windows. La conversion no crea otro asiento ni vuelve a mover dinero. Las anulaciones conservan `anulado`. Los eventos publicados antes de esta version y los conflictos de abonos requieren recuperacion y verificacion por separado; no deben darse por aplicados solo porque se hayan recibido.

@@ -255,11 +255,15 @@ test('pago, transferencia y reintentos son atomicos en ejecucion',async()=>{
   const pay={cuentaId:'cash',montoCentavos:814000,requestId:'payroll-request'};
   await h.api.adminAction('cost.payment.create','test','admin','payroll',pay);
   await h.api.adminAction('cost.payment.create','test','admin','payroll',pay);
+  assert.equal(h.docs.get('fin_movements/cost-payment-payroll-request').estado,'registrado');
+  assert.equal(h.docs.get('sync_events/ledger-cost-payment-payroll-request').payload.estado,'confirmado');
   assert.equal(h.docs.get('fin_accounts/cash').saldo_actual_centavos,2836000);
   assert.equal(h.docs.get('cost_obligations/payroll').saldoCentavos,0);
   const transfer={cuentaOrigenId:'cash',cuentaDestinoId:'bank',montoCentavos:100000,requestId:'transfer-request'};
   await h.api.adminAction('fin.transfer.create','test','admin',null,transfer);
   await h.api.adminAction('fin.transfer.create','test','admin',null,transfer);
+  assert.equal(h.docs.get('fin_movements/transfer-request').estado,'registrado');
+  assert.equal(h.docs.get('sync_events/ledger-transfer-request').payload.estado,'confirmado');
   assert.equal(h.docs.get('fin_accounts/cash').saldo_actual_centavos,2736000);
   assert.equal(h.docs.get('fin_accounts/bank').saldo_actual_centavos,163410);
   h.fail();
