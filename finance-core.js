@@ -332,8 +332,24 @@
     }).filter(item => item.fecha && item.monto_centavos > 0);
   }
 
+  // Una cuenta que recibe cortes de caja (origen cash_cut) recibe el dinero de la caja UNA sola vez: al confirmarse el
+  // corte. Lo que pasa por la caja antes (ventas en efectivo, abonos y gastos de caja) ya va dentro de ese corte y
+  // no se proyecta otra vez en la cuenta; sigue contando en ingresos y gastos de los reportes.
+  function receivesCashCuts(account, movements) {
+    if (!account?.id) return false;
+    const id = String(account.id);
+    return (movements || []).some(row => row && row.origen === "cash_cut" && isActiveMovement(normalizeMovement(row))
+      && String(row.cuenta_destino_id || row.cuentaDestinoId || "") === id);
+  }
+
+  function isTillMoney(item, account) {
+    if (String(item.cuenta_id || "") !== String(account.id)) return false;
+    return item.origen === "pos_venta" || item.origen === "caja_operacion" || item.source === "pos_operation";
+  }
+
   function projectedSalesDeltaForAccount(account, movements) {
     if (!account?.id) return 0;
+    if (receivesCashCuts(account, movements)) return 0;
     const cutoffText = account.reconciled_at || account.reconciledAt || account.created_at || account.createdAt || "";
     const cutoff = cutoffText ? new Date(cutoffText).getTime() : Number.NaN;
     if (!Number.isFinite(cutoff)) return 0;
@@ -385,8 +401,10 @@
     if (!Number.isFinite(cutoff)) return 0;
     const uniqueMovements = uniqueFinanceMovements(movements);
     const fromCheckpoint = Number.isFinite(account.reconciled_balance_centavos);
+    const cutFed = receivesCashCuts(account, uniqueMovements);
     return uniqueMovements.filter(item => {
       if (fromCheckpoint && item.balance_effects != null) return true;
+      if (cutFed && isTillMoney(item, account)) return false;
       if (!isActiveMovement(item)) return false;
       // fin_movements ya fue materializado en saldo_actual_centavos. Solo se
       // proyectan ventas y eventos del ledger Windows que aun no viven en la
