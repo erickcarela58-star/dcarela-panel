@@ -41,3 +41,13 @@ test('las ventas por tarjeta o transferencia a otra cuenta no se tocan', () => {
   const ventaBanco = { ...venta, id: 'pos-sale:2:0', cuenta_id: 'bank', metodo_pago: 'tarjeta', monto_centavos: 25000 };
   assert.equal(core.effectiveAccountBalance(banco, [ventaBanco, corte]), 125000);
 });
+
+test('un movimiento con la hora como Timestamp de Firestore si cuenta (no se descarta en silencio)', () => {
+  const banco = { id: 'bank', reconciled_balance_centavos: 100000, reconciled_at: '2026-09-29T16:16:51.000Z' };
+  const seconds = Date.parse('2026-09-29T17:00:00.000Z') / 1000;
+  const gasto = { ...base, id: 'wa-fiscal-1-tax', tipo: 'gasto', origen: 'whatsapp_fiscal_media', cuenta_id: 'bank', monto_centavos: 200, source_timestamp: { _seconds: seconds, _nanoseconds: 0 } };
+  const conToDate = { ...gasto, id: 'wa-fiscal-2-tax', source_timestamp: { toDate: () => new Date(seconds * 1000) } };
+  assert.equal(core.effectiveAccountBalance(banco, [gasto]), 99800);
+  assert.equal(core.effectiveAccountBalance(banco, [gasto, conToDate]), 99600);
+  assert.equal(core.isoTime({ seconds }), '2026-09-29T17:00:00.000Z');
+});

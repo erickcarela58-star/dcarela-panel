@@ -73,8 +73,23 @@
     return aliases[type] || type || "otro";
   }
 
+  // Una hora puede llegar como texto ISO o como Timestamp de Firestore ({seconds}/{_seconds} o con toDate()).
+  // Se lleva siempre a texto ISO; si no se entiende se deja tal cual.
+  function isoTime(value) {
+    if (value == null || typeof value === "string" || typeof value === "number") return value;
+    if (value instanceof Date) return Number.isFinite(value.getTime()) ? value.toISOString() : value;
+    if (typeof value.toDate === "function") {
+      try { const date = value.toDate(); if (date instanceof Date && Number.isFinite(date.getTime())) return date.toISOString(); } catch (_) { /* se deja */ }
+    }
+    const seconds = value.seconds ?? value._seconds;
+    if (Number.isFinite(seconds)) return new Date(seconds * 1000 + Math.floor((value.nanoseconds ?? value._nanoseconds ?? 0) / 1e6)).toISOString();
+    return value;
+  }
+
   function normalizeMovement(item) {
     const normalized = { ...(item || {}) };
+    if (normalized.source_timestamp != null) normalized.source_timestamp = isoTime(normalized.source_timestamp);
+    if (normalized.created_at != null) normalized.created_at = isoTime(normalized.created_at);
     normalized.tipo = normalizeMovementType(normalized.tipo);
     normalized.estado = normalizeText(normalized.estado || "registrado");
     normalized.fecha = businessDay(normalized.fecha || normalized.created_at || normalized.updated_at);
@@ -585,7 +600,7 @@
       || instant > Date.parse(createdAt) || instant < Date.parse(account.reconciled_at || '')) {
       throw new Error('Conciliacion invalida: revisa cuenta, importe, motivo y corte.');
     }
-    const timestamp = row => Date.parse(row.source_timestamp || (row.fecha ? `${row.fecha}T23:59:59-04:00` : row.created_at));
+    const timestamp = row => Date.parse(isoTime(row.source_timestamp) || (row.fecha ? `${row.fecha}T23:59:59-04:00` : isoTime(row.created_at)));
     const relevant = movements.filter(row => [row.cuenta_id, row.cuenta_origen_id, row.cuenta_destino_id].includes(account.id));
     if (relevant.some(row => isActiveMovement(row) && !Number.isFinite(timestamp(row)))) throw new Error('Un movimiento no tiene fecha efectiva valida.');
     if (relevant.some(row => isActiveMovement(row) && !row.source_timestamp && businessDay(row.fecha) === businessDay(cutoff))) {
@@ -626,6 +641,7 @@
     eventDay,
     normalizeMovementType,
     normalizeMovement,
+    isoTime,
     deduplicateMovements,
     transferCommissionCents,
     isActiveMovement,
