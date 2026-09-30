@@ -4620,3 +4620,10 @@ svg[data-current-metric="true"] .current-metric-inner,
 }
 
 
+
+/* Logo del banco dentro de la tarjeta de cuenta: chip blanco redondeado, la imagen siempre completa. */
+.fin-account-visual-head i.fin-bank-logo {
+  display: inline-grid; place-items: center; width: 40px; height: 40px; padding: 5px;
+  border-radius: 12px; background: #fff; box-shadow: 0 2px 8px rgba(0, 0, 0, .18);
+}
+.fin-account-visual-head i.fin-bank-logo img { width: 100%; height: 100%; object-fit: contain; display: block; }

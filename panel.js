@@ -24,7 +24,7 @@
     document.body?.classList.add("is-embedded");
   }
   const THEME_KEY = "dcarela.ui.theme";
-  const APP_BUILD = "1.0.96";
+  const APP_BUILD = "1.0.97";
   const financeCore = window.DcarelaFinanceCore;
   const moneyManagerCore = window.DcarelaMoneyManagerCore;
 
@@ -5566,6 +5566,29 @@
   }
 
   const FIN_CHART_COLORS = ["#18181B", "#52525B", "#71717A", "#A1A1AA", "#D4D4D8", "#3F3F46", "#E4E4E7", "#27272A"];
+  // Identidad de los bancos de RD (mismo catalogo que la Caja Windows: Pos.Core/Finanzas/EntidadesFinancieras.cs).
+  // El orden importa: las mas especificas primero. Las cuentas sin color propio toman el de su banco.
+  const FIN_BANK_BRANDS = [
+    { id: "asociacion-popular", nombre: "Asociación Popular", primary: "#00539F", secondary: "#003A70", logo: "", alias: ["asociacion popular", "apap"] },
+    { id: "popular", nombre: "Banco Popular", primary: "#1A4BA0", secondary: "#0B2252", logo: "bancos/popular.png", alias: ["banco popular", "popular dominicano", "popularenlinea", "popular", "bpd"] },
+    { id: "qik", nombre: "Qik Banco Digital", primary: "#0082CD", secondary: "#003C73", logo: "bancos/qik.png", alias: ["qik banco", "qik"] },
+    { id: "banreservas", nombre: "Banreservas", primary: "#264E72", secondary: "#16324B", logo: "bancos/banreservas.png", alias: ["banreservas", "banco de reservas", "reservas", "brrd"] },
+    { id: "bhd", nombre: "Banco BHD", primary: "#55AA4F", secondary: "#2F6B2B", logo: "bancos/bhd.png", alias: ["bhd leon", "bhd", "banco leon", "banco bhd"] },
+    { id: "scotiabank", nombre: "Scotiabank", primary: "#EC111A", secondary: "#9E0B12", logo: "", alias: ["scotiabank", "scotia"] },
+  ];
+  const finPlainText = value => String(value || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  function finBankBrand(text) {
+    const plain = ` ${finPlainText(text)} `;
+    if (plain.trim() === "") return null;
+    for (const brand of FIN_BANK_BRANDS) {
+      for (const alias of [...brand.alias].sort((x, y) => y.length - x.length)) {
+        if (plain.includes(` ${alias} `)) return brand;
+      }
+    }
+    return null;
+  }
+  window.DcarelaBankBrands = { identify: finBankBrand, brands: FIN_BANK_BRANDS };
+
   const FIN_ACCOUNT_ICONS = {
     landmark: "B", wallet: "$", card: "C", savings: "A", cash: "$", camera: "F",
   };
@@ -5619,15 +5642,16 @@
       if (account.incluir_en_total) patrimonio += balance;
       const isCard = account.tipo === "tarjeta_credito";
       const display = isCard ? Math.max(0, -balance) : balance;
-      const primary = safeAccountColor(account.visual_tono, "#18181B");
-      const secondary = safeAccountColor(account.visual_tono_secundario, "#71717A");
+      const bankBrand = ["banco", "tarjeta_credito"].includes(account.tipo) || !account.visual_tono ? finBankBrand(`${account.nombre} ${account.visual_entidad || ""}`) : null;
+      const primary = safeAccountColor(account.visual_tono, bankBrand ? bankBrand.primary : "#18181B");
+      const secondary = safeAccountColor(account.visual_tono_secundario, bankBrand ? bankBrand.secondary : "#71717A");
       const style = ["glass", "solid", "outline", "metal"].includes(account.visual_estilo) ? account.visual_estilo : "glass";
       const icon = FIN_ACCOUNT_ICONS[account.visual_icono] || FIN_ACCOUNT_ICONS.landmark;
       const mask = account.visual_mascara ? `&bull;&bull;&bull;&bull; ${esc(account.visual_mascara)}` : "";
       const signLabel = isCard ? (display > 0 ? "Deuda" : "Sin deuda") : balance < 0 ? "Negativo" : balance > 0 ? "Disponible" : "En cero";
       return `<article class="fin-account visual ${style} ${balance < 0 ? "neg" : "pos"}${account.oculta ? " muted" : ""}" style="--account-primary:${primary};--account-secondary:${secondary}">
         <button type="button" class="fin-account-open" data-fin-account-ledger="${esc(account.id)}" title="Ver los movimientos que forman este saldo">
-          <span class="fin-account-visual-head"><i>${esc(icon)}</i><span><b>${esc(account.nombre)}</b><small>${mask || esc(FIN_TIPO_LABEL[account.tipo] || account.tipo)}</small></span></span>
+          <span class="fin-account-visual-head">${bankBrand && bankBrand.logo ? `<i class="fin-bank-logo"><img src="${esc(bankBrand.logo)}" alt="${esc(bankBrand.nombre)}" loading="lazy" onerror="this.parentNode.textContent='${esc((bankBrand.nombre || "B").charAt(0))}'"></i>` : `<i>${esc(icon)}</i>`}<span><b>${esc(account.nombre)}</b><small>${mask || esc(FIN_TIPO_LABEL[account.tipo] || account.tipo)}</small></span></span>
           <span class="fin-account-balance-row"><strong>${isCard ? money(display) : money(balance)}</strong><em class="fin-account-sign">${esc(signLabel)}</em></span>
           <small>${esc(FIN_TIPO_LABEL[account.tipo] || account.tipo)}${account.ligada_ventas ? " &middot; ligada a ventas" : ""}${projectedSales ? ` &middot; incluye ${money(projectedSales)} en ventas posteriores al ultimo cuadre` : ""}${account.oculta ? " &middot; oculta" : ""}</small>
         </button>
