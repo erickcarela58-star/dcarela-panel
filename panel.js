@@ -24,7 +24,7 @@
     document.body?.classList.add("is-embedded");
   }
   const THEME_KEY = "dcarela.ui.theme";
-  const APP_BUILD = "1.0.98";
+  const APP_BUILD = "1.0.99";
   const financeCore = window.DcarelaFinanceCore;
   const moneyManagerCore = window.DcarelaMoneyManagerCore;
 
@@ -2576,6 +2576,17 @@
     $("chartTotal").textContent = money(sales.reduce((sum, event) => sum + totalDe(P(event)), 0));
   }
 
+  function estadoDashboard(text, action = "") {
+    const message = `<div class="empty-state dashboard-state"><span>${esc(text)}</span>${action ? `<button type="button" class="secondary dashboard-retry">${esc(action)}</button>` : ""}</div>`;
+    ["chartHoras", "healthList", "feed", "alertPreview"].forEach(id => {
+      const element = $(id);
+      if (element) element.innerHTML = message;
+    });
+    document.querySelectorAll(".dashboard-retry").forEach(button => {
+      button.addEventListener("click", () => cargarDashboard(true));
+    });
+  }
+
   function dashboardBuckets(sales, valueOf) {
     const buckets = Array.from({ length: 7 }, () => []);
     const ordered = [...sales].sort((a, b) => fechaEventoIso(a).localeCompare(fechaEventoIso(b)));
@@ -2737,6 +2748,8 @@
     if (!force && dashboardViewCache && Date.now() - dashboardViewCache.at < 45000) {
       return;
     }
+    $("pillVivo").textContent = "cargando";
+    estadoDashboard("Consultando ventas, caja y actividad...");
     try {
       let from = inicioDia();
       let to = finDia();
@@ -2807,13 +2820,10 @@
     } catch (dashErr) {
       dashboardViewCache = null;
       console.warn("cargarDashboard auto-recovery:", dashErr);
-      $("kVenta").textContent = "$0.00";
-      $("kNum").textContent = "0";
-      $("kProm").textContent = "$0.00";
-      $("kEfec").textContent = "$0.00";
-      $("kItbis").textContent = "$0.00";
-      $("kCaja").textContent = "Cerrada";
-      $("pillVivo").textContent = "en vivo";
+      ["kVenta", "kNum", "kProm", "kEfec", "kItbis", "kCaja"].forEach(id => { if ($(id)) $(id).textContent = "--"; });
+      ["kVentaDetalle", "kNumDetalle", "kCajaDetalle"].forEach(id => { if ($(id)) $(id).textContent = "no disponible"; });
+      $("pillVivo").textContent = "sin datos";
+      estadoDashboard("No se pudo comprobar la información actual.", "Reintentar");
     }
   }
 
@@ -5645,7 +5655,7 @@
       const bankBrand = ["banco", "tarjeta_credito"].includes(account.tipo) || !account.visual_tono ? finBankBrand(`${account.nombre} ${account.visual_entidad || ""}`) : null;
       const primary = safeAccountColor(account.visual_tono, bankBrand ? bankBrand.primary : "#18181B");
       const secondary = safeAccountColor(account.visual_tono_secundario, bankBrand ? bankBrand.secondary : "#71717A");
-      const style = ["glass", "solid", "outline", "metal"].includes(account.visual_estilo) ? account.visual_estilo : "glass";
+      const style = ["glass", "solid", "outline", "metal", "dolar"].includes(account.visual_estilo) ? account.visual_estilo : "glass";
       const icon = FIN_ACCOUNT_ICONS[account.visual_icono] || FIN_ACCOUNT_ICONS.landmark;
       const mask = account.visual_mascara ? `&bull;&bull;&bull;&bull; ${esc(account.visual_mascara)}` : "";
       const signLabel = isCard ? (display > 0 ? "Deuda" : "Sin deuda") : balance < 0 ? "Negativo" : balance > 0 ? "Disponible" : "En cero";
@@ -6386,6 +6396,7 @@
             <option value="solid"${selected(item.visual_estilo, "solid")}>Solido</option>
             <option value="outline"${selected(item.visual_estilo, "outline")}>Contorno</option>
             <option value="metal"${selected(item.visual_estilo, "metal")}>Metal</option>
+            <option value="dolar"${selected(item.visual_estilo, "dolar")}>D&oacute;lares</option>
           </select></label>
           <label class="visual-mask"><span>Ultimos 4 digitos (opcional)</span><input name="visualMascara" inputmode="numeric" pattern="[0-9]{0,4}" maxlength="4" value="${esc(item.visual_mascara || "")}" placeholder="1234"></label>
         </div>
@@ -6421,7 +6432,7 @@
       const preview = $("finAccountVisualPreview");
       if (!preview) return;
       const data = new FormData(form);
-      const visualStyle = ["glass", "solid", "outline", "metal"].includes(String(data.get("visualEstilo")))
+      const visualStyle = ["glass", "solid", "outline", "metal", "dolar"].includes(String(data.get("visualEstilo")))
         ? String(data.get("visualEstilo")) : "glass";
       preview.className = `account-visual-preview ${visualStyle}`;
       preview.style.setProperty("--account-primary", safeAccountColor(data.get("visualTono"), "#18181B"));

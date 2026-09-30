@@ -22,3 +22,10 @@ test("los logos de los bancos existen y el render los usa", () => {
   for (const file of ["popular", "qik", "banreservas", "bhd"]) assert.ok(fs.existsSync(`bancos/${file}.png`), file);
   assert.match(panelJs, /fin-bank-logo/);
 });
+
+test("el estilo dolar existe en el render, el editor y el CSS", () => {
+  const css = fs.readFileSync("panel-theme.css", "utf8");
+  assert.match(panelJs, /\["glass", "solid", "outline", "metal", "dolar"\]/);
+  assert.match(panelJs, /value="dolar"/);
+  assert.match(css, /\.fin-account\.visual\.dolar::before/);
+});

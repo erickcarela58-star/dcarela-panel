@@ -20,6 +20,12 @@ test("las consultas compartidas terminan y no se acumulan al cambiar de módulo"
   assert.match(adapter, /La consulta tardo demasiado/);
 });
 
+test("el resumen no deja paneles en blanco cuando la consulta tarda o falla", () => {
+  assert.match(panel, /estadoDashboard\("Consultando ventas, caja y actividad\.\.\."\)/);
+  assert.match(panel, /estadoDashboard\("No se pudo comprobar la información actual\."\s*,\s*"Reintentar"\)/);
+  assert.match(panel, /\["kVenta", "kNum", "kProm", "kEfec", "kItbis", "kCaja"\][\s\S]*textContent = "--"/);
+});
+
 test("el guardado financiero ignora un segundo submit mientras la escritura está en curso", () => {
   assert.match(panel, /const button = \$\("btnGuardarEditor"\);\s*if \(button\.disabled\) return;/);
 });
