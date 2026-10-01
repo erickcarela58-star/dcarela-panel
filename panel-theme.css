@@ -4638,3 +4638,213 @@ svg[data-current-metric="true"] .current-metric-inner,
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64'%3E%3Ctext x='6' y='30' font-family='Segoe UI,Arial,sans-serif' font-weight='700' font-size='30' fill='white'%3E%24%3C/text%3E%3Ctext x='38' y='60' font-family='Segoe UI,Arial,sans-serif' font-weight='700' font-size='26' fill='white'%3E%24%3C/text%3E%3C/svg%3E");
 }
 .fin-account.visual.dolar > *, .account-visual-preview.dolar > * { position: relative; z-index: 1; }
+
+/* 2026-10-01 v42: restaura la estetica D' Carela del panel completo.
+   La capa monocroma anterior sigue aportando fixes de modales y formularios,
+   pero ya no pisa el lenguaje azul/vidrio del shell publico. */
+:root,
+html[data-theme="light"] {
+  --ui-canvas: #e8eef5;
+  --ui-canvas-raised: #f8fbff;
+  --ui-surface: rgba(255, 255, 255, .68);
+  --ui-surface-strong: rgba(255, 255, 255, .92);
+  --ui-surface-soft: rgba(242, 247, 252, .72);
+  --ui-sidebar: rgba(7, 35, 76, .96);
+  --ui-sidebar-text: #eff6ff;
+  --ui-sidebar-muted: #b8cae1;
+  --ui-header: rgba(237, 244, 250, .74);
+  --ui-input: rgba(255, 255, 255, .86);
+  --ui-text: #152238;
+  --ui-muted: #62738c;
+  --ui-brand: #0a3679;
+  --ui-brand-hover: #0e448e;
+  --ui-accent: #1797e8;
+  --ui-warm: #ff7f03;
+  --ui-success: #168579;
+  --ui-danger: #c53f48;
+  --ui-violet: #6d59b8;
+  --ui-line: rgba(31, 61, 99, .15);
+  --ui-rim: rgba(255, 255, 255, .82);
+  --ui-shadow: 0 16px 38px rgba(15, 42, 78, .11);
+  --ui-shadow-float: 0 28px 70px rgba(0, 15, 43, .28);
+  --navy: var(--ui-brand);
+  --navy-deep: #082855;
+  --cyan: var(--ui-accent);
+  --orange: var(--ui-warm);
+  --green: var(--ui-success);
+  --red: var(--ui-danger);
+  --violet: var(--ui-violet);
+  --ink: var(--ui-text);
+  --muted: var(--ui-muted);
+  --canvas: var(--ui-canvas);
+  --surface: var(--ui-surface);
+  --surface-strong: var(--ui-surface-strong);
+  --line: var(--ui-line);
+  --shadow: var(--ui-shadow);
+}
+
+html[data-theme="dark"] {
+  --ui-canvas: #07152a;
+  --ui-canvas-raised: #0b1d38;
+  --ui-surface: rgba(14, 32, 58, .78);
+  --ui-surface-strong: rgba(12, 26, 48, .94);
+  --ui-surface-soft: rgba(21, 44, 74, .74);
+  --ui-sidebar: rgba(5, 22, 49, .97);
+  --ui-sidebar-text: #f6fbff;
+  --ui-sidebar-muted: #9fc0df;
+  --ui-header: rgba(8, 24, 48, .90);
+  --ui-input: rgba(9, 27, 51, .92);
+  --ui-text: #f5f9ff;
+  --ui-muted: #a9bed3;
+  --ui-brand: #78cfff;
+  --ui-brand-hover: #a8e0ff;
+  --ui-accent: #32aef2;
+  --ui-warm: #ffb15b;
+  --ui-success: #48d5bd;
+  --ui-danger: #ff8490;
+  --ui-violet: #b8a9ff;
+  --ui-line: rgba(210, 232, 255, .13);
+  --ui-rim: rgba(255, 255, 255, .15);
+  --ui-shadow: 0 18px 44px rgba(0, 0, 0, .36);
+  --ui-shadow-float: 0 28px 72px rgba(0, 0, 0, .60);
+  --navy: var(--ui-brand);
+  --navy-deep: #041124;
+  --cyan: var(--ui-accent);
+  --orange: var(--ui-warm);
+  --green: var(--ui-success);
+  --red: var(--ui-danger);
+  --violet: var(--ui-violet);
+  --ink: var(--ui-text);
+  --muted: var(--ui-muted);
+  --canvas: var(--ui-canvas);
+  --surface: var(--ui-surface);
+  --surface-strong: var(--ui-surface-strong);
+  --line: var(--ui-line);
+  --shadow: var(--ui-shadow);
+}
+
+body {
+  background-color: var(--ui-canvas) !important;
+  background-image:
+    linear-gradient(rgba(255,255,255,.36), rgba(255,255,255,.30)),
+    url("dcarela-logo.png"),
+    repeating-linear-gradient(90deg, transparent 0, transparent 79px, color-mix(in srgb, var(--ui-brand) 3.5%, transparent) 80px),
+    repeating-linear-gradient(0deg, transparent 0, transparent 79px, color-mix(in srgb, var(--ui-brand) 2.4%, transparent) 80px) !important;
+  background-repeat: no-repeat, no-repeat, repeat, repeat !important;
+  background-position: center, calc(100% + 70px) calc(100% + 70px), 0 0, 0 0 !important;
+  background-size: auto, 360px, auto, auto !important;
+  background-attachment: fixed !important;
+}
+
+html[data-theme="dark"] body {
+  background-image:
+    linear-gradient(rgba(4,17,36,.82), rgba(7,21,42,.88)),
+    url("dcarela-logo.png"),
+    repeating-linear-gradient(90deg, transparent 0, transparent 79px, rgba(120,207,255,.045) 80px),
+    repeating-linear-gradient(0deg, transparent 0, transparent 79px, rgba(120,207,255,.03) 80px) !important;
+}
+
+.sidebar {
+  color: var(--ui-sidebar-text) !important;
+  background: var(--ui-sidebar) !important;
+  border-right-color: rgba(255,255,255,.10) !important;
+  box-shadow: 16px 0 38px rgba(8,34,71,.18) !important;
+  backdrop-filter: blur(28px) saturate(135%) !important;
+}
+
+.brand { border-color: rgba(255,255,255,.12) !important; }
+.brand-logo { border-radius: 16px !important; box-shadow: 0 9px 22px rgba(0,18,48,.22) !important; }
+.brand span, .connection-card small { color: var(--ui-sidebar-muted) !important; }
+.sidebar nav a {
+  min-height: 44px;
+  color: var(--ui-sidebar-muted) !important;
+  border-radius: 13px !important;
+  transition: color .18s ease, background .18s ease, transform .18s ease, box-shadow .18s ease;
+}
+.sidebar nav a:hover {
+  color: #fff !important;
+  background: rgba(255,255,255,.08) !important;
+  transform: translateX(2px);
+}
+.sidebar nav a.act {
+  color: #fff !important;
+  background: rgba(23,151,232,.24) !important;
+  border-color: rgba(120,207,255,.36) !important;
+  box-shadow: inset 3px 0 var(--cyan), 0 9px 22px rgba(0,20,55,.16) !important;
+}
+
+.topbar {
+  background: var(--ui-header) !important;
+  border-color: rgba(255,255,255,.70) !important;
+  box-shadow: 0 9px 25px rgba(15,42,78,.10) !important;
+}
+
+.primary, .button-link {
+  color: #fff !important;
+  background: linear-gradient(135deg, #0a3679, #155b9e) !important;
+  border-color: rgba(255,255,255,.20) !important;
+  box-shadow: 0 8px 18px rgba(10,54,121,.18) !important;
+}
+
+.secondary, .text-button, .icon-button, .topbar-back, .mobile-panel-link, .alert-button, .theme-toggle {
+  color: var(--ui-brand) !important;
+  background: rgba(255,255,255,.58) !important;
+  border-color: rgba(255,255,255,.82) !important;
+  box-shadow: 0 7px 18px rgba(15,42,78,.07) !important;
+  backdrop-filter: blur(18px) saturate(130%);
+}
+
+html[data-theme="dark"] .secondary,
+html[data-theme="dark"] .text-button,
+html[data-theme="dark"] .icon-button,
+html[data-theme="dark"] .topbar-back,
+html[data-theme="dark"] .mobile-panel-link,
+html[data-theme="dark"] .alert-button,
+html[data-theme="dark"] .theme-toggle {
+  background: rgba(14,32,58,.78) !important;
+  border-color: rgba(255,255,255,.14) !important;
+}
+
+.surface,
+.kpi,
+.filter-bar,
+.metric-chip,
+.branch-summary article,
+.branch-card,
+.notification,
+.release-card,
+.recon-progress,
+.cost-panel,
+.finance-nav-shell,
+.finance-chart-main,
+.finance-category-panel,
+.finance-movement-surface,
+.finance-recent-panel,
+.finance-planning-panel,
+.finance-commitment-surface,
+.finance-cost-analysis,
+.finance-settings-grid > section,
+.fin-account,
+.finance-credit-card {
+  border-color: var(--ui-rim) !important;
+  border-radius: 18px !important;
+  box-shadow: var(--ui-shadow), inset 0 1px rgba(255,255,255,.52) !important;
+}
+
+button, .button-link, input, select, textarea,
+.primary, .secondary, .text-button, .icon-button, .alert-button, .mobile-panel-link {
+  border-radius: 12px !important;
+}
+
+@media (max-width: 768px) {
+  body {
+    background-color: var(--ui-canvas) !important;
+    background-image: linear-gradient(rgba(255,255,255,.22), rgba(255,255,255,.22)),
+      repeating-linear-gradient(90deg, transparent 0, transparent 79px, color-mix(in srgb, var(--ui-brand) 3%, transparent) 80px) !important;
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 90px) !important;
+  }
+  html[data-theme="dark"] body {
+    background-image: linear-gradient(rgba(4,17,36,.82), rgba(7,21,42,.88)),
+      repeating-linear-gradient(90deg, transparent 0, transparent 79px, rgba(120,207,255,.04) 80px) !important;
+  }
+}
