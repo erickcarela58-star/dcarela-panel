@@ -24,7 +24,7 @@
     document.body?.classList.add("is-embedded");
   }
   const THEME_KEY = "dcarela.ui.theme";
-  const APP_BUILD = "1.0.99";
+  const APP_BUILD = "1.0.100";
   const financeCore = window.DcarelaFinanceCore;
   const moneyManagerCore = window.DcarelaMoneyManagerCore;
 
@@ -2582,6 +2582,7 @@
       const element = $(id);
       if (element) element.innerHTML = message;
     });
+    if ($("chartTotal")) $("chartTotal").textContent = "--";
     document.querySelectorAll(".dashboard-retry").forEach(button => {
       button.addEventListener("click", () => cargarDashboard(true));
     });
@@ -2753,13 +2754,20 @@
     try {
       let from = inicioDia();
       let to = finDia();
-      let [{ active, excluded }, returns, activity, devices, backups] = await Promise.all([
-        ventasActivas(from, to, 5000).catch(() => ({ active: [], excluded: 0 })),
-        eventos(["DevolucionRegistrada"], from, to, 1000).catch(() => []),
-        eventos(null, null, null, 45).catch(() => []),
-        getDevices().catch(() => []),
-        getBackups(5).catch(() => [])
+      const [salesResult, returnsResult, activityResult, devicesResult, backupsResult] = await Promise.allSettled([
+        ventasActivas(from, to, 5000),
+        eventos(["DevolucionRegistrada"], from, to, 1000),
+        eventos(null, null, null, 45),
+        getDevices(),
+        getBackups(5)
       ]);
+      if (salesResult.status === "rejected") throw salesResult.reason;
+      if (returnsResult.status === "rejected") throw returnsResult.reason;
+      const { active = [], excluded = 0 } = salesResult.value || {};
+      const returns = returnsResult.value || [];
+      const activity = activityResult.status === "fulfilled" ? (activityResult.value || []) : null;
+      const devices = devicesResult.status === "fulfilled" ? (devicesResult.value || []) : null;
+      const backups = backupsResult.status === "fulfilled" ? (backupsResult.value || []) : null;
 
       let dayLabel = "hoy";
       if (!active.length) {
@@ -2778,8 +2786,9 @@
       const net = gross - refunds;
       const cash = active.reduce((sum, event) => sum + efectivoDe(P(event)), 0);
       const tax = active.reduce((sum, event) => sum + itbisDe(P(event)), 0);
-      const cashEvents = activity.filter(event => ["CajaAbierta", "CajaCerrada"].includes(event.event_type));
-      const cashState = cashEvents[0]?.event_type === "CajaAbierta" ? "Abierta" : "Cerrada";
+      const activityItems = activity || [];
+      const cashEvents = activityItems.filter(event => ["CajaAbierta", "CajaCerrada"].includes(event.event_type));
+      const cashState = activity ? (cashEvents[0]?.event_type === "CajaAbierta" ? "Abierta" : "Cerrada") : "--";
 
       $("kVenta").textContent = money(net);
       $("kVentaDetalle").textContent = refunds ? `${money(refunds)} devuelto` : `${dayLabel}`;
@@ -2789,7 +2798,7 @@
       $("kEfec").textContent = money(cash);
       $("kItbis").textContent = money(tax);
       $("kCaja").textContent = cashState;
-      $("kCajaDetalle").textContent = cashEvents[0] ? fecha(fechaEventoIso(cashEvents[0])) : "sin eventos";
+      $("kCajaDetalle").textContent = activity ? (cashEvents[0] ? fecha(fechaEventoIso(cashEvents[0])) : "sin eventos") : "no disponible";
       const totalSeries = dashboardBuckets(active, event => totalDe(P(event)));
       const countSeries = dashboardBuckets(active, () => 1);
       const cashSeries = dashboardBuckets(active, event => efectivoDe(P(event)));
@@ -2802,19 +2811,23 @@
       renderKpiSparkline("kSparkItbis", taxSeries, "#7455a5");
       renderKpiSparkline("kSparkCaja", cashEvents.length ? [0, 1, 1, 2, 2, 3, 4] : [0, 0], cashState === "Abierta" ? "#15867b" : "#c93c3c");
       renderHourChart(active);
-      renderFeed(activity);
+      if (activity) renderFeed(activity);
+      else $("feed").innerHTML = '<div class="empty-state">No se pudo comprobar la actividad sincronizada.</div>';
 
-      const latestEvent = activity[0];
-      const latestBackup = backups[0];
-      const activeDevices = devices.filter(device => device.status === "activa").length;
-      const unread = (await obtenerAlertas().catch(() => [])).filter(alert => !alert.read).length;
+      const latestEvent = activityItems[0];
+      const latestBackup = backups?.[0] || null;
+      const activeDevices = devices ? devices.filter(device => device.status === "activa").length : null;
+      const alerts = await obtenerAlertas().catch(() => null);
+      const unread = alerts ? alerts.filter(alert => !alert.read).length : null;
       $("healthList").innerHTML = [
-        ["Sincronizacion", latestEvent ? `Ultimo evento ${fecha(fechaEventoIso(latestEvent))}` : "Sin eventos disponibles", latestEvent ? "activa" : "sin datos", ""],
-        ["Respaldo", latestBackup ? `${fecha(latestBackup.created_at)} | ${latestBackup.status}` : "Sin respaldo informado", latestBackup?.status || "sin datos", ""],
-        ["Dispositivos", `${activeDevices || 1} activo(s)`, "en linea", ""],
-        ["Alertas", `${unread} sin leer`, unread ? "atencion" : "al dia", unread ? "warn" : ""]
+        ["Sincronizacion", activity ? (latestEvent ? `Ultimo evento ${fecha(fechaEventoIso(latestEvent))}` : "Sin eventos disponibles") : "No disponible", activity ? (latestEvent ? "activa" : "sin datos") : "sin datos", activity ? "" : "warn"],
+        ["Respaldo", backups ? (latestBackup ? `${fecha(latestBackup.created_at)} | ${latestBackup.status}` : "Sin respaldo informado") : "No disponible", backups ? (latestBackup?.status || "sin datos") : "sin datos", backups ? "" : "warn"],
+        ["Dispositivos", devices ? `${activeDevices} activo(s)` : "No disponible", devices ? "en linea" : "sin datos", devices ? "" : "warn"],
+        ["Alertas", alerts ? `${unread} sin leer` : "No disponible", alerts ? (unread ? "atencion" : "al dia") : "sin datos", alerts && unread ? "warn" : ""]
       ].map(([title, detail, value, tone]) => `<div class="health-row"><span class="health-dot ${tone}"></span><div><b>${esc(title)}</b><small>${esc(detail)}</small></div><span class="health-value">${esc(value)}</span></div>`).join("");
-      renderAlertPreview();
+      await renderAlertPreview().catch(() => {
+        $("alertPreview").innerHTML = '<div class="empty-state">No se pudieron consultar las alertas abiertas.</div>';
+      });
       $("pillVivo").textContent = "en vivo";
       dashboardViewCache = { at: Date.now() };
     } catch (dashErr) {

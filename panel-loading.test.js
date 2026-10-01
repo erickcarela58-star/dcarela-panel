@@ -22,6 +22,10 @@ test("las consultas compartidas terminan y no se acumulan al cambiar de módulo"
 
 test("el resumen no deja paneles en blanco cuando la consulta tarda o falla", () => {
   assert.match(panel, /estadoDashboard\("Consultando ventas, caja y actividad\.\.\."\)/);
+  assert.match(panel, /Promise\.allSettled\(\[/);
+  assert.match(panel, /if \(salesResult\.status === "rejected"\) throw salesResult\.reason;/);
+  assert.doesNotMatch(panel, /ventasActivas\(from, to, 5000\)\.catch\(\(\) => \(\{ active: \[\], excluded: 0 \}\)\)/);
+  assert.doesNotMatch(panel, /\$\{activeDevices \|\| 1\} activo\(s\)/);
   assert.match(panel, /estadoDashboard\("No se pudo comprobar la información actual\."\s*,\s*"Reintentar"\)/);
   assert.match(panel, /\["kVenta", "kNum", "kProm", "kEfec", "kItbis", "kCaja"\][\s\S]*textContent = "--"/);
 });
