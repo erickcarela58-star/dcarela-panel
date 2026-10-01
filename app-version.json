@@ -25,7 +25,7 @@
     "plaza-artesanal": {
       "version": "1.0.75",
       "channel": "stable",
-      "mandatory": false,
+      "mandatory": true,
       "created_at": "2026-09-30T15:30:00Z",
       "release_url": "https://github.com/erickcarela58-star/dcarela-panel/releases/download/pos-v1.0.75/DCARELA_PLAZA_ARTESANAL_1.0.75_Setup.exe",
       "sha256": "b104610917d92d8aa76e9a86a2fc9209530caa9217bcb36c736745c715417211",
