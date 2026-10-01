@@ -4639,212 +4639,107 @@ svg[data-current-metric="true"] .current-metric-inner,
 }
 .fin-account.visual.dolar > *, .account-visual-preview.dolar > * { position: relative; z-index: 1; }
 
-/* 2026-10-01 v42: restaura la estetica D' Carela del panel completo.
-   La capa monocroma anterior sigue aportando fixes de modales y formularios,
-   pero ya no pisa el lenguaje azul/vidrio del shell publico. */
-:root,
-html[data-theme="light"] {
-  --ui-canvas: #e8eef5;
-  --ui-canvas-raised: #f8fbff;
-  --ui-surface: rgba(255, 255, 255, .68);
-  --ui-surface-strong: rgba(255, 255, 255, .92);
-  --ui-surface-soft: rgba(242, 247, 252, .72);
-  --ui-sidebar: rgba(7, 35, 76, .96);
-  --ui-sidebar-text: #eff6ff;
-  --ui-sidebar-muted: #b8cae1;
-  --ui-header: rgba(237, 244, 250, .74);
-  --ui-input: rgba(255, 255, 255, .86);
-  --ui-text: #152238;
-  --ui-muted: #62738c;
-  --ui-brand: #0a3679;
-  --ui-brand-hover: #0e448e;
-  --ui-accent: #1797e8;
-  --ui-warm: #ff7f03;
-  --ui-success: #168579;
-  --ui-danger: #c53f48;
-  --ui-violet: #6d59b8;
-  --ui-line: rgba(31, 61, 99, .15);
-  --ui-rim: rgba(255, 255, 255, .82);
-  --ui-shadow: 0 16px 38px rgba(15, 42, 78, .11);
-  --ui-shadow-float: 0 28px 70px rgba(0, 15, 43, .28);
-  --navy: var(--ui-brand);
-  --navy-deep: #082855;
-  --cyan: var(--ui-accent);
-  --orange: var(--ui-warm);
-  --green: var(--ui-success);
-  --red: var(--ui-danger);
-  --violet: var(--ui-violet);
-  --ink: var(--ui-text);
-  --muted: var(--ui-muted);
-  --canvas: var(--ui-canvas);
-  --surface: var(--ui-surface);
-  --surface-strong: var(--ui-surface-strong);
-  --line: var(--ui-line);
-  --shadow: var(--ui-shadow);
+/* Referencia: Caja Central instalada 1.0.74+b976f18, App.xaml y MainWindow.xaml.
+   Superficies y controles sólidos; se conservan las tarjetas financieras personalizadas. */
+:root, html[data-theme="light"] {
+  color-scheme: light;
+  --ui-canvas: #f6f6f6;
+  --ui-canvas-raised: #fff;
+  --ui-surface: #fff;
+  --ui-surface-strong: #fff;
+  --ui-surface-soft: #f0f0f0;
+  --ui-sidebar: #fff;
+  --ui-sidebar-text: #0a0a0a;
+  --ui-sidebar-muted: #5f5f5f;
+  --ui-header: #fff;
+  --ui-input: #fff;
+  --ui-text: #0a0a0a;
+  --ui-muted: #5f5f5f;
+  --ui-brand: #0a0a0a;
+  --ui-brand-hover: #262626;
+  --ui-accent: #525252;
+  --ui-warm: #d97706;
+  --ui-success: #059669;
+  --ui-danger: #dc2626;
+  --ui-violet: #8b5cf6;
+  --ui-line: rgb(10 10 10 / 10.2%);
+  --ui-rim: rgb(10 10 10 / 10.2%);
+  --ui-shadow: none;
+  --ui-shadow-float: 0 6px 24px rgb(0 0 0 / 18%);
+  --ui-blur: none;
+  --navy-deep: #09090b;
 }
-
 html[data-theme="dark"] {
-  --ui-canvas: #07152a;
-  --ui-canvas-raised: #0b1d38;
-  --ui-surface: rgba(14, 32, 58, .78);
-  --ui-surface-strong: rgba(12, 26, 48, .94);
-  --ui-surface-soft: rgba(21, 44, 74, .74);
-  --ui-sidebar: rgba(5, 22, 49, .97);
-  --ui-sidebar-text: #f6fbff;
-  --ui-sidebar-muted: #9fc0df;
-  --ui-header: rgba(8, 24, 48, .90);
-  --ui-input: rgba(9, 27, 51, .92);
-  --ui-text: #f5f9ff;
-  --ui-muted: #a9bed3;
-  --ui-brand: #78cfff;
-  --ui-brand-hover: #a8e0ff;
-  --ui-accent: #32aef2;
-  --ui-warm: #ffb15b;
-  --ui-success: #48d5bd;
-  --ui-danger: #ff8490;
-  --ui-violet: #b8a9ff;
-  --ui-line: rgba(210, 232, 255, .13);
-  --ui-rim: rgba(255, 255, 255, .15);
-  --ui-shadow: 0 18px 44px rgba(0, 0, 0, .36);
-  --ui-shadow-float: 0 28px 72px rgba(0, 0, 0, .60);
-  --navy: var(--ui-brand);
-  --navy-deep: #041124;
-  --cyan: var(--ui-accent);
-  --orange: var(--ui-warm);
-  --green: var(--ui-success);
-  --red: var(--ui-danger);
-  --violet: var(--ui-violet);
-  --ink: var(--ui-text);
-  --muted: var(--ui-muted);
-  --canvas: var(--ui-canvas);
-  --surface: var(--ui-surface);
-  --surface-strong: var(--ui-surface-strong);
-  --line: var(--ui-line);
-  --shadow: var(--ui-shadow);
+  color-scheme: dark;
+  --ui-canvas: #080808;
+  --ui-canvas-raised: #111;
+  --ui-surface: #111;
+  --ui-surface-strong: #111;
+  --ui-surface-soft: #191919;
+  --ui-sidebar: #0b0b0c;
+  --ui-sidebar-text: #fafafa;
+  --ui-sidebar-muted: #a3a3a3;
+  --ui-header: #0b0b0b;
+  --ui-input: #111;
+  --ui-text: #fafafa;
+  --ui-muted: #a3a3a3;
+  --ui-brand: #fafafa;
+  --ui-brand-hover: #d4d4d4;
+  --ui-accent: #d4d4d4;
+  --ui-warm: #f59e0b;
+  --ui-success: #10b981;
+  --ui-danger: #ef4444;
+  --ui-line: rgb(255 255 255 / 12.2%);
+  --ui-rim: rgb(255 255 255 / 12.2%);
 }
-
-body {
-  background-color: var(--ui-canvas) !important;
-  background-image:
-    linear-gradient(rgba(255,255,255,.36), rgba(255,255,255,.30)),
-    url("dcarela-logo.png"),
-    repeating-linear-gradient(90deg, transparent 0, transparent 79px, color-mix(in srgb, var(--ui-brand) 3.5%, transparent) 80px),
-    repeating-linear-gradient(0deg, transparent 0, transparent 79px, color-mix(in srgb, var(--ui-brand) 2.4%, transparent) 80px) !important;
-  background-repeat: no-repeat, no-repeat, repeat, repeat !important;
-  background-position: center, calc(100% + 70px) calc(100% + 70px), 0 0, 0 0 !important;
-  background-size: auto, 360px, auto, auto !important;
-  background-attachment: fixed !important;
+body { font-family: "Segoe UI", sans-serif; background: var(--ui-canvas) !important; }
+.sidebar { background: var(--ui-sidebar) !important; color: var(--ui-sidebar-text) !important; border-right: 1px solid var(--ui-line) !important; box-shadow: none !important; backdrop-filter: none !important; }
+.brand { border: 0 !important; }
+.brand-logo { background: transparent !important; box-shadow: none !important; padding: 0 !important; width: 36px !important; height: 36px !important; }
+.brand strong { color: var(--ui-text); font-size: 15px; }
+.brand span, .connection-card small { color: var(--ui-muted) !important; }
+.sidebar nav a { min-height: 44px; padding: 6px 10px !important; gap: 12px; justify-content: flex-start !important; color: var(--ui-text) !important; border: 1px solid transparent !important; border-radius: 12px !important; }
+.sidebar nav .nav-count { margin-left: auto; }
+.sidebar nav a:hover { color: var(--ui-text) !important; background: var(--ui-surface-soft) !important; transform: none !important; }
+.sidebar nav a.act { color: var(--ui-text) !important; background: var(--ui-surface) !important; border-color: var(--ui-line) !important; box-shadow: 0 2px 8px rgb(0 0 0 / 6%) !important; }
+.connection-card { background: var(--ui-surface) !important; border: 0 !important; }
+.topbar { background: var(--ui-header) !important; border-color: var(--ui-line) !important; box-shadow: none !important; backdrop-filter: none !important; }
+.primary, .button-link { color: var(--ui-canvas) !important; background: var(--ui-text) !important; border-color: var(--ui-text) !important; box-shadow: none !important; }
+.secondary, .text-button, .icon-button, .topbar-back, .mobile-panel-link, .alert-button, .theme-toggle { color: var(--ui-text) !important; background: var(--ui-surface) !important; border: 1px solid var(--ui-line) !important; box-shadow: none !important; backdrop-filter: none !important; }
+button, .button-link, input, select, textarea { border-radius: 12px !important; }
+.surface, .kpi, .filter-bar, .branch-card, .notification, .release-card, .recon-progress, .cost-panel, .finance-nav-shell, .finance-chart-main, .finance-category-panel, .finance-movement-surface, .finance-recent-panel, .finance-planning-panel, .finance-commitment-surface, .finance-cost-analysis, .finance-settings-grid > section {
+  border: 1px solid var(--ui-line) !important; border-radius: 12px !important; box-shadow: none !important; backdrop-filter: none !important;
 }
-
-html[data-theme="dark"] body {
-  background-image:
-    linear-gradient(rgba(4,17,36,.82), rgba(7,21,42,.88)),
-    url("dcarela-logo.png"),
-    repeating-linear-gradient(90deg, transparent 0, transparent 79px, rgba(120,207,255,.045) 80px),
-    repeating-linear-gradient(0deg, transparent 0, transparent 79px, rgba(120,207,255,.03) 80px) !important;
+html[data-theme].embedded-panel #v-dashboard .metric-strip { gap: 12px; border: 0; }
+html[data-theme].embedded-panel #v-dashboard .metric-item { background: var(--ui-surface); border: 1px solid var(--ui-line); border-radius: 12px; }
+html[data-theme].embedded-panel #v-dashboard .metric-item strong { font-size: 24px; line-height: 1.25; white-space: nowrap; }
+html[data-theme].embedded-panel #v-dashboard .metric-item span, html[data-theme].embedded-panel #v-dashboard .metric-item small { font-size: 11px; }
+html[data-theme].embedded-panel .dashboard-ledger { gap: 16px; border: 0; }
+html[data-theme].embedded-panel .dashboard-ledger-section { background: var(--ui-surface); border: 1px solid var(--ui-line); border-radius: 12px; }
+.nav-pos-icon { flex: 0 0 32px; width: 32px; height: 32px; display: grid; place-items: center; border-radius: 10px; background: var(--pos-icon-bg, #f4f4f5); color: var(--pos-icon-color, #71717a); }
+.nav-pos-icon svg { width: 16px; height: 16px; fill: currentColor; }
+.nav-pos-icon.sales { --pos-icon-bg: #ffedd5; --pos-icon-color: #f97316; }
+.nav-pos-icon.clients { --pos-icon-bg: #d1fae5; --pos-icon-color: #10b981; }
+.nav-pos-icon.inventory { --pos-icon-bg: #ede9fe; --pos-icon-color: #8b5cf6; }
+.nav-pos-icon.finance { --pos-icon-bg: #e0f2fe; --pos-icon-color: #0ea5e9; }
+.nav-pos-icon.cash { --pos-icon-bg: #ffe4e6; --pos-icon-color: #f43f5e; }
+.nav-pos-icon.reports { --pos-icon-bg: #e0e7ff; --pos-icon-color: #6366f1; }
+.nav-pos-icon.summary { --pos-icon-bg: #ccfbf1; --pos-icon-color: #14b8a6; }
+html[data-theme="dark"] .nav-pos-icon { background: color-mix(in srgb, var(--pos-icon-color) 15%, var(--ui-sidebar)); }
+@media (max-width: 1500px) {
+  html[data-theme].embedded-panel #v-dashboard .metric-strip { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
-
-.sidebar {
-  color: var(--ui-sidebar-text) !important;
-  background: var(--ui-sidebar) !important;
-  border-right-color: rgba(255,255,255,.10) !important;
-  box-shadow: 16px 0 38px rgba(8,34,71,.18) !important;
-  backdrop-filter: blur(28px) saturate(135%) !important;
+@media (min-width: 861px) {
+  .app-shell { grid-template-columns: 244px minmax(0, 1fr); }
 }
-
-.brand { border-color: rgba(255,255,255,.12) !important; }
-.brand-logo { border-radius: 16px !important; box-shadow: 0 9px 22px rgba(0,18,48,.22) !important; }
-.brand span, .connection-card small { color: var(--ui-sidebar-muted) !important; }
-.sidebar nav a {
-  min-height: 44px;
-  color: var(--ui-sidebar-muted) !important;
-  border-radius: 13px !important;
-  transition: color .18s ease, background .18s ease, transform .18s ease, box-shadow .18s ease;
+@media (max-width: 860px) {
+  body { background: var(--ui-canvas) !important; }
+  .mobile-command-dock { left: 12px !important; right: 12px !important; width: auto !important; transform: none !important; background: var(--ui-surface) !important; border-color: var(--ui-line) !important; backdrop-filter: none !important; }
+  .mobile-command-dock a { color: var(--ui-text) !important; }
+  .sidebar nav a { flex: 0 0 auto; min-height: 44px; }
+  html[data-theme].embedded-panel #v-dashboard .metric-strip { gap: 10px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  html[data-theme].embedded-panel .dashboard-ledger { grid-template-columns: minmax(0, 1fr); }
 }
-.sidebar nav a:hover {
-  color: #fff !important;
-  background: rgba(255,255,255,.08) !important;
-  transform: translateX(2px);
-}
-.sidebar nav a.act {
-  color: #fff !important;
-  background: rgba(23,151,232,.24) !important;
-  border-color: rgba(120,207,255,.36) !important;
-  box-shadow: inset 3px 0 var(--cyan), 0 9px 22px rgba(0,20,55,.16) !important;
-}
-
-.topbar {
-  background: var(--ui-header) !important;
-  border-color: rgba(255,255,255,.70) !important;
-  box-shadow: 0 9px 25px rgba(15,42,78,.10) !important;
-}
-
-.primary, .button-link {
-  color: #fff !important;
-  background: linear-gradient(135deg, #0a3679, #155b9e) !important;
-  border-color: rgba(255,255,255,.20) !important;
-  box-shadow: 0 8px 18px rgba(10,54,121,.18) !important;
-}
-
-.secondary, .text-button, .icon-button, .topbar-back, .mobile-panel-link, .alert-button, .theme-toggle {
-  color: var(--ui-brand) !important;
-  background: rgba(255,255,255,.58) !important;
-  border-color: rgba(255,255,255,.82) !important;
-  box-shadow: 0 7px 18px rgba(15,42,78,.07) !important;
-  backdrop-filter: blur(18px) saturate(130%);
-}
-
-html[data-theme="dark"] .secondary,
-html[data-theme="dark"] .text-button,
-html[data-theme="dark"] .icon-button,
-html[data-theme="dark"] .topbar-back,
-html[data-theme="dark"] .mobile-panel-link,
-html[data-theme="dark"] .alert-button,
-html[data-theme="dark"] .theme-toggle {
-  background: rgba(14,32,58,.78) !important;
-  border-color: rgba(255,255,255,.14) !important;
-}
-
-.surface,
-.kpi,
-.filter-bar,
-.metric-chip,
-.branch-summary article,
-.branch-card,
-.notification,
-.release-card,
-.recon-progress,
-.cost-panel,
-.finance-nav-shell,
-.finance-chart-main,
-.finance-category-panel,
-.finance-movement-surface,
-.finance-recent-panel,
-.finance-planning-panel,
-.finance-commitment-surface,
-.finance-cost-analysis,
-.finance-settings-grid > section,
-.fin-account,
-.finance-credit-card {
-  border-color: var(--ui-rim) !important;
-  border-radius: 18px !important;
-  box-shadow: var(--ui-shadow), inset 0 1px rgba(255,255,255,.52) !important;
-}
-
-button, .button-link, input, select, textarea,
-.primary, .secondary, .text-button, .icon-button, .alert-button, .mobile-panel-link {
-  border-radius: 12px !important;
-}
-
-@media (max-width: 768px) {
-  body {
-    background-color: var(--ui-canvas) !important;
-    background-image: linear-gradient(rgba(255,255,255,.22), rgba(255,255,255,.22)),
-      repeating-linear-gradient(90deg, transparent 0, transparent 79px, color-mix(in srgb, var(--ui-brand) 3%, transparent) 80px) !important;
-    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 90px) !important;
-  }
-  html[data-theme="dark"] body {
-    background-image: linear-gradient(rgba(4,17,36,.82), rgba(7,21,42,.88)),
-      repeating-linear-gradient(90deg, transparent 0, transparent 79px, rgba(120,207,255,.04) 80px) !important;
-  }
+@media (max-width: 480px) {
+  html[data-theme].embedded-panel #v-dashboard .metric-strip { grid-template-columns: minmax(0, 1fr); }
 }

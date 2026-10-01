@@ -6,9 +6,9 @@
   <meta name="theme-color" content="#09090b">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <meta name="apple-mobile-web-app-title" content="D' Carela POS 1.0.102">
-  <meta name="description" content="Panel web POS 1.0.102 de D' Carela Compufoto con operación responsive, cerebro local y Caja virtual completa.">
-  <title>D' Carela Compufoto | Panel POS 1.0.102</title>
+  <meta name="apple-mobile-web-app-title" content="D' Carela POS 1.0.103">
+  <meta name="description" content="Panel web POS 1.0.103 de D' Carela Compufoto con operación responsive, cerebro local y Caja virtual completa.">
+  <title>D' Carela Compufoto | Panel POS 1.0.103</title>
   <script>
     (() => {
       const panelParams = new URLSearchParams(location.search);
@@ -31,9 +31,9 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="favicon.svg">
   <link rel="apple-touch-icon" href="dcarela-logo.png">
-  <link rel="stylesheet" href="panel.css?v=2026.10.01.1.0.102.0">
-  <link rel="stylesheet" href="panel-theme.css?v=2026.10.01.1.0.102.0">
-  <link rel="stylesheet" href="visual-fidelity.css?v=2026.10.01.1.0.102.0">
+  <link rel="stylesheet" href="panel.css?v=2026.10.01.1.0.103.0">
+  <link rel="stylesheet" href="panel-theme.css?v=2026.10.01.1.0.103.0">
+  <link rel="stylesheet" href="visual-fidelity.css?v=2026.10.01.1.0.103.0">
 </head>
 <body>
   <section id="access" class="access-shell">
@@ -81,21 +81,21 @@
     <aside class="sidebar">
       <div class="brand">
         <img src="dcarela-logo.png" alt="" class="brand-logo">
-        <div><strong>D' Carela Compufoto</strong><span>Panel web 1.0.102</span></div>
+        <div><strong>D' Carela Compufoto</strong><span>Panel web 1.0.103</span></div>
       </div>
       <nav id="menu" aria-label="Navegacion principal">
-        <a href="#dashboard" data-title="Resumen operativo">Resumen</a>
+        <a href="#dashboard" data-title="Resumen operativo"><span class="nav-pos-icon summary" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M13,3V9H21V3M13,21H21V11H13M3,21H11V15H3M3,13H11V3H3V13Z"/></svg></span>Resumen</a>
         <a href="#sucursales" data-title="Sucursales">Sucursales</a>
-        <a href="#ventas" data-title="Ventas">Ventas</a>
+        <a href="#ventas" data-title="Ventas"><span class="nav-pos-icon sales" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7,18C5.9,18 5,18.9 5,20C5,21.1 5.9,22 7,22C8.1,22 9,21.1 9,20C9,18.9 8.1,18 7,18M1,2V4H3L6.6,11.59L5.25,14.04C5.09,14.32 5,14.65 5,15C5,16.1 5.9,17 7,17H19V15H7.42C7.28,15 7.17,14.89 7.17,14.75L7.2,14.63L8.1,13H15.55C16.3,13 16.96,12.59 17.3,11.97L20.88,5.48C20.96,5.34 21,5.17 21,5C21,4.45 20.55,4 20,4H5.21L4.27,2H1M17,18C15.9,18 15,18.9 15,20C15,21.1 15.9,22 17,22C18.1,22 19,21.1 19,20C19,18.9 18.1,18 17,18Z"/></svg></span>Ventas</a>
         <a href="#caja-virtual" data-title="Caja virtual">Caja virtual</a>
-        <a href="#caja" data-title="Caja y arqueos">Caja</a>
+        <a href="#caja" data-title="Caja y arqueos"><span class="nav-pos-icon cash" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5,2C3.89,2 3,2.89 3,4V8H21V4C21,2.89 20.11,2 19,2H5M5,4H19V6H5V4M3,10V20C3,21.11 3.89,22 5,22H19C20.11,22 21,21.11 21,20V10H3M7,12H17V14H7V12M7,16H13V18H7V16Z"/></svg></span>Caja</a>
         <a href="#turnos" data-title="Turnos y arqueos">Turnos</a>
         <a href="#recalcular" data-title="Recalcular incongruencias">Recalcular</a>
-        <a href="#reportes" data-title="Reportes">Reportes</a>
-        <a href="#inventario" data-title="Inventario">Inventario</a>
-        <a href="#clientes" data-title="Clientes">Clientes</a>
+        <a href="#reportes" data-title="Reportes"><span class="nav-pos-icon reports" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M22,21H2V3H4V19H6V10H10V19H12V6H16V19H18V14H22V21Z"/></svg></span>Reportes</a>
+        <a href="#inventario" data-title="Inventario"><span class="nav-pos-icon inventory" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M21,16.5C21,16.88 20.79,17.21 20.47,17.38L12.57,21.82C12.41,21.94 12.21,22 12,22C11.79,22 11.59,21.94 11.43,21.82L3.53,17.38C3.21,17.21 3,16.88 3,16.5V7.5C3,7.12 3.21,6.79 3.53,6.62L11.43,2.18C11.59,2.06 11.79,2 12,2C12.21,2 12.41,2.06 12.57,2.18L20.47,6.62C20.79,6.79 21,7.12 21,7.5V16.5Z"/></svg></span>Inventario</a>
+        <a href="#clientes" data-title="Clientes"><span class="nav-pos-icon clients" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M16,13C15.71,13 15.38,13 15.03,13.05C16.19,13.89 17,15 17,16.5V19H23V16.5C23,14.17 18.33,13 16,13M8,13C5.67,13 1,14.17 1,16.5V19H15V16.5C15,14.17 10.33,13 8,13M8,11A3,3 0 0,0 11,8A3,3 0 0,0 8,5A3,3 0 0,0 5,8A3,3 0 0,0 8,11M16,11A3,3 0 0,0 19,8A3,3 0 0,0 16,5A3,3 0 0,0 13,8A3,3 0 0,0 16,11Z"/></svg></span>Clientes</a>
         <a href="#money-manager" data-title="Money Manager"><span class="money-pig-icon" aria-hidden="true">&#128055;</span> Money Manager</a>
-        <a href="#finanzas" data-title="Finanzas">Finanzas</a>
+        <a href="#finanzas" data-title="Finanzas"><span class="nav-pos-icon finance" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M21,18V19A2,2 0 0,1 19,21H5C3.89,21 3,20.1 3,19V5A2,2 0 0,1 5,3H19A2,2 0 0,1 21,5V6H12C10.89,6 10,6.9 10,8V16A2,2 0 0,0 12,18M12,16H22V8H12M16,13.5A1.5,1.5 0 0,1 14.5,12A1.5,1.5 0 0,1 16,10.5A1.5,1.5 0 0,1 17.5,12A1.5,1.5 0 0,1 16,13.5Z"/></svg></span>Finanzas</a>
         <a href="#asistente" data-title="Asistente IA">Asistente IA <span id="navIaPending" class="nav-count oculto">0</span></a>
         <a href="#notificaciones" data-title="Notificaciones">Notificaciones <span id="navAlertas" class="nav-count oculto">0</span></a>
         <a href="#dispositivos" data-title="Dispositivos">Dispositivos</a>
@@ -113,7 +113,7 @@
     <div class="workspace">
       <header class="topbar">
         <button id="btnVolver" class="topbar-back" type="button" title="Volver" aria-label="Volver">&#8592;</button>
-        <div class="topbar-title"><p class="eyebrow" id="branchEyebrow">D' Carela POS 1.0.102</p><h1 id="pageTitle">Resumen operativo</h1></div>
+        <div class="topbar-title"><p class="eyebrow" id="branchEyebrow">D' Carela POS 1.0.103</p><h1 id="pageTitle">Resumen operativo</h1></div>
         <div class="top-actions">
           <label class="branch-switcher" for="branchSelector">
             <span>Sucursal</span>
@@ -1173,19 +1173,19 @@
   <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
-  <script src="finance-revision-core.js?v=2026.10.01.1.0.102.0"></script>
-  <script src="finance-core.js?v=2026.10.01.1.0.102.0"></script>
-  <script src="money-manager-core.js?v=2026.10.01.1.0.102.0"></script>
-  <script src="client-period-filter.js?v=2026.10.01.1.0.102.0"></script>
-  <script src="virtual-cash-core.js?v=2026.10.01.1.0.102.0"></script>
-  <script src="firebase-adapter.js?v=2026.10.01.1.0.102.0"></script>
-  <script src="assistant-local.js?v=2026.10.01.1.0.102.0"></script>
+  <script src="finance-revision-core.js?v=2026.10.01.1.0.103.0"></script>
+  <script src="finance-core.js?v=2026.10.01.1.0.103.0"></script>
+  <script src="money-manager-core.js?v=2026.10.01.1.0.103.0"></script>
+  <script src="client-period-filter.js?v=2026.10.01.1.0.103.0"></script>
+  <script src="virtual-cash-core.js?v=2026.10.01.1.0.103.0"></script>
+  <script src="firebase-adapter.js?v=2026.10.01.1.0.103.0"></script>
+  <script src="assistant-local.js?v=2026.10.01.1.0.103.0"></script>
   <script src="jspdf.umd.min.js"></script>
   <script src="jspdf.plugin.autotable.min.js"></script>
-  <script src="ticket-termico.js?v=2026.10.01.1.0.102.0"></script>
-  <script src="panel-sale-pending.js?v=2026.10.01.1.0.102.0"></script>
-  <script src="panel.js?v=2026.10.01.1.0.102.0"></script>
-  <script src="visual-fidelity.js?v=2026.10.01.1.0.102.0"></script>
+  <script src="ticket-termico.js?v=2026.10.01.1.0.103.0"></script>
+  <script src="panel-sale-pending.js?v=2026.10.01.1.0.103.0"></script>
+  <script src="panel.js?v=2026.10.01.1.0.103.0"></script>
+  <script src="visual-fidelity.js?v=2026.10.01.1.0.103.0"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));
