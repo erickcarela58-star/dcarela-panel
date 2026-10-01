@@ -24,7 +24,7 @@
     document.body?.classList.add("is-embedded");
   }
   const THEME_KEY = "dcarela.ui.theme";
-  const APP_BUILD = "1.0.103";
+  const APP_BUILD = "1.0.104";
   const financeCore = window.DcarelaFinanceCore;
   const moneyManagerCore = window.DcarelaMoneyManagerCore;
 
@@ -128,6 +128,7 @@
   let lastTurnExport = null;
   let lastReconciliation = null;
   let dashboardViewCache = null;
+  let dashboardDevicesSnapshot = null;
   let ventasViewCache = null;
   let cajaViewCache = null;
   let turnosViewCache = null;
@@ -604,10 +605,8 @@
         ? Math.round(profits.reduce((sum, item) => sum + item.revenue, 0) / total * 100)
         : 100;
       const devices = (rawDevices || []).sort((a, b) => String(b.last_seen_at || "").localeCompare(String(a.last_seen_at || "")));
-      const latestDevice = devices[0] || null;
-      const connected = latestDevice?.last_seen_at
-        ? Date.now() - new Date(latestDevice.last_seen_at).getTime() < 10 * 60 * 1000
-        : false;
+      const latestDevice = devices.find(device => conexionRecienteDispositivo(device)) || devices[0] || null;
+      const connected = devices.some(device => conexionRecienteDispositivo(device));
       return {
         ...branch,
         total,
@@ -664,10 +663,8 @@
       ? Math.round(profits.reduce((sum, item) => sum + item.revenue, 0) / total * 100)
       : 100;
     const devices = devicesResult.data || [];
-    const latestDevice = devices[0] || null;
-    const connected = latestDevice?.last_seen_at
-      ? Date.now() - new Date(latestDevice.last_seen_at).getTime() < 10 * 60 * 1000
-      : false;
+    const latestDevice = devices.find(device => conexionRecienteDispositivo(device)) || devices[0] || null;
+    const connected = devices.some(device => conexionRecienteDispositivo(device));
     return {
       ...branch,
       total,
@@ -708,10 +705,10 @@
         </div>
         <div class="branch-ledger-waves">
           ${waveMetric("Pulso de ventas", money(item.total), "mes actual", item.salesSeries)}
-          ${waveMetric("Salud operativa", `${item.connected ? Math.max(0, 100 - Math.min(90, item.alerts * 3)) : 10}%`, item.connected ? "terminal conectada" : "sin conexion reciente", item.profitSeries.length ? item.profitSeries : item.salesSeries)}
+          ${waveMetric("Salud operativa", `${item.connected ? Math.max(0, 100 - Math.min(90, item.alerts * 3)) : 10}%`, item.connected ? "senal de terminal < 10 min" : "sin conexion reciente", item.profitSeries.length ? item.profitSeries : item.salesSeries)}
         </div>
         <div class="branch-ledger-status">
-          <span><b>${item.connected ? "Conectada" : "Sin conexion reciente"}</b>${item.device ? ` &middot; ${esc(item.device.device_name)}` : ""}</span>
+          <span><b>${item.connected ? "Conexion reciente" : "Sin conexion reciente"}</b>${item.device ? ` &middot; ${esc(item.device.device_name)}` : ""}</span>
           <small>${item.device?.last_seen_at ? `Ultima conexion ${esc(fecha(item.device.last_seen_at))}` : "Sin terminal registrada"} &middot; ${item.alerts} alerta(s)</small>
         </div>
         <footer>
@@ -2745,11 +2742,40 @@
     return data || [];
   }
 
+  function conexionRecienteDispositivo(device, now = Date.now()) {
+    const seen = typeof device?.last_seen_at === "string" ? Date.parse(device.last_seen_at) : NaN;
+    const age = now - seen;
+    return device?.status === "activa" && Number.isFinite(age) && age >= 0 && age < 10 * 60 * 1000;
+  }
+
+  function saludDispositivos(devices, now = Date.now()) {
+    if (!devices) return ["Dispositivos", "No disponible", "sin datos", "warn"];
+    if (!devices.length) return ["Dispositivos", "Sin dispositivos registrados", "sin datos", "warn"];
+    const enabled = devices.filter(device => device.status === "activa");
+    const recent = enabled.filter(device => conexionRecienteDispositivo(device, now)).length;
+    const unknown = enabled.filter(device => {
+      const seen = typeof device.last_seen_at === "string" ? Date.parse(device.last_seen_at) : NaN;
+      return !Number.isFinite(seen) || seen > now;
+    }).length;
+    const detail = `${recent} con conexion reciente de ${enabled.length} habilitado(s)${unknown ? `; ${unknown} sin fecha verificable` : ""}`;
+    return ["Dispositivos", detail, recent ? "senal < 10 min" : "sin senal reciente", recent ? "" : "warn"];
+  }
+
+  function filaSalud([title, detail, value, tone]) {
+    return `<span class="health-dot ${tone}"></span><div><b>${esc(title)}</b><small>${esc(detail)}</small></div><span class="health-value">${esc(value)}</span>`;
+  }
+
+  function actualizarSaludDispositivos() {
+    const row = $("dashboardDevicesHealth");
+    if (row && dashboardDevicesSnapshot) row.innerHTML = filaSalud(saludDispositivos(dashboardDevicesSnapshot));
+  }
+
   async function cargarDashboard(force = false) {
     if (!force && dashboardViewCache && Date.now() - dashboardViewCache.at < 45000) {
       return;
     }
     $("pillVivo").textContent = "cargando";
+    dashboardDevicesSnapshot = null;
     estadoDashboard("Consultando ventas, caja y actividad...");
     try {
       let from = inicioDia();
@@ -2816,26 +2842,29 @@
 
       const latestEvent = activityItems[0];
       const latestBackup = backups?.[0] || null;
-      const activeDevices = devices ? devices.filter(device => device.status === "activa").length : null;
+      dashboardDevicesSnapshot = devices;
       const alerts = await obtenerAlertas().catch(() => null);
       const unread = alerts ? alerts.filter(alert => !alert.read).length : null;
       $("healthList").innerHTML = [
-        ["Sincronizacion", activity ? (latestEvent ? `Ultimo evento ${fecha(fechaEventoIso(latestEvent))}` : "Sin eventos disponibles") : "No disponible", activity ? (latestEvent ? "activa" : "sin datos") : "sin datos", activity ? "" : "warn"],
+        ["Sincronizacion", activity ? (latestEvent ? `Ultimo evento ${fecha(fechaEventoIso(latestEvent))}` : "Sin eventos disponibles") : "No disponible", activity ? (latestEvent ? "ultimo registro" : "sin datos") : "sin datos", activity ? "" : "warn"],
         ["Respaldo", backups ? (latestBackup ? `${fecha(latestBackup.created_at)} | ${latestBackup.status}` : "Sin respaldo informado") : "No disponible", backups ? (latestBackup?.status || "sin datos") : "sin datos", backups ? "" : "warn"],
-        ["Dispositivos", devices ? `${activeDevices} activo(s)` : "No disponible", devices ? "en linea" : "sin datos", devices ? "" : "warn"],
+        saludDispositivos(devices),
         ["Alertas", alerts ? `${unread} sin leer` : "No disponible", alerts ? (unread ? "atencion" : "al dia") : "sin datos", alerts && unread ? "warn" : ""]
-      ].map(([title, detail, value, tone]) => `<div class="health-row"><span class="health-dot ${tone}"></span><div><b>${esc(title)}</b><small>${esc(detail)}</small></div><span class="health-value">${esc(value)}</span></div>`).join("");
+      ].map(row => `<div class="health-row"${row[0] === "Dispositivos" ? ' id="dashboardDevicesHealth"' : ""}>${filaSalud(row)}</div>`).join("");
       await renderAlertPreview().catch(() => {
         $("alertPreview").innerHTML = '<div class="empty-state">No se pudieron consultar las alertas abiertas.</div>';
       });
-      $("pillVivo").textContent = "en vivo";
+      $("pillVivo").textContent = "consultado";
+      $("pillVivo").title = `Ultima consulta ${fecha(new Date().toISOString())}. La conexion de terminales se comprueba por separado.`;
       dashboardViewCache = { at: Date.now() };
     } catch (dashErr) {
       dashboardViewCache = null;
+      dashboardDevicesSnapshot = null;
       console.warn("cargarDashboard auto-recovery:", dashErr);
       ["kVenta", "kNum", "kProm", "kEfec", "kItbis", "kCaja"].forEach(id => { if ($(id)) $(id).textContent = "--"; });
       ["kVentaDetalle", "kNumDetalle", "kCajaDetalle"].forEach(id => { if ($(id)) $(id).textContent = "no disponible"; });
       $("pillVivo").textContent = "sin datos";
+      $("pillVivo").title = "No se pudo completar la consulta.";
       estadoDashboard("No se pudo comprobar la información actual.", "Reintentar");
     }
   }
@@ -8011,7 +8040,6 @@
         })
       ];
       liveChannel = () => unsubscribers.forEach(unsubscribe => unsubscribe?.());
-      $("pillVivo").textContent = "en vivo";
       verEstado(true, "Firebase conectado en vivo");
       return;
     }
@@ -8043,7 +8071,6 @@
       })
       .subscribe(status => {
         if (status === "SUBSCRIBED") {
-          $("pillVivo").textContent = "en vivo";
           verEstado(true, "Realtime conectado");
         }
       });
@@ -8757,6 +8784,8 @@
     });
     window.addEventListener("hashchange", () => { if (sesionOk) mostrarVista(location.hash.slice(1) || "dashboard"); });
     setInterval(() => { $("footerClock").textContent = new Date().toLocaleString("es-DO", { dateStyle: "full", timeStyle: "short" }); }, 1000);
+    // Caduca la señal mostrada aunque no lleguen nuevos eventos; no abre otra consulta.
+    setInterval(actualizarSaludDispositivos, 60000);
 
     if (!window.DcarelaFirebase?.isAvailable) {
       mostrarAcceso("v-config");

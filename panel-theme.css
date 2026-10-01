@@ -4627,6 +4627,10 @@ svg[data-current-metric="true"] .current-metric-inner,
   border-radius: 12px; background: #fff; box-shadow: 0 2px 8px rgba(0, 0, 0, .18);
 }
 .fin-account-visual-head i.fin-bank-logo img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.fin-account-visual-head > span { flex: 1; }
+.fin-account-visual-head b {
+  white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; line-height: 1.3;
+}
 
 /* Estilo "dolar": degradado con los dos tonos de la cuenta y un mosaico de signos $ (se define en la nube; la Caja Windows lo pinta igual). */
 .fin-account.visual.dolar, .account-visual-preview.dolar {

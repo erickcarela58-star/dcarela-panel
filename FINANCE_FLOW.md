@@ -56,6 +56,8 @@ En web/PWA 1.0.91, la lectura del diario comienza en cuanto llegan cuentas y pre
 
 La actividad reciente sin rango excluye el archivo historico cuando solicita `includeArchives:false`; el diario completo sigue uniendo ambas capas. Resumen operativo muestra `--` para Caja si los eventos consultados no incluyen apertura o cierre: la ausencia de un evento no confirma que la caja este cerrada. Si falla una lectura critica, los indicadores quedan no disponibles y aparece Reintentar.
 
+En Salud operativa, un dispositivo habilitado tiene permiso para sincronizar; eso no confirma que este conectado. Conexion reciente requiere una señal `last_seen_at` valida de menos de diez minutos, sin fecha futura, y un dispositivo habilitado. La señal caduca en pantalla aunque no lleguen eventos nuevos. `Consultado` indica que termino la lectura del Resumen; la hora de consulta aparece al pasar sobre esa etiqueta. Ni esa etiqueta ni una señal reciente certifican que la cola de la Caja este completamente aplicada. Un ultimo evento solo acredita ese registro y conserva su fecha.
+
 ## Diario compartido y consultas verificadas
 
 Finanzas, Money Manager, saldos de cuentas y consultas financieras del asistente usan el diario compartido. Cada pago se cuenta una vez aunque exista como evento, documento y proyeccion. Los rangos de reportes se aplican despues de reconstruir el diario; el cuadre limita el calculo de saldo, no el historial consultable. Los eventos actuales se leen por paginas de hasta 5,000; una consulta completa no se recorta a una sola pagina y une los archivos conservados. Requiere respuesta del servidor y permite reintentar si una pagina falla.
