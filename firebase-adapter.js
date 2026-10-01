@@ -2000,6 +2000,9 @@
         if (syncEventQueryCache.get(queryKey) === cachedQuery) syncEventQueryCache.delete(queryKey);
         throw error;
       }
+      // Actividad reciente pide solo la coleccion actual. Sin rango no debe
+      // descargar el archivo entero; complete sigue exigiendo ambas capas.
+      if (options.includeArchives === false && !complete) return current;
       const recentWindow = from && Number.isFinite(Date.parse(from))
         && Date.parse(from) >= Date.now() - 45 * 24 * 60 * 60 * 1000;
       if (recentWindow && !includeArchives) return current;

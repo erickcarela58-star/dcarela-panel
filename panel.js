@@ -24,7 +24,7 @@
     document.body?.classList.add("is-embedded");
   }
   const THEME_KEY = "dcarela.ui.theme";
-  const APP_BUILD = "1.0.100";
+  const APP_BUILD = "1.0.101";
   const financeCore = window.DcarelaFinanceCore;
   const moneyManagerCore = window.DcarelaMoneyManagerCore;
 
@@ -2788,7 +2788,7 @@
       const tax = active.reduce((sum, event) => sum + itbisDe(P(event)), 0);
       const activityItems = activity || [];
       const cashEvents = activityItems.filter(event => ["CajaAbierta", "CajaCerrada"].includes(event.event_type));
-      const cashState = activity ? (cashEvents[0]?.event_type === "CajaAbierta" ? "Abierta" : "Cerrada") : "--";
+      const cashState = cashEvents[0] ? (cashEvents[0].event_type === "CajaAbierta" ? "Abierta" : "Cerrada") : "--";
 
       $("kVenta").textContent = money(net);
       $("kVentaDetalle").textContent = refunds ? `${money(refunds)} devuelto` : `${dayLabel}`;

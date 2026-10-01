@@ -30,6 +30,19 @@ function harness(read, storageValues = {}) {
 }
 const snapshot = rows => ({docs:rows.map(row=>({id:row.id,data:()=>({...row})}))});
 
+test('actividad reciente sin rango no descarga el archivo cuando se excluye explícitamente', async () => {
+  const recent = { id: 'recent', event_id: 'recent', event_type: 'ProductoEditado', received_at_cloud: '2026-10-01T00:00:00Z' };
+  const h = harness(async name => {
+    if (name === 'sync_event_archives') throw new Error('el archivo no pertenece a la actividad reciente');
+    return snapshot([recent]);
+  });
+  const rows = await h.api.getSyncEvents('dcarela', { limit: 45, includeArchives: false });
+  assert.deepEqual(Array.from(rows, row => row.event_id), ['recent']);
+  assert.equal(h.calls.some(call => call.name === 'sync_event_archives'), false);
+  await assert.rejects(h.api.getSyncEvents('dcarela', { complete: true, includeArchives: false }), /archivo/,
+    'una lectura completa sigue exigiendo archivos aunque alguien combine opciones incompatibles');
+});
+
 test('consultas simultáneas comparten una lectura sin recortar ni cachear saldos', async()=>{
   const rows = Array.from({length:1700},(_,i)=>({id:String(i),monto_centavos:125+i}));
   const h = harness(async()=>snapshot(rows));

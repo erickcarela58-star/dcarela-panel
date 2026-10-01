@@ -54,6 +54,8 @@ Las consultas contables completas usan una cache separada de las consultas opera
 
 En web/PWA 1.0.91, la lectura del diario comienza en cuanto llegan cuentas y preferencias, mientras siguen cargando tarjetas, presupuestos y obligaciones. La pantalla espera el diario y los datos requeridos antes de presentar saldos; no muestra una cifra parcial como definitiva. Esta mejora quita una espera secuencial, pero la velocidad final depende tambien de la red y del volumen de eventos. Si la carga falla, usa Actualizar datos para reintentar y no registres un ajuste por un saldo que aun no se verifico.
 
+La actividad reciente sin rango excluye el archivo historico cuando solicita `includeArchives:false`; el diario completo sigue uniendo ambas capas. Resumen operativo muestra `--` para Caja si los eventos consultados no incluyen apertura o cierre: la ausencia de un evento no confirma que la caja este cerrada. Si falla una lectura critica, los indicadores quedan no disponibles y aparece Reintentar.
+
 ## Diario compartido y consultas verificadas
 
 Finanzas, Money Manager, saldos de cuentas y consultas financieras del asistente usan el diario compartido. Cada pago se cuenta una vez aunque exista como evento, documento y proyeccion. Los rangos de reportes se aplican despues de reconstruir el diario; el cuadre limita el calculo de saldo, no el historial consultable. Los eventos actuales se leen por paginas de hasta 5,000; una consulta completa no se recorta a una sola pagina y une los archivos conservados. Requiere respuesta del servidor y permite reintentar si una pagina falla.
