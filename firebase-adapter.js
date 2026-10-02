@@ -1851,7 +1851,7 @@
       }
       if (Number(options.limit) > 0) q = q.limit(Math.max(1, Math.min(500, Number(options.limit))));
       let isInitialSnapshot = true;
-      return q.onSnapshot(snap => {
+      const onSnapshot = snap => {
         if (collectionName === 'sync_events' && !snap.metadata?.fromCache) {
           if (!isInitialSnapshot && (typeof snap.docChanges !== 'function' || snap.docChanges().some(c => c.type === 'added' || c.type === 'modified'))) {
             syncEventQueryCache.clear();
@@ -1859,10 +1859,15 @@
         }
         isInitialSnapshot = false;
         const items = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        callback(items);
-      }, err => {
+        callback(items, { fromCache: snap.metadata?.fromCache, hasPendingWrites: snap.metadata?.hasPendingWrites });
+      };
+      const onError = err => {
         console.warn(`Firestore listener error on ${collectionName}:`, err);
-      });
+        options.onError?.(err);
+      };
+      return options.includeMetadataChanges
+        ? q.onSnapshot({ includeMetadataChanges: true }, onSnapshot, onError)
+        : q.onSnapshot(onSnapshot, onError);
     },
 
     async acknowledgeAlerts(ids, businessId) {

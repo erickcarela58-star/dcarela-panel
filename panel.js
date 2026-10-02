@@ -24,7 +24,7 @@
     document.body?.classList.add("is-embedded");
   }
   const THEME_KEY = "dcarela.ui.theme";
-  const APP_BUILD = "1.0.105";
+  const APP_BUILD = "1.0.106";
   const financeCore = window.DcarelaFinanceCore;
   const moneyManagerCore = window.DcarelaMoneyManagerCore;
 
@@ -2765,9 +2765,36 @@
     return `<span class="health-dot ${tone}"></span><div><b>${esc(title)}</b><small>${esc(detail)}</small></div><span class="health-value">${esc(value)}</span>`;
   }
 
+  let dashboardDeviceLiveState = null;
+
+  function saludDispositivosActual() {
+    const live = dashboardDeviceLiveState;
+    if (live?.status === "server") return saludDispositivos(live.rows);
+    if (live?.status === "cache") return ["Dispositivos", "Lectura guardada; conexion sin verificar", "sin verificar", "warn"];
+    if (live?.status === "error") return ["Dispositivos", "No se pudo verificar la conexion de terminales", "sin datos", "warn"];
+    return saludDispositivos(dashboardDevicesSnapshot);
+  }
+
+  function conectarSaludDispositivos(adapter, businessId) {
+    const state = { status: "pending", rows: null, checkedAt: "" };
+    dashboardDeviceLiveState = state;
+    const unsubscribe = window.DcarelaDeviceHealth.observe(adapter, businessId, update => {
+      Object.assign(state, update);
+      actualizarSaludDispositivos();
+    }, { clock: () => Date.now(), setInterval: window.setInterval, clearInterval: window.clearInterval });
+    return () => {
+      unsubscribe();
+      if (dashboardDeviceLiveState === state) dashboardDeviceLiveState = null;
+    };
+  }
+
   function actualizarSaludDispositivos() {
     const row = $("dashboardDevicesHealth");
-    if (row && dashboardDevicesSnapshot) row.innerHTML = filaSalud(saludDispositivos(dashboardDevicesSnapshot));
+    if (row && (dashboardDevicesSnapshot || (dashboardDeviceLiveState && dashboardDeviceLiveState.status !== "pending"))) {
+      row.innerHTML = filaSalud(saludDispositivosActual());
+      row.dataset.deviceConnection = dashboardDeviceLiveState?.status || "snapshot";
+      row.dataset.deviceCheckedAt = dashboardDeviceLiveState?.checkedAt || "";
+    }
   }
 
   async function cargarDashboard(force = false) {
@@ -2848,9 +2875,10 @@
       $("healthList").innerHTML = [
         ["Sincronizacion", activity ? (latestEvent ? `Ultimo evento ${fecha(fechaEventoIso(latestEvent))}` : "Sin eventos disponibles") : "No disponible", activity ? (latestEvent ? "ultimo registro" : "sin datos") : "sin datos", activity ? "" : "warn"],
         ["Respaldo", backups ? (latestBackup ? `${fecha(latestBackup.created_at)} | ${latestBackup.status}` : "Sin respaldo informado") : "No disponible", backups ? (latestBackup?.status || "sin datos") : "sin datos", backups ? "" : "warn"],
-        saludDispositivos(devices),
+        saludDispositivosActual(),
         ["Alertas", alerts ? `${unread} sin leer` : "No disponible", alerts ? (unread ? "atencion" : "al dia") : "sin datos", alerts && unread ? "warn" : ""]
       ].map(row => `<div class="health-row"${row[0] === "Dispositivos" ? ' id="dashboardDevicesHealth"' : ""}>${filaSalud(row)}</div>`).join("");
+      actualizarSaludDispositivos();
       await renderAlertPreview().catch(() => {
         $("alertPreview").innerHTML = '<div class="empty-state">No se pudieron consultar las alertas abiertas.</div>';
       });
@@ -8097,6 +8125,7 @@
       let syncListenerReady = false;
       let alertsListenerReady = false;
       const unsubscribers = [
+        conectarSaludDispositivos(window.DcarelaFirebase, BUSINESS),
         window.DcarelaFirebase.listenCollection("sync_events", [["business_id", "==", BUSINESS]], items => {
           if (!syncListenerReady) { syncListenerReady = true; return; }
           const newest = items.sort((a, b) => String(b.received_at_cloud || b.created_at_local || "").localeCompare(String(a.received_at_cloud || a.created_at_local || "")))[0];

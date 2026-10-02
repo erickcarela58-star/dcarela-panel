@@ -11,12 +11,13 @@ assert.ok(start > 0 && end > start);
 function harness({ salesError, activity = [], auxiliaryError = false, devices = [], now = Date.now() } = {}) {
   const elements = new Map();
   const element = id => {
-    if (!elements.has(id)) elements.set(id, { textContent: '', innerHTML: '' });
+    if (!elements.has(id)) elements.set(id, { textContent: '', innerHTML: '', dataset: {} });
     return elements.get(id);
   };
   const messages = [];
   const context = {
     dashboardViewCache: null, dashboardDevicesSnapshot: null, Date: class extends Date { static now() { return now; } }, console: { warn() {} },
+    window: { DcarelaDeviceHealth: require('./device-health-core.js'), setInterval: () => 0, clearInterval() {} },
     $: element, estadoDashboard: (...args) => messages.push(args),
     inicioDia: () => '2026-10-01T04:00:00Z', finDia: () => '2026-10-02T03:59:59Z',
     ventasActivas: async () => {
@@ -33,9 +34,95 @@ function harness({ salesError, activity = [], auxiliaryError = false, devices = 
     fecha: value => value, fechaCorta: value => value, fechaEventoIso: event => event.created_at_local,
     dashboardBuckets: () => [], renderKpiSparkline() {}, renderHourChart() {}, renderFeed() {}, esc: value => value,
   };
-  const functions = vm.runInNewContext(`${source.slice(start, end)}; ({ load: cargarDashboard, refresh: actualizarSaludDispositivos });`, context);
+  const functions = vm.runInNewContext(`${source.slice(start, end)}; ({ load: cargarDashboard, refresh: actualizarSaludDispositivos, connect: conectarSaludDispositivos });`, context);
   return { ...functions, element, messages, context, advance: ms => { now += ms; } };
 }
+
+function subscription(h, businessId = 'fixture-plaza') {
+  let callback, options, stopped = 0;
+  const stop = h.connect({ listenCollection(name, conditions, cb, opts) {
+    assert.equal(name, 'devices');
+    assert.deepEqual(Array.from(conditions, row => Array.from(row)), [['business_id', '==', businessId]]);
+    assert.equal(opts.includeMetadataChanges, true);
+    callback = cb; options = opts;
+    return () => { stopped++; };
+  } }, businessId);
+  return { emit: (rows, metadata = { fromCache: false, hasPendingWrites: false }) => callback(rows, metadata),
+    fail: () => options.onError(new Error('fixture listener')), stop, stopped: () => stopped };
+}
+
+test('una señal nueva actualiza solo la salud y no recarga ventas ni Finanzas', async () => {
+  const h = harness({ now: Date.parse('2026-10-02T10:00:00Z') });
+  await h.load();
+  const original = h.element('kVenta').textContent;
+  h.context.ventasActivas = () => { throw new Error('no debe volver a leer ventas'); };
+  const s = subscription(h);
+  s.emit([{ status: 'activa', last_seen_at: '2026-10-02T09:59:00Z' }]);
+  assert.match(h.element('dashboardDevicesHealth').innerHTML, /1 con conexion reciente/);
+  assert.equal(h.element('dashboardDevicesHealth').dataset.deviceConnection, 'server');
+  assert.equal(h.element('kVenta').textContent, original);
+  assert.equal(h.element('pillVivo').textContent, 'consultado');
+  h.advance(9 * 60 * 1000); h.refresh();
+  assert.match(h.element('dashboardDevicesHealth').innerHTML, /sin senal reciente/);
+  s.emit([{ status: 'activa', last_seen_at: '2026-10-02T10:09:00Z' }]);
+  assert.match(h.element('dashboardDevicesHealth').innerHTML, /1 con conexion reciente/);
+});
+
+test('caché, escrituras pendientes y errores no certifican conexión; una lectura remota la recupera', async () => {
+  const h = harness({ now: Date.parse('2026-10-02T10:00:00Z') });
+  await h.load();
+  const s = subscription(h);
+  const rows = [{ status: 'activa', last_seen_at: '2026-10-02T09:59:00Z' }];
+  for (const metadata of [{ fromCache: true }, { fromCache: false, hasPendingWrites: true }, undefined]) {
+    // Emitir metadatos ausentes explícitamente también debe ser conservador.
+    if (metadata === undefined) s.emit(rows, null); else s.emit(rows, metadata);
+    assert.match(h.element('dashboardDevicesHealth').innerHTML, /conexion sin verificar/);
+    assert.doesNotMatch(h.element('dashboardDevicesHealth').innerHTML, /con conexion reciente/);
+    assert.equal(h.element('dashboardDevicesHealth').dataset.deviceCheckedAt, '');
+  }
+  s.fail();
+  assert.match(h.element('dashboardDevicesHealth').innerHTML, /No se pudo verificar/);
+  assert.equal(h.element('kVenta').textContent, 'RD$100');
+  s.emit(rows);
+  assert.match(h.element('dashboardDevicesHealth').innerHTML, /1 con conexion reciente/);
+  assert.ok(h.element('dashboardDevicesHealth').dataset.deviceCheckedAt);
+  s.emit([]);
+  assert.match(h.element('dashboardDevicesHealth').innerHTML, /Sin dispositivos registrados/);
+});
+
+test('una lectura lenta del resumen no reemplaza una señal remota posterior', async () => {
+  const h = harness({ now: Date.parse('2026-10-02T10:00:00Z') });
+  let release;
+  h.context.getDevices = () => new Promise(resolve => { release = resolve; });
+  const loading = h.load();
+  const s = subscription(h);
+  s.emit([{ status: 'activa', last_seen_at: '2026-10-02T09:59:00Z' }]);
+  release([{ status: 'activa', last_seen_at: '2026-09-29T16:00:00Z' }]);
+  await loading;
+  assert.match(h.element('healthList').innerHTML, /1 con conexion reciente/);
+});
+
+test('la desconexión descarta callbacks tardíos y la sucursal nueva queda aislada', async () => {
+  const h = harness({ now: Date.parse('2026-10-02T10:00:00Z') });
+  await h.load();
+  const old = subscription(h);
+  old.stop();
+  const current = subscription(h, 'fixture-central');
+  current.emit([]);
+  const html = h.element('dashboardDevicesHealth').innerHTML;
+  old.emit([{ status: 'activa', last_seen_at: '2026-10-02T09:59:00Z' }]); old.fail();
+  assert.equal(h.element('dashboardDevicesHealth').innerHTML, html);
+  assert.equal(old.stopped(), 1);
+  current.stop();
+});
+
+test('un fallo al iniciar la suscripción no interrumpe el resumen', async () => {
+  const h = harness();
+  h.connect({ listenCollection() { throw new Error('fixture'); } }, 'fixture');
+  await h.load();
+  assert.equal(h.element('kVenta').textContent, 'RD$100');
+  assert.match(h.element('healthList').innerHTML, /No se pudo verificar/);
+});
 
 test('el resumen no declara Caja cerrada si la actividad no contiene un evento de caja', async () => {
   const h = harness({ activity: [{ event_type: 'ProductoEditado' }] });

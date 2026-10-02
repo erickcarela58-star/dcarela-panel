@@ -7,12 +7,19 @@ function harness(read, storageValues = {}) {
   let now = Date.now();
   const user = {uid:'admin-a'};
   const calls = [];
+  const listeners = [];
   function query(name, conditions = []) {
     return {where:(...condition)=>query(name,[...conditions,condition]),
       doc:id=>query(name, [id]),
       orderBy:(...order)=>query(name,[...conditions,['orderBy',...order]]),
       limit:value=>query(name,[...conditions,['limit',value]]),
       startAfter:doc=>query(name,[...conditions,['startAfter',doc.id]]),
+      onSnapshot(...args) {
+        const metadataOptions = typeof args[0] === 'object' ? args.shift() : null;
+        const listener = { name, conditions, metadataOptions, next: args[0], error: args[1], stopped: false };
+        listeners.push(listener);
+        return () => { listener.stopped = true; };
+      },
       async get(options = {}){ calls.push({name,conditions,source:options?.source || 'server'}); return read(name,conditions,options); }};
   }
   const auth = {currentUser:user};
@@ -26,9 +33,40 @@ function harness(read, storageValues = {}) {
   const clock = class extends Date {static now(){return now;}};
   vm.runInNewContext(fs.readFileSync(__dirname+'/firebase-adapter.js','utf8'),
     {window,firebase,console,Date:clock,Map,Promise,Error,localStorage,setTimeout,clearTimeout});
-  return {api:window.DcarelaFirebase,calls,auth,advance:ms=>{now+=ms;}};
+  return {api:window.DcarelaFirebase,calls,listeners,auth,advance:ms=>{now+=ms;}};
 }
 const snapshot = rows => ({docs:rows.map(row=>({id:row.id,data:()=>({...row})}))});
+
+test('suscripción transmite caché y confirmación remota aunque los documentos no cambien', () => {
+  const h = harness(async () => snapshot([]));
+  const received = [];
+  const stop = h.api.listenCollection('devices', [['business_id', '==', 'fixture']],
+    (rows, metadata) => received.push({ rows, metadata }), { includeMetadataChanges: true });
+  const listener = h.listeners[0];
+  assert.equal(listener.metadataOptions.includeMetadataChanges, true);
+  assert.deepEqual(Array.from(listener.conditions, row => Array.from(row)), [['business_id', '==', 'fixture']]);
+  const snap = snapshot([{ id: 'terminal' }]);
+  listener.next({ ...snap, metadata: { fromCache: true, hasPendingWrites: true } });
+  listener.next({ ...snap, metadata: { fromCache: false, hasPendingWrites: false } });
+  assert.equal(received[0].metadata.fromCache, true);
+  assert.equal(received[0].metadata.hasPendingWrites, true);
+  assert.equal(received[1].metadata.fromCache, false);
+  assert.equal(received[1].rows[0].id, 'terminal');
+  listener.next(snap);
+  assert.equal(received[2].metadata.fromCache, undefined, 'metadatos ausentes no equivalen a confirmación remota');
+  stop(); assert.equal(listener.stopped, true);
+});
+
+test('las suscripciones existentes conservan su firma y pueden informar fallos', () => {
+  const h = harness(async () => snapshot([]));
+  let failure;
+  const stop = h.api.listenCollection('devices', [], () => {}, { onError: err => { failure = err; } });
+  assert.equal(h.listeners[0].metadataOptions, null);
+  const error = new Error('fixture listener');
+  h.listeners[0].error(error);
+  assert.equal(failure, error);
+  stop(); assert.equal(h.listeners[0].stopped, true);
+});
 
 test('diario inicia archivo y eventos actuales simultáneamente sin publicar un resultado parcial', async () => {
   let finishCurrent;
