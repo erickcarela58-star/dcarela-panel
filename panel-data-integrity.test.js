@@ -62,7 +62,7 @@ test("Money Manager limita el ledger al mes y tolera modulos secundarios", () =>
 });
 
 test("cada escritura de Money Manager recarga tambien las ventas proyectadas", () => {
-  const rawLoads = [...panel.matchAll(/await cargarCuentasFin\(/g)];
+  const rawLoads = [...panel.matchAll(/(?:await |=> )cargarCuentasFin\(/g)];
   assert.equal(rawLoads.length, 1, "solo cargarProveedores puede invocar la carga base de Money Manager");
   assert.match(panel, /await adminWrite\("fin\.transfer\.create"[\s\S]{0,700}await cargarProveedores\(true\)/);
   assert.match(panel, /await adminWrite\("fin\.movement\.create"[\s\S]{0,700}await cargarProveedores\(true\)/);
@@ -75,7 +75,7 @@ test("Finanzas abre en el dia comercial de Santo Domingo y no en UTC", () => {
 });
 
 test("Finanzas integra las ventas activas del POS y muestra su procedencia", () => {
-  const loadAccountsAt = panel.indexOf("await cargarCuentasFin(month, from);");
+  const loadAccountsAt = panel.indexOf('await progress.run("accounts", () => cargarCuentasFin(month, from, progress))');
   const projectSalesAt = panel.indexOf("integratedSales = financeCore.projectSalePaymentsAsMovements");
   assert.ok(loadAccountsAt >= 0 && projectSalesAt > loadAccountsAt,
     "Money Manager debe cargar antes de proyectar ventas");

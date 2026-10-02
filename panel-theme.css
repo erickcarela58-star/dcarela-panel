@@ -10,6 +10,8 @@
 }
 .module-load-status[hidden] { display: none; }
 .module-load-status button { margin-left: 8px; }
+html[data-theme="dark"] .finance-pos-sync { color: #6ee7b7; }
+html[data-theme="dark"] .finance-pos-sync.warn { color: #fbbf24; }
 :root,
 html[data-theme="dark"] {
   color-scheme: dark;

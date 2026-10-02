@@ -24,7 +24,7 @@
     document.body?.classList.add("is-embedded");
   }
   const THEME_KEY = "dcarela.ui.theme";
-  const APP_BUILD = "1.0.104";
+  const APP_BUILD = "1.0.105";
   const financeCore = window.DcarelaFinanceCore;
   const moneyManagerCore = window.DcarelaMoneyManagerCore;
 
@@ -5491,7 +5491,7 @@
     return rows;
   }
 
-  async function cargarCuentasFin(month, historyFrom = "") {
+  async function cargarCuentasFin(month, historyFrom = "", progress = null) {
     let cuentasRes, accountVisualsRes, catsRes, movs = [], cardsRes, budgetsRes, preferencesRes, currenciesRes, cumuloRes, commitmentsRes, commitmentPaymentsRes, pendingTransfersRes;
     let journalRequest = null;
     try {
@@ -5517,9 +5517,12 @@
         // lleguen esas dos lecturas evita esperar por tarjetas, presupuestos y
         // obligaciones antes de empezar a verificar ventas y saldos.
         journalRequest = Promise.all([requests[0], requests[5].catch(() => null)])
-          .then(([accounts, preferences]) => window.DcarelaFirebase.getFinanceJournal(BUSINESS, {
-            accounts, preferences, historyFrom
-          }));
+          .then(([accounts, preferences]) => {
+            const read = () => window.DcarelaFirebase.getFinanceJournal(BUSINESS, {
+              accounts, preferences, historyFrom, onPhase: progress?.report
+            });
+            return progress ? progress.run("journal", read) : read();
+          });
         journalRequest.catch(() => {});
         const results = await Promise.allSettled(requests);
         const required = (index, label) => {
@@ -7157,6 +7160,72 @@
       .subscribe();
   }
 
+  function crearProgresoFinanciero() {
+    const startedAt = Date.now();
+    const phases = {};
+    const labels = {
+      accounts: "cuentas y configuración", costs: "gastos y compromisos",
+      journal: "historial y saldos", currentEvents: "eventos de caja",
+      archivedEvents: "historial archivado", movements: "movimientos financieros",
+      render: "preparación del tablero"
+    };
+    let closed = false;
+    const update = () => {
+      if (closed) return;
+      const elapsed = Math.max(0, Date.now() - startedAt);
+      const pending = Object.keys(phases).filter(key => phases[key].state === "loading");
+      // Nested journal phases are more useful than repeating their parent.
+      const visible = pending.filter(key => key !== "journal" || !pending.some(k => ["currentEvents", "archivedEvents", "movements"].includes(k)));
+      const message = `Comprobando ${visible.map(key => labels[key]).join(", ") || "información financiera"}… ${Math.floor(elapsed / 1000)} s. Las cifras anteriores aún no se han actualizado.`;
+      for (const id of ["finPosSyncStatus", "mmSyncStatus"]) {
+        const node = $(id);
+        if (node) {
+          if (pending.length || !Object.keys(phases).length) node.textContent = message;
+          node.dataset.financeLoad = JSON.stringify({ state: "loading", totalMs: elapsed, phases });
+        }
+      }
+      for (const id of ["v-finanzas", "v-money-manager"]) {
+        const view = $(id);
+        const node = view?.querySelector(".module-load-status");
+        if (node && view.getAttribute("aria-busy") === "true" && pending.length) node.textContent = message;
+      }
+    };
+    const report = (key, state, ms = 0) => {
+      if (closed || !Object.hasOwn(labels, key)) return;
+      phases[key] = { state, ms: Math.max(0, ms) };
+      update();
+    };
+    const timer = setInterval(update, 1000);
+    update();
+    return {
+      report,
+      async run(key, read) {
+        const at = Date.now();
+        report(key, "loading");
+        try {
+          const value = await read();
+          report(key, "done", Date.now() - at);
+          return value;
+        } catch (error) {
+          report(key, "error", Date.now() - at);
+          throw error;
+        }
+      },
+      finish(error = null) {
+        if (closed) return;
+        closed = true;
+        clearInterval(timer);
+        const diagnostic = JSON.stringify({ state: error ? "error" : "done", totalMs: Math.max(0, Date.now() - startedAt), phases });
+        for (const id of ["finPosSyncStatus", "mmSyncStatus"]) {
+          const node = $(id);
+          if (!node) continue;
+          node.dataset.financeLoad = diagnostic;
+          if (error) node.textContent = "No se pudo actualizar la información financiera. Las cifras anteriores no están verificadas; reintenta la consulta.";
+        }
+      }
+    };
+  }
+
   let financeLoad = null;
   async function cargarProveedores(force = false) {
     if (financeLoad) {
@@ -7178,34 +7247,38 @@
     }
     const previousFinance = finStateCache;
     const previousCosts = costStateCache;
-    financeLoad = cargarProveedoresData(force).catch(error => {
+    const progress = crearProgresoFinanciero();
+    financeLoad = cargarProveedoresData(force, progress).then(() => progress.finish()).catch(error => {
       finStateCache = previousFinance;
       costStateCache = previousCosts;
+      progress.finish(error);
       throw error;
     }).finally(() => { financeLoad = null; });
     return financeLoad;
   }
 
-  async function cargarProveedoresData(force = false) {
+  async function cargarProveedoresData(force = false, progress) {
     if (force && authProvider === "firebase") window.DcarelaFirebase?.invalidateReadCache?.();
     if (!$("provMes").value) $("provMes").value = inputDate(new Date()).slice(0, 7);
     const month = $("provMes").value;
     const from = inicioDia(`${month}-01`);
     const endDate = new Date(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0);
     const to = finDia(inputDate(endDate));
-    // Start independent reads together; accounts can render while POS history loads.
-    const historyRequest = Promise.all([cargarCostosCloud(force), authProvider === "firebase" ? null : ventasActivas(from, to, 20000)]);
+    // Read in parallel, but render only the complete financial snapshot.
+    const historyRequest = progress.run("costs", () => Promise.all([cargarCostosCloud(force), authProvider === "firebase" ? null : ventasActivas(from, to, 20000)]));
     historyRequest.catch(() => {});
     let accountLoad;
     try {
       // Money Manager debe existir antes de proyectar las ventas. Antes se
       // intentaba integrar contra null y luego esta carga borraba la proyeccion.
-      accountLoad = await cargarCuentasFin(month, from);
+      accountLoad = await progress.run("accounts", () => cargarCuentasFin(month, from, progress));
     } catch (error) {
       throw error;
     }
     const journal = authProvider === "firebase" ? await accountLoad.journalRequest : null;
     const [state, legacySalesResult] = await historyRequest;
+    const renderStartedAt = Date.now();
+    progress.report("render", "loading");
     const monthSales = journal?.sales.filter(event => financeCore.eventDay(event).startsWith(month)) || [];
     const rawMonthSales = journal?.saleEvents.filter(event => financeCore.eventDay(event).startsWith(month)) || [];
     const uniqueMonthSales = financeCore.deduplicateSales(rawMonthSales);
@@ -7362,6 +7435,7 @@
       setTimeout(() => abrirMovimientoFin("gasto"), 120);
     }
     if (moneyManagerCore && !$("v-money-manager")?.classList.contains("oculto")) renderMoneyManager();
+    progress.report("render", "done", Date.now() - renderStartedAt);
   }
 
   function alertDefinition(event) {

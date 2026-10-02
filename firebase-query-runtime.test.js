@@ -30,6 +30,66 @@ function harness(read, storageValues = {}) {
 }
 const snapshot = rows => ({docs:rows.map(row=>({id:row.id,data:()=>({...row})}))});
 
+test('diario inicia archivo y eventos actuales simultáneamente sin publicar un resultado parcial', async () => {
+  let finishCurrent;
+  const current = new Promise(resolve => { finishCurrent = resolve; });
+  const phases = [];
+  const shared = { id: 'same', event_id: 'same', received_at_cloud: '2026-09-10T12:00:00Z' };
+  const h = harness(async name => name === 'sync_events' ? current : snapshot([
+    { id: 'chunk', events: [{ ...shared, source: 'archive' }, { id: 'old', event_id: 'old', received_at_cloud: '2020-01-01T00:00:00Z' }] }
+  ]));
+  let completed = false;
+  const read = h.api.getSyncEvents('fixture', { complete: true, onPhase: (key, state, ms) => phases.push({ key, state, ms }) })
+    .then(rows => { completed = true; return rows; });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(h.calls.filter(call => call.name === 'sync_event_archives').length, 1,
+    'el archivo debe empezar mientras la lectura actual está retenida');
+  assert.equal(completed, false, 'un archivo listo no basta para certificar el diario');
+  finishCurrent(snapshot([{ ...shared, source: 'current' }]));
+  const rows = await read;
+  assert.equal(rows.length, 2);
+  assert.equal(rows.find(row => row.event_id === 'same').source, 'current', 'conserva precedencia actual y deduplicación');
+  assert.equal(phases.filter(phase => phase.state === 'done').length, 2);
+  assert.ok(phases.every(phase => phase.ms >= 0));
+});
+
+for (const failedSource of ['sync_events', 'sync_event_archives']) {
+  test(`un fallo temprano en ${failedSource} rechaza y permite reintentar aunque la otra fuente siga pendiente`, async () => {
+    let failed = true;
+    let releaseOther;
+    const other = new Promise(resolve => { releaseOther = resolve; });
+    const h = harness(async name => {
+      if (name === failedSource) {
+        if (failed) throw new Error('fallo fixture');
+        return snapshot([]);
+      }
+      return other;
+    });
+    await assert.rejects(h.api.getSyncEvents('fixture', { complete: true }), /fallo fixture/);
+    failed = false;
+    const retry = h.api.getSyncEvents('fixture', { complete: true });
+    releaseOther(snapshot([]));
+    assert.equal((await retry).length, 0);
+    assert.equal(h.calls.filter(call => call.name === failedSource).length, 2, 'no conserva una promesa fallida como caché');
+  });
+}
+
+test('el observador de carga no modifica una lectura si su callback falla', async () => {
+  const h = harness(async () => snapshot([]));
+  const rows = await h.api.getSyncEvents('fixture', { complete: true, onPhase: () => { throw new Error('observador'); } });
+  assert.equal(rows.length, 0);
+});
+
+test('el diario transmite las fases de sus lecturas sin incluir información contable', async () => {
+  const h = harness(async () => snapshot([]));
+  const phases = [];
+  await h.api.getFinanceJournal('fixture', { accounts: [], preferences: {},
+    onPhase: (...args) => phases.push(args) });
+  assert.deepEqual(phases.filter(([, state]) => state === 'done').map(([key]) => key).sort(),
+    ['archivedEvents', 'currentEvents', 'movements']);
+  assert.ok(phases.every(args => args.length === 3 && typeof args[2] === 'number'));
+});
+
 test('actividad reciente sin rango no descarga el archivo cuando se excluye explícitamente', async () => {
   const recent = { id: 'recent', event_id: 'recent', event_type: 'ProductoEditado', received_at_cloud: '2026-10-01T00:00:00Z' };
   const h = harness(async name => {

@@ -66,6 +66,12 @@ El resumen distingue ventas confirmadas, gastos del resultado y saldo neto de cu
 
 Prompts de solo lectura probados con datos aislados: “Dame el resumen de ventas de hoy, gastos y saldo en cuentas” con pago de capital/intereses y abono; la misma consulta sin conexion; y analisis de gastos con contexto financiero para el proveedor de IA simulado. No constituyen pruebas de escrituras contables en produccion ni del bot de WhatsApp.
 
+## Lectura y actualización de Finanzas
+
+Finanzas y Money Manager verifican el mismo diario antes de mostrar cifras nuevas. Los eventos actuales y el archivo histórico se leen en paralelo; la paginación, las fechas efectivas, las anulaciones y la prioridad de los eventos actuales sobre copias archivadas se conservan. Un fallo en cualquiera de las dos lecturas impide publicar el diario incompleto y permite reintentar.
+
+Durante la consulta, el aviso identifica las fuentes pendientes y el tiempo transcurrido. Las cifras conservadas de una consulta anterior aún no están actualizadas. Si la lectura falla, quedan expresamente sin verificar. La medición por fases guarda únicamente estados y duraciones, sin importes, cuentas ni datos personales. Leer en paralelo elimina una espera en serie; no demuestra por sí solo que todas las cargas sean rápidas.
+
 ## Conciliar un saldo comprobado
 
 En Cuentas, pulsa Conciliar, escribe el saldo fisico o bancario comprobado ahora y su evidencia. El formulario incluye las operaciones recibidas del turno actual. Para tarjetas escribe la deuda con signo negativo; credito disponible se convierte en deuda usando el limite vigente. Un conteo que excluye un turno necesita un corte historico verificado y no debe introducirse como saldo actual en este formulario.

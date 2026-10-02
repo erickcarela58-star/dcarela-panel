@@ -97,6 +97,22 @@
     return error;
   }
 
+  function observeReadPhase(promise, phase, callback) {
+    const startedAt = Date.now();
+    const report = state => {
+      // Diagnostics must never change a read's result or expose its payload.
+      try { callback?.(phase, state, Math.max(0, Date.now() - startedAt)); } catch (_) {}
+    };
+    report('loading');
+    return Promise.resolve(promise).then(value => {
+      report('done');
+      return value;
+    }, error => {
+      report('error');
+      throw error;
+    });
+  }
+
   function financeMovementKey(item) {
     const metadata = item?.metadata || {};
     let key = String(item?.ledger_id || item?.idempotency_key || metadata.idempotency_key || item?.id || "")
@@ -1992,20 +2008,17 @@
         };
         syncEventQueryCache.set(queryKey, cachedQuery);
       }
-      let current;
-      try {
-        current = await cachedQuery.promise;
-        if (!complete) current = current.slice(0, maximum);
-      } catch (error) {
+      const currentRequest = observeReadPhase(cachedQuery.promise, 'currentEvents', options.onPhase)
+        .then(rows => complete ? rows : rows.slice(0, maximum)).catch(error => {
         if (syncEventQueryCache.get(queryKey) === cachedQuery) syncEventQueryCache.delete(queryKey);
         throw error;
-      }
+      });
       // Actividad reciente pide solo la coleccion actual. Sin rango no debe
       // descargar el archivo entero; complete sigue exigiendo ambas capas.
-      if (options.includeArchives === false && !complete) return current;
+      if (options.includeArchives === false && !complete) return currentRequest;
       const recentWindow = from && Number.isFinite(Date.parse(from))
         && Date.parse(from) >= Date.now() - 45 * 24 * 60 * 60 * 1000;
-      if (recentWindow && !includeArchives) return current;
+      if (recentWindow && !includeArchives) return currentRequest;
       // El archivo historico son 343 bloques y 77 MB. Bajarlo entero en cada consulta es la
       // causa medida de que Finanzas tarde. Cada bloque guarda el rango de fechas EFECTIVAS
       // que contiene, asi que una consulta con fecha de inicio solo pide los bloques que la
@@ -2027,12 +2040,15 @@
         };
         eventArchiveCache.set(archiveKey, archived);
       }
-      let archiveEvents;
-      try { archiveEvents = await archived.promise; }
-      catch (error) {
+      const archiveRequest = observeReadPhase(archived.promise, 'archivedEvents', options.onPhase).catch(error => {
         if (eventArchiveCache.get(archiveKey) === archived) eventArchiveCache.delete(archiveKey);
         throw error;
-      }
+      });
+      // Both sources are independent. Start the archive while current events
+      // are still downloading; require both before publishing any result.
+      // Promise.all also handles either rejection immediately, so a failed
+      // early archive cannot become an unhandled rejection during a slow page.
+      const [current, archiveEvents] = await Promise.all([currentRequest, archiveRequest]);
       const merged = new Map();
       const effectiveTimestamp = event => {
         let payload = event?.payload;
@@ -2185,8 +2201,8 @@
         : '';
       const [preferences, events, documents] = await Promise.all([
         options.preferences || this.getFinancePreferences(businessId),
-        this.getSyncEvents(businessId, { complete: true, includeArchives: true, limit: SYNC_EVENT_MAX_BATCH, from: desde }),
-        this.getCollection('fin_movements', [['business_id', '==', businessId]])
+        this.getSyncEvents(businessId, { complete: true, includeArchives: true, limit: SYNC_EVENT_MAX_BATCH, from: desde, onPhase: options.onPhase }),
+        observeReadPhase(this.getCollection('fin_movements', [['business_id', '==', businessId]]), 'movements', options.onPhase)
       ]);
       const transferAccountId = preferences?.cuenta_ingreso_default_id || null;
       const merged = new Map();
