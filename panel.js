@@ -24,7 +24,7 @@
     document.body?.classList.add("is-embedded");
   }
   const THEME_KEY = "dcarela.ui.theme";
-  const APP_BUILD = "1.0.107";
+  const APP_BUILD = "1.0.108";
   const financeCore = window.DcarelaFinanceCore;
   const moneyManagerCore = window.DcarelaMoneyManagerCore;
 
@@ -705,11 +705,11 @@
         </div>
         <div class="branch-ledger-waves">
           ${waveMetric("Pulso de ventas", money(item.total), "mes actual", item.salesSeries)}
-          ${waveMetric("Salud operativa", `${item.connected ? Math.max(0, 100 - Math.min(90, item.alerts * 3)) : 10}%`, item.connected ? "senal de terminal < 10 min" : "sin conexion reciente", item.profitSeries.length ? item.profitSeries : item.salesSeries)}
+          ${metricSenalTerminal(item.device, item.connected)}
         </div>
         <div class="branch-ledger-status">
-          <span><b>${item.connected ? "Conexion reciente" : "Sin conexion reciente"}</b>${item.device ? ` &middot; ${esc(item.device.device_name)}` : ""}</span>
-          <small>${item.device?.last_seen_at ? `Ultima conexion ${esc(fecha(item.device.last_seen_at))}` : "Sin terminal registrada"} &middot; ${item.alerts} alerta(s)</small>
+          <span><b>${item.connected ? "Señal registrada hace menos de 10 min" : "Sin señal reciente"}</b>${item.device ? ` &middot; ${esc(item.device.device_name)}` : ""}</span>
+          <small>${item.device?.last_seen_at ? `Último registro ${esc(fecha(item.device.last_seen_at))}` : "Sin terminal registrada"} &middot; ${item.alerts} alerta(s)</small>
         </div>
         <footer>
           <button type="button" class="primary" data-open-branch="${esc(item.id)}">Abrir sucursal</button>
@@ -2674,8 +2674,13 @@
   function waveMetric(label, value, detail, points = []) {
     return `<div class="wave-metric">
       <div class="wave-metric-copy"><span>${esc(label)}</span><strong>${esc(value)}</strong><small>${esc(detail)}</small></div>
-      ${waveSvg(points, `${label}-${value}`)}
+      ${points === null ? "" : waveSvg(points, `${label}-${value}`)}
     </div>`;
+  }
+
+  function metricSenalTerminal(device, recent) {
+    const signal = estadoSenalTerminal(device, recent);
+    return waveMetric("Señal de terminal", signal.value, signal.detail, null);
   }
 
   function reportWaveChart(days) {
@@ -2746,6 +2751,18 @@
     const seen = typeof device?.last_seen_at === "string" ? Date.parse(device.last_seen_at) : NaN;
     const age = now - seen;
     return device?.status === "activa" && Number.isFinite(age) && age >= 0 && age < 10 * 60 * 1000;
+  }
+
+  function estadoSenalTerminal(device, recent, now = Date.now()) {
+    if (!device) return { value: "Sin terminal", detail: "No hay terminal registrada" };
+    const seen = typeof device.last_seen_at === "string" ? Date.parse(device.last_seen_at) : NaN;
+    if (!Number.isFinite(seen) || seen > now) {
+      return { value: "Fecha no verificable", detail: "No se puede determinar la antigüedad" };
+    }
+    const recordedAt = fecha(device.last_seen_at);
+    if (device.status !== "activa") return { value: "Terminal inactiva", detail: `Último registro ${recordedAt}` };
+    if (recent) return { value: "Señal reciente", detail: `Último registro ${recordedAt}` };
+    return { value: "Señal vencida", detail: `Último registro ${recordedAt}` };
   }
 
   function saludDispositivos(devices, now = Date.now()) {

@@ -114,3 +114,8 @@ Cambiar de sucursal o salir cancela la escucha anterior. Una señal reciente no 
 Web/PWA 1.0.107 conserva la ultima consulta completa de la sucursal durante una actualizacion y avisa que las cifras visibles pertenecen a esa consulta anterior. Al terminar muestra su fecha y hora. Si falla, las cifras conservadas quedan expresamente sin verificar y Actualizar datos permite reintentar. Un fallo inicial muestra el error y Reintentar consulta; no inventa ceros ni presenta tarjetas incompletas. Cambiar de sucursal oculta las cifras anteriores y descarta respuestas tardias de la sucursal que se dejo.
 
 La consulta general de la entrada principal y movil mantiene el intervalo de treinta segundos mientras el Resumen esta visible, pero espera que termine la lectura pendiente y se suspende al navegar a otro modulo o esconder la pestaña. Las señales de terminales siguen actualizandose por separado. Esta correccion evita ocultar las cifras y solapar consultas automaticas; no demuestra que las lecturas financieras sean rapidas ni recupera eventos comerciales pendientes.
+
+
+### Señal de terminal en Sucursales
+
+Web/PWA 1.0.108 ya no muestra un porcentaje de Salud operativa calculado con alertas: esa cifra no medía la salud de la Caja. La tarjeta informa señal reciente (menos de diez minutos), vencida, terminal inactiva, sin terminal o fecha no verificable y conserva la fecha del último registro disponible. El estado describe la señal guardada, no certifica la aplicación de la cola comercial ni la disponibilidad física de Plaza. El gráfico de Pulso de ventas sigue basado en ventas del mes; la señal no genera una curva histórica inventada.
