@@ -60,7 +60,7 @@ En la fila de terminales, un dispositivo habilitado tiene permiso para sincroniz
 
 ## Diario compartido y consultas verificadas
 
-Finanzas, Money Manager, saldos de cuentas y consultas financieras del asistente usan el diario compartido. Cada pago se cuenta una vez aunque exista como evento, documento y proyeccion. Los rangos de reportes se aplican despues de reconstruir el diario; el cuadre limita el calculo de saldo, no el historial consultable. Los eventos actuales se leen por paginas de hasta 5,000; una consulta completa no se recorta a una sola pagina y une los archivos conservados. Requiere respuesta del servidor y permite reintentar si una pagina falla.
+Finanzas, Money Manager, saldos de cuentas y consultas financieras del asistente usan el diario compartido. Cada pago se cuenta una vez aunque exista como evento, documento y proyeccion. Los rangos de reportes se aplican despues de reconstruir el diario; el cuadre limita el calculo de saldo, no el historial consultable. La lectura completa pide al servidor los tipos de evento usados por el diario, y luego pagina cada coincidencia hasta completar el resultado; también une los archivos conservados. Si falta el indice compuesto de tipos, vuelve a paginar todos los eventos con el indice base y filtra después. Ese respaldo conserva el historial y puede ser más lento. La lectura requiere respuesta del servidor y permite reintentar si una pagina falla.
 
 El resumen distingue ventas confirmadas, gastos del resultado y saldo neto de cuentas visibles (incluye deuda de tarjetas). El capital de prestamos y los abonos no se convierten en gastos o ingresos de resultado. Cuando el diario o saldo no se pueden verificar, el asistente muestra no disponible. Buscar movimientos tambien informa su estado activo o anulado.
 
@@ -123,3 +123,7 @@ Web/PWA 1.0.108 ya no muestra en Sucursales un porcentaje calculado con alertas:
 ### Resumen principal: estado factual de terminales
 
 Web/PWA 1.0.109 elimina el porcentaje de salud y la curva de tendencia sintetica que aparecian junto al conteo de terminales en el Resumen principal y movil. Solo conserva el numero confirmado con señal reciente y su umbral temporal; `--` significa que esa lectura no esta verificada. El resto de las tarjetas, importes, colores y composicion de Central permanece igual. Las señales no prueban que el inbox/cola de la Caja se haya aplicado ni reemplazan una lectura financiera completa.
+
+### Lectura financiera por tipos en Web/PWA 1.0.110
+
+El diario pide a Firestore solo los tipos de evento que alimentan ventas, anulaciones, cierres y movimientos financieros. La consulta conserva la paginacion completa de los eventos actuales y sigue uniendo el archivo historico; no recorta por fecha de recepcion, porque una terminal puede subir despues una operacion con fecha efectiva anterior. Si falta el indice compuesto, el lector vuelve a paginar todos los eventos con el indice base y filtra en el cliente. Esa ruta conserva el historial y puede tardar mas. La version del service worker, los recursos versionados y el manifiesto comparten el mismo build.

@@ -17,7 +17,10 @@ test('Firebase limita sync_events en servidor y usa el indice temporal publicado
   assert.match(adapter, /const SYNC_EVENT_QUERY_TTL_MS = 2 \* 60 \* 1000/);
   assert.match(method, /where\('business_id', '==', businessId\)/);
   assert.match(method, /where\('received_at_cloud', '>=', serverFrom\)/);
-  assert.match(method, /orderBy\('received_at_cloud', 'desc'\)\.limit\(maximum\)/);
+  assert.match(method, /q = q\.orderBy\('received_at_cloud', 'desc'\)/);
+  assert.match(method, /return withLimit \? q\.limit\(maximum\) : q/);
+  assert.match(method, /q\.where\('event_type', 'in', eventTypeFilter\)/);
+  assert.match(method, /fallback-unfiltered/);
   assert.match(method, /Math\.min\(SYNC_EVENT_MAX_BATCH/);
   assert.match(method, /syncEventQueryCache\.get\(queryKey\)/);
   assert.match(method, /cachedQuery\.promise/);
@@ -34,6 +37,12 @@ test('Firebase limita sync_events en servidor y usa el indice temporal publicado
     && index.fields.some(field => field.fieldPath === 'business_id' && field.order === 'ASCENDING')
     && index.fields.some(field => field.fieldPath === 'received_at_cloud' && field.order === 'DESCENDING'));
   assert.ok(temporalIndex, 'el índice versionado debe coincidir con orderBy desc');
+  const typedIndex = firestoreIndexes.indexes.find(index =>
+    index.collectionGroup === 'sync_events'
+    && index.fields.some(field => field.fieldPath === 'business_id' && field.order === 'ASCENDING')
+    && index.fields.some(field => field.fieldPath === 'event_type' && field.order === 'ASCENDING')
+    && index.fields.some(field => field.fieldPath === 'received_at_cloud' && field.order === 'DESCENDING'));
+  assert.ok(typedIndex, 'los reportes financieros necesitan el índice por tipo y fecha');
 });
 
 test('las vistas Firebase nunca solicitan el historial completo sin ventana ni limite', () => {

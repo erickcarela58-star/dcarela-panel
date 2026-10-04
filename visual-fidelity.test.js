@@ -7,12 +7,21 @@ const panelJs = fs.readFileSync("panel.js", "utf8");
 const panelHtml = fs.readFileSync("panel.html", "utf8");
 const mobileHtml = fs.readFileSync("mobile/index.html", "utf8");
 const indexHtml = fs.readFileSync("index.html", "utf8");
+const serviceWorker = fs.readFileSync("sw.js", "utf8");
 const appVersion = JSON.parse(fs.readFileSync("app-version.json", "utf8"));
 
 test("las metricas y graficos cargan la capa visual unificada en escritorio y movil", () => {
   assert.ok(panelHtml.includes(`panel-theme.css?v=${appVersion.build}`));
   assert.match(indexHtml, /shell-assets\/index-[^"']+\.css/);
   assert.match(mobileHtml, /assets\/index-[^"']+\.css/);
+});
+
+test("service worker y entradas versionadas usan el mismo build publicado", () => {
+  assert.equal(appVersion.web_version, appVersion.pwa_version);
+  assert.ok(indexHtml.includes(`?v=${appVersion.build}`));
+  assert.ok(panelHtml.includes(`?v=${appVersion.build}`));
+  assert.ok(mobileHtml.includes(`?v=${appVersion.build}`));
+  assert.match(serviceWorker, new RegExp(`const APP_BUILD = "${appVersion.build.replaceAll('.', '\\.')}"`));
 });
 
 test("las ondas tienen degradado, linea interior clara y animacion accesible en el tema", () => {

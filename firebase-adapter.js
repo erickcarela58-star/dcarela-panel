@@ -1935,20 +1935,31 @@
       const complete = options.complete === true;
       const eventTypes = new Set((Array.isArray(options.eventTypes) ? options.eventTypes : [])
         .map(value => String(value || '').trim()).filter(Boolean));
+      const eventTypeFilter = [...eventTypes].sort();
+      const serverCanFilterTypes = eventTypeFilter.length > 0 && eventTypeFilter.length <= 30;
       // Un reporte contable se filtra por la fecha efectiva del movimiento,
       // no por el momento en que una caja recupero internet. Para esos
       // reportes se carga el inventario actual acotado completo (retencion lo
       // mantiene por debajo del tope) y luego se aplica el rango real abajo.
       const serverFrom = includeArchives ? '' : from;
       const serverTo = includeArchives ? '' : to;
-      let query = d.collection('sync_events').where('business_id', '==', businessId);
-      // received_at_cloud es ISO-8601 en los eventos POS/Firebase y el indice
-      // business_id + received_at_cloud ya esta publicado. El tope y la cache
-      // compartida evitan que cada modulo vuelva a facturar miles de lecturas.
-      if (serverFrom) query = query.where('received_at_cloud', '>=', serverFrom);
-      if (serverTo) query = query.where('received_at_cloud', '<=', serverTo);
-      query = query.orderBy('received_at_cloud', 'desc').limit(maximum);
-      const queryKey = `${auth?.currentUser?.uid || 'signed-out'}|${businessId}|${serverFrom}|${serverTo}|${maximum}|${includeArchives ? 'verified' : 'operational'}|${complete}`;
+      const makeCurrentQuery = (filterTypes, withLimit = true) => {
+        let q = d.collection('sync_events').where('business_id', '==', businessId);
+        if (serverFrom) q = q.where('received_at_cloud', '>=', serverFrom);
+        if (serverTo) q = q.where('received_at_cloud', '<=', serverTo);
+        if (filterTypes && serverCanFilterTypes) {
+          q = eventTypeFilter.length === 1
+            ? q.where('event_type', '==', eventTypeFilter[0])
+            : q.where('event_type', 'in', eventTypeFilter);
+        }
+        q = q.orderBy('received_at_cloud', 'desc');
+        return withLimit ? q.limit(maximum) : q;
+      };
+      // Los reportes financieros declaran su conjunto de tipos. Filtrarlo en
+      // Firestore evita descargar eventos ajenos, pero no usa fecha de recepcion
+      // para recortar un diario completo: los eventos tardios siguen incluidos.
+      const query = makeCurrentQuery(true);
+      const queryKey = `${auth?.currentUser?.uid || 'signed-out'}|${businessId}|${serverFrom}|${serverTo}|${maximum}|${includeArchives ? 'verified' : 'operational'}|${complete}|types:${eventTypeFilter.join(',') || '*'}`;
       let cachedQuery = syncEventQueryCache.get(queryKey);
       if (!cachedQuery || Date.now() - cachedQuery.at > SYNC_EVENT_QUERY_TTL_MS
         || cachedQuery.limit < maximum) {
@@ -1980,6 +1991,11 @@
               serverQuery = d.collection('sync_events').where('business_id', '==', businessId);
               if (latest) serverQuery = serverQuery.where('received_at_cloud', '>=', latest);
               if (serverTo) serverQuery = serverQuery.where('received_at_cloud', '<=', serverTo);
+              if (serverCanFilterTypes) {
+                serverQuery = eventTypeFilter.length === 1
+                  ? serverQuery.where('event_type', '==', eventTypeFilter[0])
+                  : serverQuery.where('event_type', 'in', eventTypeFilter);
+              }
               serverQuery = serverQuery.orderBy('received_at_cloud', 'desc')
                 .limit(Math.min(SYNC_EVENT_DELTA_BATCH, maximum));
             }
@@ -1992,16 +2008,39 @@
                 let page = snapshot;
                 while (page.docs.length === maximum) {
                   const last = page.docs[page.docs.length - 1];
-                  page = await readFirestoreQuery(query.startAfter(last), `sync-events|${queryKey}|after:${last.id}`, { source: 'server' });
+                  page = await readFirestoreQuery(serverQuery.startAfter(last), `sync-events|${queryKey}|after:${last.id}`, { source: 'server' });
                   fresh.push(...page.docs.map(doc => ({ id: doc.id, ...doc.data() })));
                 }
               }
               markSyncQueryPrimed(queryKey);
             } catch (error) {
-              if (includeArchives) throw error;
-              if (!cached.length) throw error;
-              console.warn('getSyncEvents(): se usa cache local por fallo de cuota o red.', error?.message || error);
-              fresh = [];
+              const code = String(error?.code || '');
+              const missingIndex = code === 'failed-precondition'
+                || code === 'firestore/failed-precondition'
+                || /requires an index|FAILED_PRECONDITION/i.test(String(error?.message || ''));
+              if (missingIndex && serverCanFilterTypes) {
+                // La optimizacion depende de un indice compuesto. Si aun no
+                // esta listo, releer la coleccion completa con el indice base
+                // y filtrar despues: mas lento, pero nunca incompleto.
+                const fallbackQuery = makeCurrentQuery(false);
+                const fallback = await readFirestoreQuery(fallbackQuery,
+                  `sync-events|${queryKey}|fallback-unfiltered`, includeArchives ? { source: 'server' } : {});
+                fresh = fallback.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                if (complete) {
+                  let page = fallback;
+                  while (page.docs.length === maximum) {
+                    const last = page.docs[page.docs.length - 1];
+                    page = await readFirestoreQuery(fallbackQuery.startAfter(last),
+                      `sync-events|${queryKey}|fallback-after:${last.id}`, { source: 'server' });
+                    fresh.push(...page.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+                  }
+                }
+              } else if (includeArchives) throw error;
+              else if (!cached.length) throw error;
+              else {
+                console.warn('getSyncEvents(): se usa cache local por fallo de cuota o red.', error?.message || error);
+                fresh = [];
+              }
             }
             const merged = new Map();
             cached.forEach(event => merged.set(event.event_id || event.id, event));
@@ -2204,9 +2243,12 @@
       const desde = cortes.length && cortes.every(Boolean)
         ? [historyFrom, from, ...cortes].filter(Boolean).sort()[0]
         : '';
+      const journalEventTypes = [...new Set(['VentaCobrada', 'VentaCancelada', 'CajaCerrada',
+        'LedgerMovimientoRegistrado', ...core.OPERATION_EVENT_TYPES])];
       const [preferences, events, documents] = await Promise.all([
         options.preferences || this.getFinancePreferences(businessId),
-        this.getSyncEvents(businessId, { complete: true, includeArchives: true, limit: SYNC_EVENT_MAX_BATCH, from: desde, onPhase: options.onPhase }),
+        this.getSyncEvents(businessId, { complete: true, includeArchives: true, limit: SYNC_EVENT_MAX_BATCH,
+          from: desde, eventTypes: journalEventTypes, onPhase: options.onPhase }),
         observeReadPhase(this.getCollection('fin_movements', [['business_id', '==', businessId]]), 'movements', options.onPhase)
       ]);
       const transferAccountId = preferences?.cuenta_ingreso_default_id || null;

@@ -255,16 +255,54 @@ test('una conciliacion completa no hereda una cache actual recortada',async()=>{
 
 test('diario completo pagina mas de 5000 eventos, conserva archivo y exige servidor',async()=>{
   const all=Array.from({length:5003},(_,i)=>({id:'e'+i,event_id:'e'+i,received_at_cloud:'2026-09-01T12:00:00Z',event_type:'VentaCobrada'}));
+  all.push({id:'irrelevant',event_id:'irrelevant',received_at_cloud:'2026-09-01T12:00:00Z',event_type:'ProductoEditado'});
   const h=harness(async(name,conditions,options)=>{
-    if(name==='sync_event_archives') return snapshot([{id:'a',events:[{id:'arch',event_id:'arch',received_at_cloud:'2026-08-01T00:00:00Z'}]}]);
+    if(name==='sync_event_archives') return snapshot([{id:'a',events:[{id:'arch',event_id:'arch',event_type:'VentaCobrada',received_at_cloud:'2026-08-01T00:00:00Z'}]}]);
     assert.equal(options.source,'server');
     const cursor=conditions.find(c=>c[0]==='startAfter');
-    return snapshot(cursor ? all.slice(all.findIndex(x=>x.id===cursor[1])+1) : all.slice(0,5000));
+    const typeFilter=conditions.find(c=>c[0]==='event_type');
+    assert.equal(typeFilter[0],'event_type');
+    assert.equal(typeFilter[1],'in');
+    assert.equal(JSON.stringify(typeFilter[2]),JSON.stringify(['GastoRegistrado','VentaCobrada']));
+    const selected=all.filter(event=>['GastoRegistrado','VentaCobrada'].includes(event.event_type));
+    const remaining=cursor ? selected.slice(selected.findIndex(x=>x.id===cursor[1])+1) : selected;
+    return snapshot(remaining.slice(0,5000));
   });
-  const result=await h.api.getSyncEvents('dcarela',{complete:true});
+  const result=await h.api.getSyncEvents('dcarela',{complete:true,eventTypes:['VentaCobrada','GastoRegistrado']});
   assert.equal(result.length,5004);
   assert.equal(h.calls.filter(c=>c.name==='sync_events').length,2);
   assert.equal(h.calls.some(c=>c.source==='cache'),false);
+});
+
+test('si falta el indice por tipo, la consulta completa vuelve a paginas sin filtrar en servidor',async()=>{
+  const all=Array.from({length:5002},(_,i)=>({id:'f'+i,event_id:'f'+i,
+    received_at_cloud:'2026-09-01T12:00:00Z',event_type:i%2?'ProductoEditado':'VentaCobrada'}));
+  const h=harness(async(name,conditions,options)=>{
+    if(name==='sync_event_archives') return snapshot([]);
+    const typeFilter=conditions.find(c=>c[0]==='event_type');
+    if(typeFilter) throw Object.assign(new Error('The query requires an index.'),{code:'failed-precondition'});
+    assert.equal(options.source,'server');
+    const cursor=conditions.find(c=>c[0]==='startAfter');
+    const remaining=cursor ? all.slice(all.findIndex(x=>x.id===cursor[1])+1) : all;
+    return snapshot(remaining.slice(0,5000));
+  });
+  const result=await h.api.getSyncEvents('dcarela',{complete:true,eventTypes:['VentaCobrada','GastoRegistrado']});
+  assert.equal(result.length,2501);
+  assert.ok(result.every(event=>event.event_type==='VentaCobrada'));
+  assert.equal(h.calls.filter(c=>c.name==='sync_events').length,3,
+    'la paginacion completa filtra y pagina la consulta de respaldo sin perder filas');
+});
+
+test('las lecturas completas de tipos distintos no comparten la cache filtrada',async()=>{
+  const h=harness(async name=>name==='sync_events' ? snapshot([
+    {id:'sale',event_id:'sale',event_type:'VentaCobrada',received_at_cloud:'2026-09-01T12:00:00Z'},
+    {id:'expense',event_id:'expense',event_type:'GastoRegistrado',received_at_cloud:'2026-09-01T12:00:00Z'}
+  ]) : snapshot([]));
+  const sales=await h.api.getSyncEvents('dcarela',{complete:true,eventTypes:['VentaCobrada']});
+  const expenses=await h.api.getSyncEvents('dcarela',{complete:true,eventTypes:['GastoRegistrado']});
+  assert.deepEqual([...sales.map(row=>row.event_id)],['sale']);
+  assert.deepEqual([...expenses.map(row=>row.event_id)],['expense']);
+  assert.equal(h.calls.filter(call=>call.name==='sync_events').length,2);
 });
 
 test('diario historico usa cada pago una vez y preserva saldo anterior al rango consultado',async()=>{
@@ -280,6 +318,12 @@ test('diario historico usa cada pago una vez y preserva saldo anterior al rango 
   const rows=await h.api.getFinanceJournal('dcarela',{from:'2026-09-02',to:'2026-09-02'});
   assert.equal(rows.length,2);
   assert.equal(rows.sales.length,1);
+  const currentQuery=h.calls.find(call=>call.name==='sync_events'&&call.source==='server');
+  const typeFilter=currentQuery.conditions.find(condition=>condition[0]==='event_type');
+  assert.equal(typeFilter[1],'in');
+  const requestedTypes=Array.from(typeFilter[2]);
+  for(const required of ['LedgerMovimientoRegistrado','VentaCobrada','VentaCancelada','CajaCerrada','GastoRegistrado','AbonoClienteRegistrado'])
+    assert.ok(requestedTypes.includes(required),`el diario solicita ${required} en servidor`);
   const state=await h.api.getFinanceAccountState('dcarela');
   assert.deepEqual([...state.balances.map(x=>x.balance)],[11000,2000]);
   const empty=await h.api.getFinanceJournal('dcarela',{from:'2026-09-03',to:'2026-09-03'});
