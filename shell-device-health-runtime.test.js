@@ -31,6 +31,6 @@ for (const entry of ['index.html', 'mobile/index.html']) {
     next(rows, { fromCache: false }); assert.equal(updates.at(-1).onlineDevices, 1);
     stop(); const count = updates.length; next([], { fromCache: false });
     assert.equal(updates.length, count); assert.equal(stopped, 1);
-    assert.match(bundle, /value:String\(f\.onlineDevices\?\?`--`\)/, 'una lectura sin verificar no muestra cero');
+    assert.match(bundle, /children:f\.onlineDevices\?\?`--`/, 'una lectura sin verificar no muestra cero');
   });
 }

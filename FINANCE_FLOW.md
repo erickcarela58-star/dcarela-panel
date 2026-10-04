@@ -56,7 +56,7 @@ En web/PWA 1.0.91, la lectura del diario comienza en cuanto llegan cuentas y pre
 
 La actividad reciente sin rango excluye el archivo historico cuando solicita `includeArchives:false`; el diario completo sigue uniendo ambas capas. Resumen operativo muestra `--` para Caja si los eventos consultados no incluyen apertura o cierre: la ausencia de un evento no confirma que la caja este cerrada. Si falla una lectura critica, los indicadores quedan no disponibles y aparece Reintentar.
 
-En Salud operativa, un dispositivo habilitado tiene permiso para sincronizar; eso no confirma que este conectado. Conexion reciente requiere una señal `last_seen_at` valida de menos de diez minutos, sin fecha futura, y un dispositivo habilitado. La señal caduca en pantalla aunque no lleguen eventos nuevos. `Consultado` indica que termino la lectura del Resumen; la hora de consulta aparece al pasar sobre esa etiqueta. Ni esa etiqueta ni una señal reciente certifican que la cola de la Caja este completamente aplicada. Un ultimo evento solo acredita ese registro y conserva su fecha.
+En la fila de terminales, un dispositivo habilitado tiene permiso para sincronizar; eso no confirma que este conectado. Conexion reciente requiere una señal `last_seen_at` valida de menos de diez minutos, sin fecha futura, y un dispositivo habilitado. La señal caduca en pantalla aunque no lleguen eventos nuevos. `Consultado` indica que termino la lectura del Resumen; la hora de consulta aparece al pasar sobre esa etiqueta. Ni esa etiqueta ni una señal reciente certifican que la cola de la Caja este completamente aplicada. Un ultimo evento solo acredita ese registro y conserva su fecha.
 
 ## Diario compartido y consultas verificadas
 
@@ -107,7 +107,7 @@ Caja Windows 1.0.71 recibe los eventos antiguos con estado `registrado` como `co
 
 Web/PWA 1.0.106 escucha las señales de dispositivos de la sucursal seleccionada en la entrada principal, movil y panel.html. Una señal confirmada por el servidor puede actualizar el indicador sin recargar el diario financiero. Caduca a los diez minutos aunque no lleguen mas señales. Fechas futuras, invalidas y terminales bloqueadas no acreditan conexion. Una lectura de cache o con escrituras pendientes indica conexion sin verificar; un fallo de la suscripcion deja el estado desconocido, sin borrar ventas o saldos.
 
-Cambiar de sucursal o salir cancela la escucha anterior. Una señal reciente no certifica que la cola comercial este aplicada ni que la version de Caja haya sido instalada. El Resumen principal conserva su consulta general periodica; la escucha de señales no la dispara. El porcentaje de salud operativa sigue siendo una estimacion y requiere revision independiente.
+Cambiar de sucursal o salir cancela la escucha anterior. Una señal reciente no certifica que la cola comercial este aplicada ni que la version de Caja haya sido instalada. El Resumen principal conserva su consulta general periodica; la escucha de señales no la dispara. El conteo de senales es factual, no una puntuacion de salud: una señal reciente no acredita que se hayan aplicado todos los movimientos pendientes.
 
 ### Actualizacion del Resumen sin ocultar cifras
 
@@ -118,4 +118,8 @@ La consulta general de la entrada principal y movil mantiene el intervalo de tre
 
 ### Señal de terminal en Sucursales
 
-Web/PWA 1.0.108 ya no muestra un porcentaje de Salud operativa calculado con alertas: esa cifra no medía la salud de la Caja. La tarjeta informa señal reciente (menos de diez minutos), vencida, terminal inactiva, sin terminal o fecha no verificable y conserva la fecha del último registro disponible. El estado describe la señal guardada, no certifica la aplicación de la cola comercial ni la disponibilidad física de Plaza. El gráfico de Pulso de ventas sigue basado en ventas del mes; la señal no genera una curva histórica inventada.
+Web/PWA 1.0.108 ya no muestra en Sucursales un porcentaje calculado con alertas: esa cifra no medía la salud de la Caja. La tarjeta informa señal reciente (menos de diez minutos), vencida, terminal inactiva, sin terminal o fecha no verificable y conserva la fecha del último registro disponible. El estado describe la señal guardada, no certifica la aplicación de la cola comercial ni la disponibilidad física de Plaza. El gráfico de Pulso de ventas sigue basado en ventas del mes; la señal no genera una curva histórica inventada.
+
+### Resumen principal: estado factual de terminales
+
+Web/PWA 1.0.109 elimina el porcentaje de salud y la curva de tendencia sintetica que aparecian junto al conteo de terminales en el Resumen principal y movil. Solo conserva el numero confirmado con señal reciente y su umbral temporal; `--` significa que esa lectura no esta verificada. El resto de las tarjetas, importes, colores y composicion de Central permanece igual. Las señales no prueban que el inbox/cola de la Caja se haya aplicado ni reemplazan una lectura financiera completa.
