@@ -24,7 +24,7 @@
     document.body?.classList.add("is-embedded");
   }
   const THEME_KEY = "dcarela.ui.theme";
-  const APP_BUILD = "1.0.108";
+  const APP_BUILD = "1.0.111";
   const financeCore = window.DcarelaFinanceCore;
   const moneyManagerCore = window.DcarelaMoneyManagerCore;
 
@@ -441,11 +441,11 @@
     else verEstado(false, "Error al consultar datos");
     const target = document.querySelector(`#v-${module} .surface:last-child`) || $("v-" + module);
     if (target) {
-      target.querySelectorAll("p.error").forEach(el => el.remove());
+      target.querySelectorAll("p[data-module-error]").forEach(el => el.remove());
       const detail = msg.includes("quota") || msg.includes("restricted") || msg.includes("egress")
         ? "La nube está temporalmente restringida. Los datos no se sustituyeron por copias antiguas."
         : (error?.message || error);
-      target.insertAdjacentHTML("afterbegin", `<p class="error">${esc(detail)}</p>`);
+      target.insertAdjacentHTML("afterbegin", `<p class="error" data-module-error role="alert">${esc(detail)}</p>`);
     }
   }
 
@@ -3488,7 +3488,7 @@
     }, 8000);
     const pending = Promise.resolve().then(() => loaders[selected]()).then(() => {
       status.hidden = true;
-      view.querySelectorAll("p.error").forEach(el => el.remove());
+      view.querySelectorAll("p[data-module-error]").forEach(el => el.remove());
       return true;
     }).catch(error => {
       mostrarError(selected, error);
