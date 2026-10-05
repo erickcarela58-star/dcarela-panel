@@ -35,3 +35,11 @@ La revalidación encontró el selector en cerebro local en la conversación de p
 Ahora la preferencia vigente tiene prioridad al recuperar el historial. Sin una nueva preferencia se conserva el modelo disponible de la conversación. Si ese proveedor desapareció, se usa Automático (o la primera opción disponible); una restricción de almacenamiento no impide renderizar el historial. No hay cambio a autenticación, permisos ni aprobación de escrituras.
 
 Cinco regresiones verifican esos casos; cuatro fallaban antes del cambio. Suite completa: 325 pruebas aprobadas. Build `2026.10.05.1.0.113.0`. La confirmación de publicación y la de acceso físico a Plaza siguen siendo verificaciones separadas.
+
+## Seguimiento 1.0.114 — frescura de la señal de dispositivos
+
+En la comprobación del 5 de octubre, 21:47 UTC, el resumen inicialmente mostraba cero terminales y una fecha del 4 de octubre. La vista Dispositivos y una lectura remota no destructiva acreditaban una señal de IMPRESION de ese mismo día. Más tarde la escucha actualizó el resumen: el fallo observado era intermitente, no una caída comprobada del transporte.
+
+Las dos entradas generadas (escritorio y móvil) superponían incondicionalmente la escucha a la lectura manual, aunque fuera más antigua. Ahora conservan las filas de dispositivos, sucursal y hora de **inicio** de la consulta remota. El núcleo proyecta la evidencia verificada más reciente. Usar el inicio, y no la terminación, impide que una consulta lenta anule un bloqueo o eliminación posterior. La señal se recalcula y vence a los diez minutos; caché y errores siguen siendo estado desconocido. No se añaden lecturas periódicas de dinero ni se modifica el cálculo contable.
+
+`shell-device-freshness.test.js` reproduce los cuatro fallos de prioridad de ambas entradas y verifica la función real que conserva la evidencia. Doce regresiones adicionales cubren antigüedad, bloqueo, eliminación, respuestas lentas, caché, errores, separación de sucursales y caducidad sin mutar ventas ni cuentas. Suite completa: **337/337 aprobadas**; sintaxis válida en núcleo y ambas entradas. La publicación se debe verificar por separado. Build `2026.10.05.1.0.114.0`; los instaladores Windows permanecen en 1.0.75.
