@@ -19,3 +19,11 @@ Se alinearon el identificador interno, el manifiesto y las entradas desktop/mobi
 ## Límite de verificación
 
 Las pruebas locales no certifican despliegue ni acceso físico en otra PC. La publicación se debe comprobar mediante commit de Pages y contenido HTTP; la respuesta del asistente, mediante consulta no contable en el navegador. No crear ventas, ajustes o aperturas para esta prueba.
+
+## Seguimiento 1.0.112 — selección de proveedor
+
+1.0.111 se publicó con Pages, commit `2cc7315`, y se verificaron contenido HTTP y respuesta real del asistente. La segunda consulta reveló otro fallo: aun seleccionando Forzar Google Gemini, una explicación sobre «saldo de cuenta» se interceptaba como resumen numérico por el buscador local.
+
+1.0.112 mantiene las propuestas financieras y sus aprobaciones antes de la elección del proveedor. En consultas de lectura respeta Gemini explícito y deriva preguntas conceptuales a Gemini cuando se está en automático. No habilita ejecución directa generativa ni cambia datos financieros.
+
+Tres pruebas adicionales verifican Gemini explícito, pregunta conceptual automática y preservación de propuesta pendiente para escrituras. Suite completa: 320 pruebas aprobadas. Build `2026.10.05.1.0.112.0`.

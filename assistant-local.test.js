@@ -274,6 +274,33 @@ test('automatico entrega a Gemini una pregunta que el buscador local no puede co
   assert.equal(reply.conversation.model, 'auto');
 });
 
+test('Forzar Google Gemini no queda interceptado por saldo de cuenta en una explicacion', async () => {
+  const requests=[];
+  const ctx={...context(),remoteAssistant:async body=>{
+    requests.push(body);return {content:'El saldo mide dinero disponible; el resultado compara ingresos y gastos.',effective_model:'Google Gemini test'};
+  }};
+  const reply=await assistant.request('chat',ctx,{model:'google-gemini',message:'Explica la diferencia entre saldo de cuenta y resultado del periodo. No ejecutes acciones.'});
+  assert.equal(requests.filter(item=>item.action==='assistantGenerate').length,1);
+  assert.match(reply.effective_model,/Google Gemini/);
+  assert.doesNotMatch(reply.message.content,/Resumen real del/);
+  assert.equal(reply.conversation.actions.length,0);
+});
+
+test('automatico deriva explicaciones conceptuales a Gemini en lugar de un resumen numerico', async () => {
+  let remoteCalls=0;
+  const ctx={...context(),remoteAssistant:async ()=>{remoteCalls++;return {content:'Explicacion conceptual sin registrar movimientos.',effective_model:'Google Gemini test'};}};
+  const reply=await assistant.request('chat',ctx,{model:'auto',message:'Que significa el saldo de cuenta y cual es la diferencia con resultado?'});
+  assert.equal(remoteCalls,1);assert.match(reply.message.content,/Explicacion conceptual/);assert.equal(reply.conversation.actions.length,0);
+});
+
+test('Forzar Google no evita la propuesta y aprobacion local para una escritura financiera', async () => {
+  let remoteCalls=0,writes=0;
+  const ctx={...context(adapter({adminAction:async()=>{writes++;return {ok:true};}})),remoteAssistant:async()=>{remoteCalls++;throw new Error('No debe ejecutarse');}};
+  const reply=await assistant.request('chat',ctx,{model:'google-gemini',message:'Registra un gasto de 500 en efectivo por comida.'});
+  assert.equal(remoteCalls,0);assert.equal(writes,0);
+  assert.equal(reply.conversation.actions.length,1);assert.equal(reply.conversation.actions[0].status,'pending');
+});
+
 test('migra conversaciones antiguas que dejaban el modelo local predeterminado', async () => {
   const storage = memoryStorage();
   storage.setItem('dcarela.local-assistant.v1.dcarela.user-1', JSON.stringify([{

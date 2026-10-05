@@ -24,7 +24,7 @@
     document.body?.classList.add("is-embedded");
   }
   const THEME_KEY = "dcarela.ui.theme";
-  const APP_BUILD = "1.0.111";
+  const APP_BUILD = "1.0.112";
   const financeCore = window.DcarelaFinanceCore;
   const moneyManagerCore = window.DcarelaMoneyManagerCore;
 

@@ -917,26 +917,31 @@
     if (revised) return revised;
     const proposal = await buildExpenseProposal(ctx, prompt);
     if (proposal) return { content: proposal.message, action: proposal.action };
-    if (/consumo.*api|api.*consumo|que motor|motor.*usas|modulos.*consult|que.*puedes/.test(query)) {
-      return {
-        content: 'Uso el **cerebro local del POS** y requiero **cero consumo de API generativa** para estas consultas. Leo datos reales de Firebase en los modulos de ventas, finanzas y gastos, cuentas, clientes y creditos, productos e inventario, caja, turnos y cortes. Las escrituras nunca son automaticas: preparo una propuesta auditable y exijo aprobacion antes de aplicarla.',
-      };
-    }
-    if (/varias ordenes|ordenes juntas|lote.*orden|multiples ordenes/.test(query)) {
-      return {
-        content: 'Para **varias ordenes juntas**, preparo un lote revisable con una clave unica por orden, valido cliente, conceptos, montos y forma de pago, y marco duplicados antes de escribir. Luego presento el resumen completo para aprobacion. No aplico lotes incompletos ni invento campos ausentes.',
-      };
-    }
-    if (/resumen.*(?:hoy|del dia)|venta.*hoy|hoy.*venta|saldo.*cuenta/.test(query)) return { content: await loadSummary(ctx) };
-    if (/(?:audita|revisa|lista|muestra).*(?:producto|catalogo|inventario|stock|precio)/.test(query)) return { content: await auditProducts(ctx) };
-    if (/(?:revisa|lista|muestra|resume).*(?:cliente|credito|deud|cuenta por cobrar)/.test(query)) return { content: await auditClients(ctx) };
-    if (/(?:estado|audita|revisa|ultimo).*(?:caja|turno|corte|arqueo)|efectivo esperado/.test(query)) return { content: await auditCash(ctx) };
-    if (/(?:busca|buscar|encuentra|localiza|muestra si existe|consulta si existe).*(?:pion|motor|gasto|pago|movimiento|factura)/.test(query)) {
-      return { content: await searchFinance(ctx, prompt) };
-    }
-    let remoteWarning = '';
     const selectedModel = ['auto', 'local-pos', 'google-gemini'].includes(data.model)
       ? data.model : (conversation?.model || 'auto');
+    const conceptual = /explica.*(?:concepto|significa|diferencia|saldo|resultado)|que significa|definicion|conceptual|diferencia entre/.test(query);
+    // Financial proposals stay deterministic and approval-gated above. Read-only
+    // shortcuts must not override an explicit provider or a conceptual question.
+    if (selectedModel !== 'google-gemini' && !conceptual) {
+      if (/consumo.*api|api.*consumo|que motor|motor.*usas|modulos.*consult|que.*puedes/.test(query)) {
+        return {
+          content: 'Uso el **cerebro local del POS** y requiero **cero consumo de API generativa** para estas consultas. Leo datos reales de Firebase en los modulos de ventas, finanzas y gastos, cuentas, clientes y creditos, productos e inventario, caja, turnos y cortes. Las escrituras nunca son automaticas: preparo una propuesta auditable y exijo aprobacion antes de aplicarla.',
+        };
+      }
+      if (/varias ordenes|ordenes juntas|lote.*orden|multiples ordenes/.test(query)) {
+        return {
+          content: 'Para **varias ordenes juntas**, preparo un lote revisable con una clave unica por orden, valido cliente, conceptos, montos y forma de pago, y marco duplicados antes de escribir. Luego presento el resumen completo para aprobacion. No aplico lotes incompletos ni invento campos ausentes.',
+        };
+      }
+      if (/resumen.*(?:hoy|del dia)|venta.*hoy|hoy.*venta|saldo.*cuenta/.test(query)) return { content: await loadSummary(ctx) };
+      if (/(?:audita|revisa|lista|muestra).*(?:producto|catalogo|inventario|stock|precio)/.test(query)) return { content: await auditProducts(ctx) };
+      if (/(?:revisa|lista|muestra|resume).*(?:cliente|credito|deud|cuenta por cobrar)/.test(query)) return { content: await auditClients(ctx) };
+      if (/(?:estado|audita|revisa|ultimo).*(?:caja|turno|corte|arqueo)|efectivo esperado/.test(query)) return { content: await auditCash(ctx) };
+      if (/(?:busca|buscar|encuentra|localiza|muestra si existe|consulta si existe).*(?:pion|motor|gasto|pago|movimiento|factura)/.test(query)) {
+        return { content: await searchFinance(ctx, prompt) };
+      }
+    }
+    let remoteWarning = '';
     if (selectedModel !== 'local-pos' && ctx.remoteAssistant) {
       try {
         const recent = (conversation?.messages || []).slice(-8).map(item => ({ role: item.role, content: text(item.content, 1800) }));
