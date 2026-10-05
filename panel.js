@@ -24,7 +24,7 @@
     document.body?.classList.add("is-embedded");
   }
   const THEME_KEY = "dcarela.ui.theme";
-  const APP_BUILD = "1.0.112";
+  const APP_BUILD = "1.0.113";
   const financeCore = window.DcarelaFinanceCore;
   const moneyManagerCore = window.DcarelaMoneyManagerCore;
 
@@ -1305,7 +1305,14 @@
     orphanedActions.filter(action => action.status !== "error").forEach(action => chunks.push(iaActionHtml(action)));
     $("iaMessages").innerHTML = chunks.length ? chunks.join("") : IA_EMPTY_HTML;
     $("iaConversationTitle").textContent = history?.conversation?.title || "Nueva conversación";
-    if (history?.conversation?.model) $("iaModel").value = history.conversation.model;
+    // Loading history must not undo a model choice made more recently than its
+    // last message. Use only available providers; never leave the picker blank.
+    const modelPicker = $("iaModel");
+    let preferredModel = history?.conversation?.model || "auto";
+    try { preferredModel = localStorage.getItem(IA_MODEL_KEY) || preferredModel; } catch {}
+    const availableModels = new Set([...modelPicker.options].map(option => option.value));
+    modelPicker.value = availableModels.has(preferredModel) ? preferredModel
+      : availableModels.has("auto") ? "auto" : modelPicker.options[0]?.value || "";
     renderIaDocuments(history?.active_documents || iaStatusCache?.active_documents || []);
     renderIaLearnings();
     iaBindMessageActions(messages);

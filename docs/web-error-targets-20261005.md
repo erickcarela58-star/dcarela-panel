@@ -27,3 +27,11 @@ Las pruebas locales no certifican despliegue ni acceso físico en otra PC. La pu
 1.0.112 mantiene las propuestas financieras y sus aprobaciones antes de la elección del proveedor. En consultas de lectura respeta Gemini explícito y deriva preguntas conceptuales a Gemini cuando se está en automático. No habilita ejecución directa generativa ni cambia datos financieros.
 
 Tres pruebas adicionales verifican Gemini explícito, pregunta conceptual automática y preservación de propuesta pendiente para escrituras. Suite completa: 320 pruebas aprobadas. Build `2026.10.05.1.0.112.0`.
+
+## Seguimiento 1.0.113 — elección reciente frente a historial
+
+La revalidación encontró el selector en cerebro local en la conversación de prueba, pese a haber elegido Automático al finalizar la ronda anterior. `renderIaHistory` asignaba incondicionalmente el modelo del último mensaje, pudiendo sustituir una preferencia más reciente y seleccionar un proveedor que ya no figuraba disponible.
+
+Ahora la preferencia vigente tiene prioridad al recuperar el historial. Sin una nueva preferencia se conserva el modelo disponible de la conversación. Si ese proveedor desapareció, se usa Automático (o la primera opción disponible); una restricción de almacenamiento no impide renderizar el historial. No hay cambio a autenticación, permisos ni aprobación de escrituras.
+
+Cinco regresiones verifican esos casos; cuatro fallaban antes del cambio. Suite completa: 325 pruebas aprobadas. Build `2026.10.05.1.0.113.0`. La confirmación de publicación y la de acceso físico a Plaza siguen siendo verificaciones separadas.
