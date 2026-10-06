@@ -571,3 +571,55 @@ test('resumen no presenta cero cuando falla el diario ni usa acumulador como sal
   assert.match(result.message.content,/Gastos registrados: \*\*no disponibles/);
   assert.match(result.message.content,/Saldo de cuentas: \*\*no disponible/);
 });
+
+test('el resumen verifica la Caja web propia sin confundir un turno ajeno ni repetir lecturas', async () => {
+  let reads = 0;
+  const ctx = context(adapter({
+    getCashShifts: async () => { throw new Error('No consultar turnos globales para mi caja'); },
+    webSaleAction: async (...args) => {
+      assert.deepEqual(args, ['status', 'dcarela', 'owner']);
+      reads++;
+      return { ok: true, shift: null };
+    },
+    adminAction: async () => { throw new Error('La consulta no puede escribir'); },
+  }));
+  const result = await assistant.request('chat', ctx, { message: 'Dame el resumen de ventas de hoy.' });
+  assert.equal(reads, 1);
+  assert.match(result.message.content, /Mi Caja web: \*\*sin turno abierto/);
+  assert.match(result.message.content, /Ventas confirmadas: \*\*1\*\*/);
+  assert.equal(result.conversation.actions.length, 0);
+});
+
+test('el resumen reconoce el turno propio verificado de la sucursal seleccionada', async () => {
+  const ctx = context(adapter({
+    getCashShifts: async () => { throw new Error('No consultar turnos globales'); },
+    webSaleAction: async () => ({ ok: true, shift: {
+      id: 'my-shift', business_id: 'dcarela', opened_by_uid: 'user-1', status: 'open',
+    } }),
+  }));
+  const result = await assistant.request('chat', ctx, { message: 'Dame el resumen de ventas de hoy.' });
+  assert.match(result.message.content, /Mi Caja web: \*\*turno abierto/);
+});
+
+test('un error o un turno ajeno no se presentan como una Caja web cerrada o abierta', async () => {
+  for (const status of [null, { ok: true }, { ok: false, shift: null },
+    { ok: true, shift: { id: 'other', business_id: 'plaza-artesanal', opened_by_uid: 'user-1', status: 'open' } },
+    { ok: true, shift: { id: 'other', business_id: 'dcarela', opened_by_uid: 'other-user', status: 'open' } }]) {
+    const ctx = context(adapter({ webSaleAction: async () => {
+      if (!status) throw new Error('permission-denied');
+      return status;
+    } }));
+    const result = await assistant.request('chat', ctx, { message: 'Dame el resumen de ventas de hoy.' });
+    assert.match(result.message.content, /Mi Caja web: \*\*estado no disponible/);
+    assert.match(result.message.content, /RD\$\s?4,615\.00/);
+    assert.equal(result.conversation.actions.length, 0);
+  }
+});
+
+test('un adaptador sin estado propio etiqueta la muestra global y no acredita mi Caja web', async () => {
+  const ctx = context();
+  const result = await assistant.request('chat', ctx, { message: 'Dame el resumen de ventas de hoy.' });
+  assert.match(result.message.content, /Mi Caja web: \*\*estado no disponible/);
+  assert.match(result.message.content, /Turnos de la sucursal \(muestra\)/);
+  assert.match(result.message.content, /no verifica esta terminal/);
+});

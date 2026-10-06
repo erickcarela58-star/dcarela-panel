@@ -247,11 +247,14 @@
     const end = new Date(`${requestedDay}T23:59:59.999-04:00`);
     const hasJournal = typeof ctx.adapter.getFinanceJournal === 'function';
     const canReadLedger = typeof ctx.adapter.getSyncEvents === 'function';
+    const canReadOwnWebShift = typeof ctx.adapter.webSaleAction === 'function';
     const settled = await Promise.allSettled([
       hasJournal ? Promise.resolve([]) : ctx.adapter.getSales(ctx.businessId, 2000),
       readFinanceJournal(ctx, { from: requestedDay, to: requestedDay }),
       ctx.adapter.getFinanceAccounts(ctx.businessId),
-      ctx.adapter.getCashShifts(ctx.businessId, 80),
+      canReadOwnWebShift
+        ? ctx.adapter.webSaleAction('status', ctx.businessId, ctx.role)
+        : ctx.adapter.getCashShifts(ctx.businessId, 80),
       !hasJournal && canReadLedger ? ctx.adapter.getSyncEvents(ctx.businessId, {
         from: start.toISOString(), to: end.toISOString(), limit: 2000,
       }) : Promise.resolve(null),
@@ -284,7 +287,7 @@
     const expenses = totals.movements.filter(isExpense);
     const legacyFees = totals.movements.filter(item => financeCore.transferCommissionCents(item, financeRows) > 0);
     const accounts = value(2).filter(item => item.oculta !== true && normalize(item.estado || 'activa') !== 'inactiva');
-    const shifts = value(3);
+    const shifts = !canReadOwnWebShift && Array.isArray(value(3)) ? value(3) : [];
     const salesCents = sales.reduce((sum, item) => sum + (journalSales ? financeCore.saleAmount(item) : saleTotal(item)), 0);
     let accountState = null;
     if (settled[2].status === 'fulfilled' && ctx.adapter.getFinanceAccountState) {
@@ -293,11 +296,21 @@
     const accountCents = accountState ? accountState.balances.reduce((sum, item) => sum + item.balance, 0) : null;
     const salesUnavailable = hasJournal ? !journalSales : settled[0].status === 'rejected' && settled[4].status === 'rejected';
     const openShift = shifts.find(item => normalize(item.status) === 'open') || null;
+    const ownStatus = canReadOwnWebShift && settled[3].status === 'fulfilled' ? value(3) : null;
+    // Use the same read-only status as Caja virtual. A shift elsewhere in the
+    // branch does not establish whether this user's web terminal is open.
+    let ownShiftState = 'estado no disponible';
+    if (ownStatus?.ok === true && ownStatus.shift === null) ownShiftState = 'sin turno abierto';
+    else if (ownStatus?.ok === true && ownStatus.shift?.business_id === ctx.businessId
+      && ownStatus.shift.opened_by_uid === ctx.user.uid
+      && normalize(ownStatus.shift.status) === 'open') ownShiftState = 'turno abierto';
     return `### Resumen real del ${requestedDay}\n\n`
       + (salesUnavailable ? '- Ventas confirmadas: **no disponibles**.\n' : `- Ventas confirmadas: **${sales.length}** por **${money(salesCents)}**.\n`)
       + (journal ? `- Gastos registrados: **${expenses.length + legacyFees.length}** por **${money(totals.gastos_centavos)}**${legacyFees.length ? ' (incluye comisiones)' : ''}.\n` : '- Gastos registrados: **no disponibles**; no se pudo verificar el diario.\n')
       + (accountCents == null ? '- Saldo de cuentas: **no disponible**; requiere el diario verificado.\n' : `- Saldo neto de ${accounts.length} cuenta(s) visibles, incluida deuda de tarjetas: **${money(accountCents)}**.\n`)
-      + `- Caja web: **${settled[3].status === 'rejected' ? 'estado no disponible' : openShift ? 'turno abierto' : 'sin turno abierto'}**.\n`
+      + `- Mi Caja web: **${ownShiftState}**.\n`
+      + (!canReadOwnWebShift && settled[3].status === 'fulfilled'
+        ? `- Turnos de la sucursal (muestra): **${openShift ? 'hay un turno abierto' : 'sin turnos abiertos en la muestra'}**; no verifica esta terminal.\n` : '')
       + (!hasJournal && canReadLedger && settled[4].status === 'rejected' ? '- Advertencia: **consulta de ventas parcial**; Firebase no entregó el ledger POS Windows.\n' : '')
       + (!journal?.complete ? '- Advertencia: **consulta financiera parcial**; el diario completo no estuvo disponible.\n' : '')
       + '\n'
