@@ -49,6 +49,16 @@
       <div class="loading" role="status" aria-live="polite">Conectando de forma segura</div>
     </div>
 
+    <div id="v-auth-error" class="auth-panel oculto">
+      <img src="dcarela-logo.png" alt="D' Carela Compufoto" class="auth-logo">
+      <p class="eyebrow">Panel administrativo</p>
+      <h1>Validación interrumpida</h1>
+      <p class="muted">Tu identidad sigue conectada. No se pudo verificar el acceso a esta sucursal; el panel permanece bloqueado.</p>
+      <p id="authValidationErr" class="error" role="alert"></p>
+      <button id="btnReintentarAcceso" class="primary wide" type="button">Reintentar acceso</button>
+      <p class="muted">Reintentaremos la validación de permisos sin pedir de nuevo tu contraseña ni modificar datos.</p>
+    </div>
+
     <div id="v-config" class="auth-panel oculto">
       <img src="dcarela-logo.png" alt="D' Carela Compufoto" class="auth-logo">
       <p class="eyebrow">Panel administrativo</p>

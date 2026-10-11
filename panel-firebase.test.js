@@ -136,7 +136,11 @@ test("la autenticacion no fabrica administradores ni persiste tokens manuales", 
   assert.match(panelJs, /getMembershipsForUser\(session\.user\.id\)/);
   assert.match(panelJs, /Firebase Auth · reglas verificadas/);
   assert.match(panelJs, /Firebase · acceso seguro/);
-  assert.match(panelJs, /if \(!sesionOk\) await window\.DcarelaFirebase\.signOut/);
+  // Un error de autorización bloquea la aplicación; no debe cerrar una
+  // identidad Firebase válida solo porque la lectura de membresías venció.
+  assert.match(panelJs, /authGeneration\+\+;\s*session = null;\s*sesionOk = false;\s*activeUserId = "";\s*authProvider = "none";\s*mostrarFalloValidacion\(error, nextSession\)/);
+  assert.match(panelJs, /generation !== authGeneration \|\| session\?\.user\?\.id !== expectedUserId/);
+  assert.match(panelJs, /on\("btnSalir", "click", async \(\) =>[\s\S]*await window\.DcarelaFirebase\?\.signOut\?\.\(\)/);
 });
 
 test("panel.html vincula firebase-config y firebase-adapter", () => {

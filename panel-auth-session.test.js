@@ -70,7 +70,7 @@ test("un arranque Firebase vencido se invalida antes de que pueda abrir el panel
   const start = source.indexOf("async function iniciarConSesion");
   const end = source.indexOf("async function restaurarSesion", start);
   const startup = source.slice(start, end);
-  assert.match(startup, /Tiempo de espera agotado al conectar[\s\S]*20000/);
+  assert.match(startup, /esperarConLimite\(\s*iniciar\(generation\), 20000, "Tiempo de espera agotado al conectar/);
   assert.match(startup, /if \(generation !== authGeneration\) return;[\s\S]*authGeneration\+\+;[\s\S]*session = null;/);
   assert.match(source, /if \(generation !== authGeneration \|\| session\?\.user\?\.id !== expectedUserId\) return false;[\s\S]*sesionOk = true/);
 });

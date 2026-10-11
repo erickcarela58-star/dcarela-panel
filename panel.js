@@ -345,13 +345,13 @@
   function mostrarAcceso(view) {
     $("access").classList.remove("oculto");
     $("app").classList.add("oculto");
-    ["v-restoring", "v-config", "v-login"].forEach(id => $(id).classList.toggle("oculto", id !== view));
+    ["v-restoring", "v-config", "v-login", "v-auth-error"].forEach(id => $(id)?.classList.toggle("oculto", id !== view));
   }
 
   function mensajeAutenticacion(error, fallback = "No se pudo validar la sesion.") {
     const message = String(error?.message || error || "").toLowerCase();
     const code = String(error?.code || "").toLowerCase();
-    if (message.includes("timeout") || message.includes("tiempo")) return "La nube tardÃ³ demasiado. Revisa internet e intenta de nuevo.";
+    if (message.includes("timeout") || message.includes("tiempo") || code === "deadline-exceeded") return "La nube tardó demasiado. Revisa internet e intenta de nuevo.";
     if (message.includes("jwt") || message.includes("token") || message.includes("session")) return "Tu sesion expiro. Inicia sesion nuevamente.";
     if (message.includes("permission") || message.includes("policy") || message.includes("row-level") || message.includes("rls")) return "Tu cuenta esta autenticada, pero no tiene permiso para consultar esta sucursal.";
     if (message.includes("membres") || message.includes("acceso activo")) return "Tu cuenta no tiene una membresia activa para esta sucursal.";
@@ -376,6 +376,22 @@
     } finally {
       clearTimeout(timer);
     }
+  }
+
+  function mostrarFalloValidacion(error, nextSession) {
+    // La identidad Firebase y la autorización a esta sucursal son distintas.
+    // El panel permanece cerrado: solo un nuevo arranque puede revalidar roles.
+    const currentUser = window.DcarelaFirebase?.getCurrentUser?.();
+    const identityStillValid = nextSession?.provider === "firebase"
+      && !!currentUser?.uid && currentUser.uid === nextSession?.user?.id;
+    const errorTarget = $("authValidationErr");
+    if (identityStillValid && $("v-auth-error") && errorTarget) {
+      mostrarAcceso("v-auth-error");
+      errorTarget.textContent = mensajeAutenticacion(error);
+      return;
+    }
+    mostrarAcceso("v-login");
+    $("loginErr").textContent = mensajeAutenticacion(error);
   }
 
   const loaders = {
@@ -8207,7 +8223,7 @@
     const expectedUserId = session?.user?.id || "";
     if (!expectedUserId) throw new Error("Sesion invalida");
     await cargarSucursalesDisponibles();
-    if (session?.user?.id !== expectedUserId) return;
+    if (generation !== authGeneration || session?.user?.id !== expectedUserId) return false;
     await cargarRolEdicion();
     // En modo embebido el shell es la fuente de verdad y publica el tema por
     // postMessage en cada carga/cambio. Volver a leer la preferencia remota
@@ -8268,10 +8284,9 @@
       session = nextSession;
       authProvider = nextSession.provider === "firebase" ? "firebase" : "supabase";
       try {
-        const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error("Tiempo de espera agotado al conectar.")), 20000)
+        const started = await esperarConLimite(
+          iniciar(generation), 20000, "Tiempo de espera agotado al conectar."
         );
-        const started = await Promise.race([iniciar(generation), timeoutPromise]);
         if (!started) return;
         if (generation !== authGeneration) return;
       } catch (error) {
@@ -8285,8 +8300,7 @@
         sesionOk = false;
         activeUserId = "";
         authProvider = "none";
-        mostrarAcceso("v-login");
-        $("loginErr").textContent = mensajeAutenticacion(error);
+        mostrarFalloValidacion(error, nextSession);
       }
     })();
     try {
@@ -8300,7 +8314,7 @@
     const generation = ++authGeneration;
     mostrarAcceso("v-restoring");
     const safetyTimer = setTimeout(() => {
-      if (generation === authGeneration && !sesionOk) {
+      if (generation === authGeneration && !sesionOk && !startupPromise) {
         mostrarAcceso("v-login");
       }
     }, 20000);
@@ -8355,6 +8369,30 @@
     }
   }
 
+  function manejarEstadoFirebase(user) {
+    const expectedUserId = activeUserId || session?.user?.id || "";
+    const recoveryVisible = $("v-auth-error") && !$("v-auth-error").classList.contains("oculto");
+    const signedOut = !user?.uid && (expectedUserId || sesionOk || startupPromise || recoveryVisible);
+    const changedUser = !!user?.uid && !!expectedUserId && user.uid !== expectedUserId;
+    if (!signedOut && !changedUser) return;
+    // Firebase puede terminar/cambiar la identidad antes de sesionOk. Ese
+    // arranque también debe invalidarse, no solo una aplicación ya abierta.
+    authGeneration++;
+    sesionOk = false;
+    activeUserId = "";
+    session = null;
+    authProvider = "none";
+    canEdit = false;
+    if (typeof liveChannel === "function") liveChannel();
+    liveChannel = null;
+    if (changedUser) {
+      mostrarFalloValidacion(new Error("No se pudo validar el nuevo usuario de la nube."), sesionFirebase(user));
+    } else {
+      mostrarAcceso("v-login");
+      $("loginErr").textContent = "La sesion termino. Inicia sesion nuevamente.";
+    }
+  }
+
   // Elementos que arrancar() esperaba y no estaban en el HTML. Se acumulan para
   // avisar una sola vez al final en vez de matar el arranque en el primero.
   const elementosFaltantes = [];
@@ -8388,6 +8426,9 @@
     const resetConnection = () => { localStorage.removeItem("dcarela.cfg"); location.reload(); };
     on("btnCambiarCfg", "click", resetConnection);
     on("btnReset", "click", resetConnection);
+    // Recargar descarta las promesas vencidas y vuelve a comprobar Firebase,
+    // membresías y sucursal sin guardar claves ni reutilizar permisos antiguos.
+    on("btnReintentarAcceso", "click", () => location.reload());
     on("btnEntrar", "click", async () => {
       $("loginErr").textContent = "";
       const button = $("btnEntrar");
@@ -8410,7 +8451,8 @@
         const firebaseSession = sesionFirebase(credential?.user);
         if (!firebaseSession) throw new Error("No se recibió una sesión válida de Firebase.");
         await iniciarConSesion(firebaseSession);
-        if (!sesionOk) await window.DcarelaFirebase.signOut().catch(() => {});
+        // Fallar la validación de membresías no invalida la identidad Firebase.
+        // Mantenerla permite reintentar; la aplicación sigue oculta hasta validar.
       } catch (error) {
         const msg = error?.message || "No se pudo validar la sesion.";
         $("loginErr").textContent = mensajeAutenticacion(error, msg);
@@ -8919,18 +8961,7 @@
       $("cfgErr").textContent = "No se pudo iniciar Firebase. Recarga la página o revisa tu conexión.";
       return;
     }
-    window.DcarelaFirebase.onAuthStateChanged(user => {
-      if (!user && sesionOk) {
-        authGeneration++;
-        sesionOk = false;
-        activeUserId = "";
-        session = null;
-        authProvider = "none";
-        if (typeof liveChannel === "function") liveChannel();
-        liveChannel = null;
-        mostrarAcceso("v-login");
-      }
-    });
+    window.DcarelaFirebase.onAuthStateChanged(manejarEstadoFirebase);
     await restaurarSesion();
   }
 
