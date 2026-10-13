@@ -24,7 +24,7 @@
     document.body?.classList.add("is-embedded");
   }
   const THEME_KEY = "dcarela.ui.theme";
-  const APP_BUILD = "1.0.115";
+  const APP_BUILD = "1.0.116";
   const financeCore = window.DcarelaFinanceCore;
   const moneyManagerCore = window.DcarelaMoneyManagerCore;
 
@@ -8776,6 +8776,22 @@
     on("recDiferencia", "keydown", event => { if (event.key === "Enter") { event.preventDefault(); $("btnRecalcular").click(); } });
     on("btnReporte", "click", () => cargarReporte(true).catch(error => mostrarError("reportes", error)));
     on("btnReportePdf", "click", () => { try { descargarReportePdf(); } catch (error) { toast(error.message); } });
+    document.querySelectorAll("[data-report-rango]").forEach(button => button.addEventListener("click", () => {
+      const hoy = new Date();
+      const dia = (anio, mes, d) => inputDate(new Date(anio, mes, d, 12));
+      const rangos = {
+        hoy: [dia(hoy.getFullYear(), hoy.getMonth(), hoy.getDate()), dia(hoy.getFullYear(), hoy.getMonth(), hoy.getDate())],
+        semana: [dia(hoy.getFullYear(), hoy.getMonth(), hoy.getDate() - ((hoy.getDay() + 6) % 7)), dia(hoy.getFullYear(), hoy.getMonth(), hoy.getDate())],
+        mes: [dia(hoy.getFullYear(), hoy.getMonth(), 1), dia(hoy.getFullYear(), hoy.getMonth(), hoy.getDate())],
+        "mes-anterior": [dia(hoy.getFullYear(), hoy.getMonth() - 1, 1), dia(hoy.getFullYear(), hoy.getMonth(), 0)],
+      };
+      const [desde, hasta] = rangos[button.dataset.reportRango] || [];
+      if (!desde) return;
+      $("repDesde").value = desde;
+      $("repHasta").value = hasta;
+      document.querySelectorAll("[data-report-rango]").forEach(item => item.classList.toggle("act", item === button));
+      cargarReporte(true).catch(error => mostrarError("reportes", error));
+    }));
     document.querySelectorAll("[data-report-focus]").forEach(button => button.addEventListener("click", () => {
       document.querySelectorAll("[data-report-focus]").forEach(item => item.classList.toggle("act", item === button));
       const target = $(button.dataset.reportFocus)?.closest(".surface");
