@@ -117,6 +117,7 @@
   let costStateCache = null;
   let finStateCache = null;
   let costTab = "resumen";
+  let updateFinanceTools = () => {};
   let finDashboardPeriod = "mes";
   let finReferenceDate = "";
   let finFilteredMovements = [];
@@ -5206,6 +5207,40 @@
     $("provPanelObligaciones").classList.toggle("oculto", costTab !== "obligaciones");
     $("provPanelRecibos").classList.toggle("oculto", costTab !== "recibos");
     $("provPanelAjustes").classList.toggle("oculto", costTab !== "ajustes");
+    updateFinanceTools();
+  }
+
+  function announceAccountReady() {
+    if (EMBEDDED && sesionOk && finStateCache) window.parent.postMessage({type:"dcarela:account-ready", businessId:BUSINESS}, location.origin);
+  }
+
+  function openFinAccount(accountId) {
+    if (!finStateCache?.accounts.some(account => account.id === accountId && account.estado !== "eliminada")) return;
+    setCostTab("movimientos");
+    renderFinMovements();
+    $("finMovementAccount").value = accountId;
+    ["finMovementSearch", "finMovementType", "finMovementCategory"].forEach(id => { $(id).value = ""; });
+    renderFinMovements();
+    $("finAccountDetail").scrollIntoView({block:"start"});
+    if (EMBEDDED) window.parent.postMessage({type:"dcarela:account-opened",businessId:BUSINESS,accountId},location.origin);
+  }
+
+  window.addEventListener("message", event => {
+    const id = window.DcarelaToolLayout?.accountMessage(event, {origin:location.origin,parent:window.parent,business:BUSINESS,authenticated:sesionOk,accounts:finStateCache?.accounts || []});
+    if (id) openFinAccount(id);
+  });
+
+  function renderFinAccountDetail() {
+    const mount = $("finAccountDetail");
+    if (!mount) return;
+    const account = finStateCache?.accounts.find(item => item.id === $("finMovementAccount")?.value);
+    mount.classList.toggle("oculto", !account);
+    if (!account) { mount.replaceChildren(); return; }
+    const totals = financeCore.summarizeMovements(finFilteredMovements.filter(item => item.tipo !== "transferencia"));
+    const usage = account.ligada_ventas ? "Ligada a ventas" : "Movimientos de esta cuenta";
+    mount.innerHTML = `<header><div><p>${esc(FIN_TIPO_LABEL[account.tipo] || account.tipo)} · ${esc(usage)}</p><h3>${esc(account.nombre)}</h3></div><button type="button" data-account-back>Todas las cuentas</button></header>
+      <div class="finance-account-metrics"><div><span>Saldo actual</span><strong>${money(finAccountBalance(account))}</strong><small>Último estado recibido; el filtro no cambia el saldo.</small></div><div><span>Ingresos registrados</span><strong>${money(totals.ingresos_centavos)}</strong></div><div><span>Gastos registrados</span><strong>${money(totals.gastos_centavos)}</strong></div><div><span>Uso de la cuenta</span><strong>${finFilteredMovements.length}</strong><small>Movimientos cargados. Las transferencias se muestran en el historial; estas cifras solo suman asientos de ingresos y gastos.</small></div></div>`;
+    mount.querySelector("[data-account-back]").addEventListener("click", () => { $("finMovementAccount").value = ""; renderFinMovements(); setCostTab("cuentas"); });
   }
 
   function abrirGasto(state, expense = null) {
@@ -5804,11 +5839,7 @@
     if (summary) summary.innerHTML = totalCard + cumuloCard;
     $("finCuentasCards").innerHTML = (summary ? "" : totalCard + cumuloCard) + cards;
     $("finCuentasCards").querySelectorAll("[data-fin-account-ledger]").forEach(button => button.addEventListener("click", () => {
-      const accountId = button.dataset.finAccountLedger;
-      setCostTab("movimientos");
-      $("finMovementAccount").value = accountId;
-      renderFinMovements();
-      $("finMovementSearch").focus();
+      openFinAccount(button.dataset.finAccountLedger);
     }));
     $("finCuentasCards").querySelectorAll("[data-fin-account-edit]").forEach(button => button.addEventListener("click", () => {
       abrirCuentaFin(state.accounts.find(account => account.id === button.dataset.finAccountEdit));
@@ -6112,6 +6143,7 @@
     $("finMovementAccount").innerHTML = `<option value="">Todas</option>${state.accounts.map(item => `<option value="${esc(item.id)}"${selected(accountValue, item.id)}>${esc(item.nombre)}</option>`).join("")}`;
     $("finMovementCategory").innerHTML = `<option value="">Todas</option>${state.categories.map(item => `<option value="${esc(item.id)}"${selected(categoryValue, item.id)}>${esc(item.nombre)}</option>`).join("")}`;
     finFilteredMovements = state.movements.filter(finMovementMatches);
+    renderFinAccountDetail();
     const headers = ["Fecha", "Tipo", "Cuenta", "Categoria", "Detalle", "Monto", ""];
     $("finMovimientosTabla").innerHTML = tabla(finFilteredMovements, movement => {
       const expense = movement.tipo === "gasto";
@@ -6134,6 +6166,7 @@
         `<span class="amount ${expense ? "neg" : movement.tipo === "ingreso" ? "pos" : ""}">${sign}${money(movement.monto_centavos)}</span>`,
         actions ? `<div class="row-actions">${actions}</div>` : ""];
     }, headers);
+    if (!finFilteredMovements.length && accountValue) $("finMovimientosTabla").innerHTML = '<div class="empty-state">No hay movimientos cargados para esta cuenta con estos filtros.</div>';
     $("finMovimientosTabla").querySelectorAll("[data-fin-cancel]").forEach(button => button.addEventListener("click", () => {
       const movement = state.movements.find(item => item.id === button.dataset.finCancel);
       if (movement) confirmarAnularMovimientoFin(movement);
@@ -6311,6 +6344,8 @@
     const state = finStateCache;
     if (!state) return;
     const range = finRange();
+    const contextSummary = $("finPeriodSummary");
+    if (contextSummary) contextSummary.textContent = `Periodo y filtros · ${range.label}`;
     $("finFechaReferencia").value = finReferenceDate;
     $("finPeriodTabs").querySelectorAll("[data-fin-period]").forEach(button => button.classList.toggle("act", button.dataset.finPeriod === finDashboardPeriod));
     
@@ -7343,12 +7378,13 @@
       renderFinSettings();
       await renderFinDashboard();
       if (moneyManagerCore && !$("v-money-manager")?.classList.contains("oculto")) renderMoneyManager();
+      announceAccountReady();
       return;
     }
     const previousFinance = finStateCache;
     const previousCosts = costStateCache;
     const progress = crearProgresoFinanciero();
-    financeLoad = cargarProveedoresData(force, progress).then(() => progress.finish()).catch(error => {
+    financeLoad = cargarProveedoresData(force, progress).then(() => { progress.finish(); announceAccountReady(); }).catch(error => {
       finStateCache = previousFinance;
       costStateCache = previousCosts;
       progress.finish(error);
@@ -8931,6 +8967,7 @@
       guardarPreferenciasFin(event.currentTarget).catch(error => toast(error.message));
     });
     $("provTabs").querySelectorAll("[data-cost-tab]").forEach(button => button.addEventListener("click", () => setCostTab(button.dataset.costTab)));
+    if (window.DcarelaToolLayout) updateFinanceTools = window.DcarelaToolLayout.bindToolbar($("provTabs"), {scope:`finance:${BUSINESS}`,defaults:["resumen","movimientos","cuentas","compromisos"],required:["resumen"],active:()=>costTab});
     on("provMes", "change", () => {
       if (!finReferenceDate.startsWith($("provMes").value)) finReferenceDate = `${$("provMes").value}-01`;
       cargarProveedores().catch(error => mostrarError("finanzas", error));

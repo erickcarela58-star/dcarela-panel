@@ -59,6 +59,7 @@ function page(name) {
 const allowed = new Set(['index.html','mobile/index.html','panel.html','panel.css','panel-theme.css','crm-visual.css','visual-fidelity.css','visual-fidelity.js','panel.js','finance-core.js','finance-revision-core.js','device-health-core.js','money-manager-core.js','client-period-filter.js','virtual-cash-core.js','assistant-local.js','ticket-termico.js','panel-sale-pending.js','supabase.min.js','jspdf.umd.min.js','jspdf.plugin.autotable.min.js','dcarela-logo.png','favicon.svg','app-version.json','bancos/popular.png','bancos/qik.png','bancos/banreservas.png','bancos/bhd.png']);
 allowed.add('shell-route-core.js');
 allowed.add('crm-layout-core.js');
+allowed.add('tool-layout-core.js');
 allowed.add('crm-layout.css');
 for (const folder of ['shell-assets','mobile/assets']) for (const file of fs.readdirSync(path.join(root,folder))) if (/^index-[\w-]+\.(js|css)$/.test(file)) allowed.add(folder+'/'+file);
 function createServer(){return http.createServer((req,res)=>{

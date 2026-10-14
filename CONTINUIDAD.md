@@ -23,3 +23,13 @@
 - El fixture incluye ventas y gastos completamente ficticios para revisar los gráficos reales. Ningún movimiento se guardó en Firebase. Código sin push/deploy; manifiesto/build publicado intactos. Falta la validación de este código con sesiones reales y la integración completa del portafolio. Los demás módulos conservan su comportamiento y no se declaran todos rediseñados.
 - Caja: Resumen, Clientes y navegación de Finanzas también se reorganizaron en el worktree Windows. El diseño recién cambiado debe recompilarse y empaquetarse antes de cualquier publicación; los instaladores anteriores del borrador 1.0.76 no contienen esta distribución.
 - Cierre visual: corregidas las clases reales de las tarjetas (`metric-item`) y la leyenda de categorías para evitar recortes. Comprobado el contenido a 390 px: documento sin desbordamiento horizontal. Galería local de capturas en `http://127.0.0.1:8820/` y panel interactivo de prueba en `http://127.0.0.1:8818/`; no son URLs publicadas. La galería vive fuera del repositorio.
+
+
+## 2026-10-14 — una zona de contenido y herramientas organizables
+
+- Por corrección directa del dueño, eliminado Más herramientas y la barra lateral interna de Finanzas. Resumen y widgets usan el ancho disponible, ventas netas hasta 60 px, gráficos reales y bloques apilados. Periodo, filtros, actividad/estado e indicadores secundarios quedan plegables.
+- Organizar en menú, Resumen y Finanzas: mover, ocultar, recuperar y guardar localmente. Las preferencias se validan contra herramientas disponibles, no amplían permisos y no tocan Firebase. Orden y visibilidad comprobados tras recargar, después restaurados en el fixture.
+- Clic en una cuenta del Resumen o en su tarjeta abre su detalle: saldo firmado del motor existente, ingresos/gastos de sus asientos, uso y movimientos de esa cuenta. El puente comprueba origen, iframe, sucursal, sesión y cuenta; espera a la carga y descarta respuestas de otra sucursal. Un resultado vacío de cuenta no se presenta como falta de sincronización.
+- Verificación: 381/381 Node; conservación de saldos/instantáneas y de fuentes/series, límites de renderizado, orden/visibilidad, aislamiento del puente y gastos separados de transferencias. Revisión real del fixture con clic en Popular/Efectivo y organización guardada. No son datos comerciales.
+- Código sin publicar: mantener manifiesto/build actual. Capturas y galería local 8820 fuera del repo. Pendiente validación de las sesiones reales y regeneración del instalador Windows. La siguiente orden amplía el trabajo al CRM cotizador/imágenes en otro worktree; no incluye campañas.
+

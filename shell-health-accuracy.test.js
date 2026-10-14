@@ -16,6 +16,6 @@ for (const entry of ['index.html', 'mobile/index.html']) {
     const layout = fs.readFileSync(path.join(__dirname, 'crm-layout-core.js'), 'utf8');
     assert.match(layout, /senal reciente < 10 min/);
     assert.match(layout, /children:s\.onlineDevices\?\?'--'/);
-    assert.match(layout, /children:'Estado de consulta'/);
+    assert.match(layout, /children:'Estado de consulta y accesos'/);
   });
 }

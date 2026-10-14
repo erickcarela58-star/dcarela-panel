@@ -22,11 +22,13 @@ test('actividad reciente limita los nodos a cinco sin recortar el origen de dato
  const view=layout.dashboard(C,{snapshot:s,open:()=>{},money:String,Chart:()=>null,recent:true});
  const list=nodes(view).find(x=>x.props?.className==='crm-activity-list');assert.equal(nodes(list).filter(x=>x.type==='button').length,5);assert.equal(s.recentSales.length,80);
 });
-test('navegación conserva cada destino una vez y expande herramientas cuando la ruta activa está dentro',()=>{
+test('navegación compacta conserva acceso a la ruta activa oculta y permite organizar, sin otra columna de herramientas',()=>{
  const routes=['dashboard','ventas','caja','finanzas','clientes','inventario','reportes','configuracion','dispositivos'];
  const selected=[],groups=[{heading:'Herramientas',items:routes.map(id=>({id,title:id,icon:()=>null}))}];
  const view=layout.navigation(C,groups,'configuracion',x=>selected.push(x)),buttons=nodes(view).filter(x=>x.type==='button');
- assert.equal(buttons.length,routes.length);assert.equal(new Set(buttons.map(x=>x.key)).size,routes.length);
- assert.equal(nodes(view).find(x=>x.type==='details').props.open,true);
+ const routeButtons=buttons.filter(x=>x.key);
+ assert.equal(routeButtons.length,8);assert.equal(new Set(routeButtons.map(x=>x.key)).size,8);
+ assert.equal(nodes(view).filter(x=>x.type==='details').length,0);
+ assert.ok(buttons.some(x=>text(x)==='Organizar'));
  buttons.find(x=>x.key==='configuracion').props.onClick();assert.deepEqual(selected,['configuracion']);
 });

@@ -499,28 +499,26 @@
           </div>
 
           <div class="finance-workspace">
-            <aside class="finance-workspace-nav" id="provTabs" role="tablist" aria-label="Secciones de finanzas">
+            <nav class="finance-workspace-nav" id="provTabs" role="tablist" aria-label="Secciones de finanzas">
               <button class="act" data-cost-tab="resumen" role="tab">Resumen</button>
               <button data-cost-tab="movimientos" role="tab">Movimientos</button>
               <button data-cost-tab="cuentas" role="tab">Cuentas</button>
               <button data-cost-tab="compromisos" role="tab">Compromisos y deudas</button>
-              <details><summary>Más herramientas</summary>
               <button data-cost-tab="presupuestos" role="tab">Presupuestos</button>
               <button data-cost-tab="tarjetas" role="tab">Tarjetas</button>
               <button data-cost-tab="recurrentes" role="tab">Planificados</button>
               <button data-cost-tab="obligaciones" role="tab">Facturas y deudas</button>
               <button data-cost-tab="recibos" role="tab">Recibos</button>
               <button data-cost-tab="ajustes" role="tab">Ajustes</button>
-              </details>
-            </aside>
+            </nav>
             <div class="finance-workspace-content">
-            <div class="finance-context-controls">
+            <details class="finance-context-controls"><summary id="finPeriodSummary">Periodo y filtros</summary><div class="finance-period-controls">
               <div class="segmented finance-period" id="finPeriodTabs" role="group" aria-label="Periodo del tablero">
                 <button data-fin-period="dia">Dia</button><button data-fin-period="semana">Semana</button><button class="act" data-fin-period="mes">Mes</button>
               </div>
               <label class="compact-period-field"><span>Referencia</span><input id="finFechaReferencia" type="date"></label>
               <label class="compact-period-field month-filter"><span>Mes</span><input id="provMes" type="month"></label>
-            </div>
+            </div></details>
 
           <section id="provPanelResumen" class="cost-panel finance-dashboard">
             <div id="finDashboardKpis" class="metric-strip finance-metric-strip"></div>
@@ -551,17 +549,18 @@
           </section>
 
           <section id="provPanelMovimientos" class="cost-panel oculto">
+            <section id="finAccountDetail" class="finance-account-detail oculto" aria-live="polite"></section>
             <div class="surface finance-movement-surface">
               <div class="surface-title">
                 <div><h3>Movimientos</h3><p>Filtra, revisa y exporta el libro financiero sin alterar su historial.</p></div>
                 <div class="button-row admin-only oculto"><button id="btnNuevoGasto" class="secondary">Nuevo gasto</button><button id="btnFinQuickMov" class="primary">Entrada rapida</button></div>
               </div>
-              <div class="finance-filters">
+              <details class="finance-movement-filters"><summary>Filtrar movimientos</summary><div class="finance-filters">
                 <label class="filter-grow"><span>Buscar</span><input id="finMovementSearch" type="search" placeholder="Descripcion, persona, categoria o folio"></label>
                 <label><span>Tipo</span><select id="finMovementType"><option value="">Todos</option><option value="ingreso">Ingresos</option><option value="gasto">Gastos</option><option value="transferencia">Transferencias</option></select></label>
                 <label><span>Cuenta</span><select id="finMovementAccount"><option value="">Todas</option></select></label>
                 <label><span>Categoria</span><select id="finMovementCategory"><option value="">Todas</option></select></label>
-              </div>
+              </div></details>
               <div class="button-row finance-export-row"><button id="btnFinExportCsv" class="secondary">CSV / Excel</button><button id="btnFinExportPdf" class="secondary">PDF</button><button id="btnFinBackup" class="secondary">Copia completa</button></div>
               <div id="finMovimientosTabla" class="table-wrap"></div>
               <details class="finance-legacy-details"><summary>Administrar gastos importados o registrados desde la caja</summary><div id="provGastosTabla" class="table-wrap"></div></details>
@@ -776,8 +775,7 @@
               <details class="assistant-permissions admin-only oculto">
                 <summary>Permisos por usuario</summary>
                 <div id="iaPermissions"></div>
-              </details>
-            </aside>
+            </nav>
           </div>
         </section>
 
@@ -1195,7 +1193,8 @@
       business: 'dcarela'
     };
   </script>
-  <script src="supabase.min.js"></script>
+  <script src="tool-layout-core.js?v=2026.10.13.1.0.116.0"></script>
+<script src="supabase.min.js"></script>
   <script src="firebase-config.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
