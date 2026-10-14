@@ -17,8 +17,10 @@ test("el resumen solicita la ventana completa y agrupa ventas por el dia comerci
 
 test("una caja atrasada no se presenta como un dia sin ventas", () => {
   for (const bundle of [shell, mobile]) {
-    assert.match(bundle, /ge\?`Todavia no hay ventas validas hoy\.`:`No hay datos de ventas sincronizados para hoy\.`/);
+    assert.match(bundle, /DcarelaCrmLayout\.dashboard\(C,\{snapshot:f,open:he,money:gw,Chart:xw,recent:ke\}\)/);
   }
+  const layout = fs.readFileSync(__dirname + '/crm-layout-core.js', 'utf8');
+  assert.match(layout, /recent\?'Todavia no hay ventas validas hoy\.':'No hay datos de ventas sincronizados para hoy\.'/);
 });
 
 test("el panel compara fechas como instantes y no como textos local contra UTC", () => {

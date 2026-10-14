@@ -12,8 +12,10 @@ for (const entry of ['index.html', 'mobile/index.html']) {
     assert.doesNotMatch(bundle, /label:`Salud operativa`/);
     assert.doesNotMatch(bundle, /Estado consolidado/);
     assert.doesNotMatch(bundle, /points:\[0,f\.onlineDevices,f\.onlineDevices,Math\.max\(0,f\.onlineDevices-1\),f\.onlineDevices\]/);
-    assert.match(bundle, /senal reciente < 10 min/);
-    assert.match(bundle, /f\.onlineDevices\?\?`--`/);
-    assert.match(bundle, /children:`Estado de consulta`/);
+    assert.match(bundle, /DcarelaCrmLayout\.dashboard\(C,\{snapshot:f/);
+    const layout = fs.readFileSync(path.join(__dirname, 'crm-layout-core.js'), 'utf8');
+    assert.match(layout, /senal reciente < 10 min/);
+    assert.match(layout, /children:s\.onlineDevices\?\?'--'/);
+    assert.match(layout, /children:'Estado de consulta'/);
   });
 }

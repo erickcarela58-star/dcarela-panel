@@ -5193,7 +5193,9 @@
       const active = button.dataset.costTab === costTab;
       button.classList.toggle("act", active);
       button.setAttribute("aria-selected", String(active));
+      if (active) button.closest("details")?.setAttribute("open", "");
     });
+    document.querySelector(".finance-context-controls")?.classList.toggle("oculto", ["cuentas", "tarjetas"].includes(costTab));
     $("provPanelResumen").classList.toggle("oculto", costTab !== "resumen");
     $("provPanelMovimientos").classList.toggle("oculto", costTab !== "movimientos");
     $("provPanelCuentas").classList.toggle("oculto", costTab !== "cuentas");
@@ -5797,7 +5799,10 @@
     const cumuloCard = cumulo && numero(cumulo.total_centavos) > 0
       ? `<article class="fin-account cumulo"><button type="button" class="fin-account-open" data-fin-open-commitments title="Ver cuotas, capital y saldos pendientes"><span class="fin-account-name">Por saldar este mes</span><strong>${money(numero(cumulo.total_centavos))}</strong><small>${cumulo.compromisos_n || 0} vencimiento(s) &middot; prestamos pendientes ${money(numero(cumulo.deuda_prestamos_centavos))}</small></button></article>`
       : "";
-    $("finCuentasCards").innerHTML = `<article class="fin-account total ${patrimonio < 0 ? "neg" : "pos"}"><span class="fin-account-name">Saldo de cuentas incluidas</span><span class="fin-account-balance-row"><strong>${money(patrimonio)}</strong><em class="fin-account-sign">${patrimonio < 0 ? "Negativo" : "Positivo"}</em></span><small>Segun la configuracion de inclusion; no equivale al patrimonio neto.</small></article>${cumuloCard}${cards}`;
+    const totalCard = `<article class="fin-account total ${patrimonio < 0 ? "neg" : "pos"}"><span class="fin-account-name">Saldo de cuentas incluidas</span><span class="fin-account-balance-row"><strong>${money(patrimonio)}</strong><em class="fin-account-sign">${patrimonio < 0 ? "Negativo" : "Positivo"}</em></span><small>Segun la configuracion de inclusion; no equivale al patrimonio neto.</small></article>`;
+    const summary = $("finAccountSummary");
+    if (summary) summary.innerHTML = totalCard + cumuloCard;
+    $("finCuentasCards").innerHTML = (summary ? "" : totalCard + cumuloCard) + cards;
     $("finCuentasCards").querySelectorAll("[data-fin-account-ledger]").forEach(button => button.addEventListener("click", () => {
       const accountId = button.dataset.finAccountLedger;
       setCostTab("movimientos");
@@ -5811,7 +5816,7 @@
     $("finCuentasCards").querySelectorAll("[data-fin-account-reconcile]").forEach(button => button.addEventListener("click", () => {
       abrirConciliacionCuentaFin(state.accounts.find(account => account.id === button.dataset.finAccountReconcile));
     }));
-    $("finCuentasCards").querySelector("[data-fin-open-commitments]")?.addEventListener("click", () => setCostTab("compromisos"));
+    (summary || $("finCuentasCards")).querySelector("[data-fin-open-commitments]")?.addEventListener("click", () => setCostTab("compromisos"));
   }
 
   function renderFinPendingTransfers() {

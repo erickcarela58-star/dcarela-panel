@@ -35,6 +35,7 @@
   <link rel="stylesheet" href="panel-theme.css?v=2026.10.13.1.0.116.0">
   <link rel="stylesheet" href="visual-fidelity.css?v=2026.10.13.1.0.116.0">
   <link rel="stylesheet" href="crm-visual.css?v=2026.10.13.1.0.116.0">
+  <link rel="stylesheet" href="crm-layout.css?v=2026.10.13.1.0.116.0">
 </head>
 <body>
   <section id="access" class="access-shell">
@@ -497,19 +498,22 @@
             </div>
           </div>
 
-          <div class="finance-nav-shell">
-            <div class="segmented finance-tabs" id="provTabs" role="tablist" aria-label="Secciones de finanzas">
+          <div class="finance-workspace">
+            <aside class="finance-workspace-nav" id="provTabs" role="tablist" aria-label="Secciones de finanzas">
               <button class="act" data-cost-tab="resumen" role="tab">Resumen</button>
               <button data-cost-tab="movimientos" role="tab">Movimientos</button>
               <button data-cost-tab="cuentas" role="tab">Cuentas</button>
+              <button data-cost-tab="compromisos" role="tab">Compromisos y deudas</button>
+              <details><summary>Más herramientas</summary>
               <button data-cost-tab="presupuestos" role="tab">Presupuestos</button>
               <button data-cost-tab="tarjetas" role="tab">Tarjetas</button>
-              <button data-cost-tab="compromisos" role="tab">Compromisos y deudas</button>
               <button data-cost-tab="recurrentes" role="tab">Planificados</button>
               <button data-cost-tab="obligaciones" role="tab">Facturas y deudas</button>
               <button data-cost-tab="recibos" role="tab">Recibos</button>
               <button data-cost-tab="ajustes" role="tab">Ajustes</button>
-            </div>
+              </details>
+            </aside>
+            <div class="finance-workspace-content">
             <div class="finance-context-controls">
               <div class="segmented finance-period" id="finPeriodTabs" role="group" aria-label="Periodo del tablero">
                 <button data-fin-period="dia">Dia</button><button data-fin-period="semana">Semana</button><button class="act" data-fin-period="mes">Mes</button>
@@ -517,11 +521,10 @@
               <label class="compact-period-field"><span>Referencia</span><input id="finFechaReferencia" type="date"></label>
               <label class="compact-period-field month-filter"><span>Mes</span><input id="provMes" type="month"></label>
             </div>
-          </div>
 
           <section id="provPanelResumen" class="cost-panel finance-dashboard">
             <div id="finDashboardKpis" class="metric-strip finance-metric-strip"></div>
-            <div id="finDashboardGauges" class="finance-gauge-strip" aria-label="Medidores financieros"></div>
+            <details class="finance-indicators"><summary>Indicadores de cobertura y presupuesto</summary><div id="finDashboardGauges" class="finance-gauge-strip" aria-label="Medidores financieros"></div></details>
             <div class="finance-dashboard-grid">
               <section class="surface finance-chart-main">
                 <div class="surface-title"><div><h3>Ingresos y gastos</h3><p id="finFlowCaption">Comportamiento del periodo seleccionado.</p></div></div>
@@ -570,6 +573,7 @@
               <div><h3>Cuentas y saldos</h3><p>El patrimonio se recalcula desde cada movimiento; una transferencia nunca duplica dinero.</p></div>
               <div class="button-row admin-only oculto"><button id="btnNuevaTransferencia" class="primary">Nueva transferencia</button><button id="btnNuevaCuentaFin" class="secondary">Agregar cuenta</button></div>
             </div>
+            <div id="finAccountSummary"></div>
             <div id="finCuentasCards" class="fin-accounts"></div>
             <section class="surface finance-account-help"><strong>Regla de saldo</strong><p>Ingreso suma, gasto resta y transferencia mueve el mismo monto entre dos cuentas. Las tarjetas muestran deuda, no un saldo disponible ficticio.</p></section>
             <section class="surface">
@@ -609,6 +613,8 @@
             <section class="surface"><div class="surface-title"><div><h3>Divisas</h3><p>Tasas manuales respecto a la moneda principal.</p></div><button id="btnFinNuevaDivisa" class="secondary admin-only oculto">Agregar divisa</button></div><div id="finDivisasTabla" class="table-wrap"></div></section>
             <section class="surface"><div class="surface-title"><div><h3>Respaldo y portabilidad</h3><p>Firebase guarda el libro. Tambien puedes descargar o compartir una copia compatible con iCloud Drive y Google Drive.</p></div></div><div class="button-row"><button id="btnFinBackupSettings" class="primary">Descargar / compartir copia</button><button id="btnFinRestorePreview" class="secondary">Validar archivo</button><input id="finRestoreFile" class="visually-hidden" type="file" accept="application/json,.json"></div><p id="finBackupStatus" class="field-hint">La restauracion nunca se ejecuta sin una revision previa.</p></section>
           </section>
+            </div>
+          </div>
         </section>
 
         <section id="v-asistente" class="vista oculto">
