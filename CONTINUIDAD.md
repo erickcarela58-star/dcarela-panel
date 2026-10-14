@@ -32,4 +32,3 @@
 - Clic en una cuenta del Resumen o en su tarjeta abre su detalle: saldo firmado del motor existente, ingresos/gastos de sus asientos, uso y movimientos de esa cuenta. El puente comprueba origen, iframe, sucursal, sesión y cuenta; espera a la carga y descarta respuestas de otra sucursal. Un resultado vacío de cuenta no se presenta como falta de sincronización.
 - Verificación: 381/381 Node; conservación de saldos/instantáneas y de fuentes/series, límites de renderizado, orden/visibilidad, aislamiento del puente y gastos separados de transferencias. Revisión real del fixture con clic en Popular/Efectivo y organización guardada. No son datos comerciales.
 - Código sin publicar: mantener manifiesto/build actual. Capturas y galería local 8820 fuera del repo. Pendiente validación de las sesiones reales y regeneración del instalador Windows. La siguiente orden amplía el trabajo al CRM cotizador/imágenes en otro worktree; no incluye campañas.
-
