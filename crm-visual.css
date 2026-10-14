@@ -1,0 +1,144 @@
+/* Tema compartido con el CRM. Solo presentación; no modifica cálculos ni datos. */
+:root, html[data-theme="light"] {
+  --crm-bg: #eef0f6;
+  --crm-light: radial-gradient(1100px 620px at 8% -12%, #8ca5eb4d, transparent 62%),
+    radial-gradient(900px 520px at 100% 0%, #e8bed243, transparent 58%),
+    radial-gradient(1000px 640px at 55% 112%, #96d7cd43, transparent 62%);
+  --ui-canvas: #eef0f6;
+  --ui-surface: #ffffffe6;
+  --ui-surface-strong: #fffffff5;
+  --ui-surface-soft: #4a86e81a;
+  --ui-sidebar: #ffffff9e;
+  --ui-sidebar-text: #1c1c1e;
+  --ui-sidebar-muted: #62626a;
+  --ui-header: #ffffffcc;
+  --ui-text: #1c1c1e;
+  --ui-muted: #62626a;
+  --ui-line: #3c3c431c;
+  --ui-brand: #3268bb;
+  --ui-brand-hover: #2c5ba5;
+  --ui-accent: #3268bb;
+  --crm-on-accent: #fff;
+  --crm-shadow: 0 1px 2px #141e3c0a, 0 12px 32px #141e3c0f;
+}
+html[data-theme="dark"], html.dark {
+  --crm-bg: #0b0b0e;
+  --crm-light: radial-gradient(1100px 620px at 8% -12%, #5a6ec833, transparent 62%),
+    radial-gradient(900px 520px at 100% 0%, #965a8c24, transparent 58%),
+    radial-gradient(1000px 640px at 55% 112%, #3c827829, transparent 62%);
+  --ui-canvas: #0b0b0e;
+  --ui-surface: #1c1c1fe8;
+  --ui-surface-strong: #24242af5;
+  --ui-surface-soft: #6ea4f429;
+  --ui-sidebar: #17171ccc;
+  --ui-sidebar-text: #f5f5f7;
+  --ui-sidebar-muted: #ababb3;
+  --ui-header: #17171ce6;
+  --ui-text: #f5f5f7;
+  --ui-muted: #ababb3;
+  --ui-line: #5454588c;
+  --ui-brand: #8fb9f7;
+  --ui-brand-hover: #a9cbfa;
+  --ui-accent: #8fb9f7;
+  --crm-on-accent: #101828;
+  --crm-shadow: 0 1px 2px #0008, 0 12px 32px #0005;
+}
+:root, html[data-theme], html.dark {
+  --shell-canvas: var(--ui-canvas);
+  --shell-canvas-elevated: var(--ui-surface-strong);
+  --shell-surface: var(--ui-surface);
+  --shell-surface-strong: var(--ui-surface-strong);
+  --shell-surface-soft: var(--ui-surface-soft);
+  --shell-sidebar: var(--ui-sidebar);
+  --shell-header: var(--ui-header);
+  --shell-text: var(--ui-text);
+  --shell-muted: var(--ui-muted);
+  --shell-border: var(--ui-line);
+  --shell-brand: var(--ui-brand);
+  --shell-accent: var(--ui-accent);
+  --shell-success: #168579;
+  --shell-danger: var(--ui-danger, #c53f48);
+  --shell-warm: #b27730;
+}
+html body, #root .shell-theme-transition {
+  background: var(--crm-light), var(--crm-bg) !important;
+  background-attachment: fixed !important;
+  color: var(--ui-text);
+  font-family: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+}
+#root .shell-theme-transition > .pointer-events-none { background: none !important; }
+#root nav button { border-radius: 12px; padding-block: 9px; }
+#root nav button[class*="color-mix"] { background: var(--ui-surface-strong); box-shadow: 0 2px 8px #141e3c0c; }
+#root nav button svg { color: #6575ce; }
+#root nav section:first-child button:nth-child(2) svg { color: #e58138; }
+#root nav section:first-child button:nth-child(3) svg { color: #e58138; }
+#root nav section:first-child button:nth-child(4) svg { color: #d6567e; }
+#root nav section:first-child button:nth-child(5) svg { color: #239f91; }
+#root nav section:nth-child(2) button:first-child svg { color: #9971de; }
+#root nav section:nth-child(2) button:nth-child(2) svg { color: #239f91; }
+#root nav section:nth-child(2) button:nth-child(3) svg,
+#root nav section:nth-child(2) button:nth-child(4) svg { color: #339fc6; }
+#root nav svg.lucide-receipt-text { color: #df813e; }
+#root nav svg.lucide-wallet-cards { color: #d6567e; }
+#root nav svg.lucide-users { color: #239f91; }
+#root nav svg.lucide-package-search { color: #9971de; }
+#root nav svg.lucide-circle-dollar-sign { color: #339fc6; }
+#root header { box-shadow: 0 2px 18px #141e3c08; }
+#root section.grid[class*="border-"] { background: var(--ui-surface); border: 1px solid var(--ui-line); border-radius: 20px; box-shadow: var(--crm-shadow); margin-block: 18px; overflow: hidden; }
+#root section.grid section { background: transparent; box-shadow: none; border: 0; margin: 0; }
+.sidebar nav a { border-radius: 12px; }
+.sidebar nav a.act { background: var(--ui-surface-soft); color: var(--ui-brand); border-color: transparent; }
+.sidebar, .topbar { backdrop-filter: blur(20px) !important; }
+.primary, .button-link { background: var(--ui-brand) !important; color: var(--crm-on-accent) !important; border-color: transparent !important; }
+html[data-theme].embedded-panel :is(.surface, .kpi, .branch-card, .release-card, .cost-panel, .finance-chart-main,
+.finance-category-panel, .finance-recent-panel, .finance-planning-panel, .finance-nav-shell, .finance-movement-surface, .finance-cost-analysis),
+html[data-theme].embedded-panel .dashboard-ledger-section {
+  background: var(--ui-surface) !important;
+  border-radius: 20px !important;
+  box-shadow: var(--crm-shadow) !important;
+}
+html[data-theme].embedded-panel #v-dashboard .metric-item {
+  background: var(--ui-surface-soft); border-radius: 16px;
+}
+html[data-theme] .fin-accounts { grid-template-columns: repeat(auto-fill, minmax(min(220px, 100%), 1fr)) !important; gap: 16px !important; }
+html[data-theme] .fin-account.visual { min-height: 270px !important; aspect-ratio: 4 / 5; border-radius: 20px !important; display: flex; flex-direction: column; }
+html[data-theme] .fin-account.visual .fin-account-open { flex: 1; display: flex; flex-direction: column; align-items: stretch; gap: 14px; padding: 20px !important; }
+html[data-theme].embedded-panel .fin-account.visual .fin-account-open { background: transparent !important; box-shadow: none !important; border: 0 !important; color: inherit !important; }
+html[data-theme] .fin-account.visual .fin-account-balance-row { margin-top: auto; }
+html[data-theme] .fin-account.visual .fin-account-actions { padding: 0 16px 16px; }
+html[data-theme] .fin-account-visual-head b { font-weight: 600; }
+html[data-theme] .money-manager-accounts { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(220px,100%),1fr)); gap: 16px; }
+html[data-theme] .money-manager-account-card .fin-account-actions { flex-wrap: wrap; }
+.catalog-related-links { padding: 20px; margin-block: 16px; display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.catalog-related-links h3 { margin: 0 0 5px; }
+.catalog-related-links p { margin: 0; color: var(--ui-muted); }
+.catalog-related-links .button-link.secondary { background: var(--ui-surface-soft) !important; color: var(--ui-brand) !important; text-decoration: none; }
+html[data-theme] .report-wave-line, html[data-theme] .finance-flow-income { stroke: var(--ui-brand) !important; }
+html[data-theme] .report-wave-tax, html[data-theme] .finance-flow-expense { stroke: #d38c51 !important; }
+html[data-theme] #reportNetArea stop, html[data-theme] #financeIncomeArea stop { stop-color: var(--ui-brand); }
+html[data-theme] .finance-flow-point .income { fill: var(--ui-brand); }
+html[data-theme] .finance-flow-point .expense { fill: #d38c51; }
+html[data-theme] .finance-flow-legend .income { background: var(--ui-brand); }
+html[data-theme] .finance-flow-legend .expense { background: #d38c51; }
+html[data-theme].embedded-panel .surface-title p { white-space: normal; overflow-wrap: anywhere; }
+html[data-theme].embedded-panel .surface-title > div { min-width: 0; }
+#cajaResumen, #turnosResumen { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px; }
+#cajaResumen .metric-chip, #turnosResumen .metric-chip { min-width: 0; padding: 18px; border-radius: 18px; background: var(--ui-surface); box-shadow: var(--crm-shadow); }
+#cajaResumen .metric-chip strong, #turnosResumen .metric-chip strong { color: var(--ui-text); font-size: 24px; }
+#cajaResumen .metric-chip span, #turnosResumen .metric-chip span { font-size: 12px; }
+html[data-theme] table { border-collapse: separate; border-spacing: 0 5px; }
+html[data-theme] th { background: transparent !important; border: 0 !important; font-size: 12px; }
+html[data-theme] td { border-color: transparent !important; }
+html[data-theme] tbody tr { background: var(--ui-surface); }
+html[data-theme] tbody td:first-child { border-radius: 10px 0 0 10px; }
+html[data-theme] tbody td:last-child { border-radius: 0 10px 10px 0; }
+html[data-theme] * { scrollbar-width: thin; scrollbar-color: #78788061 transparent; }
+html[data-theme] ::-webkit-scrollbar { display: block; width: 8px; height: 8px; }
+html[data-theme] ::-webkit-scrollbar-thumb { background: #78788061; border: 2px solid transparent; background-clip: padding-box; border-radius: 8px; }
+@media (max-width: 600px) {
+  html[data-theme] .fin-account.visual { min-height: 210px !important; }
+  html[data-theme] .fin-account.visual .fin-account-open { padding: 16px !important; }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .sidebar, .topbar { backdrop-filter: none !important; background: var(--ui-surface-strong) !important; }
+}

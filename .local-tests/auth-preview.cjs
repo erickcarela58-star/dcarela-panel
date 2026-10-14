@@ -11,6 +11,7 @@ const assets = new Map([
   ['/panel.css', ['panel.css', 'text/css; charset=utf-8']],
   ['/panel-theme.css', ['panel-theme.css', 'text/css; charset=utf-8']],
   ['/visual-fidelity.css', ['visual-fidelity.css', 'text/css; charset=utf-8']],
+  ['/crm-visual.css', ['crm-visual.css', 'text/css; charset=utf-8']],
   ['/dcarela-logo.png', ['dcarela-logo.png', 'image/png']]
 ]);
 const csp = "default-src 'none'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self'; connect-src 'none'; form-action 'none'; base-uri 'none'; frame-ancestors 'none'";
@@ -80,7 +81,7 @@ function buildFixture(scenario = 'timeout', theme = 'light') {
   return `<!doctype html><html lang="es" data-theme="${theme}" class="embedded-panel is-embedded${theme === 'dark' ? ' dark' : ''}"><head>
     <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
     <title>SIMULACIÓN LOCAL — recuperación de acceso D' Carela</title>
-    <link rel="stylesheet" href="/panel.css"><link rel="stylesheet" href="/panel-theme.css"><link rel="stylesheet" href="/visual-fidelity.css">
+    <link rel="stylesheet" href="/panel.css"><link rel="stylesheet" href="/panel-theme.css"><link rel="stylesheet" href="/visual-fidelity.css"><link rel="stylesheet" href="/crm-visual.css">
     <style>.preview-banner{position:fixed;top:0;left:0;right:0;z-index:9999;background:#16324f;color:white;font:12px/1.5 system-ui;padding:7px 12px;display:flex;gap:12px;flex-wrap:wrap}.preview-banner button{font:inherit;color:white;border:1px solid white;background:transparent;padding:0 8px}#app{display:block;padding:72px 20px}</style>
     </head><body><aside class="preview-banner"><span id="previewScenario">SIMULACIÓN LOCAL — sin datos reales</span><button id="previewReset" type="button">Reiniciar simulación</button></aside>
     ${access}<div id="app" class="app-shell oculto"><h1>Acceso simulado</h1><p id="sessionEmail"></p><p id="backendLabel"></p><p id="previewStatus" role="status"></p></div>

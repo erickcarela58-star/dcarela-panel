@@ -1,0 +1,14 @@
+# Continuidad del panel web
+
+## 2026-10-14 — estilo CRM y navegación, solo local
+
+- Rama `codex/panel-crm-visual-v76`, basada en el panel 1.0.116 y con la recuperación de acceso de `c80c0ab`/`1ffcdbf` integrada. No se hizo push ni deploy y no se cambió el manifiesto ni la versión publicada.
+- Tema CRM compartido para shell de escritorio, entrada móvil y módulos: fondo pastel, superficies redondeadas, iconos de color, scroll fino, tablas con filas separadas y tarjetas de cortes.
+- Reproducido en la vista completa un regreso involuntario a Resumen al montar el iframe de Finanzas/Reportes. El iframe abre ahora la ruta solicitada, conserva su fuente durante la navegación y renueva la fuente al cambiar de sucursal o sesión. Cambio mínimo en ambos bundles y helper `shell-route-core.js`.
+- Finanzas y Money Manager comparten marca bancaria y opciones visuales remotas. Las tarjetas son verticales. No se cambia ningún cálculo, saldo, diario o asiento. Pruebas de cambios de apariencia, valores inválidos y deuda de tarjeta conservada.
+- El anillo usa cinco colores y agrupa las categorías restantes en Otros conservando el total; antes se recortaba a ocho categorías. Reportes conserva datos y periodos y usa acentos del tema. Selección de pestañas de Finanzas expuesta también con `aria-selected`.
+- Inventario conserva el catálogo de la sucursal y aclara la separación de existencias. Se agregaron accesos al catálogo comercial y al portafolio publicados en la web oficial. Estos accesos no constituyen una integración completa de fotografías ni añaden descripciones al esquema.
+- Validación: 373/373 pruebas Node y sintaxis de ambos bundles, panel y helper. Cuatro regresiones de rutas fallaban antes del cambio y pasan después. Revisión local de Reportes/periodos, Inventario, Caja, Turnos y cuentas; Central escritorio y Plaza móvil, claro/oscuro; reintento de autorización en escritorio y móvil.
+- Evidencia visual con datos ficticios mediante `.local-tests/workspace-preview.cjs`, servidor GET en loopback 8818 con CSP sin conexiones de red y escrituras rechazadas. Recuperación de acceso mediante `.local-tests/auth-preview.cjs` en 8816. Las capturas quedan fuera del repositorio, en el espacio local del trabajo.
+- Límites: no se verificó este código contra las sesiones reales de ambas sucursales, ni la causa remota de la espera de Firestore, ni la instalación física de la Caja. Los saldos y asientos de Plaza permanecen fuera del trabajo. Integración completa de portafolio y nuevo campo de descripción siguen pendientes; no se modificó catálogo, stock ni precios en la nube.
+- Caja Windows 1.0.76 sigue preparada en borrador en el bloque anterior; esta entrada no certifica publicación ni instalación. Continuar desde esta rama, conservar el panel sin publicar según la orden del dueño.

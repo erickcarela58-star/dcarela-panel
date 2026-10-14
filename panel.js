@@ -5189,7 +5189,11 @@
   function setCostTab(tab) {
     const allowed = ["resumen", "movimientos", "cuentas", "presupuestos", "tarjetas", "compromisos", "recurrentes", "obligaciones", "recibos", "ajustes"];
     costTab = allowed.includes(tab) ? tab : "resumen";
-    document.querySelectorAll("[data-cost-tab]").forEach(button => button.classList.toggle("act", button.dataset.costTab === costTab));
+    document.querySelectorAll("[data-cost-tab]").forEach(button => {
+      const active = button.dataset.costTab === costTab;
+      button.classList.toggle("act", active);
+      button.setAttribute("aria-selected", String(active));
+    });
     $("provPanelResumen").classList.toggle("oculto", costTab !== "resumen");
     $("provPanelMovimientos").classList.toggle("oculto", costTab !== "movimientos");
     $("provPanelCuentas").classList.toggle("oculto", costTab !== "cuentas");
@@ -5688,7 +5692,7 @@
     } catch { /* localStorage no disponible */ }
   }
 
-  const FIN_CHART_COLORS = ["#18181B", "#52525B", "#71717A", "#A1A1AA", "#D4D4D8", "#3F3F46", "#E4E4E7", "#27272A"];
+  const FIN_CHART_COLORS = ["#4A86E8", "#5FBF7A", "#A98AD4", "#E3A35C", "#969BA6"];
   // Identidad de los bancos de RD (mismo catalogo que la Caja Windows: Pos.Core/Finanzas/EntidadesFinancieras.cs).
   // El orden importa: las mas especificas primero. Las cuentas sin color propio toman el de su banco.
   const FIN_BANK_BRANDS = [
@@ -5717,6 +5721,18 @@
   };
   const safeAccountColor = (value, fallback) =>
     /^#[0-9a-f]{6}$/i.test(String(value || "")) ? String(value).toUpperCase() : fallback;
+
+  function finAccountVisual(account) {
+    const bank = ["banco", "tarjeta_credito"].includes(account.tipo) || !account.visual_tono
+      ? finBankBrand(`${account.nombre} ${account.visual_entidad || ""}`) : null;
+    return {
+      bank,
+      primary: safeAccountColor(account.visual_tono, bank ? bank.primary : "#18181B"),
+      secondary: safeAccountColor(account.visual_tono_secundario, bank ? bank.secondary : "#71717A"),
+      style: ["glass", "solid", "outline", "metal", "dolar"].includes(account.visual_estilo) ? account.visual_estilo : "glass",
+      icon: FIN_ACCOUNT_ICONS[account.visual_icono] || FIN_ACCOUNT_ICONS.landmark,
+    };
+  }
 
   const finAccountBalance = account => financeCore.effectiveAccountBalance(account,
     finStateCache?.accountBalanceMovements || finStateCache?.accountSalesMovements || finStateCache?.movements || []);
@@ -5765,11 +5781,7 @@
       if (account.incluir_en_total) patrimonio += balance;
       const isCard = account.tipo === "tarjeta_credito";
       const display = isCard ? Math.max(0, -balance) : balance;
-      const bankBrand = ["banco", "tarjeta_credito"].includes(account.tipo) || !account.visual_tono ? finBankBrand(`${account.nombre} ${account.visual_entidad || ""}`) : null;
-      const primary = safeAccountColor(account.visual_tono, bankBrand ? bankBrand.primary : "#18181B");
-      const secondary = safeAccountColor(account.visual_tono_secundario, bankBrand ? bankBrand.secondary : "#71717A");
-      const style = ["glass", "solid", "outline", "metal", "dolar"].includes(account.visual_estilo) ? account.visual_estilo : "glass";
-      const icon = FIN_ACCOUNT_ICONS[account.visual_icono] || FIN_ACCOUNT_ICONS.landmark;
+      const {bank: bankBrand, primary, secondary, style, icon} = finAccountVisual(account);
       const mask = account.visual_mascara ? `&bull;&bull;&bull;&bull; ${esc(account.visual_mascara)}` : "";
       const signLabel = isCard ? (display > 0 ? "Deuda" : "Sin deuda") : balance < 0 ? "Negativo" : balance > 0 ? "Disponible" : "En cero";
       return `<article class="fin-account visual ${style} ${balance < 0 ? "neg" : "pos"}${account.oculta ? " muted" : ""}" style="--account-primary:${primary};--account-secondary:${secondary}">
@@ -6420,20 +6432,29 @@
     });
   }
 
+  function agruparCategoriasGrafica(rows) {
+    const ordenadas = [...rows].sort((a, b) => numero(b.total_centavos) - numero(a.total_centavos));
+    if (ordenadas.length <= 5) return ordenadas;
+    return [...ordenadas.slice(0, 4), {
+      nombre: "Otros", categoria_id: null, agrupada: true,
+      total_centavos: ordenadas.slice(4).reduce((sum, row) => sum + numero(row.total_centavos), 0),
+    }];
+  }
+
   function renderFinCategoryChart(rows, total) {
     if (!rows.length || total <= 0) {
       $("finCategoryChart").innerHTML = `<div class="empty-state"><strong>Sin gastos</strong><p>La composicion aparecera al registrar movimientos.</p></div>`;
       return;
     }
     let cursor = 0;
-    const segments = rows.slice(0, 8).map((item, index) => {
+    const segments = agruparCategoriasGrafica(rows).map((item, index) => {
       const percent = numero(item.total_centavos) * 100 / total;
       const start = cursor;
       cursor += percent;
       return { ...item, percent, color: FIN_CHART_COLORS[index % FIN_CHART_COLORS.length], start, end: cursor };
     });
     const gradient = segments.map(item => `${item.color} ${item.start.toFixed(2)}% ${item.end.toFixed(2)}%`).join(",");
-    $("finCategoryChart").innerHTML = `<div class="finance-donut" style="--donut:${gradient}"><span><strong>${money(total)}</strong><small>Total gastado</small></span></div><div class="finance-donut-legend">${segments.map(item => `<button type="button" data-fin-category-filter="${esc(item.categoria_id || "")}"><i style="background:${item.color}"></i><span>${esc(item.nombre)}</span><b>${Math.round(item.percent)}%</b><small>${money(item.total_centavos)}</small></button>`).join("")}</div>`;
+    $("finCategoryChart").innerHTML = `<div class="finance-donut" style="--donut:${gradient}"><span><strong>${money(total)}</strong><small>Total gastado</small></span></div><div class="finance-donut-legend">${segments.map(item => `<button type="button" ${item.agrupada ? 'disabled title="Suma de las demas categorias"' : `data-fin-category-filter="${esc(item.categoria_id || "")}"`}><i style="background:${item.color}"></i><span>${esc(item.nombre)}</span><b>${Math.round(item.percent)}%</b><small>${money(item.total_centavos)}</small></button>`).join("")}</div>`;
     $("finCategoryChart").querySelectorAll("[data-fin-category-filter]").forEach(button => button.addEventListener("click", () => {
       setCostTab("movimientos");
       $("finMovementType").value = "gasto";
@@ -7130,7 +7151,13 @@
     mount.innerHTML = accountState.rows.map(account => {
       const isCard = account.tipo === "tarjeta_credito";
       const display = isCard ? Math.max(0, -account.effective_balance_cents) : account.effective_balance_cents;
-      return `<article class="money-manager-account-card"><header><span><strong>${esc(account.nombre)}</strong><small>${esc(FIN_TIPO_LABEL[account.tipo] || account.tipo)}${account.ligada_ventas ? " · ventas automáticas" : ""}</small></span><em class="tag ${display < 0 || isCard && display > 0 ? "bad" : "ok"}">${isCard ? "Deuda" : display < 0 ? "Negativo" : "Disponible"}</em></header><strong class="${isCard && display > 0 ? "debt" : ""}">${money(display)}</strong><div class="button-row"><button class="secondary" type="button" data-mm-account-ledger="${esc(account.id)}">Movimientos</button>${canEdit ? `<button class="secondary" type="button" data-mm-account-reconcile="${esc(account.id)}">Conciliar</button>${isCard ? `<button class="secondary" type="button" data-mm-card-consume="${esc(account.id)}">Consumo</button><button class="primary" type="button" data-mm-card-pay="${esc(account.id)}">Pagar</button>` : ""}` : ""}</div></article>`;
+      const {bank, primary, secondary, style, icon} = finAccountVisual(account);
+      return `<article class="money-manager-account-card fin-account visual ${style}" style="--account-primary:${primary};--account-secondary:${secondary}">
+        <div class="fin-account-open">
+          <span class="fin-account-visual-head">${bank?.logo ? `<i class="fin-bank-logo"><img src="${esc(bank.logo)}" alt="${esc(bank.nombre)}" loading="lazy"></i>` : `<i>${esc(icon)}</i>`}<span><b>${esc(account.nombre)}</b><small>${esc(FIN_TIPO_LABEL[account.tipo] || account.tipo)}${account.ligada_ventas ? " · ventas automáticas" : ""}</small></span></span>
+          <span class="fin-account-balance-row"><strong>${money(display)}</strong><em class="fin-account-sign">${isCard ? "Deuda" : display < 0 ? "Negativo" : "Disponible"}</em></span>
+        </div>
+        <div class="button-row fin-account-actions"><button class="secondary" type="button" data-mm-account-ledger="${esc(account.id)}">Movimientos</button>${canEdit ? `<button class="secondary" type="button" data-mm-account-reconcile="${esc(account.id)}">Conciliar</button>${isCard ? `<button class="secondary" type="button" data-mm-card-consume="${esc(account.id)}">Consumo</button><button class="primary" type="button" data-mm-card-pay="${esc(account.id)}">Pagar</button>` : ""}` : ""}</div></article>`;
     }).join("") || '<div class="empty-state"><strong>Sin cuentas</strong><p>Agrega la primera cuenta para comenzar.</p></div>';
     mount.querySelectorAll("[data-mm-account-ledger]").forEach(button => button.addEventListener("click", () => {
       setMoneyManagerTab("movimientos"); $("mmAccount").value = button.dataset.mmAccountLedger; renderMoneyManagerMovements();

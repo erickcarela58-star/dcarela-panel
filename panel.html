@@ -34,6 +34,7 @@
   <link rel="stylesheet" href="panel.css?v=2026.10.13.1.0.116.0">
   <link rel="stylesheet" href="panel-theme.css?v=2026.10.13.1.0.116.0">
   <link rel="stylesheet" href="visual-fidelity.css?v=2026.10.13.1.0.116.0">
+  <link rel="stylesheet" href="crm-visual.css?v=2026.10.13.1.0.116.0">
 </head>
 <body>
   <section id="access" class="access-shell">
@@ -373,11 +374,15 @@
 
         <section id="v-inventario" class="vista oculto">
           <div class="section-heading">
-            <div><h2>Inventario</h2><p>Catalogo editable, precios y existencias sincronizados con todas las cajas.</p></div>
+            <div><h2>Inventario</h2><p>Productos y precios de esta sucursal. Las existencias se mantienen separadas por sucursal.</p></div>
             <div class="button-row admin-only oculto"><button id="btnNuevaCategoria" class="secondary">Nueva categoria</button><button id="btnNuevoProducto" class="primary">Nuevo producto</button></div>
           </div>
           <div class="filter-bar compact-filter"><div class="filter-grow"><label for="invBuscar">Buscar producto</label><input id="invBuscar" type="search" placeholder="Nombre, codigo o categoria"></div><button id="btnInvBuscar" class="secondary">Filtrar</button></div>
           <div id="invResumen" class="inline-metrics"></div>
+          <section class="surface catalog-related-links" aria-label="Catálogo y portafolio publicados">
+            <div><h3>Catálogo y portafolio</h3><p>Consulta las sesiones, los combos y las fotos de la web.</p></div>
+            <div class="button-row"><a class="button-link secondary" href="https://dcarelacompufoto.com/#categorias" target="_blank" rel="noopener noreferrer">Ver catálogo comercial</a><a class="button-link secondary" href="https://dcarelacompufoto.com/#portafolio" target="_blank" rel="noopener noreferrer">Ver portafolio publicado</a></div>
+          </section>
           <section class="surface"><div id="invTabla" class="table-wrap"></div></section>
         </section>
 
