@@ -56,17 +56,26 @@ html[data-theme].embedded-panel .finance-workspace-nav button.act { background:v
 .finance-workspace-content { min-width:0; }
 html[data-theme].embedded-panel .finance-context-controls { justify-content:flex-end; border:0; margin-bottom:20px; padding:0; }
 html[data-theme].embedded-panel .finance-metric-strip { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; border:0; margin-bottom:18px; }
-html[data-theme].embedded-panel .finance-metric-strip .wave-metric { background:var(--ui-surface); border:0; border-radius:18px; padding:18px; box-shadow:var(--crm-shadow); }
-.finance-metric-strip .wave-metric svg { display:none; }
+html[data-theme].embedded-panel .finance-metric-strip .metric-item { background:var(--ui-surface); border:0; border-radius:18px; padding:18px; box-shadow:var(--crm-shadow); }
 .finance-indicators { margin-bottom:18px; }
 .finance-indicators>summary { padding:8px 0; color:var(--ui-muted); font-size:12px; cursor:pointer; }
 #finAccountSummary { margin-bottom:18px; }
 html[data-theme].embedded-panel #v-finanzas .finance-workspace .cost-panel { padding:0 !important; background:transparent !important; border:0 !important; box-shadow:none !important; }
 html[data-theme].embedded-panel #v-finanzas .finance-workspace .finance-metric-strip { display:grid !important; grid-template-columns:repeat(4,minmax(0,1fr)) !important; gap:12px !important; border:0 !important; }
-html[data-theme].embedded-panel #v-finanzas .finance-workspace .finance-metric-strip .wave-metric { padding:18px !important; border:0 !important; border-radius:18px !important; background:var(--ui-surface) !important; box-shadow:var(--crm-shadow) !important; }
+html[data-theme].embedded-panel #v-finanzas .finance-workspace .finance-metric-strip .metric-item { min-width:0; padding:18px !important; border:0 !important; border-radius:18px !important; background:var(--ui-surface) !important; box-shadow:var(--crm-shadow) !important; }
+html[data-theme].embedded-panel #v-finanzas .finance-workspace .finance-metric-strip .metric-item :is(span,small) { font-size:11px; line-height:1.45; white-space:normal; }
+html[data-theme].embedded-panel #v-finanzas .finance-workspace .finance-metric-strip .metric-item::after { content:none; }
 html[data-theme].embedded-panel #v-finanzas .finance-workspace .finance-dashboard-grid { display:grid !important; grid-template-columns:minmax(0,1.4fr) minmax(250px,.9fr) !important; gap:18px !important; }
 html[data-theme].embedded-panel #v-finanzas .finance-workspace :is(.finance-chart-main,.finance-category-panel,.finance-recent-panel,.finance-planning-panel) { grid-column:auto !important; padding:20px !important; border:1px solid var(--ui-line) !important; border-radius:20px !important; background:var(--ui-surface) !important; box-shadow:var(--crm-shadow) !important; }
 html[data-theme].embedded-panel #v-finanzas .finance-workspace .finance-flow-chart { height:260px !important; }
+html[data-theme].embedded-panel #v-finanzas .finance-workspace .finance-category-chart { grid-template-columns:minmax(0,1fr); gap:12px; min-height:0; }
+html[data-theme].embedded-panel #v-finanzas .finance-workspace .finance-donut { width:170px; }
+html[data-theme].embedded-panel #v-finanzas .finance-workspace .finance-donut strong { font-size:14px; white-space:nowrap; }
+html[data-theme].embedded-panel #v-finanzas .finance-workspace .finance-donut-legend { padding:0; min-width:0; }
+html[data-theme].embedded-panel #v-finanzas .finance-workspace .finance-donut-legend button { grid-template-columns:9px minmax(0,1fr) 36px 88px; gap:6px; padding:8px 0; }
+html[data-theme].embedded-panel #v-finanzas .finance-workspace .finance-donut-legend :is(span,b,small) { font-size:12px; }
+html[data-theme].embedded-panel #v-finanzas .finance-workspace .finance-recent-panel .surface-title>div { flex:1; min-width:0; }
+html[data-theme].embedded-panel #v-finanzas .finance-workspace .finance-recent-panel .surface-title>button { flex:none; width:auto; min-width:0; padding:8px 12px; }
 html[data-theme].embedded-panel #v-finanzas .finance-workspace .finance-cost-analysis { margin-top:18px !important; border:1px solid var(--ui-line) !important; border-radius:20px !important; background:var(--ui-surface) !important; padding:20px !important; }
 html[data-theme].embedded-panel #finAccountSummary .fin-account { min-height:0; border:0; display:flex; flex-direction:row; align-items:center; flex-wrap:wrap; gap:16px; border-radius:18px; padding:18px 20px; background:var(--ui-surface); }
 html[data-theme].embedded-panel #finAccountSummary .fin-account>small { flex:1; min-width:180px; }
