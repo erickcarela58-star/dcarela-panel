@@ -7,9 +7,9 @@
   "ios_version": "5.2.1",
   "ios_build": "493",
   "ios_release_url": "https://panel.dcarelacompufoto.com/ios-releases/Brujula-5.2.1-493-AltStore.ipa",
-  "published_at": "2026-10-13T01:55:45.101Z",
+  "published_at": "2026-10-14T14:21:41.632Z",
   "channel": "stable",
-  "notes": "Web/PWA 1.0.116 agrega periodos rapidos (Hoy, Esta semana, Este mes, Mes anterior) en Reportes de ventas. No cambia saldos, finanzas ni Caja Windows 1.0.75.",
+  "notes": "Plaza Windows 1.0.76 opcional; Central conserva 1.0.75. Web/PWA 1.0.116 sin cambios.",
   "release_page_url": "https://panel.dcarelacompufoto.com/#descargar",
   "desktop_release": {
     "version": "1.0.75",
@@ -23,14 +23,14 @@
   },
   "desktop_releases": {
     "plaza-artesanal": {
-      "version": "1.0.75",
+      "version": "1.0.76",
       "channel": "stable",
-      "mandatory": true,
-      "created_at": "2026-09-30T15:30:00Z",
-      "release_url": "https://github.com/erickcarela58-star/dcarela-panel/releases/download/pos-v1.0.75/DCARELA_PLAZA_ARTESANAL_1.0.75_Setup.exe",
-      "sha256": "b104610917d92d8aa76e9a86a2fc9209530caa9217bcb36c736745c715417211",
-      "size_bytes": 79148975,
-      "notes": "Caja 1.0.75: las tarjetas de cuenta se cambian desde el panel web (colores y estilo Dólares) y la Caja las repinta sola; ventana de inicio de sesión más alta y sin textos internos."
+      "mandatory": false,
+      "created_at": "2026-10-14T14:21:41.632Z",
+      "release_url": "https://github.com/erickcarela58-star/dcarela-panel/releases/download/pos-v1.0.76/DCARELA_PLAZA_ARTESANAL_1.0.76_Setup.exe",
+      "sha256": "425575d2472455277b3ebdb1b6bb96736b8d70a7c8e6001bb19d7ecfb8ed64f0",
+      "size_bytes": 79158703,
+      "notes": "Caja 1.0.76: ventas netas grandes, cuentas a todo el ancho y detalle propio; Organizar para mover/ocultar herramientas, Finanzas horizontal, calendario de Clientes, turnos protegidos y pagos con Sale de. Sin ajustes de saldos."
     }
   },
   "downloads": [
@@ -96,22 +96,22 @@
     {
       "product": "D' Carela POS Plaza Artesanal",
       "label": "Instalador completo para Windows — Plaza Artesanal",
-      "name": "DCARELA_PLAZA_ARTESANAL_1.0.75_Setup.exe",
+      "name": "DCARELA_PLAZA_ARTESANAL_1.0.76_Setup.exe",
       "extension": "EXE",
-      "version": "1.0.75",
+      "version": "1.0.76",
       "build": "1.0.75",
       "platform": "Windows 10/11 x64",
       "channel": "stable",
       "business_id": "plaza-artesanal",
       "publisher_signature": "not_signed",
       "signature_label": "Instalador de escritorio Windows",
-      "published_at": "2026-09-30T15:30:00Z",
-      "size_bytes": 79148975,
-      "sha256": "b104610917d92d8aa76e9a86a2fc9209530caa9217bcb36c736745c715417211",
-      "url": "https://github.com/erickcarela58-star/dcarela-panel/releases/download/pos-v1.0.75/DCARELA_PLAZA_ARTESANAL_1.0.75_Setup.exe",
-      "checksums_url": "https://panel.dcarelacompufoto.com/app-version.json",
+      "published_at": "2026-10-14T14:21:41.632Z",
+      "size_bytes": 79158703,
+      "sha256": "425575d2472455277b3ebdb1b6bb96736b8d70a7c8e6001bb19d7ecfb8ed64f0",
+      "url": "https://github.com/erickcarela58-star/dcarela-panel/releases/download/pos-v1.0.76/DCARELA_PLAZA_ARTESANAL_1.0.76_Setup.exe",
+      "checksums_url": "https://github.com/erickcarela58-star/dcarela-panel/releases/download/pos-v1.0.76/checksums.json",
       "action": "Abrir descarga oficial .EXE — Plaza Artesanal",
-      "notes": "Caja 1.0.75: las tarjetas de cuenta se cambian desde el panel web (colores y estilo Dólares) y la Caja las repinta sola; ventana de inicio de sesión más alta y sin textos internos.",
+      "notes": "Caja 1.0.76: ventas netas grandes, cuentas a todo el ancho y detalle propio; Organizar para mover/ocultar herramientas, Finanzas horizontal, calendario de Clientes, turnos protegidos y pagos con Sale de. Sin ajustes de saldos.",
       "installation_method": "Descargar, verificar la huella SHA-256 y ejecutar."
     }
   ],
