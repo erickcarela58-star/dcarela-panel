@@ -31,9 +31,9 @@ const fixtureScript = `(() => {
       const sales=clone(events(business));
       const projected=window.DcarelaFinanceCore.projectSalePaymentsAsMovements(sales,accounts(business),{businessId:business});
       const expenses=categories.filter(c=>c.tipo==='gasto').map((c,i)=>({id:'demo-expense-'+i,tipo:'gasto',fecha:today,monto_centavos:(i+1)*10000,categoria_id:c.id,cuenta_id:business+'-cash',descripcion:c.nombre+' · demostración',estado:'registrado',afecta_resultado:true,source_timestamp:new Date(Date.now()-3600000).toISOString()}));
-      return Object.assign([...projected,...expenses],{sales,saleEvents:sales});
+      return Object.assign([...projected,...expenses],{sales,saleEvents:sales,closingEvents:[]});
     },getFinanceLedgerMovements:async()=>[],getFinanceMovements:async()=>[],
-    getFinanceCards:async()=>[],getFinanceBudgets:async()=>[],getFinanceCommitments:async()=>[],getFinanceCommitmentPayments:async()=>[],getFinancePendingTransfers:async()=>[],
+    getFinanceCards:async()=>[],getFinanceBudgets:async()=>[],getFinanceCommitments:async()=>[{id:'demo-loan',nombre:'Préstamo ficticio sin saldo contractual',tipo:'prestamo',activo:true,monto_centavos:100000,proximo_vencimiento:today}],getFinanceCommitmentPayments:async()=>[],getFinancePendingTransfers:async()=>[],
     getProducts:async business=>[{id:'demo-product',business_id:business,nombre:'Servicio fotográfico · ejemplo',codigoBarras:'DEMO-001',precioFinalCentavos:100000,existencia:'0',categoriaId:'demo-category',activo:true}],
     getCategories:async()=>[{id:'demo-category',nombre:'Fotografía'}],getProductCombos:async()=>[],getClients:async()=>[],
     getCollection:async()=>[],getLimitedCollection:async()=>[],
@@ -67,6 +67,10 @@ function createServer(){return http.createServer((req,res)=>{
   res.setHeader('Cache-Control','no-store');res.setHeader('X-Content-Type-Options','nosniff');
   if(req.method!=='GET'){res.writeHead(405);res.end();return;}
   const url=new URL(req.url,'http://127.0.0.1');const file=url.pathname==='/'?'index.html':url.pathname.slice(1);
+  if(file==='qa-responsive.html'){
+    res.setHeader('Content-Type','text/html; charset=utf-8');
+    res.end('<!doctype html><html lang="es"><title>QA móvil del panel · 390 × 844</title><style>body{margin:0;padding:16px;background:#dee5f0;font:14px system-ui}h1{font-size:16px}iframe{display:block;width:390px;height:844px;border:1px solid #718096;border-radius:12px;background:white}</style><h1>QA local · viewport 390 × 844 · datos ficticios</h1><iframe title="Panel móvil de prueba" src="/mobile/index.html#finanzas"></iframe></html>');return;
+  }
   if(file==='preview-fixture.js'){res.setHeader('Content-Type','text/javascript');res.end(fixtureScript);return;}
   if(!allowed.has(file)){res.writeHead(404);res.end();return;}
   try{res.setHeader('Content-Type',file.endsWith('.html')?'text/html; charset=utf-8':file.endsWith('.js')?'text/javascript; charset=utf-8':file.endsWith('.css')?'text/css; charset=utf-8':file.endsWith('.json')?'application/json':file.endsWith('.svg')?'image/svg+xml':'image/png');res.end(file.endsWith('.html')?page(file):fs.readFileSync(path.join(root,file)));}catch{res.writeHead(500);res.end('Error de fixture');}

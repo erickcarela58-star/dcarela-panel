@@ -110,6 +110,21 @@ test("un nombre con deuda o cuota no convierte un servicio en prestamo", () => {
   assert.equal(summary.currentDue, 318105);
 });
 
+test("una cuota conocida no sustituye una deuda o capital contractual desconocidos", () => {
+  const summary = money.obligationSummary({ month: "2026-10", commitments: [
+    { id: "known", tipo: "prestamo", activo: true, monto_centavos: 50000,
+      saldo_pendiente_centavos: 300000, capital_pendiente_centavos: 250000,
+      proximo_vencimiento: "2026-10-22" },
+    { id: "unknown", tipo: "prestamo", activo: true, monto_centavos: 100000,
+      proximo_vencimiento: "2026-10-23" },
+  ] });
+  assert.equal(summary.currentDue, 150000, "las cuotas comprobadas conservan su importe");
+  assert.equal(summary.loanDebt, null, "no presenta cuota + saldo parcial como deuda total");
+  assert.equal(summary.loanCapital, null, "desconocido no equivale a capital cero");
+  assert.equal(summary.unknownLoanBalances, 1);
+  assert.equal(summary.unknownLoanCapitals, 1);
+});
+
 test("resumen y calendario muestran comisiones sin duplicar el gasto vinculado", () => {
   const transfer = { id: "transfer-1", tipo: "transferencia", fecha: "2026-09-05", monto_centavos: 250000, comision_centavos: 4060 };
   const fee = { id: "fee-1", tipo: "gasto", fecha: "2026-09-05", monto_centavos: 4060, transferencia_id: "transfer-1" };

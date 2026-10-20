@@ -120,6 +120,8 @@ html[data-theme].embedded-panel #v-finanzas .finance-workspace .finance-flow-cha
 .finance-account-metrics :is(span,strong,small) { display:block; }
 .finance-account-metrics span,.finance-account-metrics small { font-size:11px; color:var(--ui-muted); line-height:1.5; }
 .finance-account-metrics strong { font-size:23px; margin-block:4px; overflow-wrap:anywhere; color:var(--ui-text); }
+#mmObligations td>strong,#mmObligations td>small { display:block; }
+#mmObligations td>small { margin-top:4px; color:var(--ui-muted); }
 .crm-organizer { width:min(520px,calc(100vw - 36px)); max-height:85dvh; box-sizing:border-box; border:1px solid var(--ui-line); border-radius:18px; background:var(--ui-surface-strong); color:var(--ui-text); padding:18px; font:14px "Segoe UI",sans-serif; }
 .crm-organizer::backdrop { background:#0005; }
 .crm-organizer h2 { font-size:20px; margin:0 0 8px; }

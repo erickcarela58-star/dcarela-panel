@@ -116,6 +116,7 @@
   let businessConfig = null;
   let costStateCache = null;
   let finStateCache = null;
+  let financeWriteEpoch = 0;
   let costTab = "resumen";
   let updateFinanceTools = () => {};
   let finDashboardPeriod = "mes";
@@ -855,6 +856,7 @@
     if (authProvider === "firebase") {
       if (!window.DcarelaFirebase?.isAvailable) throw new Error("Firebase no está disponible.");
       const result = await window.DcarelaFirebase.adminAction(action, BUSINESS, memberRole, entityId, data);
+      financeWriteEpoch++;
       productCatalog = null;
       categoryCatalog = null;
       comboCatalog = null;
@@ -874,6 +876,7 @@
     });
     const result = await response.json().catch(() => ({}));
     if (!response.ok || !result.ok) throw new Error(result.error || `No se pudo guardar el cambio (HTTP ${response.status}).`);
+    financeWriteEpoch++;
     productCatalog = null;
     categoryCatalog = null;
     comboCatalog = null;
@@ -6521,11 +6524,18 @@
     const budgetAlerts = (state.budgetProgress || []).filter(item => item.percent >= item.alerta_porcentaje).slice(0, 4).map(item => ({
       tone: item.percent >= 100 ? "danger" : "warn", title: categories.get(item.categoria_id) || "Presupuesto", detail: `${item.percent}% utilizado &middot; ${money(item.spent)} de ${money(item.monto_centavos)}`,
     }));
-    const obligations = (costStateCache?.obligations || []).filter(item => ["pendiente", "parcial", "vencida"].includes(item.estado)).slice(0, 4).map(item => ({
+    const planning = moneyManagerCore?.obligationSummary({
+      commitments: state.commitments || [], costObligations: costStateCache?.obligations || [],
+      costRecurrents: costStateCache?.recurrents || [], month: state.month,
+    });
+    const obligations = planning ? [...planning.dueNow].sort((a, b) => a.due.localeCompare(b.due)).slice(0, 4).map(item => ({
+      tone: item.due < planning.from ? "danger" : "warn", title: item.name,
+      detail: `${money(item.periodAmount)} &middot; ${item.source === "planificado" ? "previsto" : "vence"} ${esc(dateOnly(item.due))}`,
+    })) : (costStateCache?.obligations || []).filter(item => ["pendiente", "parcial", "vencida"].includes(item.estado)).slice(0, 4).map(item => ({
       tone: item.estado === "vencida" ? "danger" : "warn", title: item.concepto || item.acreedor || "Factura pendiente", detail: `${money(item.saldoCentavos)} &middot; vence ${esc(dateOnly(item.venceEn))}`,
     }));
     const rows = [...budgetAlerts, ...obligations].slice(0, 6);
-    $("finBudgetAlerts").innerHTML = rows.length ? rows.map(item => `<article class="${item.tone}"><i></i><span><strong>${esc(item.title)}</strong><small>${item.detail}</small></span></article>`).join("") : `<div class="empty-state compact"><strong>Todo bajo control</strong><p>No hay presupuestos excedidos ni vencimientos pendientes.</p></div>`;
+    $("finBudgetAlerts").innerHTML = rows.length ? rows.map(item => `<article class="${item.tone}"><i></i><span><strong>${esc(item.title)}</strong><small>${item.detail}</small></span></article>`).join("") : `<div class="empty-state compact"><strong>Sin alertas del periodo</strong><p>No hay presupuestos excedidos ni vencimientos pendientes hasta este mes.</p></div>`;
   }
 
 
@@ -7067,7 +7077,11 @@
   function setMoneyManagerTab(tab) {
     const allowed = ["resumen", "calendario", "movimientos", "cuentas", "pagos"];
     moneyManagerTab = allowed.includes(tab) ? tab : "resumen";
-    document.querySelectorAll("[data-mm-tab]").forEach(button => button.classList.toggle("act", button.dataset.mmTab === moneyManagerTab));
+    document.querySelectorAll("[data-mm-tab]").forEach(button => {
+      const active = button.dataset.mmTab === moneyManagerTab;
+      button.classList.toggle("act", active);
+      button.setAttribute("aria-selected", String(active));
+    });
     allowed.forEach(name => $("mmPanel" + name.charAt(0).toUpperCase() + name.slice(1))?.classList.toggle("oculto", name !== moneyManagerTab));
   }
 
@@ -7210,17 +7224,16 @@
   function renderMoneyManagerObligations(obligations) {
     $("mmObligationKpis").innerHTML = mmMetric("Por pagar ahora", money(obligations.payableNow), "Vencido + mes actual", obligations.payableNow ? "expense" : "")
       + mmMetric("Vencido", money(obligations.overdueDue), `${obligations.overdue.length} pendiente(s)`, obligations.overdueDue ? "bad" : "")
-      + mmMetric("Deuda de préstamos", money(obligations.loanDebt), "Saldo contractual vivo")
-      + mmMetric("Capital pendiente", money(obligations.loanCapital), "Sin ocultarse al cambiar de mes");
+      + mmMetric("Deuda de préstamos", obligations.loanDebt == null ? "--" : money(obligations.loanDebt), obligations.loanDebt == null ? "Falta verificar el saldo contractual de uno o más préstamos" : "Saldo contractual vivo")
+      + mmMetric("Capital pendiente", obligations.loanCapital == null ? "--" : money(obligations.loanCapital), obligations.loanCapital == null ? "Falta verificar el capital pendiente" : "Sin ocultarse al cambiar de mes");
     const rows = [...obligations.rows].sort((a, b) => String(a.due || "9999").localeCompare(String(b.due || "9999")));
     $("mmObligations").innerHTML = tabla(rows, item => {
       const overdue = item.due && item.due < obligations.from;
-      const amount = item.outstanding == null ? item.periodAmount : item.outstanding;
       const action = item.source === "compromiso"
         ? `<button type="button" class="mini" data-mm-pay-commitment="${esc(item.id)}">Registrar pago</button>`
         : item.source === "factura" ? `<button type="button" class="mini" data-mm-pay-obligation="${esc(item.legacyId)}">Registrar pago</button>`
           : `<button type="button" class="mini" data-mm-generate-plan>Generar factura</button>`;
-      return [`<strong>${esc(item.name)}</strong><small>${esc(item.type || "obligación")}</small>`, esc(dateOnly(item.due) || "Sin fecha"), `<span class="tag ${overdue ? "bad" : item.source === "planificado" ? "warn" : "ok"}">${overdue ? "Vencido" : item.source === "planificado" ? "Previsto" : "Pendiente"}</span>`, money(item.periodAmount), money(amount || 0), action];
+      return [`<strong>${esc(item.name)}</strong><small>${esc(item.type || "obligación")}</small>`, esc(dateOnly(item.due) || "Sin fecha"), `<span class="tag ${overdue ? "bad" : item.source === "planificado" ? "warn" : "ok"}">${overdue ? "Vencido" : item.source === "planificado" ? "Previsto" : "Pendiente"}</span>`, money(item.periodAmount), item.outstanding == null ? "Sin verificar" : money(item.outstanding), canEdit ? action : "Solo lectura"];
     }, ["Compromiso", "Vence", "Estado", "Cuota", "Saldo", "Acción"]);
     $("mmObligations").querySelectorAll("[data-mm-pay-commitment]").forEach(button => button.addEventListener("click", () => abrirPagoCompromisoFin(finStateCache.commitments.find(item => item.id === button.dataset.mmPayCommitment))));
     $("mmObligations").querySelectorAll("[data-mm-pay-obligation]").forEach(button => button.addEventListener("click", () => pagarObligacion((costStateCache?.obligations || []).find(item => item.id === button.dataset.mmPayObligation))));
@@ -7362,10 +7375,16 @@
   }
 
   let financeLoad = null;
+  let financeLoadForced = false;
+  let financeLoadWriteEpoch = 0;
   async function cargarProveedores(force = false) {
     if (financeLoad) {
+      const pendingForced = financeLoadForced;
+      const pendingWriteEpoch = financeLoadWriteEpoch;
       await financeLoad;
-      if (force || finStateCache?.month !== $("provMes").value) return cargarProveedores(force);
+      // Una lectura forzada ya invalida la caché para todos sus solicitantes.
+      // Si se pidió durante una lectura normal, compartir una sola lectura nueva.
+      if ((force && (!pendingForced || pendingWriteEpoch !== financeWriteEpoch)) || finStateCache?.month !== $("provMes").value) return cargarProveedores(force);
       return;
     }
     if (!force && finStateCache && finStateCache.month === $("provMes").value && finStateCache.accounts?.length && Date.now() - (finStateCache._renderedAt || 0) < 60000) {
@@ -7384,12 +7403,15 @@
     const previousFinance = finStateCache;
     const previousCosts = costStateCache;
     const progress = crearProgresoFinanciero();
+    financeLoadForced = force;
+    financeLoadWriteEpoch = financeWriteEpoch;
     financeLoad = cargarProveedoresData(force, progress).then(() => { progress.finish(); announceAccountReady(); }).catch(error => {
       finStateCache = previousFinance;
       costStateCache = previousCosts;
+      if (finStateCache) finStateCache._renderedAt = 0;
       progress.finish(error);
       throw error;
-    }).finally(() => { financeLoad = null; });
+    }).finally(() => { financeLoad = null; financeLoadForced = false; });
     return financeLoad;
   }
 
@@ -7524,10 +7546,10 @@
     $("provResumen").innerHTML = metric("Ventas del mes", money(salesTotal)) + metric("Gastos Money Manager", money(ledgerExpensesTotal))
       + metric("Pagos documentados", money(paidTotal)) + metric("Por pagar este mes", money(dueTotal))
       + metric("Vencido", money(overdueTotal)) + metric("Ventas menos gastos", money(net));
-    $("provAnalisis").innerHTML = `<div class="surface-title"><div><h3>Analisis del mes</h3><p>Ventas contra gastos y compromisos registrados.</p></div></div>
-      <div class="analysis-result"><span>Ventas netas</span><strong>${money(salesTotal)}</strong><span>Gastos Money Manager</span><strong>${money(ledgerExpensesTotal)}</strong><span>Pagos documentados en deudas</span><strong>${money(paidTotal)}</strong><span>Gastado + pendiente</span><strong>${money(committed)}</strong><span>Ventas menos gastos (excluye otros ingresos)</span><strong class="net ${net < 0 ? "bad" : ""}">${money(net)}</strong></div>`;
+    $("provAnalisis").innerHTML = `<div class="surface-title"><div><h3>Analisis del mes</h3><p>Ventas, gastos y facturas documentadas. Los préstamos y planes figuran en Planificación.</p></div></div>
+      <div class="analysis-result"><span>Ventas netas</span><strong>${money(salesTotal)}</strong><span>Gastos Money Manager</span><strong>${money(ledgerExpensesTotal)}</strong><span>Pagos documentados en deudas</span><strong>${money(paidTotal)}</strong><span>Gastos + facturas pendientes del mes</span><strong>${money(committed)}</strong><span>Ventas menos gastos (excluye otros ingresos)</span><strong class="net ${net < 0 ? "bad" : ""}">${money(net)}</strong></div>`;
     const upcoming = state.obligations.filter(item => ["vencida", "pendiente", "parcial"].includes(item.estado)).slice(0, 6);
-    $("provVencimientos").innerHTML = upcoming.length ? upcoming.map(item => `<article class="due-item ${item.estado === "vencida" ? "overdue" : ""}"><strong>${esc(item.concepto)}</strong><span>${esc(item.acreedor || item.categoria)} | ${money(item.saldoCentavos)}</span><span>${item.estado === "vencida" ? "Vencida" : "Pagar"} ${esc(dateOnly(item.venceEn))}</span></article>`).join("") : '<div class="empty-state">No hay vencimientos pendientes.</div>';
+    $("provVencimientos").innerHTML = upcoming.length ? '<h3>Facturas documentadas pendientes</h3>' + upcoming.map(item => `<article class="due-item ${item.estado === "vencida" ? "overdue" : ""}"><strong>${esc(item.concepto)}</strong><span>${esc(item.acreedor || item.categoria)} | ${money(item.saldoCentavos)}</span><span>${item.estado === "vencida" ? "Vencida" : "Pagar"} ${esc(dateOnly(item.venceEn))}</span></article>`).join("") : '<div class="empty-state">No hay facturas documentadas pendientes.</div>';
 
     const expenseHeaders = ["Fecha", "Categoria", "Descripcion", "Metodo", "Monto", "Usuario", "Nota"];
     if (canEdit) expenseHeaders.push("Acciones");

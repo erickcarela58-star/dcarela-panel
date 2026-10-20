@@ -157,8 +157,9 @@
     const isLoan = item => isLoanType(item.type);
     const nativeLoans = native.filter(item => item.active && isLoan(item));
     const legacyLoans = legacy.filter(item => item.active && isLoan(item));
-    const loanDebt = nativeLoans.reduce((sum, item) => sum + Math.max(0,
-      item.outstanding == null ? item.periodAmount : item.outstanding), 0);
+    const unknownLoanBalances = nativeLoans.filter(item => item.outstanding == null).length;
+    const unknownLoanCapitals = nativeLoans.filter(item => item.capital == null).length;
+    const loanDebt = nativeLoans.reduce((sum, item) => sum + Math.max(0, item.outstanding || 0), 0);
     // Los compromisos viejos viven como cuotas materializadas. Se suman sus
     // saldos pendientes una sola vez; no se confunden servicios o nomina con
     // deuda, ni se agrega de nuevo el plan recurrente que las genero.
@@ -173,8 +174,10 @@
       currentDue: current.reduce((sum, item) => sum + Math.max(0, item.periodAmount || item.outstanding || 0), 0),
       overdueDue: overdue.reduce((sum, item) => sum + Math.max(0, item.periodAmount || item.outstanding || 0), 0),
       payableNow: dueNow.reduce((sum, item) => sum + Math.max(0, item.periodAmount || item.outstanding || 0), 0),
-      loanDebt: loanDebt + legacyLoanDebt,
-      loanCapital,
+      loanDebt: unknownLoanBalances ? null : loanDebt + legacyLoanDebt,
+      loanCapital: unknownLoanCapitals || legacyLoans.length ? null : loanCapital,
+      unknownLoanBalances,
+      unknownLoanCapitals: unknownLoanCapitals + legacyLoans.length,
       plannedMissing: planned,
     };
   }

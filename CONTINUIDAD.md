@@ -32,3 +32,8 @@
 - Clic en una cuenta del Resumen o en su tarjeta abre su detalle: saldo firmado del motor existente, ingresos/gastos de sus asientos, uso y movimientos de esa cuenta. El puente comprueba origen, iframe, sucursal, sesión y cuenta; espera a la carga y descarta respuestas de otra sucursal. Un resultado vacío de cuenta no se presenta como falta de sincronización.
 - Verificación: 381/381 Node; conservación de saldos/instantáneas y de fuentes/series, límites de renderizado, orden/visibilidad, aislamiento del puente y gastos separados de transferencias. Revisión real del fixture con clic en Popular/Efectivo y organización guardada. No son datos comerciales.
 - Código sin publicar: mantener manifiesto/build actual. Capturas y galería local 8820 fuera del repo. Pendiente validación de las sesiones reales y regeneración del instalador Windows. La siguiente orden amplía el trabajo al CRM cotizador/imágenes en otro worktree; no incluye campañas.
+
+## 2026-10-20 — revisión integral de panel y finanzas, solo local
+
+El dueño pausó el editor y asignó el panel completo, conservando las gráficas. Continuar desde REVISION_PANEL_FINANZAS_2026-10-20.md en la rama codex/panel-integral-20261020. Este bloque corrige recargas en cadena, frescura tras errores, deuda/capital desconocidos y acciones de pagos para lectores. Suite 388/388; QA de navegación contra datos ficticios en loopback 8823. Sin publicación ni operaciones reales. La revisión integral, las sesiones reales y la Caja física siguen pendientes; no confundir esta evidencia con producción.
+Actualización del bloque: planificación unificada de préstamos/facturas/planes y textos de alcance corregidos. QA móvil de 390 × 844 en claro/oscuro con gráficas conservadas. Suite final 389/389.
