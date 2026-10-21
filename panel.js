@@ -24,7 +24,7 @@
     document.body?.classList.add("is-embedded");
   }
   const THEME_KEY = "dcarela.ui.theme";
-  const APP_BUILD = "1.0.117";
+  const APP_BUILD = "1.0.118";
   const financeCore = window.DcarelaFinanceCore;
   const moneyManagerCore = window.DcarelaMoneyManagerCore;
 
@@ -5242,7 +5242,7 @@
     const totals = financeCore.summarizeMovements(finFilteredMovements.filter(item => item.tipo !== "transferencia"));
     const usage = account.ligada_ventas ? "Ligada a ventas" : "Movimientos de esta cuenta";
     mount.innerHTML = `<header><div><p>${esc(FIN_TIPO_LABEL[account.tipo] || account.tipo)} · ${esc(usage)}</p><h3>${esc(account.nombre)}</h3></div><button type="button" data-account-back>Todas las cuentas</button></header>
-      <div class="finance-account-metrics"><div><span>Saldo actual</span><strong>${money(finAccountBalance(account))}</strong><small>Último estado recibido; el filtro no cambia el saldo.</small></div><div><span>Ingresos registrados</span><strong>${money(totals.ingresos_centavos)}</strong></div><div><span>Gastos registrados</span><strong>${money(totals.gastos_centavos)}</strong></div><div><span>Uso de la cuenta</span><strong>${finFilteredMovements.length}</strong><small>Movimientos cargados. Las transferencias se muestran en el historial; estas cifras solo suman asientos de ingresos y gastos.</small></div></div>`;
+      <div class="finance-account-metrics"><div><span>Saldo actual</span><strong>${financeCore.formatAccountMoney(account, finAccountBalance(account), money)}</strong><small>Último estado recibido; el filtro no cambia el saldo.</small></div><div><span>Ingresos registrados</span><strong>${money(totals.ingresos_centavos)}</strong></div><div><span>Gastos registrados</span><strong>${money(totals.gastos_centavos)}</strong></div><div><span>Uso de la cuenta</span><strong>${finFilteredMovements.length}</strong><small>Movimientos cargados. Las transferencias se muestran en el historial; estas cifras solo suman asientos de ingresos y gastos.</small></div></div>`;
     mount.querySelector("[data-account-back]").addEventListener("click", () => { $("finMovementAccount").value = ""; renderFinMovements(); setCostTab("cuentas"); });
   }
 
@@ -5255,7 +5255,7 @@
     const defaultAccount = item.cuentaId || item.cuenta_id || finStateCache?.preferences?.cuenta_gasto_default_id
       || accounts.find(account => account.tipo === "efectivo" && account.ligada_ventas)?.id
       || accounts.find(account => account.tipo === "efectivo")?.id || accounts[0].id;
-    const accountOptions = accounts.map(account => `<option value="${esc(account.id)}"${selected(defaultAccount, account.id)}>${esc(account.nombre)} · ${money(finAccountBalance(account))}</option>`).join("");
+    const accountOptions = accounts.map(account => `<option value="${esc(account.id)}"${selected(defaultAccount, account.id)}>${esc(account.nombre)} · ${financeCore.formatAccountMoney(account, finAccountBalance(account), money)}</option>`).join("");
     abrirEditor(expense ? "Editar gasto" : "Nuevo gasto", "El cambio quedara auditado y se sincronizara con todas las cajas.", `
       <label><span>Categoria</span><select name="categoriaId" required>${categoryOptions(state.categories, item.categoriaId)}</select></label>
       <label><span>Fecha</span><input name="fecha" type="datetime-local" required value="${esc(localDateTimeInput(item.fecha || item._latestAt))}"></label>
@@ -5815,10 +5815,11 @@
     const state = finStateCache;
     if (!state) return;
     let patrimonio = 0;
+    const currencyTotals = financeCore.accountTotalsByCurrency(state.accounts, state.accountBalanceMovements || state.accountSalesMovements || state.movements || []);
     const cards = state.accounts.map(account => {
       const balance = finAccountBalance(account);
       const projectedSales = finAccountSalesDelta(account);
-      if (account.incluir_en_total) patrimonio += balance;
+      if (account.incluir_en_total && financeCore.accountCurrency(account) === 'DOP') patrimonio += balance;
       const isCard = account.tipo === "tarjeta_credito";
       const display = isCard ? Math.max(0, -balance) : balance;
       const {bank: bankBrand, primary, secondary, style, icon} = finAccountVisual(account);
@@ -5827,7 +5828,7 @@
       return `<article class="fin-account visual ${style} ${balance < 0 ? "neg" : "pos"}${account.oculta ? " muted" : ""}" style="--account-primary:${primary};--account-secondary:${secondary}">
         <button type="button" class="fin-account-open" data-fin-account-ledger="${esc(account.id)}" title="Ver los movimientos que forman este saldo">
           <span class="fin-account-visual-head">${bankBrand && bankBrand.logo ? `<i class="fin-bank-logo"><img src="${esc(bankBrand.logo)}" alt="${esc(bankBrand.nombre)}" loading="lazy" onerror="this.parentNode.textContent='${esc((bankBrand.nombre || "B").charAt(0))}'"></i>` : `<i>${esc(icon)}</i>`}<span><b>${esc(account.nombre)}</b><small>${mask || esc(FIN_TIPO_LABEL[account.tipo] || account.tipo)}</small></span></span>
-          <span class="fin-account-balance-row"><strong>${isCard ? money(display) : money(balance)}</strong><em class="fin-account-sign">${esc(signLabel)}</em></span>
+          <span class="fin-account-balance-row"><strong>${financeCore.formatAccountMoney(account, display, money)}</strong><em class="fin-account-sign">${esc(signLabel)}</em></span>
           <small>${esc(FIN_TIPO_LABEL[account.tipo] || account.tipo)}${account.ligada_ventas ? " &middot; ligada a ventas" : ""}${projectedSales ? ` &middot; incluye ${money(projectedSales)} en ventas posteriores al ultimo cuadre` : ""}${account.oculta ? " &middot; oculta" : ""}</small>
         </button>
         ${canEdit ? `<div class="fin-account-actions"><button type="button" data-fin-account-reconcile="${esc(account.id)}">Conciliar</button><button type="button" data-fin-account-edit="${esc(account.id)}">Editar</button></div>` : ""}
@@ -5837,7 +5838,7 @@
     const cumuloCard = cumulo && numero(cumulo.total_centavos) > 0
       ? `<article class="fin-account cumulo"><button type="button" class="fin-account-open" data-fin-open-commitments title="Ver cuotas, capital y saldos pendientes"><span class="fin-account-name">Por saldar este mes</span><strong>${money(numero(cumulo.total_centavos))}</strong><small>${cumulo.compromisos_n || 0} vencimiento(s) &middot; prestamos pendientes ${money(numero(cumulo.deuda_prestamos_centavos))}</small></button></article>`
       : "";
-    const totalCard = `<article class="fin-account total ${patrimonio < 0 ? "neg" : "pos"}"><span class="fin-account-name">Saldo de cuentas incluidas</span><span class="fin-account-balance-row"><strong>${money(patrimonio)}</strong><em class="fin-account-sign">${patrimonio < 0 ? "Negativo" : "Positivo"}</em></span><small>Segun la configuracion de inclusion; no equivale al patrimonio neto.</small></article>`;
+    const totalCard = `<article class="fin-account total ${patrimonio < 0 ? "neg" : "pos"}"><span class="fin-account-name">Saldo de cuentas incluidas</span><span class="fin-account-balance-row"><strong>${financeCore.formatCurrencyTotals(currencyTotals, money)}</strong><em class="fin-account-sign">Por moneda</em></span><small>Monedas separadas, sin conversión. No equivale al patrimonio neto.</small></article>`;
     const summary = $("finAccountSummary");
     if (summary) summary.innerHTML = totalCard + cumuloCard;
     $("finCuentasCards").innerHTML = (summary ? "" : totalCard + cumuloCard) + cards;
@@ -6404,9 +6405,9 @@
     const income = numero(summary.ingresos_centavos);
     const expense = numero(summary.gastos_centavos);
     const net = income - expense;
-    const patrimonio = (state.accounts || []).filter(item => item.incluir_en_total).reduce((sum, item) => sum + finAccountBalance(item), 0);
+    const currencyTotals = financeCore.accountTotalsByCurrency(state.accounts || [], state.accountBalanceMovements || state.accountSalesMovements || state.movements || []);
     $("finDashboardKpis").innerHTML = [
-      ["Cuentas incluidas", money(patrimonio), "Saldo actual segun inclusion"],
+      ["Cuentas incluidas", financeCore.formatCurrencyTotals(currencyTotals, money), "Saldos por moneda, sin conversión"],
       ["Ingresos del resultado", money(income), range.label],
       ["Gastos del resultado", money(expense), range.label],
       ["Resultado del periodo", money(net), "Ingresos menos gastos; no es saldo de caja"],
@@ -6555,7 +6556,7 @@
       <label><span>Nombre</span><input name="nombre" required maxlength="120" value="${esc(item.nombre)}"></label>
       <label><span>Tipo</span><select name="tipo" id="finAccountTipo">${finTipoOptions(item.tipo)}</select></label>
       <label><span>Grupo</span><input name="grupo" maxlength="120" value="${esc(item.grupo || "")}"></label>
-      <label><span id="finAccountSaldoLabel">${esTarjeta ? "Deuda inicial (RD$)" : "Saldo inicial (RD$)"}</span><input name="saldoInicial" type="number" step="0.01" required value="${pesoInput(saldoMostrado)}"></label>
+      <label><span id="finAccountSaldoLabel">${esTarjeta ? "Deuda inicial" : "Saldo inicial"} (${esc(financeCore.accountCurrency(item))})</span><input name="saldoInicial" type="number" step="0.01" required value="${pesoInput(saldoMostrado)}"></label>
       <p id="finAccountSaldoHint" class="field-hint field-wide"${esTarjeta ? "" : ' style="display:none"'}>En una tarjeta de credito escribe cuanto DEBES hoy (0 si esta al dia). Las compras se registran despues con "Registrar consumo".</p>
       <label><span>Moneda</span><input name="moneda" maxlength="8" value="${esc(item.moneda || "DOP")}"></label>
       <label><span>Orden</span><input name="orden" type="number" step="1" value="${esc(item.orden || 0)}"></label>
@@ -6608,7 +6609,7 @@
     const saldoHint = $("finAccountSaldoHint");
     tipoSel?.addEventListener("change", () => {
       const card = tipoSel.value === "tarjeta_credito";
-      if (saldoLabel) saldoLabel.textContent = card ? "Deuda inicial (RD$)" : "Saldo inicial (RD$)";
+      if (saldoLabel) saldoLabel.textContent = (card ? "Deuda inicial" : "Saldo inicial") + " (" + financeCore.accountCurrency(item) + ")";
       if (saldoHint) saldoHint.style.display = card ? "" : "none";
     });
     const form = $("editorForm");
@@ -6634,7 +6635,7 @@
     if (!account) return;
     const requestId = crypto.randomUUID();
     abrirEditor("Conciliar " + account.nombre, "Registra el saldo físico o bancario comprobado ahora.", `
-      <p class="field-hint field-wide">Saldo del diario: <strong>${money(finAccountBalance(account))}</strong>. Incluye las operaciones recibidas del turno actual. La conciliación conserva el historial y registra la diferencia.</p>
+      <p class="field-hint field-wide">Saldo del diario: <strong>${financeCore.formatAccountMoney(account, finAccountBalance(account), money)}</strong>. Incluye las operaciones recibidas del turno actual. La conciliación conserva el historial y registra la diferencia.</p>
       <label><span>Saldo comprobado (RD$)</span><input name="saldo" type="number" step="0.01" required value="${(finAccountBalance(account) / 100).toFixed(2)}"></label>
       <label class="field-wide"><span>Motivo y evidencia</span><textarea name="motivo" rows="3" maxlength="500" required></textarea></label>
       <p class="field-hint field-wide">${account.tipo === "tarjeta_credito" ? "Escribe la deuda con signo negativo; el crédito disponible no es el saldo de la cuenta. " : ""}No uses este formulario para excluir ventas de un turno ni para compensar datos pendientes de una terminal. Un conteo anterior requiere comprobar su hora de corte.</p>`, async form => {
@@ -6698,7 +6699,7 @@
     if (accounts.length < 2) { toast("Necesitas al menos dos cuentas activas para transferir."); return; }
     const bank = accounts.find(account => account.nombre.toLowerCase().includes("popular")) || accounts.find(account => account.tipo === "banco") || accounts[0];
     const target = accounts.find(account => account.id !== bank.id) || accounts[1];
-    const options = current => accounts.map(account => `<option value="${esc(account.id)}"${selected(current, account.id)}>${esc(account.nombre)} (${money(finAccountBalance(account))})</option>`).join("");
+    const options = current => accounts.map(account => `<option value="${esc(account.id)}"${selected(current, account.id)}>${esc(account.nombre)} (${financeCore.formatAccountMoney(account, finAccountBalance(account), money)})</option>`).join("");
     abrirEditor("Nueva transferencia", "Mueve dinero entre cuentas propias. El patrimonio no se duplica ni desaparece.", `
       <label><span>Cuenta de origen</span><select name="cuentaOrigenId">${options(bank.id)}</select></label>
       <label><span>Cuenta de destino</span><select name="cuentaDestinoId">${options(target.id)}</select></label>
@@ -6743,7 +6744,7 @@
     const activeAccounts = state.accounts.filter(item => !item.oculta && item.estado !== "eliminada");
     const defaultAccount = type === "gasto" ? prefs.cuenta_gasto_default_id : prefs.cuenta_ingreso_default_id;
     const accountOptions = current => activeAccounts
-      .map(item => `<option value="${esc(item.id)}"${selected(current, item.id)}>${esc(item.nombre)} &middot; ${money(finAccountBalance(item))}</option>`).join("");
+      .map(item => `<option value="${esc(item.id)}"${selected(current, item.id)}>${esc(item.nombre)} &middot; ${financeCore.formatAccountMoney(item, finAccountBalance(item), money)}</option>`).join("");
     const bank = activeAccounts.find(item => item.nombre.toLowerCase().includes("popular")) || activeAccounts.find(item => item.tipo === "banco") || activeAccounts[0];
     const otra = activeAccounts.find(item => item.id !== (bank && bank.id)) || activeAccounts[1] || activeAccounts[0];
     const esTransfer = type === "transferencia";
@@ -6918,7 +6919,7 @@
     const account = state.accounts.find(item => item.id === accountId);
     const sources = state.accounts.filter(item => item.id !== accountId && item.tipo !== "tarjeta_credito" && !item.oculta);
     if (!card || !sources.length) { toast("Configura la tarjeta y una cuenta de pago antes de continuar."); return; }
-    const sourceOptions = sources.map(item => `<option value="${esc(item.id)}"${selected(card.cuenta_pago_id, item.id)}>${esc(item.nombre)} &middot; ${money(finAccountBalance(item))}</option>`).join("");
+    const sourceOptions = sources.map(item => `<option value="${esc(item.id)}"${selected(card.cuenta_pago_id, item.id)}>${esc(item.nombre)} &middot; ${financeCore.formatAccountMoney(item, finAccountBalance(item), money)}</option>`).join("");
     const debtCents = Math.max(0, -finAccountBalance(account));
     const debtValue = debtCents > 0 ? (debtCents / 100) : 0;
     abrirEditor("Pagar tarjeta", "Este pago reduce la cuenta de origen y la deuda de la tarjeta. No se registra como gasto otra vez.", `
@@ -7100,7 +7101,7 @@
     const accounts = (finStateCache?.accounts || []).filter(item => item.estado !== "eliminada" && !item.oculta);
     if (!accounts.length) { toast("Agrega una cuenta antes de conciliar."); return; }
     abrirEditor("Conciliar cuenta", "Selecciona la cuenta cuyo saldo físico o bancario acabas de comprobar.", `
-      <label class="field-wide"><span>Cuenta</span><select name="cuentaId">${accounts.map(item => `<option value="${esc(item.id)}">${esc(item.nombre)} · ${money(finAccountBalance(item))}</option>`).join("")}</select></label>
+      <label class="field-wide"><span>Cuenta</span><select name="cuentaId">${accounts.map(item => `<option value="${esc(item.id)}">${esc(item.nombre)} · ${financeCore.formatAccountMoney(item, finAccountBalance(item), money)}</option>`).join("")}</select></label>
       <p class="field-hint field-wide">La siguiente pantalla pedirá el saldo exacto y el motivo. El historial anterior no se borra.</p>`, async form => {
       const account = accounts.find(item => item.id === form.get("cuentaId"));
       cerrarEditor();
@@ -7209,7 +7210,7 @@
       return `<article class="money-manager-account-card fin-account visual ${style}" style="--account-primary:${primary};--account-secondary:${secondary}">
         <div class="fin-account-open">
           <span class="fin-account-visual-head">${bank?.logo ? `<i class="fin-bank-logo"><img src="${esc(bank.logo)}" alt="${esc(bank.nombre)}" loading="lazy"></i>` : `<i>${esc(icon)}</i>`}<span><b>${esc(account.nombre)}</b><small>${esc(FIN_TIPO_LABEL[account.tipo] || account.tipo)}${account.ligada_ventas ? " · ventas automáticas" : ""}</small></span></span>
-          <span class="fin-account-balance-row"><strong>${money(display)}</strong><em class="fin-account-sign">${isCard ? "Deuda" : display < 0 ? "Negativo" : "Disponible"}</em></span>
+          <span class="fin-account-balance-row"><strong>${financeCore.formatAccountMoney(account, display, money)}</strong><em class="fin-account-sign">${isCard ? "Deuda" : display < 0 ? "Negativo" : "Disponible"}</em></span>
         </div>
         <div class="button-row fin-account-actions"><button class="secondary" type="button" data-mm-account-ledger="${esc(account.id)}">Movimientos</button>${canEdit ? `<button class="secondary" type="button" data-mm-account-reconcile="${esc(account.id)}">Conciliar</button>${isCard ? `<button class="secondary" type="button" data-mm-card-consume="${esc(account.id)}">Consumo</button><button class="primary" type="button" data-mm-card-pay="${esc(account.id)}">Pagar</button>` : ""}` : ""}</div></article>`;
     }).join("") || '<div class="empty-state"><strong>Sin cuentas</strong><p>Agrega la primera cuenta para comenzar.</p></div>';
@@ -7252,13 +7253,13 @@
     const shiftClosings = state.shiftClosings || [];
     const cashExpected = shiftClosings.reduce((sum, event) => sum + Math.max(0, numero(P(event).efectivoEsperadoCentavos) - numero(P(event).montoAperturaCentavos)), 0);
     const cashCounted = shiftClosings.reduce((sum, event) => sum + Math.max(0, numero(P(event).efectivoContadoCentavos) - numero(P(event).montoAperturaCentavos)), 0);
-    $("mmKpis").innerHTML = mmMetric("Dinero disponible", money(accountState.available), "Cuentas incluidas, sin deuda de tarjetas")
+    $("mmKpis").innerHTML = mmMetric("Dinero disponible", financeCore.formatCurrencyTotals(accountState.availableByCurrency, money), "Por moneda, sin deuda de tarjetas ni conversión")
       + mmMetric("Ventas automáticas", money(movementSummary.sales), `${movementSummary.movements.filter(item => moneyManagerCore.sourceOf(item) === "venta_automatica").length} cobro(s)`, "income")
       + mmMetric("Efectivo a entregar", state.shiftClosings == null ? "No verificado" : money(cashExpected), `${shiftClosings.length} cierre(s) del mes`, "transfer")
       + mmMetric("Efectivo contado", state.shiftClosings == null ? "No verificado" : money(cashCounted), "Cierres sin fondo de apertura")
       + mmMetric("Salidas", money(movementSummary.expenses), "Gastos confirmados", "expense")
       + mmMetric("Por pagar ahora", money(obligations.payableNow), `${money(obligations.overdueDue)} vencido`, obligations.payableNow ? "bad" : "");
-    $("mmAccountStrip").innerHTML = accountState.rows.map(item => `<button type="button" data-mm-strip-account="${esc(item.id)}"><span>${esc(item.nombre)}</span><strong>${money(item.tipo === "tarjeta_credito" ? Math.max(0, -item.effective_balance_cents) : item.effective_balance_cents)}</strong><small>${item.tipo === "tarjeta_credito" ? "Deuda" : FIN_TIPO_LABEL[item.tipo] || item.tipo}</small></button>`).join("");
+    $("mmAccountStrip").innerHTML = accountState.rows.map(item => `<button type="button" data-mm-strip-account="${esc(item.id)}"><span>${esc(item.nombre)}</span><strong>${financeCore.formatAccountMoney(item, item.tipo === "tarjeta_credito" ? Math.max(0, -item.effective_balance_cents) : item.effective_balance_cents, money)}</strong><small>${item.tipo === "tarjeta_credito" ? "Deuda" : FIN_TIPO_LABEL[item.tipo] || item.tipo}</small></button>`).join("");
     $("mmAccountStrip").querySelectorAll("[data-mm-strip-account]").forEach(button => button.addEventListener("click", () => { setMoneyManagerTab("movimientos"); $("mmAccount").value = button.dataset.mmStripAccount; renderMoneyManagerMovements(); }));
     const reconciliationCount = movementSummary.movements.filter(item => moneyManagerCore.sourceOf(item) === "conciliacion").length;
     $("mmSourceSummary").innerHTML = [

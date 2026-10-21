@@ -13,7 +13,8 @@ const fixtureScript = `(() => {
     {id:business+'-popular',business_id:business,nombre:'Banco Popular · demo',tipo:'banco',saldo_actual_centavos:1260000,incluir_en_total:true},
     {id:business+'-qik',business_id:business,nombre:'Qik · demo',tipo:'banco',saldo_actual_centavos:860000,incluir_en_total:true},
     {id:business+'-bhd',business_id:business,nombre:'BHD León · demo',tipo:'banco',saldo_actual_centavos:90000,incluir_en_total:true},
-    {id:business+'-reservas',business_id:business,nombre:'Banreservas · demo',tipo:'banco',saldo_actual_centavos:190000,incluir_en_total:true}
+    {id:business+'-reservas',business_id:business,nombre:'Banreservas · demo',tipo:'banco',saldo_actual_centavos:190000,incluir_en_total:true},
+    {id:business+'-usd',business_id:business,nombre:'USD · demo',moneda:'USD',tipo:'efectivo',saldo_actual_centavos:6400,incluir_en_total:true}
   ].map(a=>({...a,reconciled_at:new Date().toISOString(),reconciled_balance_centavos:a.saldo_actual_centavos}));
   const categories=[{id:'demo-service',nombre:'Servicios',tipo:'ingreso'},...['Estudio','Materiales','Local','Transporte','Equipo','Servicios'].map((nombre,i)=>({id:'demo-expense-'+i,nombre,tipo:'gasto'}))];
   const events=business=>Array.from({length:7},(_,i)=>{const date=new Date(Date.now()-600000);date.setDate(date.getDate()-i);return {id:'demo-sale-'+i,business_id:business,event_type:'VentaCobrada',entity_id:'demo-'+i,created_at_local:date.toISOString(),payload:{ventaId:'demo-'+i,folio:100+i,totalCentavos:80000+i*15000,metodoPago:'efectivo',clienteNombre:'Cliente ficticio',cajeroNombre:'Usuario de prueba',cajaId:'demo-caja',turnoId:'demo-turno'}}});

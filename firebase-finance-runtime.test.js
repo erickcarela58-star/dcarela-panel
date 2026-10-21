@@ -101,6 +101,24 @@ test('Cierre: devolver un abono de un corte anterior resta el efectivo actual', 
   assert.equal(result.summary.diferenciaCentavos,0);
 });
 
+test('formularios manuales DOP rechazan cuentas USD sin escribir saldos ni asientos',async()=>{
+  const h=harness();
+  h.docs.set('fin_accounts/usd',{business_id:'test',tipo:'efectivo',nombre:'USD fixture',moneda:'USD',saldo_actual_centavos:6400});
+  h.api.getFinanceAccounts=async()=>[{...h.docs.get('fin_accounts/usd'),id:'usd'}];
+  h.api.getFinanceJournal=async()=>[];
+  const before=JSON.stringify([...h.docs]);
+  for(const [action,data] of [
+    ['fin.movement.create',{cuentaId:'usd',tipo:'gasto',montoCentavos:100,requestId:'usd-movement'}],
+    ['fin.transfer.create',{cuentaOrigenId:'usd',cuentaDestinoId:'bank',montoCentavos:100,requestId:'usd-source'}],
+    ['fin.transfer.create',{cuentaOrigenId:'bank',cuentaDestinoId:'usd',montoCentavos:100,requestId:'usd-target'}],
+    ['fin.account.reconcile',{cuentaId:'usd',saldoObjetivoCentavos:6300,motivo:'Fixture',requestId:'usd-reconcile'}],
+    ['expense.upsert',{cuentaId:'usd',montoCentavos:100,descripcion:'Fixture',requestId:'usd-expense'}]
+  ]) {
+    await assert.rejects(h.api.adminAction(action,'test','admin',null,data),/tipo de cambio explícito/);
+    assert.equal(JSON.stringify([...h.docs]),before,action+' no debe escribir');
+  }
+});
+
 function harness(role='admin',business='test') {
   let rejectCommit=false;
   const docs = new Map([

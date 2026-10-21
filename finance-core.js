@@ -460,6 +460,31 @@
       + projectedLedgerDeltaForAccount(account, movements);
   }
 
+  function accountCurrency(account) {
+    const code = String(account?.moneda || 'DOP').trim().toUpperCase();
+    return /^[A-Z]{3}$/.test(code) ? code : 'UNVERIFIED';
+  }
+  function formatAccountMoney(account, cents, formatDop = null) {
+    const currency = accountCurrency(account);
+    if (currency === 'UNVERIFIED' || !Number.isSafeInteger(cents)) return 'Moneda o saldo sin verificar';
+    if (currency === 'DOP' && formatDop) return formatDop(cents);
+    return new Intl.NumberFormat('es-DO', { style: 'currency', currency }).format(cents / 100);
+  }
+  function accountTotalsByCurrency(accounts, movements, include = account => Boolean(account.incluir_en_total)) {
+    const totals = new Map();
+    for (const account of accounts || []) {
+      if (!include(account)) continue;
+      const currency = accountCurrency(account);
+      totals.set(currency, (totals.get(currency) || 0) + effectiveAccountBalance(account, movements || []));
+    }
+    return [...totals].sort(([a], [b]) => a === 'DOP' ? -1 : b === 'DOP' ? 1 : a.localeCompare(b))
+      .map(([currency, centavos]) => ({ currency, centavos }));
+  }
+  function formatCurrencyTotals(totals, formatDop = null) {
+    return (totals.length ? totals : [{ currency: 'DOP', centavos: 0 }])
+      .map(row => formatAccountMoney({ moneda: row.currency }, row.centavos, formatDop)).join(' · ');
+  }
+
   const OPERATION_EVENT_TYPES = ["GastoRegistrado", "GastoEditado", "GastoAnulado", "GastoEliminado",
     "AbonoClienteRegistrado", "AbonoClienteDevuelto", "EntradaEfectivo", "SalidaEfectivo"];
 
@@ -661,6 +686,10 @@
     unrepresentedSalePayments,
     uniqueFinanceMovements,
     effectiveAccountBalance,
+    accountCurrency,
+    formatAccountMoney,
+    accountTotalsByCurrency,
+    formatCurrencyTotals,
     OPERATION_EVENT_TYPES,
     projectOperationsAsMovements,
     projectSalesAsMovements,

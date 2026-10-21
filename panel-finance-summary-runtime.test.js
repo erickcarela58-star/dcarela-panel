@@ -30,7 +30,7 @@ test('formulario de conciliacion conserva deuda negativa e identificador en rein
  const code=source.slice(source.indexOf('  function abrirConciliacionCuentaFin('),source.indexOf('  function abrirTransferenciaFin('));
  vm.runInNewContext(code+'\nabrirConciliacionCuentaFin({id:"card",nombre:"Tarjeta fixture",tipo:"tarjeta_credito"})',{
   crypto:{randomUUID:()=> 'fixed-request'},abrirEditor:(title,desc,html,callback)=>{submit=callback;},
-  finAccountBalance:()=>-40000,money:String,centavosConSignoInput:x=>Math.round(Number(x)*100),
+  financeCore:core,finAccountBalance:()=>-40000,money:String,centavosConSignoInput:x=>Math.round(Number(x)*100),
   adminWrite:async(...args)=>requests.push(args),cerrarEditor:()=>{},cargarProveedores:async()=>{}
  });
  const form=new Map([['saldo','-432.10'],['motivo','Estado bancario fixture']]);
@@ -64,7 +64,7 @@ test('transferencia incluye selector de ITBIS 0.20% y Sin ITBIS calculando centa
  let submitCallback;
  vm.runInNewContext(code + '\nabrirTransferenciaFin()', {
    crypto: { randomUUID: () => 'trf-itbis-test' },
-   finStateCache: { accounts },
+   finStateCache: { accounts }, financeCore:core,
    abrirEditor: (title, desc, html, callback) => { formHtml = html; submitCallback = callback; },
    toast: () => {}, finAccountBalance: () => 100000, money: String, esc: String, selected: () => '',
    inputDate: () => '2026-09-22', centavosInput: x => Math.round(Number(x) * 100),

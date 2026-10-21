@@ -16,11 +16,12 @@ test("las metricas y graficos cargan la capa visual unificada en escritorio y mo
   assert.match(mobileHtml, /assets\/index-[^"']+\.css/);
 });
 
-test("service worker y entradas versionadas usan el mismo build publicado", () => {
+test("service worker y entradas web usan el build publicado; entrada móvil preservada", () => {
   assert.equal(appVersion.web_version, appVersion.pwa_version);
   assert.ok(indexHtml.includes(`?v=${appVersion.build}`));
   assert.ok(panelHtml.includes(`?v=${appVersion.build}`));
-  assert.ok(mobileHtml.includes(`?v=${appVersion.build}`));
+  // La aplicación móvil queda fuera de esta entrega web por instrucción del dueño.
+  assert.ok(mobileHtml.includes(`?v=2026.10.20.1.0.117.0`));
   assert.match(serviceWorker, new RegExp(`const APP_BUILD = "${appVersion.build.replaceAll('.', '\\.')}"`));
 });
 

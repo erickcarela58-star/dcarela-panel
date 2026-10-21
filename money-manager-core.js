@@ -62,13 +62,14 @@
       ...account,
       effective_balance_cents: financeCore.effectiveAccountBalance(account, projectedMovements || []),
     }));
-    const netWorth = balances.filter(item => item.incluir_en_total)
+    const netWorth = balances.filter(item => item.incluir_en_total && financeCore.accountCurrency(item) === 'DOP')
       .reduce((sum, item) => sum + item.effective_balance_cents, 0);
-    const cardDebt = balances.filter(item => item.tipo === "tarjeta_credito")
+    const cardDebt = balances.filter(item => item.tipo === "tarjeta_credito" && financeCore.accountCurrency(item) === 'DOP')
       .reduce((sum, item) => sum + Math.max(0, -item.effective_balance_cents), 0);
-    const available = balances.filter(item => item.tipo !== "tarjeta_credito" && item.incluir_en_total)
+    const available = balances.filter(item => item.tipo !== "tarjeta_credito" && item.incluir_en_total && financeCore.accountCurrency(item) === 'DOP')
       .reduce((sum, item) => sum + item.effective_balance_cents, 0);
-    return { rows: balances, netWorth, cardDebt, available };
+    const availableByCurrency = financeCore.accountTotalsByCurrency(rows, projectedMovements || [], item => item.tipo !== 'tarjeta_credito' && item.incluir_en_total);
+    return { rows: balances, netWorth, cardDebt, available, availableByCurrency };
   }
 
   function legacyObligation(item) {

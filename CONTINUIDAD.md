@@ -41,3 +41,7 @@ Actualización del bloque: planificación unificada de préstamos/facturas/plane
 ## 2026-10-20 — cierre Web/PWA 1.0.117 autorizado
 
 El dueño pidió dejar panel y asistente en versión final. Candidato documentado en RELEASE_WEB_1.0.117_2026-10-20.md; 389/389 pruebas y gráficas conservadas. Integrada origin/main bcc4d3f para preservar Caja Windows 1.0.76. La autorización actual sustituye el límite anterior de no publicar este candidato. La verificación de Pages/HTTP se registra al completar el despliegue; no acredita instalación física.
+
+## Cierre web 1.0.118 — 20/10/2026
+Continúa 1.0.117: saldos nativos y totales por moneda; impide escribir asientos DOP desde formularios manuales con cuentas USD. 395/395 pruebas. Ver RELEASE_WEB_1.0.118_2026-10-20.md. Aplicación móvil expresamente fuera de alcance: mobile/ sin cambios frente a 891204a; instaladores Windows 1.0.76 conservados. La inspección de producción fue de lectura y canceló el editor sin guardar. Publicación HTTP/Pages y revisión autenticada se registrarán en CIERRE_PANEL_WHATSAPP_2026-10-20.md.
+

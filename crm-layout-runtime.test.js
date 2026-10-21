@@ -17,6 +17,14 @@ test('estado vacío distingue ventas confirmadas de ausencia de datos sincroniza
  assert.doesNotMatch(render(false),/Todavia no hay ventas validas hoy/);
  assert.match(render(true),/Todavia no hay ventas validas hoy/);
 });
+
+test('resumen de escritorio conserva moneda de cada cuenta',()=>{
+ const s=snapshot();s.accounts.push({id:'usd',name:'Dólares',type:'efectivo',currency:'USD',balanceCents:6400});
+ const before=JSON.stringify(s);
+ const view=layout.dashboard(C,{snapshot:s,open:()=>{},money:String,Chart:()=>null,recent:false});
+ assert.match(text(view),/US\$64\.00/);assert.match(text(view),/-40000/);
+ assert.equal(JSON.stringify(s),before);
+});
 test('actividad reciente limita los nodos a cinco sin recortar el origen de datos',()=>{
  const s=snapshot();s.recentSales=Array.from({length:80},(_,i)=>({entity_id:String(i),created_at_local:'2026-10-14T12:00:00Z',payload:{folio:i,total_centavos:100}}));
  const view=layout.dashboard(C,{snapshot:s,open:()=>{},money:String,Chart:()=>null,recent:true});

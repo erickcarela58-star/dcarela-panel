@@ -690,6 +690,12 @@
     };
   }
 
+  function assertManualDopAccount(account) {
+    if (window.DcarelaFinanceCore.accountCurrency(account) !== 'DOP') {
+      throw new Error('Esta operación manual usa DOP. La cuenta tiene otra moneda; requiere un flujo con tipo de cambio explícito. No se guardó la operación.');
+    }
+  }
+
   function financeLedgerPayload(movement, account = {}, category = {}) {
     const type = text(movement.tipo, 40).toLowerCase();
     const accountId = movement.cuenta_id || null;
@@ -967,6 +973,7 @@
         const accountById = new Map(accountDocs.map((doc, index) => [accountIds[index], doc]));
         accountById.forEach((account, value) => {
           if (!account.exists || account.data().business_id !== ctx.businessId) throw new Error(`La cuenta ${value} no existe en esta sucursal.`);
+          assertManualDopAccount(account.data());
         });
         const deltaByAccount = new Map();
         if (previousMovement && previousMovement.estado !== 'anulado') {
@@ -1198,12 +1205,14 @@
       const accounts = await DcarelaFirebase.getFinanceAccounts(ctx.businessId);
       const snapshot = accounts.find(account => account.id === accountId);
       if (!snapshot) throw new Error('La cuenta financiera no existe.');
+      assertManualDopAccount(snapshot);
       const journal = await DcarelaFirebase.getFinanceJournal(ctx.businessId, { accounts });
       let difference;
       const result = await eventTransaction(ctx, eventId, 'LedgerMovimientoRegistrado', async transaction => {
         const accountDoc = await transaction.get(accountRef);
         if (!accountDoc.exists || accountDoc.data().business_id !== ctx.businessId) throw new Error('La cuenta financiera no existe.');
-        if (['saldo_actual_centavos', 'saldo_inicial_centavos', 'reconciled_at', 'reconciled_balance_centavos', 'updated_at']
+        assertManualDopAccount(accountDoc.data());
+        if (['saldo_actual_centavos', 'saldo_inicial_centavos', 'reconciled_at', 'reconciled_balance_centavos', 'updated_at', 'moneda']
           .some(key => accountDoc.data()[key] !== snapshot[key])) throw new Error('La cuenta cambio durante la verificacion. Actualiza y reintenta.');
         const plan = window.DcarelaFinanceCore.planAccountReconciliation({ ...accountDoc.data(), id: accountId }, journal,
           { target, cutoff: createdAt, createdAt, id: movementId, reason });
@@ -1242,6 +1251,7 @@
         ]);
         if (!accountDoc.exists || accountDoc.data().business_id !== ctx.businessId) throw new Error('La cuenta financiera no existe.');
         if (categoryRef && (!categoryDoc?.exists || categoryDoc.data().business_id !== ctx.businessId)) throw new Error('La categoria financiera no existe.');
+        assertManualDopAccount(accountDoc.data());
         const current = Number(accountDoc.data().saldo_actual_centavos ?? accountDoc.data().saldo_inicial_centavos ?? 0);
         const movement = {
           id: movementId,
@@ -1286,6 +1296,7 @@
             categoryRef ? transaction.get(categoryRef) : Promise.resolve(null),
           ]);
           if (!accountDoc.exists || accountDoc.data().business_id !== ctx.businessId) throw new Error('La cuenta financiera no existe.');
+          assertManualDopAccount(accountDoc.data());
           transaction.set(eventRef, eventDocument(ctx, eventId, 'LedgerMovimientoRegistrado',
             'fin_movements', id, financeLedgerPayload(movement, accountDoc.data(), categoryDoc?.data()), createdAt));
           transaction.update(movementRef, { sync_event_id: eventId, updated_at: createdAt });
@@ -1322,6 +1333,8 @@
         if (!sourceDoc.exists || !targetDoc.exists || sourceDoc.data().business_id !== ctx.businessId || targetDoc.data().business_id !== ctx.businessId) {
           throw new Error('Las cuentas de la transferencia no son validas.');
         }
+        assertManualDopAccount(sourceDoc.data());
+        assertManualDopAccount(targetDoc.data());
         const sourceBalance = Number(sourceDoc.data().saldo_actual_centavos ?? sourceDoc.data().saldo_inicial_centavos ?? 0);
         const targetBalance = Number(targetDoc.data().saldo_actual_centavos ?? targetDoc.data().saldo_inicial_centavos ?? 0);
         const movement = {
