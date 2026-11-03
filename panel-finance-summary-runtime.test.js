@@ -11,7 +11,7 @@ test('indicadores, grafico diario y categorias comparten resultado sin abonos ni
  ].map(r=>({...r,fecha:'2026-09-10'}));
  const state={movements:rows,accounts:[],categories:[],budgetProgress:[]};
  const elements=new Map();const $=id=>{if(!elements.has(id))elements.set(id,{innerHTML:'',querySelectorAll:()=>[]});return elements.get(id);};
- const code=source.slice(source.indexOf('  async function renderFinDashboard('),source.indexOf('  function renderFinFlowChart('));
+ const code=source.slice(source.indexOf('  function finCategoryRows('),source.indexOf('  function finMovementMatches('))+source.slice(source.indexOf('  async function renderFinDashboard('),source.indexOf('  function renderFinFlowChart('));
  assert.ok(code.length>100);
  await vm.runInNewContext(code+'\nrenderFinDashboard()',{
   finStateCache:state,finRange:()=>({from:'2026-09-01',to:'2026-09-30',label:'mes fixture'}),finReferenceDate:'2026-09-10',

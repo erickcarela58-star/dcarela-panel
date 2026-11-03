@@ -6,9 +6,9 @@
   <meta name="theme-color" content="#09090b">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <meta name="apple-mobile-web-app-title" content="D' Carela POS 1.0.118">
-  <meta name="description" content="Panel web POS 1.0.118 de D' Carela Compufoto con operación responsive, cerebro local y Caja virtual completa.">
-  <title>D' Carela Compufoto | Panel POS 1.0.118</title>
+  <meta name="apple-mobile-web-app-title" content="D' Carela POS 1.0.119">
+  <meta name="description" content="Panel web POS 1.0.119 de D' Carela Compufoto con operación responsive, cerebro local y Caja virtual completa.">
+  <title>D' Carela Compufoto | Panel POS 1.0.119</title>
   <script>
     (() => {
       const panelParams = new URLSearchParams(location.search);
@@ -31,11 +31,11 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="favicon.svg">
   <link rel="apple-touch-icon" href="dcarela-logo.png">
-  <link rel="stylesheet" href="panel.css?v=2026.10.20.1.0.118.0">
-  <link rel="stylesheet" href="panel-theme.css?v=2026.10.20.1.0.118.0">
-  <link rel="stylesheet" href="visual-fidelity.css?v=2026.10.20.1.0.118.0">
-  <link rel="stylesheet" href="crm-visual.css?v=2026.10.20.1.0.118.0">
-  <link rel="stylesheet" href="crm-layout.css?v=2026.10.20.1.0.118.0">
+  <link rel="stylesheet" href="panel.css?v=2026.11.03.1.0.119.0">
+  <link rel="stylesheet" href="panel-theme.css?v=2026.11.03.1.0.119.0">
+  <link rel="stylesheet" href="visual-fidelity.css?v=2026.11.03.1.0.119.0">
+  <link rel="stylesheet" href="crm-visual.css?v=2026.11.03.1.0.119.0">
+  <link rel="stylesheet" href="crm-layout.css?v=2026.11.03.1.0.119.0">
 </head>
 <body>
   <section id="access" class="access-shell">
@@ -93,7 +93,7 @@
     <aside class="sidebar">
       <div class="brand">
         <img src="dcarela-logo.png" alt="" class="brand-logo">
-        <div><strong>D' Carela Compufoto</strong><span>Panel web 1.0.118</span></div>
+        <div><strong>D' Carela Compufoto</strong><span>Panel web 1.0.119</span></div>
       </div>
       <nav id="menu" aria-label="Navegacion principal">
         <a href="#dashboard" data-title="Resumen operativo"><span class="nav-pos-icon summary" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M13,3V9H21V3M13,21H21V11H13M3,21H11V15H3M3,13H11V3H3V13Z"/></svg></span>Resumen</a>
@@ -125,7 +125,7 @@
     <div class="workspace">
       <header class="topbar">
         <button id="btnVolver" class="topbar-back" type="button" title="Volver" aria-label="Volver">&#8592;</button>
-        <div class="topbar-title"><p class="eyebrow" id="branchEyebrow">D' Carela POS 1.0.118</p><h1 id="pageTitle">Resumen operativo</h1></div>
+        <div class="topbar-title"><p class="eyebrow" id="branchEyebrow">D' Carela POS 1.0.119</p><h1 id="pageTitle">Resumen operativo</h1></div>
         <div class="top-actions">
           <label class="branch-switcher" for="branchSelector">
             <span>Sucursal</span>
@@ -557,12 +557,17 @@
               </div>
               <details class="finance-movement-filters"><summary>Filtrar movimientos</summary><div class="finance-filters">
                 <label class="filter-grow"><span>Buscar</span><input id="finMovementSearch" type="search" placeholder="Descripcion, persona, categoria o folio"></label>
-                <label><span>Tipo</span><select id="finMovementType"><option value="">Todos</option><option value="ingreso">Ingresos</option><option value="gasto">Gastos</option><option value="transferencia">Transferencias</option></select></label>
+                <label><span>Tipo</span><select id="finMovementType"><option value="">Todos</option><option value="ingreso">Ingresos</option><option value="gasto">Gastos</option><option value="gastos_resultado">Gastos del resultado y comisiones</option><option value="transferencia">Transferencias</option></select></label>
                 <label><span>Cuenta</span><select id="finMovementAccount"><option value="">Todas</option></select></label>
                 <label><span>Categoria</span><select id="finMovementCategory"><option value="">Todas</option></select></label>
+                <label><span>Desde</span><input id="finMovementFrom" type="date"></label>
+                <label><span>Hasta</span><input id="finMovementTo" type="date"></label>
+                <button id="btnFinClearFilters" type="button" class="secondary">Limpiar filtros</button>
               </div></details>
+              <p id="finMovementScope" class="field-hint" role="status"></p>
               <div class="button-row finance-export-row"><button id="btnFinExportCsv" class="secondary">CSV / Excel</button><button id="btnFinExportPdf" class="secondary">PDF</button><button id="btnFinBackup" class="secondary">Copia completa</button></div>
               <div id="finMovimientosTabla" class="table-wrap"></div>
+              <nav id="finMovementPages" class="button-row finance-export-row" aria-label="Páginas del historial financiero"></nav>
               <details class="finance-legacy-details"><summary>Administrar gastos importados o registrados desde la caja</summary><div id="provGastosTabla" class="table-wrap"></div></details>
             </div>
           </section>
@@ -587,7 +592,7 @@
           </section>
 
           <section id="provPanelTarjetas" class="cost-panel oculto">
-            <div class="surface-title"><div><h3>Tarjetas de credito</h3><p>Deuda y disponible en tiempo real. Corte el dia 30; pago maximo el dia 5 del mes siguiente.</p></div><button id="btnFinNuevaTarjeta" class="primary admin-only oculto">Configurar tarjeta</button></div>
+            <div class="surface-title"><div><h3>Tarjetas de credito</h3><p>Deuda y disponible según el último estado recibido. Cada tarjeta muestra sus fechas de corte y pago configuradas.</p></div><button id="btnFinNuevaTarjeta" class="primary admin-only oculto">Configurar tarjeta</button></div>
             <div id="finTarjetasCards" class="finance-card-grid"></div>
           </section>
 
@@ -1193,26 +1198,26 @@
       business: 'dcarela'
     };
   </script>
-  <script src="tool-layout-core.js?v=2026.10.20.1.0.118.0"></script>
+  <script src="tool-layout-core.js?v=2026.11.03.1.0.119.0"></script>
 <script src="supabase.min.js"></script>
   <script src="firebase-config.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
-  <script src="finance-revision-core.js?v=2026.10.20.1.0.118.0"></script>
-  <script src="device-health-core.js?v=2026.10.20.1.0.118.0"></script>
-  <script src="finance-core.js?v=2026.10.20.1.0.118.0"></script>
-  <script src="money-manager-core.js?v=2026.10.20.1.0.118.0"></script>
-  <script src="client-period-filter.js?v=2026.10.20.1.0.118.0"></script>
-  <script src="virtual-cash-core.js?v=2026.10.20.1.0.118.0"></script>
-  <script src="firebase-adapter.js?v=2026.10.20.1.0.118.0"></script>
-  <script src="assistant-local.js?v=2026.10.20.1.0.118.0"></script>
+  <script src="finance-revision-core.js?v=2026.11.03.1.0.119.0"></script>
+  <script src="device-health-core.js?v=2026.11.03.1.0.119.0"></script>
+  <script src="finance-core.js?v=2026.11.03.1.0.119.0"></script>
+  <script src="money-manager-core.js?v=2026.11.03.1.0.119.0"></script>
+  <script src="client-period-filter.js?v=2026.11.03.1.0.119.0"></script>
+  <script src="virtual-cash-core.js?v=2026.11.03.1.0.119.0"></script>
+  <script src="firebase-adapter.js?v=2026.11.03.1.0.119.0"></script>
+  <script src="assistant-local.js?v=2026.11.03.1.0.119.0"></script>
   <script src="jspdf.umd.min.js"></script>
   <script src="jspdf.plugin.autotable.min.js"></script>
-  <script src="ticket-termico.js?v=2026.10.20.1.0.118.0"></script>
-  <script src="panel-sale-pending.js?v=2026.10.20.1.0.118.0"></script>
-  <script src="panel.js?v=2026.10.20.1.0.118.0"></script>
-  <script src="visual-fidelity.js?v=2026.10.20.1.0.118.0"></script>
+  <script src="ticket-termico.js?v=2026.11.03.1.0.119.0"></script>
+  <script src="panel-sale-pending.js?v=2026.11.03.1.0.119.0"></script>
+  <script src="panel.js?v=2026.11.03.1.0.119.0"></script>
+  <script src="visual-fidelity.js?v=2026.11.03.1.0.119.0"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));

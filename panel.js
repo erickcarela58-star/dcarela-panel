@@ -24,7 +24,7 @@
     document.body?.classList.add("is-embedded");
   }
   const THEME_KEY = "dcarela.ui.theme";
-  const APP_BUILD = "1.0.118";
+  const APP_BUILD = "1.0.119";
   const financeCore = window.DcarelaFinanceCore;
   const moneyManagerCore = window.DcarelaMoneyManagerCore;
 
@@ -122,6 +122,8 @@
   let finDashboardPeriod = "mes";
   let finReferenceDate = "";
   let finFilteredMovements = [];
+  let finMovementPage = 0, finMovementFilterKey = "";
+  const finMovementPageSize = 100;
   let moneyManagerTab = "resumen";
   let moneyManagerSelectedDay = "";
   let finRealtimeChannel = null;
@@ -2650,8 +2652,8 @@
     host.innerHTML = `<svg viewBox="0 0 150 60" preserveAspectRatio="none" aria-hidden="true"><defs><linearGradient id="${esc(id)}Fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${color}" stop-opacity=".38"/><stop offset="1" stop-color="${color}" stop-opacity="0"/></linearGradient></defs><polygon points="${area}" fill="url(#${esc(id)}Fill)"/><polyline points="${coordinates}" fill="none" stroke="${color}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
   }
 
-  function metric(label, value) {
-    return `<div class="metric-chip"><span>${esc(label)}</span><strong>${esc(value)}</strong></div>`;
+  function metric(label, value, detail = "") {
+    return `<div class="metric-chip"><span>${esc(label)}</span><strong>${esc(value)}</strong>${detail ? `<small>${esc(detail)}</small>` : ""}</div>`;
   }
 
   function ondaDeterministica(value, seedText = "", length = 34) {
@@ -6037,7 +6039,7 @@
 
   function desactivarCompromisoFin(commitment) {
     abrirEditor("Desactivar compromiso", "No se borra ningun pago ni saldo historico. Puedes reactivarlo editandolo.", `
-      <div class="confirm-panel field-wide"><strong>${esc(commitment.nombre)}</strong><p>${money(commitment.saldo_pendiente_centavos || 0)} pendientes.</p></div>
+      <div class="confirm-panel field-wide"><strong>${esc(commitment.nombre)}</strong><p>${commitment.saldo_pendiente_centavos == null ? "Saldo pendiente sin verificar" : `${money(commitment.saldo_pendiente_centavos)} pendientes`}.</p></div>
       <label class="field-wide"><span>Motivo</span><textarea name="motivo" rows="3" required></textarea></label>`, async form => {
       await adminWrite("fin.commitment.deactivate", commitment.id, { motivo: form.get("motivo") });
       cerrarEditor();
@@ -6071,19 +6073,21 @@
       costRecurrents: state.costRecurrents || [],
       month: state.month,
     });
-    const cardsDebt = state.accounts.filter(item => item.tipo === "tarjeta_credito")
-      .reduce((sum, item) => sum + Math.max(0, -finAccountBalance(item)), 0);
+    const cardsByCurrency = new Map();
+    state.accounts.filter(item => item.tipo === "tarjeta_credito" && item.estado !== "eliminada").forEach(account => {
+      const currency = financeCore.accountCurrency(account);
+      cardsByCurrency.set(currency, (cardsByCurrency.get(currency) || 0) + Math.max(0, -finAccountBalance(account)));
+    });
     const remote = state.cumulo || {};
     const summary = {
       compromisos_centavos: obligations?.payableNow ?? numero(remote.compromisos_centavos),
-      deuda_prestamos_centavos: obligations?.loanDebt ?? numero(remote.deuda_prestamos_centavos),
-      capital_prestamos_centavos: obligations?.loanCapital ?? numero(remote.capital_prestamos_centavos),
-      deuda_tarjetas_centavos: cardsDebt,
+      deuda_prestamos_centavos: obligations ? obligations.loanDebt : remote.deuda_prestamos_centavos,
+      capital_prestamos_centavos: obligations ? obligations.loanCapital : remote.capital_prestamos_centavos,
     };
     $("finCompromisosResumen").innerHTML = metric("Por pagar ahora", money(summary.compromisos_centavos || 0), `${money(obligations?.overdueDue || 0)} vencido`)
-      + metric("Deuda de prestamos", money(summary.deuda_prestamos_centavos || 0))
-      + metric("Capital pendiente", money(summary.capital_prestamos_centavos || 0))
-      + metric("Tarjetas", money(summary.deuda_tarjetas_centavos || 0));
+      + metric("Deuda de prestamos", summary.deuda_prestamos_centavos == null ? "--" : money(summary.deuda_prestamos_centavos), summary.deuda_prestamos_centavos == null ? "Saldo sin verificar" : "")
+      + metric("Capital pendiente", summary.capital_prestamos_centavos == null ? "--" : money(summary.capital_prestamos_centavos), summary.capital_prestamos_centavos == null ? "Saldo sin verificar" : "")
+      + metric("Tarjetas", financeCore.formatCurrencyTotals([...cardsByCurrency].map(([currency, centavos]) => ({ currency, centavos })), money), "Monedas separadas, sin conversión");
     const dueMap = new Map((remote.detalle || []).map(item => [String(item.id), item]));
     const frequencyLabel = item => {
       if (item.frecuencia === "quincenal" && (item.dia_mes_1 || item.dia_mes_2)) {
@@ -6120,20 +6124,36 @@
     $("finCompromisosTabla").querySelectorAll("[data-fin-legacy-obligation]").forEach(button => button.addEventListener("click", () => setCostTab("obligaciones")));
   }
 
-  function finMovementMatches(movement) {
+  function finCategoryRows(state) {
+    const rows = new Map((state.categories || []).map(item => [String(item.id), { ...item }]));
+    for (const movement of state.movements || []) {
+      const id = String(movement.categoria_id || "sin-categoria");
+      if (!rows.has(id)) rows.set(id, { id, nombre: id === "sin-categoria" ? "Sin categoría"
+        : String(movement.categoria_nombre || movement.categoriaNombre || movement.category_name || "").trim()
+          || `Categoría no disponible (${id.length > 16 ? `${id.slice(0, 4)}…${id.slice(-4)}` : id})`, solo_historial: true });
+    }
+    return [...rows.values()];
+  }
+
+  function finMovementMatches(movement, categoryLookup = null, accountLookup = null) {
     const state = finStateCache;
     const type = $("finMovementType")?.value || "";
     const account = $("finMovementAccount")?.value || "";
     const category = $("finMovementCategory")?.value || "";
     const query = ($("finMovementSearch")?.value || "").trim().toLocaleLowerCase("es");
-    if (type && movement.tipo !== type) return false;
+    const from = $("finMovementFrom")?.value || "", to = $("finMovementTo")?.value || "";
+    if ((from || to) && !financeCore.movementInRange(movement, from, to)) return false;
+    if (type === "gastos_resultado") {
+      if (!financeCore.isActiveMovement(movement) || !((movement.tipo === "gasto" && movement.afecta_resultado !== false)
+        || financeCore.transferCommissionCents(movement, state.movements) > 0)) return false;
+    } else if (type && movement.tipo !== type) return false;
     if (account && movement.cuenta_id !== account && movement.cuenta_destino_id !== account) return false;
-    if (category && movement.categoria_id !== category) return false;
+    if (category && String(movement.categoria_id || "sin-categoria") !== category) return false;
     if (!query) return true;
-    const accountNames = new Map(state.accounts.map(item => [item.id, item.nombre]));
-    const categoryNames = new Map(state.categories.map(item => [item.id, item.nombre]));
+    const accountNames = accountLookup || new Map(state.accounts.map(item => [item.id, item.nombre]));
+    const categoryNames = categoryLookup || new Map(finCategoryRows(state).map(item => [item.id, item.nombre]));
     return [movement.descripcion, movement.payee, movement.nota, movement.venta_folio,
-      accountNames.get(movement.cuenta_id), accountNames.get(movement.cuenta_destino_id), categoryNames.get(movement.categoria_id)]
+      accountNames.get(movement.cuenta_id), accountNames.get(movement.cuenta_destino_id), categoryNames.get(movement.categoria_id || "sin-categoria")]
       .some(value => String(value || "").toLocaleLowerCase("es").includes(query));
   }
 
@@ -6141,15 +6161,21 @@
     const state = finStateCache;
     if (!state) return;
     const accounts = new Map(state.accounts.map(item => [item.id, item.nombre]));
-    const categories = new Map(state.categories.map(item => [item.id, item.nombre]));
+    const categoryRows = finCategoryRows(state);
+    const categories = new Map(categoryRows.map(item => [item.id, item.nombre]));
     const accountValue = $("finMovementAccount")?.value || "";
     const categoryValue = $("finMovementCategory")?.value || "";
     $("finMovementAccount").innerHTML = `<option value="">Todas</option>${state.accounts.map(item => `<option value="${esc(item.id)}"${selected(accountValue, item.id)}>${esc(item.nombre)}</option>`).join("")}`;
-    $("finMovementCategory").innerHTML = `<option value="">Todas</option>${state.categories.map(item => `<option value="${esc(item.id)}"${selected(categoryValue, item.id)}>${esc(item.nombre)}</option>`).join("")}`;
-    finFilteredMovements = state.movements.filter(finMovementMatches);
+    $("finMovementCategory").innerHTML = `<option value="">Todas</option>${categoryRows.map(item => `<option value="${esc(item.id)}"${selected(categoryValue, item.id)}>${esc(item.nombre)}</option>`).join("")}`;
+    finFilteredMovements = state.movements.filter(item => finMovementMatches(item, categories, accounts));
+    const filterKey = JSON.stringify(["Type", "Account", "Category", "Search", "From", "To"].map(key => $("finMovement" + key)?.value || ""));
+    if (filterKey !== finMovementFilterKey) { finMovementPage = 0; finMovementFilterKey = filterKey; }
+    const pages = Math.max(1, Math.ceil(finFilteredMovements.length / finMovementPageSize));
+    finMovementPage = Math.max(0, Math.min(finMovementPage, pages - 1));
+    const pageStart = finMovementPage * finMovementPageSize;
     renderFinAccountDetail();
     const headers = ["Fecha", "Tipo", "Cuenta", "Categoria", "Detalle", "Monto", ""];
-    $("finMovimientosTabla").innerHTML = tabla(finFilteredMovements, movement => {
+    $("finMovimientosTabla").innerHTML = tabla(finFilteredMovements.slice(pageStart, pageStart + finMovementPageSize), movement => {
       const expense = movement.tipo === "gasto";
       const sign = expense ? "-" : movement.tipo === "ingreso" ? "+" : "";
       const accountText = movement.tipo === "transferencia"
@@ -6165,12 +6191,25 @@
         && ["panel", "asistente", "movil"].includes(movement.origen);
       const canPublish = canEdit && movement.origen === "panel" && movement.estado !== "anulado" && !movement.sync_event_id;
       const actions = `${canPublish ? `<button class="mini" data-fin-publish="${esc(movement.id)}" title="Enviar al ledger global">Sincronizar</button>` : ""}${canCancel ? `<button class="mini danger" data-fin-cancel="${esc(movement.id)}" title="Anular sin borrar historial">Anular</button>` : ""}`;
-      return [esc(dateOnly(movement.fecha)), typeText, accountText, esc(categories.get(movement.categoria_id) || "--"),
+      return [esc(dateOnly(movement.fecha)), typeText + (financeCore.isActiveMovement(movement) ? "" : ` <span class="tag bad">${esc(movement.estado || "Sin confirmar")}</span>`), accountText, esc(categories.get(movement.categoria_id || "sin-categoria") || "--"),
         `<span class="cost-name">${esc(detail)}</span><small class="cost-sub">${esc(movement.nota || movement.venta_folio ? `${movement.nota || ""}${movement.venta_folio ? ` Folio #${movement.venta_folio}` : ""}` : movement.origen || "")}</small>`,
         `<span class="amount ${expense ? "neg" : movement.tipo === "ingreso" ? "pos" : ""}">${sign}${money(movement.monto_centavos)}</span>`,
         actions ? `<div class="row-actions">${actions}</div>` : ""];
     }, headers);
-    if (!finFilteredMovements.length && accountValue) $("finMovimientosTabla").innerHTML = '<div class="empty-state">No hay movimientos cargados para esta cuenta con estos filtros.</div>';
+    const from = $("finMovementFrom")?.value || "", to = $("finMovementTo")?.value || "";
+    if ($("finMovementScope")) $("finMovementScope").textContent = `${finFilteredMovements.length} movimiento(s) del libro cargado${state.month ? ` (${state.month})` : ""} · ${from || "Desde el primer registro cargado"} — ${to || "hasta el último registro cargado"}.`
+      + ($("finMovementType")?.value === "gastos_resultado" ? " Las transferencias conservan su importe; solo su comisión suma al gasto." : "");
+    if (from && to && from > to) $("finMovimientosTabla").innerHTML = '<p class="error" role="alert">La fecha inicial no puede ser posterior a la final.</p>';
+    else if (!finFilteredMovements.length) $("finMovimientosTabla").innerHTML = '<div class="empty-state">No hay movimientos cargados con estos filtros.</div>';
+    if ($("finMovementPages")) {
+      $("finMovementPages").innerHTML = pages > 1 ? `<button type="button" class="secondary" data-fin-page="${finMovementPage - 1}"${finMovementPage === 0 ? " disabled" : ""}>Anterior</button><span role="status">${pageStart + 1}–${Math.min(pageStart + finMovementPageSize, finFilteredMovements.length)} de ${finFilteredMovements.length} · Página ${finMovementPage + 1} de ${pages}</span><button type="button" class="secondary" data-fin-page="${finMovementPage + 1}"${finMovementPage === pages - 1 ? " disabled" : ""}>Siguiente</button>` : "";
+      $("finMovementPages").querySelectorAll("[data-fin-page]").forEach(button => button.addEventListener("click", () => {
+        const direction = Number(button.dataset.finPage) > finMovementPage ? 1 : -1;
+        finMovementPage = Number(button.dataset.finPage);
+        renderFinMovements();
+        ($("finMovementPages").querySelector(`[data-fin-page="${finMovementPage + direction}"]:not(:disabled)`) || $("finMovementPages").querySelector("button:not(:disabled)"))?.focus();
+      }));
+    }
     $("finMovimientosTabla").querySelectorAll("[data-fin-cancel]").forEach(button => button.addEventListener("click", () => {
       const movement = state.movements.find(item => item.id === button.dataset.finCancel);
       if (movement) confirmarAnularMovimientoFin(movement);
@@ -6266,17 +6305,19 @@
       const debt = Math.max(0, -balance);
       const aFavor = Math.max(0, balance);
       const color = esc(card?.color || "#18181B");
+      const editable = canEdit && financeCore.accountCurrency(account) === "DOP";
+      const amount = cents => financeCore.formatAccountMoney(account, cents, money);
       const avisoFavor = aFavor > 0
-        ? `<div class="finance-card-warning">Saldo a favor ${money(aFavor)}. En una tarjeta de credito revisa el saldo inicial: deberia ser tu deuda (o 0), no un monto positivo. Editala para que tus consumos se reflejen como deuda.</div>`
+        ? `<div class="finance-card-warning">Saldo a favor ${amount(aFavor)}. En una tarjeta de credito revisa el saldo inicial: deberia ser tu deuda (o 0), no un monto positivo.</div>`
         : "";
-      const acciones = `<div class="finance-card-actions">
+      const acciones = editable ? `<div class="finance-card-actions">
           <button type="button" class="finance-card-consumo" data-fin-card-consumo="${esc(account.id)}">Registrar consumo</button>
           <button type="button" class="finance-card-pay" data-fin-card-pay="${esc(account.id)}">Registrar pago</button>
-        </div>`;
+        </div>` : `<div class="finance-card-warning">${canEdit ? "Consulta en su moneda. Los registros manuales del panel admiten cuentas DOP." : "Solo lectura"}</div>`;
       if (!card) {
         return `<article class="finance-credit-card partial" style="--card-color:${color}">
-          <button type="button" class="finance-card-edit" data-fin-card="${esc(account.id)}" title="Configurar tarjeta">Configurar</button>
-          <span>${esc(account.nombre)}</span><strong>${money(debt)}</strong><small>Deuda actual</small>
+          ${editable ? `<button type="button" class="finance-card-edit" data-fin-card="${esc(account.id)}" title="Configurar tarjeta">Configurar</button>` : ""}
+          <span>${esc(account.nombre)}</span><strong>${amount(debt)}</strong><small>Deuda actual</small>
           <div class="finance-card-line"><span>Falta configurar</span><b>Corte, pago y limite</b></div>
           ${avisoFavor}
           ${acciones}
@@ -6286,9 +6327,9 @@
       const dates = finCardDates(card);
       const percent = card.limite_credito_centavos ? Math.min(100, Math.round(debt * 100 / card.limite_credito_centavos)) : 0;
       return `<article class="finance-credit-card" style="--card-color:${color}">
-        <button type="button" class="finance-card-edit" data-fin-card="${esc(account.id)}" title="Editar tarjeta">Editar</button>
-        <span>${esc(account.nombre)}</span><strong>${money(debt)}</strong><small>Deuda actual</small>
-        <div class="finance-card-line"><span>Disponible</span><b>${money(available)}</b></div>
+        ${editable ? `<button type="button" class="finance-card-edit" data-fin-card="${esc(account.id)}" title="Editar tarjeta">Editar</button>` : ""}
+        <span>${esc(account.nombre)}</span><strong>${amount(debt)}</strong><small>Deuda actual</small>
+        <div class="finance-card-line"><span>Disponible</span><b>${amount(available)}</b></div>
         <div class="finance-card-line"><span>Proximo corte</span><b>${fechaCorta(dates.cut)}</b></div>
         <div class="finance-card-line"><span>Pago maximo</span><b>${fechaCorta(dates.pay)}</b></div>
         <i><em style="width:${percent}%"></em></i>
@@ -6388,14 +6429,14 @@
     }
 
     if (!categoryRows.length) {
-      const catMap = new Map(state.categories.map(c => [c.id, c.nombre]));
+      const catMap = new Map(finCategoryRows(state).map(c => [c.id, c.nombre]));
       const byCat = new Map();
       periodMovements.forEach(m => {
         const contribution = (m.tipo === "gasto" && m.afecta_resultado !== false ? numero(m.monto_centavos) : 0)
           + financeCore.transferCommissionCents(m, state.movements);
         if (!contribution) return;
         const catId = m.categoria_id || "sin-categoria";
-        const catName = catMap.get(catId) || m.payee || "Otros gastos";
+        const catName = catMap.get(catId) || "Sin categoría";
         if (!byCat.has(catId)) byCat.set(catId, { categoria_id: catId, nombre: catName, total_centavos: 0 });
         byCat.get(catId).total_centavos += contribution;
       });
@@ -6501,8 +6542,15 @@
     $("finCategoryChart").innerHTML = `<div class="finance-donut" style="--donut:${gradient}"><span><strong>${money(total)}</strong><small>Total gastado</small></span></div><div class="finance-donut-legend">${segments.map(item => `<button type="button" ${item.agrupada ? 'disabled title="Suma de las demas categorias"' : `data-fin-category-filter="${esc(item.categoria_id || "")}"`}><i style="background:${item.color}"></i><span>${esc(item.nombre)}</span><b>${Math.round(item.percent)}%</b><small>${money(item.total_centavos)}</small></button>`).join("")}</div>`;
     $("finCategoryChart").querySelectorAll("[data-fin-category-filter]").forEach(button => button.addEventListener("click", () => {
       setCostTab("movimientos");
-      $("finMovementType").value = "gasto";
+      const range = finRange();
+      $("finMovementType").value = "gastos_resultado";
+      $("finMovementAccount").value = "";
+      $("finMovementSearch").value = "";
+      $("finMovementFrom").value = range.from;
+      $("finMovementTo").value = range.to;
       $("finMovementCategory").value = button.dataset.finCategoryFilter;
+      const filters = $("finMovementCategory").closest("details");
+      if (filters) filters.open = true;
       renderFinMovements();
     }));
   }
@@ -6886,20 +6934,20 @@
 
   function abrirTarjetaFin(accountId = null) {
     const state = finStateCache;
-    const creditAccounts = state.accounts.filter(item => item.tipo === "tarjeta_credito" && item.estado !== "eliminada");
-    if (!creditAccounts.length) { toast("Agrega primero una cuenta de tipo Tarjeta de credito."); setCostTab("cuentas"); return; }
+    const creditAccounts = state.accounts.filter(item => item.tipo === "tarjeta_credito" && item.estado !== "eliminada" && financeCore.accountCurrency(item) === "DOP");
+    if (!creditAccounts.length || (accountId && !creditAccounts.some(item => item.id === accountId))) { toast("La configuración manual requiere una tarjeta DOP. Las demás monedas se consultan sin modificar."); return; }
     const account = creditAccounts.find(item => item.id === accountId) || creditAccounts[0];
     const card = state.cards.find(item => item.cuenta_id === account.id) || { cuenta_id: account.id, dia_corte: 30, dia_pago: 5, limite_credito_centavos: 0, color: "#18181B", metodo_visualizacion: "al_comprar" };
     const accountOptions = creditAccounts.map(item => `<option value="${esc(item.id)}"${selected(account.id, item.id)}>${esc(item.nombre)}</option>`).join("");
-    const payOptions = `<option value="">Selecciona la cuenta de pago</option>${state.accounts.filter(item => item.tipo !== "tarjeta_credito" && !item.oculta).map(item => `<option value="${esc(item.id)}"${selected(card.cuenta_pago_id, item.id)}>${esc(item.nombre)}</option>`).join("")}`;
+    const payOptions = `<option value="">Selecciona la cuenta de pago</option>${state.accounts.filter(item => item.tipo !== "tarjeta_credito" && !item.oculta && item.estado !== "eliminada" && financeCore.accountCurrency(item) === "DOP").map(item => `<option value="${esc(item.id)}"${selected(card.cuenta_pago_id, item.id)}>${esc(item.nombre)}</option>`).join("")}`;
     abrirEditor("Configurar tarjeta", "Las compras aumentan la deuda y reducen el disponible. El pago mueve dinero del banco a la tarjeta sin crear otro gasto.", `
       <label><span>Cuenta de tarjeta</span><select name="cuentaId">${accountOptions}</select></label>
       <label><span>Cuenta habitual de pago</span><select name="cuentaPagoId">${payOptions}</select></label>
-      <label><span>Dia de corte</span><input name="diaCorte" type="number" value="30" readonly></label>
-      <label><span>Pago maximo</span><input name="diaPago" type="number" value="5" readonly></label>
+      <label><span>Dia de corte</span><input name="diaCorte" type="number" min="1" max="31" required value="${esc(card.dia_corte ?? 30)}"></label>
+      <label><span>Pago maximo</span><input name="diaPago" type="number" min="1" max="31" required value="${esc(card.dia_pago ?? 5)}"></label>
       <label><span>Limite (RD$)</span><input name="limite" type="number" min="0" step="0.01" value="${pesoInput(card.limite_credito_centavos)}"></label>
       <label><span>Color</span><input name="color" type="color" value="${esc(card.color || "#18181B")}"></label>
-      <p class="field-hint field-wide">La tarjeta cierra el dia 30 y debe pagarse, como maximo, el dia 5 del mes siguiente.</p>
+      <p class="field-hint field-wide">Configura los días que aparecen en el estado de esta tarjeta. Los meses más cortos usan su último día.</p>
       <label class="field-wide"><span>Mostrar el gasto</span><select name="metodoVisualizacion"><option value="al_comprar"${selected(card.metodo_visualizacion, "al_comprar")}>Cuando se compra (recomendado)</option><option value="al_pagar"${selected(card.metodo_visualizacion, "al_pagar")}>Cuando se paga</option></select></label>`, async form => {
       await adminWrite("fin.card.upsert", form.get("cuentaId"), {
         cuentaId: form.get("cuentaId"), cuentaPagoId: form.get("cuentaPagoId") || null,
@@ -6910,6 +6958,7 @@
       cerrarEditor();
       await cargarProveedores(true);
     });
+    $("editorFields")?.querySelector('[name="cuentaId"]')?.addEventListener("change", event => abrirTarjetaFin(event.target.value));
   }
 
   function abrirPagoTarjetaFin(accountId) {
@@ -6917,7 +6966,7 @@
     const state = finStateCache;
     const card = state.cards.find(item => item.cuenta_id === accountId);
     const account = state.accounts.find(item => item.id === accountId);
-    const sources = state.accounts.filter(item => item.id !== accountId && item.tipo !== "tarjeta_credito" && !item.oculta);
+    const sources = state.accounts.filter(item => item.id !== accountId && item.tipo !== "tarjeta_credito" && !item.oculta && item.estado !== "eliminada" && financeCore.accountCurrency(item) === "DOP");
     if (!card || !sources.length) { toast("Configura la tarjeta y una cuenta de pago antes de continuar."); return; }
     const sourceOptions = sources.map(item => `<option value="${esc(item.id)}"${selected(card.cuenta_pago_id, item.id)}>${esc(item.nombre)} &middot; ${financeCore.formatAccountMoney(item, finAccountBalance(item), money)}</option>`).join("");
     const debtCents = Math.max(0, -finAccountBalance(account));
@@ -6991,9 +7040,9 @@
   function exportarFinCsv(selectedRows) {
     const state = finStateCache;
     const accounts = new Map(state.accounts.map(item => [item.id, item.nombre]));
-    const categories = new Map(state.categories.map(item => [item.id, item.nombre]));
+    const categories = new Map(finCategoryRows(state).map(item => [item.id, item.nombre]));
     const header = ["Fecha","Hora","Tipo","Cuenta origen","Cuenta destino","Categoria","Persona o comercio","Descripcion","Nota","Monto centavos","Monto RD$","Folio","Origen"];
-    const rows = (Array.isArray(selectedRows) ? selectedRows : finFilteredMovements).map(item => [item.fecha,item.hora || "",item.tipo,accounts.get(item.cuenta_id) || "",accounts.get(item.cuenta_destino_id) || "",categories.get(item.categoria_id) || "",item.payee || "",item.descripcion || "",item.nota || "",item.monto_centavos,(numero(item.monto_centavos)/100).toFixed(2),item.venta_folio || "",item.origen || ""]);
+    const rows = (Array.isArray(selectedRows) ? selectedRows : finFilteredMovements).map(item => [item.fecha,item.hora || "",item.tipo,accounts.get(item.cuenta_id) || "",accounts.get(item.cuenta_destino_id) || "",categories.get(item.categoria_id || "sin-categoria") || "",item.payee || "",item.descripcion || "",item.nota || "",item.monto_centavos,(numero(item.monto_centavos)/100).toFixed(2),item.venta_folio || "",item.origen || ""]);
     const csv = `\uFEFF${[header, ...rows].map(row => row.map(csvCell).join(",")).join("\r\n")}`;
     downloadBlob(new Blob([csv], { type: "text/csv;charset=utf-8" }), `DCARELA_FINANZAS_${$("provMes").value}.csv`);
   }
@@ -7001,12 +7050,12 @@
   function exportarFinPdf() {
     const state = finStateCache;
     const accounts = new Map(state.accounts.map(item => [item.id, item.nombre]));
-    const categories = new Map(state.categories.map(item => [item.id, item.nombre]));
-    const doc = nuevoPdf("Libro financiero", `Mes: ${$("provMes").value} | ${finFilteredMovements.length} movimientos filtrados`);
+    const categories = new Map(finCategoryRows(state).map(item => [item.id, item.nombre]));
+    const doc = nuevoPdf("Libro financiero", $("finMovementScope")?.textContent || `${finFilteredMovements.length} movimientos filtrados`);
     doc.autoTable({
       ...opcionesTablaPdf(), startY: 34,
       head: [["Fecha","Tipo","Cuenta","Categoria","Detalle","Monto"]],
-      body: finFilteredMovements.map(item => [item.fecha,item.tipo,accounts.get(item.cuenta_id) || "--",categories.get(item.categoria_id) || "--",item.descripcion || item.payee || "--",`${item.tipo === "gasto" ? "-" : item.tipo === "ingreso" ? "+" : ""}${money(item.monto_centavos)}`]),
+      body: finFilteredMovements.map(item => [item.fecha,item.tipo,accounts.get(item.cuenta_id) || "--",categories.get(item.categoria_id || "sin-categoria") || "--",item.descripcion || item.payee || "--",`${item.tipo === "gasto" ? "-" : item.tipo === "ingreso" ? "+" : ""}${money(item.monto_centavos)}`]),
       didParseCell: hook => {
         if (hook.section !== "body" || hook.column.index !== 5) return;
         const item = finFilteredMovements[hook.row.index];
@@ -8978,7 +9027,11 @@
         cargarProveedores().catch(error => mostrarError("finanzas", error));
       } else renderFinDashboard().catch(error => toast(error.message));
     });
-    ["finMovementType", "finMovementAccount", "finMovementCategory"].forEach(id => $(id).addEventListener("change", renderFinMovements));
+    ["finMovementType", "finMovementAccount", "finMovementCategory", "finMovementFrom", "finMovementTo"].forEach(id => $(id)?.addEventListener("change", renderFinMovements));
+    on("btnFinClearFilters", "click", () => {
+      ["finMovementType", "finMovementAccount", "finMovementCategory", "finMovementSearch", "finMovementFrom", "finMovementTo"].forEach(id => { $(id).value = ""; });
+      renderFinMovements();
+    });
     on("finMovementSearch", "input", renderFinMovements);
     on("btnFinExportCsv", "click", () => { try { exportarFinCsv(); } catch (error) { toast(error.message); } });
     on("btnFinExportPdf", "click", () => { try { exportarFinPdf(); } catch (error) { toast(error.message); } });

@@ -45,3 +45,9 @@ El dueño pidió dejar panel y asistente en versión final. Candidato documentad
 ## Cierre web 1.0.118 — 20/10/2026
 Continúa 1.0.117: saldos nativos y totales por moneda; impide escribir asientos DOP desde formularios manuales con cuentas USD. 395/395 pruebas. Ver RELEASE_WEB_1.0.118_2026-10-20.md. Aplicación móvil expresamente fuera de alcance: mobile/ sin cambios frente a 891204a; instaladores Windows 1.0.76 conservados. La inspección de producción fue de lectura y canceló el editor sin guardar. Publicación HTTP/Pages y revisión autenticada se registrarán en CIERRE_PANEL_WHATSAPP_2026-10-20.md.
 
+# Continuación del 03/11/2026 — panel web 1.0.119
+
+Rama vigente de esta revisión: `codex/panel-web-errores-20261103`, `C:\tmp\dcarela-panel-web-20261103`, desde `f7a9948` (último código publicado `085d7d8`, 1.0.118). No usar la copia antigua `dcarela-panel-publish/main` como fuente nueva.
+
+Corregidos filtros de categoría/periodo/comisiones del gráfico, monedas/permisos/configuración de tarjetas, falsos ceros en préstamos y render de historial (100 filas por página, exportación completa). Suite **408/408** y QA en banco aislado. Detalles, evidencia, límites y estado de publicación en **REVISION_PANEL_WEB_2026-11-03.md**. No se modifican registros financieros reales, Caja física, instaladores, backend, WhatsApp ni CRM/editor. Descripción comercial e integración completa del catálogo siguen identificadas como desarrollo pendiente; la revisión no las da por realizadas.
+
