@@ -38,11 +38,18 @@ Las comprobaciones reales son de lectura: no se guardan pagos, gastos, conciliac
 - Banco reproducible: `node .local-tests/web-review-preview.cjs 8897`. Usa el shell y panel reales, datos sintéticos, CSP sin conexiones y escrituras rechazadas. Variantes `?role=admin`, `?large=1` y `?slow=1`; no usa credenciales, clientes ni saldos reales.
 - Navegador: gráfico → Sin categoría conserva 2 registros (gasto/comisión), fechas y selector; lector sin acciones de tarjeta; administrador con acciones DOP y USD solo consulta; préstamo desconocido separado de cuota; 12.008 registros/100 filas/página siguiente y búsqueda desde página 2; CSV completo comprobado con la función real.
 - Inventario: editar abre; guardado deliberadamente rechazado en el banco conserva formulario, error y reintento; Cancelar funciona. Clientes: abrir y cerrar con Escape. Reportes: gráficas y tablas cargan. Escritorio 1024×768 oscuro y vista responsive 390×844 sin desbordamiento horizontal de página; esto no certifica un teléfono físico ni una app nativa.
+- Cambio Central → Plaza durante lectura lenta simulado: el iframe conserva `b=plaza-artesanal` al completar; no vuelve a Central. No demuestra la cola física de ninguna Caja.
 - Capturas con datos ficticios en `outputs` del chat: `panel-web-filtros-20261103.png`, `panel-web-tarjetas-lector-20261103.png`, `panel-web-reportes-oscuro-20261103.png`, `panel-web-tarjetas-compacto-20261103.png`. Log `work/panel-web-cambios-tests.log`.
 
 ## Publicación
 
-Preparada Web/PWA **1.0.119**, build `2026.11.03.1.0.119.0`. Entradas, caché y manifiesto coherentes; Windows 1.0.76, manifiestos/instaladores y entrada/bundle móvil conservados. Falta confirmar GitHub Pages y cotejo HTTP tras publicar. No se despliega backend, CRM ni WhatsApp.
+**Publicada y verificada:** Web/PWA **1.0.119**, build `2026.11.03.1.0.119.0`, código `4ce0a72d4dffccb4a0fbc16be1c9ab28b35b2b07`. GitHub Pages `built` sin error, 03/11/2026 15:51:07 UTC (11:51:07 America/Cuiaba).
+
+**20/20 archivos HTTP idénticos al blob Git confirmado**, incluidas ambas entradas, panel.js, service worker, manifiesto y capas/core/adapter/bundle compartidos. Se compara contra Git: el checkout Windows usa autocrlf en algunos archivos y no sirve de referencia binaria sin tenerlo en cuenta. Evidencia `outputs/panel-web-119-verificacion-http.json`.
+
+**Sesión real de Central, solo lectura:** el gráfico muestra «Sin categoría» y referencias distintas para categorías ausentes. Al pulsar «Sin categoría», el selector mantiene `sin-categoria`, tipo `gastos_resultado`, fechas 01–30/11/2026 y sus cuatro registros, sin volver a «Todas». Consola sin errores capturados en esa comprobación. Captura del área de filtros `outputs/panel-web-119-produccion-filtros.png`; no se guardó ningún movimiento.
+
+Entradas, caché y manifiesto coherentes; todos los metadatos/URLs/hashes de Windows 1.0.76 y descargas iOS son idénticos a 1.0.118. Entrada/bundle móvil conservados. No se despliega backend, CRM ni WhatsApp.
 
 ## Cola heredada que debe contrastarse
 
@@ -51,4 +58,4 @@ Preparada Web/PWA **1.0.119**, build `2026.11.03.1.0.119.0`. Entradas, caché y 
 - Descripción comercial de productos y catálogo/portafolio: desarrollo funcional pendiente del relevo anterior. Los accesos publicados siguen siendo enlaces. No se añadió un campo web que finja sincronizarse con un esquema de Caja sin soporte ni se publicaron fotos/productos inventados.
 - Sincronización por sede: la señal de Central no certifica la Caja física de Plaza.
 
-No se retoma el asistente financiero de WhatsApp, el CRM/editor ni la aplicación móvil nativa con fuentes antiguas. Los cambios y su alcance de publicación se registrarán al verificarse.
+No se retoma el asistente financiero de WhatsApp, el CRM/editor ni la aplicación móvil nativa con fuentes antiguas. Este cierre certifica las correcciones y verificaciones anteriores; mantiene visibles los desarrollos y verificaciones físicas pendientes.
