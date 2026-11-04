@@ -56,3 +56,10 @@ El dueño pidió dejar panel y asistente en versión final. Candidato documentad
 
 ## Cierre web 1.0.118 — 20/10/2026
 Continúa 1.0.117: saldos nativos y totales por moneda; impide escribir asientos DOP desde formularios manuales con cuentas USD. 395/395 pruebas. Ver RELEASE_WEB_1.0.118_2026-10-20.md. Aplicación móvil expresamente fuera de alcance: mobile/ sin cambios frente a 891204a; instaladores Windows 1.0.76 conservados. La inspección de producción fue de lectura y canceló el editor sin guardar. Publicación HTTP/Pages y revisión autenticada se registrarán en CIERRE_PANEL_WHATSAPP_2026-10-20.md.
+
+
+## Finanzas Web/PWA 1.0.121 — 04/11/2026
+
+El panel actualiza Finanzas y Money Manager tras cambios confirmados en Firebase. Los cambios del mismo asiento se agrupan en una recarga. Se invalida el diario, el saldo y la caché de facturas antes de renderizar. «Pago por verificar» aparece por separado y no entra en el total a pagar.
+
+Web publicada desde `4b77117`, build `2026.11.04.1.0.121.0`. Siete archivos HTTP coinciden con Git y pasaron 408 pruebas. Prueba Playwright con el panel real y fuentes ficticias, escritorio 1440 px y móvil 390 px. Una notificación de pago actualizó la factura, el movimiento y el saldo en la vista abierta. En la sesión de producción de Central se comprobó que las dos declaraciones de Claro aparecen como **Pago por verificar**. El primer intento de acceso agotó su plazo y el botón de reintento recuperó la sesión. Los débitos de la prueba solo se registraron en el banco aislado.
