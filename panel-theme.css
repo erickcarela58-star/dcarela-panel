@@ -4749,3 +4749,20 @@ html[data-theme="dark"] .nav-pos-icon { background: color-mix(in srgb, var(--pos
 @media (max-width: 480px) {
   html[data-theme].embedded-panel #v-dashboard .metric-strip { grid-template-columns: minmax(0, 1fr); }
 }
+
+.public-catalog-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr));
+  gap: 12px;
+  margin: 12px 0;
+}
+.public-catalog-card {
+  border: 1px solid var(--ui-border);
+  border-radius: 12px;
+  overflow: hidden;
+  min-width: 0;
+}
+.public-catalog-card img { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; }
+.public-catalog-card > div { padding: 12px; overflow-wrap: anywhere; }
+.public-catalog-card strong { display: block; }
+.public-catalog-card p { margin: 6px 0; }

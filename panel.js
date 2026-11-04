@@ -24,7 +24,7 @@
     document.body?.classList.add("is-embedded");
   }
   const THEME_KEY = "dcarela.ui.theme";
-  const APP_BUILD = "1.0.119";
+  const APP_BUILD = "1.0.120";
   const financeCore = window.DcarelaFinanceCore;
   const moneyManagerCore = window.DcarelaMoneyManagerCore;
 
@@ -4768,6 +4768,93 @@
     };
   }
 
+  const CATALOGO_PUBLICO = "https://dcarelacompufoto.com/";
+  const PORTAFOLIO_CRM = "https://crmportafolio-o2uqjp6fra-uc.a.run.app/";
+  const categoriasPublicas = {
+    xv:"XV años", infantil:"Infantil", graduacion:"Graduación",
+    cumpleanos:"Cumpleaños", embarazadas:"Embarazo", boda:"Bodas"
+  };
+  const fuentesPublicas = ["combos-data.json", "combos-boda-data.json", "portfolio-data.json", PORTAFOLIO_CRM];
+  let publicacionCatalogo = null, cargaPublica = null, limitePublico = 12;
+
+  function categoriaPublica(value) {
+    const key = String(value || "").toLowerCase();
+    return ({ embarazo:"embarazadas", bodas:"boda", quinceanera:"xv" })[key] || key;
+  }
+
+  function imagenPublica(value) {
+    try {
+      const url = new URL(value || "", CATALOGO_PUBLICO);
+      if (url.origin === new URL(PORTAFOLIO_CRM).origin && /^pf-[a-f0-9]{24}$/.test(url.searchParams.get("img") || "")) return url.href;
+      if (url.origin === new URL(CATALOGO_PUBLICO).origin && url.pathname.startsWith("/img/")) return url.href;
+    } catch { /* Una URL inválida no se renderiza. */ }
+    return "";
+  }
+
+  async function cargarCatalogoPublicado(force = false) {
+    if (cargaPublica) return cargaPublica;
+    if (publicacionCatalogo && !force) { mostrarCatalogoPublicado(); return; }
+    $("invPublicStatus").textContent = "Consultando publicaciones del estudio…";
+    cargaPublica = (async () => {
+      const resultados = await Promise.allSettled(fuentesPublicas.map(async ruta => {
+        const respuesta = await fetch(new URL(ruta, CATALOGO_PUBLICO), { credentials:"omit", cache:"no-cache", signal:AbortSignal.timeout(10000) });
+        if (!respuesta.ok) throw new Error("Fuente no disponible");
+        return respuesta.json();
+      }));
+      const [combos, bodas, fotos, fotosCRM] = resultados.map(r => r.status === "fulfilled" ? r.value : null);
+      const paquetes = Object.entries(combos || {}).flatMap(([categoria, items]) => Array.isArray(items) ? items.map(item => ({
+        categoria, nombre:item?.name, precio:item?.price, imagen:item?.bg,
+        detalle:[...(Array.isArray(item?.items) ? item.items : []), item?.incluye].filter(Boolean).join(" · ")
+      })) : []);
+      for (const grupo of Object.values(bodas?.categorias || {})) {
+        for (const item of Array.isArray(grupo?.combos) ? grupo.combos : []) paquetes.push({
+          categoria:"boda", nombre:[grupo.label, item?.nombre].filter(Boolean).join(" · "),
+          precio:item?.desde ? "Desde RD$" + Number(item.desde).toLocaleString("es-DO") : "",
+          detalle:Object.entries(item?.precios_por_cuadro || {}).map(([tamano, precio]) => tamano + " · RD$" + Number(precio).toLocaleString("es-DO")).join(" · ")
+        });
+      }
+      const galeria = (Array.isArray(fotosCRM?.items) ? fotosCRM.items : []).map(item => ({categoria:item?.categoria, imagen:item?.url}));
+      for (const item of Array.isArray(fotos) ? fotos : []) {
+        if (item?.public !== true || item.status !== "approved") continue;
+        galeria.push({categoria:item.categorySlug || item.category, imagen:item.thumbnail || item.image, nombre:item.caption});
+      }
+      publicacionCatalogo = { paquetes, galeria, fallos:resultados.map(r => r.status === "rejected") };
+      mostrarCatalogoPublicado();
+    })().finally(() => { cargaPublica = null; });
+    return cargaPublica;
+  }
+
+  function mostrarCatalogoPublicado() {
+    if (!publicacionCatalogo) return;
+    const fotos = $("invPublicKind").value === "fotos";
+    const categoria = $("invPublicCategory").value;
+    const buscar = finPlainText($("invPublicSearch").value);
+    const origen = fotos ? publicacionCatalogo.galeria : publicacionCatalogo.paquetes;
+    const vistos = new Set();
+    const lista = origen.map(item => ({
+      ...item, categoria:categoriaPublica(item.categoria), imagen:imagenPublica(item.imagen)
+    })).filter(item => {
+      if (fotos ? !item.imagen || vistos.has(item.imagen) : !item.nombre) return false;
+      if (fotos) vistos.add(item.imagen);
+      const titulo = categoriasPublicas[item.categoria] || item.categoria;
+      return (!categoria || categoria === item.categoria)
+        && finPlainText([titulo, item.nombre, item.detalle].join(" ")).includes(buscar);
+    });
+    const fallos = publicacionCatalogo.fallos.slice(fotos ? 2 : 0, fotos ? 4 : 2);
+    $("invPublicStatus").textContent = (lista.length ? lista.length + (fotos ? " fotos" : " combos") : "Sin resultados") +
+      (fallos.some(Boolean) ? ". Una fuente no respondió. Pulsa Actualizar para reintentar." : ".");
+    $("invPublicCards").innerHTML = lista.slice(0, limitePublico).map(item => {
+      const titulo = categoriasPublicas[item.categoria] || item.categoria || "Portafolio";
+      const precio = item.precio ? (String(item.precio).includes("RD$") ? item.precio : "RD$" + item.precio) : "";
+      return `<article class="public-catalog-card">
+        ${item.imagen ? `<a href="${esc(item.imagen)}" target="_blank" rel="noopener noreferrer"><img loading="lazy" decoding="async" src="${esc(item.imagen)}" alt="${esc(item.nombre || titulo)}"></a>` : ""}
+        <div><small>${esc(titulo)}</small><strong>${esc(item.nombre || "Foto publicada")}</strong>
+        ${precio ? `<p>${esc(precio)}</p>` : ""}
+        ${item.detalle ? `<details><summary>Ver qué incluye</summary><p>${esc(item.detalle)}</p></details>` : ""}</div></article>`;
+    }).join("");
+    $("invPublicMore").hidden = lista.length <= limitePublico;
+  }
+
   async function cargarInventario() {
     const { products, categories, combos } = await cargarCatalogoCloud();
     const query = $("invBuscar").value.trim().toLowerCase();
@@ -4775,7 +4862,7 @@
     categories.forEach(category => (category._ids || [category.id]).forEach(id => categoryNames.set(id, category.nombre)));
     const visible = products.filter(product => {
       if (!query) return true;
-      return [product.nombre, product.codigoBarras, categoryNames.get(product.categoriaId), product.tipo]
+      return [product.nombre, product.descripcionComercial, product.codigoBarras, categoryNames.get(product.categoriaId), product.tipo]
         .some(value => String(value || "").toLowerCase().includes(query));
     });
     const low = products.filter(product => product.activo && product.usaInventario && numero(product.stock) <= numero(product.stockMinimo)).length;
@@ -4792,7 +4879,7 @@
           }).join("; ")
         : "";
       const row = [
-        esc(product.codigoBarras || "--"), `<strong>${esc(product.nombre)}</strong><span class="sync-note">${esc(product.tipo || "producto")}</span>`,
+        esc(product.codigoBarras || "--"), `<strong>${esc(product.nombre)}</strong><span class="sync-note">${esc(product.tipo || "producto")}</span>${product.descripcionComercial ? `<span class="sync-note">${esc(product.descripcionComercial)}</span>` : ""}`,
         esc(categoryNames.get(product.categoriaId) || "Sin categoria"), money(product.precioFinalCentavos), money(product.costoCentavos),
         product.usaInventario ? esc(product.stock ?? "0") : "No aplica",
         product.tipo === "combo" ? `<button class="table-action combo-detail" data-combo-product="${esc(product.id)}">${(combo?.componentes || []).length} componente(s)</button><span class="sync-note">${esc(componentSummary || "Sin detalle sincronizado")}</span>` : "--",
@@ -4862,6 +4949,7 @@
     const categoryOptions = `<option value="">Sin categoria</option>` + categories.map(category => `<option value="${esc(category.id)}"${(category._ids || [category.id]).includes(item.categoriaId) ? " selected" : ""}>${esc(category.nombre)}</option>`).join("");
     abrirEditor(product ? "Editar producto" : "Nuevo producto", "Precios, impuestos y catalogo se replicaran en todas las cajas.", `
       <label class="field-wide"><span>Nombre</span><input name="nombre" required maxlength="180" value="${esc(item.nombre || "")}"></label>
+      <label class="field-wide"><span>Descripción comercial en el panel</span><textarea name="descripcionComercial" maxlength="500" rows="3">${esc(item.descripcionComercial || "")}</textarea></label>
       <label><span>Codigo de barras</span><input name="codigoBarras" maxlength="100" value="${esc(item.codigoBarras || "")}"></label>
       <label><span>Categoria</span><select name="categoriaId">${categoryOptions}</select></label>
       <label><span>Tipo</span><select name="tipo"><option value="producto"${selected(item.tipo, "producto")}>Producto</option><option value="servicio"${selected(item.tipo, "servicio")}>Servicio</option><option value="combo"${selected(item.tipo, "combo")}>Combo</option></select></label>
@@ -4880,6 +4968,7 @@
       const data = {
         productoId: product?.id || null,
         nombre: form.get("nombre"), codigoBarras: form.get("codigoBarras"), categoriaId: form.get("categoriaId"),
+        descripcionComercial: String(form.get("descripcionComercial") || "").trim().slice(0, 500),
         tipo: form.get("tipo"), unidadMedida: form.get("unidadMedida"),
         precioFinalCentavos: centavosInput(form.get("precio")), precioMayoreoCentavos: centavosInput(form.get("mayoreo") || 0),
         costoCentavos: centavosInput(form.get("costo") || 0), tasaItbis: decimalInput(form.get("tasaItbis") || 0),
@@ -8979,6 +9068,12 @@
       const target = $(button.dataset.reportFocus)?.closest(".surface");
       target?.scrollIntoView({ behavior: "smooth", block: "start" });
     }));
+    on("invPublicCatalog", "toggle", () => { if ($("invPublicCatalog").open) cargarCatalogoPublicado(); });
+    on("invPublicRefresh", "click", () => cargarCatalogoPublicado(true));
+    for (const id of ["invPublicKind", "invPublicCategory", "invPublicSearch"]) {
+      on(id, "input", () => { limitePublico = 12; mostrarCatalogoPublicado(); });
+    }
+    on("invPublicMore", "click", () => { limitePublico += 12; mostrarCatalogoPublicado(); });
     on("btnNuevoProducto", "click", () => abrirProducto().catch(error => toast(error.message)));
     on("btnNuevaCategoria", "click", abrirCategoria);
     on("btnNuevoCliente", "click", () => abrirCliente());
