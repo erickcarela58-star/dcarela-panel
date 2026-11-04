@@ -59,3 +59,11 @@ Entradas, caché y manifiesto coherentes; todos los metadatos/URLs/hashes de Win
 - Sincronización por sede: la señal de Central no certifica la Caja física de Plaza.
 
 No se retoma el asistente financiero de WhatsApp, el CRM/editor ni la aplicación móvil nativa con fuentes antiguas. Este cierre certifica las correcciones y verificaciones anteriores; mantiene visibles los desarrollos y verificaciones físicas pendientes.
+
+## Cierre de catálogo y portafolio · 03/11/2026
+
+Web/PWA **1.0.120** publicada. Inventario muestra combos y fotos públicas del estudio con filtros, búsqueda y carga por páginas. Consulta cuatro fuentes oficiales sin credenciales. El editor de Inventario permite guardar y buscar una descripción comercial del panel mediante el flujo de productos existente.
+
+Código `575db798fba5e1b3a464026cb67ed1df7dae928a`. Pages terminó correctamente. Los seis archivos modificados coinciden con los blobs Git servidos por HTTP. Un navegador desde el dominio publicado leyó 39 combos, 13 de boda, 257 fotos públicas del sitio y 166 publicadas por el CRM. La prueba aislada verificó filtros, exclusión de fotos ocultas y guardado y reapertura de una descripción ficticia. Pasaron 408 pruebas.
+
+La Caja `IMPRESION` de Plaza se identificó como `pos_local_firebase`. Se verificaron ocho eventos de esa terminal recibidos en Firebase el 03/11. Entre ellos quedaron registrados cierre, impresión del corte y conteo a las 17:51 (Cuiabá). Su último latido registrado fue a las 17:53. Esta evidencia corresponde a la sincronización de Plaza con Firebase y al registro del corte.
