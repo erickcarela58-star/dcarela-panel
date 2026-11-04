@@ -32,6 +32,7 @@ test('el diario empieza mientras una consulta independiente de Finanzas sigue pe
   const context = {
     authProvider: 'firebase', BUSINESS: 'fixture', window: { DcarelaFirebase: adapter },
     financeCore: { normalizeMovement: value => value }, finStateCache: null,
+    subscribeFinanceRealtime() {},
     console,
   };
   const load = vm.runInNewContext(`(${functionSource})`, context);

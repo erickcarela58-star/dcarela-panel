@@ -24,7 +24,7 @@
     document.body?.classList.add("is-embedded");
   }
   const THEME_KEY = "dcarela.ui.theme";
-  const APP_BUILD = "1.0.120";
+  const APP_BUILD = "1.0.121";
   const financeCore = window.DcarelaFinanceCore;
   const moneyManagerCore = window.DcarelaMoneyManagerCore;
 
@@ -127,6 +127,7 @@
   let moneyManagerTab = "resumen";
   let moneyManagerSelectedDay = "";
   let finRealtimeChannel = null;
+  let finFirebaseRealtime = null;
   let costAlertsAt = 0;
   let lastReportExport = null;
   let lastTurnExport = null;
@@ -5144,6 +5145,7 @@
   const todayKey = () => inputDate(new Date());
   const statusCost = item => {
     if (item.estado === "anulada" || item._stateEvent === "CostoObligacionAnulada") return "anulada";
+    if (item.estado === "pago_por_verificar") return "pago_por_verificar";
     if (numero(item.saldoCentavos) <= 0 || item.estado === "pagada") return "pagada";
     return dateOnly(item.venceEn) < todayKey() ? "vencida" : numero(item.saldoCentavos) < numero(item.montoCentavos) ? "parcial" : "pendiente";
   };
@@ -5700,6 +5702,7 @@
     try {
       if (authProvider === "firebase") {
         if (!window.DcarelaFirebase?.isAvailable) throw new Error("Firebase no está disponible.");
+        subscribeFinanceRealtime();
         const requests = [
           window.DcarelaFirebase.getFinanceAccounts(BUSINESS),
           window.DcarelaFirebase.getFinanceCategories(BUSINESS),
@@ -6151,7 +6154,7 @@
       monto_centavos: numero(item.montoCentavos ?? item.monto_centavos),
       saldo_pendiente_centavos: numero(item.saldoCentavos ?? item.saldo_centavos),
       capital_pendiente_centavos: null,
-      activo: !["anulada", "pagada", "cancelada"].includes(String(item.estado || "").toLowerCase()),
+      activo: !["anulada", "pagada", "cancelada", "pago_por_verificar"].includes(String(item.estado || "").toLowerCase()),
       estado_legacy: item.estado || "pendiente",
     }));
     const nativeIds = new Set((state.commitments || []).map(item => String(item.id)));
@@ -6200,7 +6203,7 @@
           item.proximo_vencimiento && item.proximo_vencimiento <= (obligations?.to || "") ? item.monto_centavos : 0) : 0),
         item.saldo_pendiente_centavos == null ? "--" : money(item.saldo_pendiente_centavos),
         item.capital_pendiente_centavos == null ? "--" : money(item.capital_pendiente_centavos),
-        `<span class="tag ${item.activo ? "ok" : "bad"}">${item.legacy ? esc(item.estado_legacy) : item.activo ? "Activo" : "Inactivo"}</span>`,
+        `<span class="tag ${item.estado_legacy === "pago_por_verificar" ? "warn" : item.activo ? "ok" : "bad"}">${item.legacy ? esc(item.estado_legacy === "pago_por_verificar" ? "Pago por verificar" : item.estado_legacy) : item.activo ? "Activo" : "Inactivo"}</span>`,
         actions,
       ];
     }, ["Compromiso", "Frecuencia / cuota", "Este mes", "Saldo total", "Capital", "Estado", "Acciones"]);
@@ -7427,7 +7430,38 @@
   }
 
   function subscribeFinanceRealtime() {
-    if (authProvider === "firebase") return;
+    if (authProvider === "firebase") {
+      const adapter = window.DcarelaFirebase;
+      if (finFirebaseRealtime || !adapter?.listenCollection) return;
+      let timer;
+      const subscriptions = ["fin_accounts", "fin_movements", "fin_commitments", "fin_commitment_payments",
+        "cost_obligations", "cost_payments"].map(collection => {
+        let previo = null;
+        return adapter.listenCollection(collection, [["business_id", "==", BUSINESS]], (items, meta) => {
+          if (meta?.fromCache || meta?.hasPendingWrites) return;
+          const siguiente = JSON.stringify(items);
+          const cambio = previo !== null && previo !== siguiente;
+          previo = siguiente;
+          if (!cambio) return;
+          financeWriteEpoch++;
+          if (finStateCache) finStateCache._renderedAt = 0;
+          costStateCache = null;
+          adapter.invalidateReadCache?.();
+          clearTimeout(timer);
+          timer = setTimeout(() => {
+            if (!$("v-finanzas")?.classList.contains("oculto") || !$("v-money-manager")?.classList.contains("oculto")) {
+              cargarProveedores(true).catch(error => toast(error.message));
+            }
+          }, 650);
+        }, { includeMetadataChanges: true });
+      });
+      finFirebaseRealtime = () => {
+        clearTimeout(timer);
+        subscriptions.forEach(unsubscribe => unsubscribe());
+        finFirebaseRealtime = null;
+      };
+      return;
+    }
     if (finRealtimeChannel || !sb) return;
     let timer = null;
     const refresh = () => {
@@ -7600,7 +7634,7 @@
     if (balanceLedgerResult.error) throw new Error(`No se pudo verificar el diario de las cuentas: ${balanceLedgerResult.error}`);
     const monthExpenses = state.expenses.filter(item => item.activo && monthOf(item.fecha || item._latestAt) === month);
     const monthPayments = state.payments.filter(item => monthOf(item.fecha) === month);
-    const monthObligations = state.obligations.filter(item => monthOf(item.venceEn) === month && !["anulada", "pagada"].includes(item.estado));
+    const monthObligations = state.obligations.filter(item => monthOf(item.venceEn) === month && !["anulada", "pagada", "pago_por_verificar"].includes(item.estado));
     const overdue = state.obligations.filter(item => item.estado === "vencida");
     const documentedExpensesTotal = monthExpenses.reduce((sum, item) => sum + numero(item.montoCentavos), 0);
     const paidTotal = monthPayments.reduce((sum, item) => sum + numero(item.montoCentavos), 0);
@@ -7710,8 +7744,9 @@
     if (canEdit) obligationHeaders.push("Acciones");
     $("provObligacionesTabla").innerHTML = tabla(state.obligations, item => {
       const hasDocument = Boolean(item.adjuntoNombre || item.storagePath || item.adjuntoRuta || item.adjuntoUrl);
-      const row = [esc(dateOnly(item.venceEn)), `<span class="cost-name">${esc(item.concepto)}</span><span class="cost-sub">${esc(item.acreedor || "")}</span>`, esc(item.categoria), esc(item.numeroFactura || "--"), money(item.montoCentavos), money(item.saldoCentavos), `<strong class="status-${item.estado === "pagada" ? "paid" : item.estado === "vencida" ? "overdue" : "pending"}">${esc(item.estado)}</strong>`, hasDocument ? `<button class="table-action" data-open-obligation="${esc(item.id)}">Abrir</button>` : "--"];
-      if (canEdit) row.push(`<div class="row-actions"><button class="table-action" data-edit-obligation="${esc(item.id)}">Editar</button>${numero(item.saldoCentavos) > 0 && !["anulada", "pagada"].includes(item.estado) ? `<button class="table-action" data-pay-obligation="${esc(item.id)}">Pagar</button><button class="table-action danger" data-cancel-obligation="${esc(item.id)}">Anular</button>` : ""}</div>`);
+      const enRevision = item.estado === "pago_por_verificar";
+      const row = [esc(dateOnly(item.venceEn)), `<span class="cost-name">${esc(item.concepto)}</span><span class="cost-sub">${esc(item.acreedor || "")}</span>`, esc(item.categoria), esc(item.numeroFactura || "--"), money(item.montoCentavos), enRevision ? "--" : money(item.saldoCentavos), `<strong class="status-${item.estado === "pagada" ? "paid" : item.estado === "vencida" ? "overdue" : "pending"}">${enRevision ? "Pago por verificar" : esc(item.estado)}</strong>`, hasDocument ? `<button class="table-action" data-open-obligation="${esc(item.id)}">Abrir</button>` : "--"];
+      if (canEdit) row.push(enRevision ? "Verificar cuenta y comprobante" : `<div class="row-actions"><button class="table-action" data-edit-obligation="${esc(item.id)}">Editar</button>${numero(item.saldoCentavos) > 0 && !["anulada", "pagada"].includes(item.estado) ? `<button class="table-action" data-pay-obligation="${esc(item.id)}">Pagar</button><button class="table-action danger" data-cancel-obligation="${esc(item.id)}">Anular</button>` : ""}</div>`);
       return row;
     }, obligationHeaders);
 
@@ -8608,6 +8643,7 @@
     // arranque también debe invalidarse, no solo una aplicación ya abierta.
     authGeneration++;
     sesionOk = false;
+    if (typeof finFirebaseRealtime === "function") finFirebaseRealtime();
     activeUserId = "";
     session = null;
     authProvider = "none";

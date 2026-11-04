@@ -85,7 +85,7 @@
       due,
       periodAmount: balance,
       outstanding: balance,
-      active: balance > 0 && activeState(state),
+      active: balance > 0 && state !== "pago_por_verificar" && activeState(state),
       state,
       raw: item,
     };

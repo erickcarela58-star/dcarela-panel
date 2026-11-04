@@ -1093,6 +1093,7 @@
           transaction.get(obligationRef), transaction.get(accountRef),
         ]);
         if (!obligation.exists || obligation.data().business_id !== ctx.businessId) throw new Error('La obligacion no existe.');
+        if (obligation.data().estado === 'pago_por_verificar') throw new Error('Verifica el pago anterior y su cuenta antes de registrar otro.');
         if (!account.exists || account.data().business_id !== ctx.businessId) throw new Error('La cuenta de pago no existe.');
         const current = Number(obligation.data().saldoCentavos ?? obligation.data().saldo_centavos ?? 0);
         if (amount > current) throw new Error('El pago no puede superar el saldo pendiente.');
