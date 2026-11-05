@@ -71,3 +71,9 @@ Publicada la fuente `7685701`. Compromisos activos y planes del período en la m
 409 pruebas aprobadas. Banco aislado 1440/390 px e interacción de historial. Producción recargada y autenticada en 1.0.127; diario y panel coinciden en Efectivo RD$6,301, Popular RD$4,297.53, Qik RD$142.75, deuda tarjeta RD$10,542.66 y US$64.00. Ashley/Wind no aparecen como pendientes. La prueba no registró pagos físicos nuevos. Las fuentes públicas de siete archivos coinciden byte a byte con Git.
 
 La conciliación de datos y sus auditorías se documentan en `C:/tmp/dcarela-editor-continuacion-20261102/CIERRE_FINANZAS_ESTADOS_2026-11-05.md`. El cambio financiero no reemplaza los saldos del banco por estimaciones ni ejecuta transferencias. Windows e iOS conservan sus versiones.
+
+## 05/11/2026 — Actualización Windows Caja 1.0.77
+
+Manifiesto `509a88b`: Central y Plaza 1.0.77, cierre de turno exclusivamente manual incluso tras apagado/reinicio. Web/PWA permanece 1.0.127 y las IPA no cambian. Central obligatoria y Plaza opcional conservadas. Las seis pruebas de descargas pasan. Los dos instaladores públicos se descargaron completos y coinciden con sus SHA; fuente POS `a03292c`, instalada y comprobada en la PC actual sin alterar pos.db/WAL. Las demás terminales reciben la protección al instalar la actualización, sin presumir que ya lo hicieron.
+
+Entrega y pruebas: `C:/tmp/dcarela-caja-turno-manual-20261105/docs/CIERRE_TURNO_MANUAL_2026-11-05.md`. Fuente privada `codex/caja-turno-manual-20261105`; publicación pública https://github.com/erickcarela58-star/dcarela-panel/releases/tag/pos-v1.0.77. 429 pruebas POS, 57 integrales sobre copia y autoprueba de apagado/cierre de sesión y recuperación del turno en ambos paquetes.
