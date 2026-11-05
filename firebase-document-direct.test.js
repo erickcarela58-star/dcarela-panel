@@ -20,7 +20,7 @@ test('consulta financiera directa pagina completa, conserva sucursal y no pierde
   pages++;if(pages===1)return {ok:true,status:200,json:async()=>Array.from({length:5000},(_,i)=>({document:document('event-'+String(5000-i).padStart(4,'0'))}))};
   assert.equal(q.startAt.before,false);assert.equal(q.startAt.values[1].referenceValue,document('event-0001').name);return {ok:true,status:200,json:async()=>[{document:document('last')}]};});
  const rows=await h.api.getSyncEvents('dcarela',{complete:true,includeArchives:true,from:'2026-11-01',eventTypes:['LedgerMovimientoRegistrado']});assert.equal(rows.length,5001);assert.equal(pages,2);
- for(const q of queries){const filters=q.where.compositeFilter?.filters||[q.where];assert.ok(filters.some(f=>f.fieldFilter?.field.fieldPath==='business_id'&&f.fieldFilter.value.stringValue==='dcarela'));}
+ for(const q of queries){const filters=q.where.compositeFilter?.filters||[q.where];assert.ok(filters.some(f=>f.fieldFilter?.field.fieldPath==='business_id'&&f.fieldFilter.value.stringValue==='dcarela'));if(q.from[0].collectionId==='sync_event_archives')assert.equal(q.orderBy[0].field.fieldPath,'events_to','normalización de la desigualdad como en el SDK');}
 });
 test('una falla en el archivo no se presenta como diario completo ni saldo cero',async()=>{
  const h=harness(async(_url,options)=>JSON.parse(options.body).structuredQuery.from[0].collectionId==='sync_event_archives'?{ok:false,status:503,json:async()=>({error:{status:'UNAVAILABLE'}})}:{ok:true,status:200,json:async()=>[]});

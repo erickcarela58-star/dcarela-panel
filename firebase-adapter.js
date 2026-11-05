@@ -282,6 +282,11 @@
       return {fieldFilter:{field:{fieldPath:field},op:ops[op],value:restFilterValue(value)}};
     });
     const order = [...orders];
+    // El SDK agrega estos órdenes implícitos; REST exige declararlos cuando
+    // se envía un orderBy. El archivo usa events_to >= inicio.
+    const inequality = [...new Set(conditions.filter(c=>Array.isArray(c) && ['>','>=','<','<=','!=','not-in'].includes(c[1]))
+      .map(c=>c[0]))].sort();
+    for (const field of inequality) if (!order.some(([f])=>f === field)) order.push([field,order.at(-1)?.[1] || 'asc']);
     if (!order.some(([field])=>field === '__name__')) order.push(['__name__',order.at(-1)?.[1] || 'asc']);
     const structuredQuery = {from:[{collectionId}],
       ...(filters.length ? {where:filters.length === 1 ? filters[0] : {compositeFilter:{op:'AND',filters}}} : {}),
@@ -291,7 +296,9 @@
     };
     const endpoint = parts.length ? parts.map(encodeURIComponent).join('/') + ':runQuery' : ':runQuery';
     // :runQuery va unido a documents, sin una barra adicional.
-    const rows = await firestoreDirect(endpoint, {structuredQuery});
+    let rows;
+    try { rows = await firestoreDirect(endpoint, {structuredQuery}); }
+    catch (error) { console.warn('Lectura Firestore interrumpida:', collectionId, error?.code || 'network'); throw error; }
     const failure = rows.find(row=>row.error);
     if (failure) throw Object.assign(new Error('La consulta remota no se completó.'), {code:String(failure.error.status || 'unavailable').toLowerCase().replaceAll('_','-')});
     return {metadata:{fromCache:false},docs:rows.filter(row=>row.document).map(({document})=>({
@@ -326,8 +333,6 @@
         }
         auth = firebase.auth();
         db = firebase.firestore();
-        // Evita que WebView/proxies retengan indefinidamente la respuesta en streaming.
-        if (db?.settings) db.settings({ experimentalForceLongPolling: true, merge: true });
         // Enable offline persistence if available
         if (db && db.enablePersistence) {
           db.enablePersistence({ synchronizeTabs: true }).catch(err => {
