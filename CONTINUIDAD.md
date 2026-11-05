@@ -63,3 +63,11 @@ Continúa 1.0.117: saldos nativos y totales por moneda; impide escribir asientos
 El panel actualiza Finanzas y Money Manager tras cambios confirmados en Firebase. Los cambios del mismo asiento se agrupan en una recarga. Se invalida el diario, el saldo y la caché de facturas antes de renderizar. «Pago por verificar» aparece por separado y no entra en el total a pagar.
 
 Web publicada desde `4b77117`, build `2026.11.04.1.0.121.0`. Siete archivos HTTP coinciden con Git y pasaron 408 pruebas. Prueba Playwright con el panel real y fuentes ficticias, escritorio 1440 px y móvil 390 px. Una notificación de pago actualizó la factura, el movimiento y el saldo en la vista abierta. En la sesión de producción de Central se comprobó que las dos declaraciones de Claro aparecen como **Pago por verificar**. El primer intento de acceso agotó su plazo y el botón de reintento recuperó la sesión. Los débitos de la prueba solo se registraron en el banco aislado.
+
+## Finanzas Web/PWA 1.0.127 — 05/11/2026
+
+Publicada la fuente `7685701`. Compromisos activos y planes del período en la misma lista, historial pagado/inactivo opcional con pago desactivado. Lecturas directas autenticadas para validar acceso y consultar finanzas; conserva reglas, errores, paginación por fecha/documento y el orden implícito de desigualdades. Respaldo cada 30 s de un solo evento financiero con la vista visible, sin acumular lecturas; las cifras se recargan cuando cambia.
+
+409 pruebas aprobadas. Banco aislado 1440/390 px e interacción de historial. Producción recargada y autenticada en 1.0.127; diario y panel coinciden en Efectivo RD$6,301, Popular RD$4,297.53, Qik RD$142.75, deuda tarjeta RD$10,542.66 y US$64.00. Ashley/Wind no aparecen como pendientes. La prueba no registró pagos físicos nuevos. Las fuentes públicas de siete archivos coinciden byte a byte con Git.
+
+La conciliación de datos y sus auditorías se documentan en `C:/tmp/dcarela-editor-continuacion-20261102/CIERRE_FINANZAS_ESTADOS_2026-11-05.md`. El cambio financiero no reemplaza los saldos del banco por estimaciones ni ejecuta transferencias. Windows e iOS conservan sus versiones.
