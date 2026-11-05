@@ -113,6 +113,7 @@ test('una consulta contable no reutiliza el fallback local de una consulta opera
     SYNC_EVENT_QUERY_TTL_MS:120000, SYNC_EVENT_DELTA_BATCH:500,
     syncEventQueryCache:new Map(), eventArchiveCache:new Map(),
     hasSyncQueryMarker:()=>true, markSyncQueryPrimed:()=>{},
+    canReadDirect:()=>false,
     readFirestoreQuery:async()=>{ reads++; if (!online) throw new Error('network unavailable'); return {docs:[]}; },
     console:{warn:()=>{}},
   });

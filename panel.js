@@ -24,7 +24,7 @@
     document.body?.classList.add("is-embedded");
   }
   const THEME_KEY = "dcarela.ui.theme";
-  const APP_BUILD = "1.0.125";
+  const APP_BUILD = "1.0.126";
   const financeCore = window.DcarelaFinanceCore;
   const moneyManagerCore = window.DcarelaMoneyManagerCore;
 
@@ -7446,6 +7446,18 @@
       const adapter = window.DcarelaFirebase;
       if (finFirebaseRealtime || !adapter?.listenCollection) return;
       let timer;
+      const refresh = () => {
+        financeWriteEpoch++;
+        if (finStateCache) finStateCache._renderedAt = 0;
+        costStateCache = null;
+        adapter.invalidateReadCache?.();
+        clearTimeout(timer);
+        timer = setTimeout(() => {
+          if (!$("v-finanzas")?.classList.contains("oculto") || !$("v-money-manager")?.classList.contains("oculto")) {
+            cargarProveedores(true).catch(error => toast(error.message));
+          }
+        }, 650);
+      };
       const subscriptions = ["fin_accounts", "fin_movements", "fin_commitments", "fin_commitment_payments",
         "cost_obligations", "cost_payments"].map(collection => {
         let previo = null;
@@ -7455,20 +7467,30 @@
           const cambio = previo !== null && previo !== siguiente;
           previo = siguiente;
           if (!cambio) return;
-          financeWriteEpoch++;
-          if (finStateCache) finStateCache._renderedAt = 0;
-          costStateCache = null;
-          adapter.invalidateReadCache?.();
-          clearTimeout(timer);
-          timer = setTimeout(() => {
-            if (!$("v-finanzas")?.classList.contains("oculto") || !$("v-money-manager")?.classList.contains("oculto")) {
-              cargarProveedores(true).catch(error => toast(error.message));
-            }
-          }, 650);
+          refresh();
         }, { includeMetadataChanges: true });
       });
+      let token = null, checking = false, stopped = false, failed = false;
+      const check = async () => {
+        if (stopped || checking || document.hidden || !adapter.getFinanceChangeToken
+          || ($("v-finanzas")?.classList.contains("oculto") && $("v-money-manager")?.classList.contains("oculto"))) return;
+        checking = true;
+        try {
+          const next = await adapter.getFinanceChangeToken(BUSINESS);
+          if (stopped) return;
+          if (next !== token || failed) { token = next; failed = false; refresh(); }
+        } catch (_) {
+          failed = true;
+          if (!stopped && $("finPosSyncStatus")) $("finPosSyncStatus").textContent = "Actualización automática pendiente. Reintenta para comprobar movimientos nuevos.";
+        } finally { checking = false; }
+      };
+      // Una lectura de un solo evento respalda las notificaciones del canal persistente.
+      const poll = adapter.getFinanceChangeToken ? setInterval(() => { void check(); }, 30000) : null;
+      if (poll) void check();
       finFirebaseRealtime = () => {
+        stopped = true;
         clearTimeout(timer);
+        if (poll) clearInterval(poll);
         subscriptions.forEach(unsubscribe => unsubscribe());
         finFirebaseRealtime = null;
       };

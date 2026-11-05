@@ -225,10 +225,10 @@
 
   // Las lecturas puntuales que validan el acceso no necesitan un canal persistente.
   // Se usa el ID token del usuario (reglas Firestore), nunca credenciales de servidor.
-  async function readDocumentDirect(collectionName, docId) {
+  const canReadDirect = () => typeof fetch === 'function' && cfg?.projectId && auth?.currentUser?.getIdToken;
+  async function firestoreDirect(path, body = null) {
     const user = auth.currentUser;
-    const path = [...String(collectionName).split('/'), String(docId)].map(encodeURIComponent).join('/');
-    const key = `rest-doc|${user.uid}|${path}`;
+    const key = `rest-read|${user.uid}|${path}|${JSON.stringify(body)}`;
     if (collectionReadRequests.has(key)) return collectionReadRequests.get(key);
     const request = (async () => {
       const controller = new AbortController();
@@ -236,22 +236,68 @@
       try {
         const token = await user.getIdToken();
         if (auth.currentUser?.uid !== user.uid) throw Object.assign(new Error('La sesión cambió.'), {code:'unauthenticated'});
-        const response = await fetch(`https://firestore.googleapis.com/v1/projects/${encodeURIComponent(cfg.projectId)}/databases/(default)/documents/${path}`, {
+        const response = await fetch(`https://firestore.googleapis.com/v1/projects/${encodeURIComponent(cfg.projectId)}/databases/(default)/documents${path.startsWith(':') ? '' : '/'}${path}`, {
           headers: {Authorization: `Bearer ${token}`}, signal: controller.signal, cache:'no-store', redirect:'error',
+          ...(body ? {method:'POST',body:JSON.stringify(body),headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'}} : {}),
         });
         if (auth.currentUser?.uid !== user.uid) throw Object.assign(new Error('La sesión cambió.'), {code:'unauthenticated'});
         if (response.status === 404) return null;
-        if (!response.ok) throw Object.assign(new Error('No se pudo verificar el documento remoto.'), {
-          code: response.status === 403 ? 'permission-denied' : response.status === 401 ? 'unauthenticated' : 'unavailable',
-        });
+        if (!response.ok) {
+          let error;try { error = await response.json(); } catch (_) {}
+          const detail = Array.isArray(error) ? error[0]?.error : error?.error;
+          const code = String(detail?.status || '').toLowerCase().replaceAll('_','-')
+            || (response.status === 403 ? 'permission-denied' : response.status === 401 ? 'unauthenticated' : 'unavailable');
+          if (code === 'resource-exhausted') { firestoreReadRetryAt = Date.now() + FIRESTORE_QUOTA_PAUSE_MS; throw firestoreQuotaError(); }
+          throw Object.assign(new Error('No se pudo verificar la lectura remota.'), {code});
+        }
         const document = await response.json();
         if (auth.currentUser?.uid !== user.uid) throw Object.assign(new Error('La sesión cambió.'), {code:'unauthenticated'});
-        return {id:String(docId), ...Object.fromEntries(Object.entries(document.fields || {}).map(([k,v]) => [k,restDocumentValue(v)]))};
+        return document;
       } finally { clearTimeout(timer); }
     })();
     collectionReadRequests.set(key, request);
     try { return await request; }
     finally { if (collectionReadRequests.get(key) === request) collectionReadRequests.delete(key); }
+  }
+  async function readDocumentDirect(collectionName, docId) {
+    const path = [...String(collectionName).split('/'), String(docId)].map(encodeURIComponent).join('/');
+    const document = await firestoreDirect(path);
+    return document ? {id:String(docId), ...Object.fromEntries(Object.entries(document.fields || {}).map(([k,v])=>[k,restDocumentValue(v)]))} : null;
+  }
+  function restFilterValue(value) {
+    if (value === null) return {nullValue:null};
+    if (typeof value === 'boolean') return {booleanValue:value};
+    if (typeof value === 'number') return Number.isSafeInteger(value) ? {integerValue:String(value)} : {doubleValue:value};
+    if (Array.isArray(value)) return {arrayValue:{values:value.map(restFilterValue)}};
+    if (value?.toDate) return {timestampValue:value.toDate().toISOString()};
+    if (value instanceof Date) return {timestampValue:value.toISOString()};
+    return {stringValue:String(value)};
+  }
+  async function readCollectionDirect(name, conditions = [], orders = [], maximum = null, after = null) {
+    if (Date.now() < firestoreReadRetryAt) throw firestoreQuotaError();
+    const parts = String(name).split('/'), collectionId = parts.pop();
+    const ops = {'==':'EQUAL','!=':'NOT_EQUAL','>':'GREATER_THAN','>=':'GREATER_THAN_OR_EQUAL','<':'LESS_THAN','<=':'LESS_THAN_OR_EQUAL','in':'IN','not-in':'NOT_IN','array-contains':'ARRAY_CONTAINS','array-contains-any':'ARRAY_CONTAINS_ANY'};
+    const filters = conditions.filter(c=>Array.isArray(c) && c.length === 3).map(([field,op,value]) => {
+      if (!ops[op]) throw new Error('Filtro remoto no compatible.');
+      return {fieldFilter:{field:{fieldPath:field},op:ops[op],value:restFilterValue(value)}};
+    });
+    const order = [...orders];
+    if (!order.some(([field])=>field === '__name__')) order.push(['__name__',order.at(-1)?.[1] || 'asc']);
+    const structuredQuery = {from:[{collectionId}],
+      ...(filters.length ? {where:filters.length === 1 ? filters[0] : {compositeFilter:{op:'AND',filters}}} : {}),
+      orderBy:order.map(([field,direction])=>({field:{fieldPath:field},direction:direction === 'desc' ? 'DESCENDING' : 'ASCENDING'})),
+      ...(maximum ? {limit:maximum} : {}),
+      ...(after ? {startAt:{before:false,values:order.map(([field])=> field === '__name__' ? {referenceValue:after.__restDocument.name} : after.__restDocument.fields[field])}} : {}),
+    };
+    const endpoint = parts.length ? parts.map(encodeURIComponent).join('/') + ':runQuery' : ':runQuery';
+    // :runQuery va unido a documents, sin una barra adicional.
+    const rows = await firestoreDirect(endpoint, {structuredQuery});
+    const failure = rows.find(row=>row.error);
+    if (failure) throw Object.assign(new Error('La consulta remota no se completó.'), {code:String(failure.error.status || 'unavailable').toLowerCase().replaceAll('_','-')});
+    return {metadata:{fromCache:false},docs:rows.filter(row=>row.document).map(({document})=>({
+      id:document.name.split('/').at(-1),__restDocument:document,
+      data:()=>Object.fromEntries(Object.entries(document.fields || {}).map(([k,v])=>[k,restDocumentValue(v)])),
+    }))};
   }
 
   function syncQueryMarkerKey(queryKey) {
@@ -281,7 +327,7 @@
         auth = firebase.auth();
         db = firebase.firestore();
         // Evita que WebView/proxies retengan indefinidamente la respuesta en streaming.
-        if (db?.settings) db.settings({ experimentalForceLongPolling: true });
+        if (db?.settings) db.settings({ experimentalForceLongPolling: true, merge: true });
         // Enable offline persistence if available
         if (db && db.enablePersistence) {
           db.enablePersistence({ synchronizeTabs: true }).catch(err => {
@@ -1784,6 +1830,10 @@
     async getCollection(collectionName, conditions = []) {
       const { db: d } = initFirebase();
       if (!d) throw new Error('Firestore no inicializado.');
+      if (canReadDirect()) {
+        const snap = await readCollectionDirect(collectionName, conditions);
+        return snap.docs.map(doc => ({id:doc.id,...doc.data()}));
+      }
       let q = d.collection(collectionName);
       for (const cond of conditions) {
         if (Array.isArray(cond) && cond.length === 3) {
@@ -1816,7 +1866,8 @@
       if (from) {
         try {
           const acotado = base.where('events_to', '>=', from);
-          return filas(await readFirestoreQuery(acotado, JSON.stringify(['sync_event_archives', businessId, from])));
+          return filas(canReadDirect() ? await readCollectionDirect('sync_event_archives', [['business_id','==',businessId],['events_to','>=',from]])
+            : await readFirestoreQuery(acotado, JSON.stringify(['sync_event_archives', businessId, from])));
         } catch (error) {
           const code = String(error?.code || '');
           const isFailedPrecondition = code === 'failed-precondition'
@@ -1825,7 +1876,8 @@
           if (!isFailedPrecondition) throw error;
         }
       }
-      return filas(await readFirestoreQuery(base, JSON.stringify(['sync_event_archives', businessId, 'todo'])));
+      return filas(canReadDirect() ? await readCollectionDirect('sync_event_archives', [['business_id','==',businessId]])
+        : await readFirestoreQuery(base, JSON.stringify(['sync_event_archives', businessId, 'todo'])));
     },
 
     // Lectura acotada en el servidor: ordena por la fecha indicada y corta en
@@ -1840,7 +1892,8 @@
       const ordered = base.orderBy(orderField, 'desc').limit(maximum);
       const key = JSON.stringify([collectionName, businessId, orderField, maximum]);
       try {
-        const snap = await readFirestoreQuery(ordered, key);
+        const snap = canReadDirect() ? await readCollectionDirect(collectionName, [['business_id','==',businessId]], [[orderField,'desc']], maximum)
+          : await readFirestoreQuery(ordered, key);
         return snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       } catch (error) {
         const code = String(error?.code || '');
@@ -1850,7 +1903,8 @@
         if (!failedPrecondition) throw error;
         console.warn(`[dcarela] Falta el indice ${collectionName}(business_id, ${orderField}). `
           + 'Se devuelve un lote sin ordenar hasta publicarlo.', error?.message || '');
-        const snap = await readFirestoreQuery(base.limit(maximum), `${key}|sin-orden`);
+        const snap = canReadDirect() ? await readCollectionDirect(collectionName, [['business_id','==',businessId]], [], maximum)
+          : await readFirestoreQuery(base.limit(maximum), `${key}|sin-orden`);
         return snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       }
     },
@@ -1858,7 +1912,7 @@
     async getDocument(collectionName, docId) {
       const { db: d } = initFirebase();
       if (!d) throw new Error('Firestore no inicializado.');
-      if (typeof fetch === 'function' && cfg?.projectId && auth?.currentUser?.getIdToken) {
+      if (canReadDirect()) {
         return readDocumentDirect(collectionName, docId);
       }
       const doc = await readFirestoreQuery(d.collection(collectionName).doc(docId), JSON.stringify([collectionName, docId]));
@@ -1979,6 +2033,19 @@
       return this.getCollection('products', [['business_id', '==', businessId]]);
     },
 
+    async getFinanceChangeToken(businessId = 'dcarela') {
+      const {db:d} = initFirebase();
+      if (!d) throw new Error('Firestore no inicializado.');
+      const types = ['LedgerMovimientoRegistrado','LedgerMovimientoAnulado','GastoRegistrado','GastoEditado','GastoAnulado','GastoEliminado',
+        'CostoPagoRegistrado','CostoPagoAnulado','CostoObligacionGuardada','CostoObligacionGenerada','CostoObligacionAnulada',
+        'CostoRecurrenteGuardado','CostoRecurrenteDesactivado','ReciboPagoEmitido','ReciboPagoAnulado','CajaCerrada'];
+      const conditions = [['business_id','==',businessId],['event_type','in',types]];
+      const snap = canReadDirect() ? await readCollectionDirect('sync_events', conditions, [['received_at_cloud','desc']], 1)
+        : await readFirestoreQuery(d.collection('sync_events').where('business_id','==',businessId).where('event_type','in',types)
+          .orderBy('received_at_cloud','desc').limit(1), JSON.stringify(['finance-change',businessId]));
+      return snap.docs.map(doc=>doc.id + ':' + (doc.data().received_at_cloud || '')).join('|');
+    },
+
     async getCategories(businessId = 'dcarela') {
       return this.getCollection('categories', [['business_id', '==', businessId]]);
     },
@@ -2049,11 +2116,13 @@
             // recuperaria los documentos historicos ausentes. En este camino
             // se relee el inventario actual acotado y luego se une al archivo.
             const primed = !includeArchives && cached.length > 0 && hasSyncQueryMarker(queryKey);
+            let directFrom = serverFrom;
             if (primed) {
               const latest = cached.reduce((value, event) => {
                 const received = String(event.received_at_cloud || '');
                 return received > value ? received : value;
               }, serverFrom);
+              directFrom = latest;
               serverQuery = d.collection('sync_events').where('business_id', '==', businessId);
               if (latest) serverQuery = serverQuery.where('received_at_cloud', '>=', latest);
               if (serverTo) serverQuery = serverQuery.where('received_at_cloud', '<=', serverTo);
@@ -2066,15 +2135,25 @@
                 .limit(Math.min(SYNC_EVENT_DELTA_BATCH, maximum));
             }
             let fresh;
+            const readPage = (q, key, after = null, filterTypes = true) => {
+              if (!canReadDirect()) return readFirestoreQuery(after ? q.startAfter(after) : q, key,
+                includeArchives ? {source:'server'} : {});
+              const lower = filterTypes ? directFrom : serverFrom;
+              const conditions = [['business_id','==',businessId]];
+              if (lower) conditions.push(['received_at_cloud','>=',lower]);
+              if (serverTo) conditions.push(['received_at_cloud','<=',serverTo]);
+              if (filterTypes && serverCanFilterTypes) conditions.push(['event_type',eventTypeFilter.length === 1 ? '==' : 'in',eventTypeFilter.length === 1 ? eventTypeFilter[0] : eventTypeFilter]);
+              return readCollectionDirect('sync_events', conditions, [['received_at_cloud','desc']],
+                primed && filterTypes ? Math.min(SYNC_EVENT_DELTA_BATCH,maximum) : maximum, after);
+            };
             try {
-              const snapshot = await readFirestoreQuery(serverQuery, `sync-events|${queryKey}|${primed}`,
-                includeArchives ? { source: 'server' } : {});
+              const snapshot = await readPage(serverQuery, `sync-events|${queryKey}|${primed}`);
               fresh = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
               if (complete) {
                 let page = snapshot;
                 while (page.docs.length === maximum) {
                   const last = page.docs[page.docs.length - 1];
-                  page = await readFirestoreQuery(serverQuery.startAfter(last), `sync-events|${queryKey}|after:${last.id}`, { source: 'server' });
+                  page = await readPage(serverQuery, `sync-events|${queryKey}|after:${last.id}`, last);
                   fresh.push(...page.docs.map(doc => ({ id: doc.id, ...doc.data() })));
                 }
               }
@@ -2089,15 +2168,13 @@
                 // esta listo, releer la coleccion completa con el indice base
                 // y filtrar despues: mas lento, pero nunca incompleto.
                 const fallbackQuery = makeCurrentQuery(false);
-                const fallback = await readFirestoreQuery(fallbackQuery,
-                  `sync-events|${queryKey}|fallback-unfiltered`, includeArchives ? { source: 'server' } : {});
+                const fallback = await readPage(fallbackQuery, `sync-events|${queryKey}|fallback-unfiltered`, null, false);
                 fresh = fallback.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                 if (complete) {
                   let page = fallback;
                   while (page.docs.length === maximum) {
                     const last = page.docs[page.docs.length - 1];
-                    page = await readFirestoreQuery(fallbackQuery.startAfter(last),
-                      `sync-events|${queryKey}|fallback-after:${last.id}`, { source: 'server' });
+                    page = await readPage(fallbackQuery, `sync-events|${queryKey}|fallback-after:${last.id}`, last, false);
                     fresh.push(...page.docs.map(doc => ({ id: doc.id, ...doc.data() })));
                   }
                 }
