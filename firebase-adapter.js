@@ -207,6 +207,53 @@
     }
   }
 
+  function restDocumentValue(value) {
+    if ('nullValue' in value) return null;
+    for (const key of ['stringValue', 'booleanValue', 'timestampValue', 'referenceValue', 'bytesValue']) {
+      if (key in value) return value[key];
+    }
+    if ('integerValue' in value || 'doubleValue' in value) {
+      const n = Number(value.integerValue ?? value.doubleValue);
+      if (!Number.isFinite(n) || ('integerValue' in value && !Number.isSafeInteger(n))) throw new Error('Número remoto inválido.');
+      return n;
+    }
+    if (value.arrayValue) return (value.arrayValue.values || []).map(restDocumentValue);
+    if (value.mapValue) return Object.fromEntries(Object.entries(value.mapValue.fields || {}).map(([k, v]) => [k, restDocumentValue(v)]));
+    if (value.geoPointValue) return value.geoPointValue;
+    throw new Error('Tipo de dato remoto no reconocido.');
+  }
+
+  // Las lecturas puntuales que validan el acceso no necesitan un canal persistente.
+  // Se usa el ID token del usuario (reglas Firestore), nunca credenciales de servidor.
+  async function readDocumentDirect(collectionName, docId) {
+    const user = auth.currentUser;
+    const path = [...String(collectionName).split('/'), String(docId)].map(encodeURIComponent).join('/');
+    const key = `rest-doc|${user.uid}|${path}`;
+    if (collectionReadRequests.has(key)) return collectionReadRequests.get(key);
+    const request = (async () => {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 15000);
+      try {
+        const token = await user.getIdToken();
+        if (auth.currentUser?.uid !== user.uid) throw Object.assign(new Error('La sesión cambió.'), {code:'unauthenticated'});
+        const response = await fetch(`https://firestore.googleapis.com/v1/projects/${encodeURIComponent(cfg.projectId)}/databases/(default)/documents/${path}`, {
+          headers: {Authorization: `Bearer ${token}`}, signal: controller.signal, cache:'no-store', redirect:'error',
+        });
+        if (auth.currentUser?.uid !== user.uid) throw Object.assign(new Error('La sesión cambió.'), {code:'unauthenticated'});
+        if (response.status === 404) return null;
+        if (!response.ok) throw Object.assign(new Error('No se pudo verificar el documento remoto.'), {
+          code: response.status === 403 ? 'permission-denied' : response.status === 401 ? 'unauthenticated' : 'unavailable',
+        });
+        const document = await response.json();
+        if (auth.currentUser?.uid !== user.uid) throw Object.assign(new Error('La sesión cambió.'), {code:'unauthenticated'});
+        return {id:String(docId), ...Object.fromEntries(Object.entries(document.fields || {}).map(([k,v]) => [k,restDocumentValue(v)]))};
+      } finally { clearTimeout(timer); }
+    })();
+    collectionReadRequests.set(key, request);
+    try { return await request; }
+    finally { if (collectionReadRequests.get(key) === request) collectionReadRequests.delete(key); }
+  }
+
   function syncQueryMarkerKey(queryKey) {
     return `dcarela:sync-events-primed:v1:${queryKey}`;
   }
@@ -1811,6 +1858,9 @@
     async getDocument(collectionName, docId) {
       const { db: d } = initFirebase();
       if (!d) throw new Error('Firestore no inicializado.');
+      if (typeof fetch === 'function' && cfg?.projectId && auth?.currentUser?.getIdToken) {
+        return readDocumentDirect(collectionName, docId);
+      }
       const doc = await readFirestoreQuery(d.collection(collectionName).doc(docId), JSON.stringify([collectionName, docId]));
       if (!doc.exists) return null;
       return { id: doc.id, ...doc.data() };
