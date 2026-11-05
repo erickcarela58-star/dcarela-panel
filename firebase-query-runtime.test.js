@@ -429,6 +429,16 @@ test('una cuenta sin conciliar obliga a bajar el archivo completo',async()=>{
     'recortar sin saldo base esconderia movimientos de la cuenta sin conciliar');
 });
 
+test('la cuenta nueva usa su fecha de creación sin forzar todos los archivos históricos',async()=>{
+  const accounts=[{id:'cash',reconciled_at:'2026-10-31T13:00:00Z',reconciled_balance_centavos:100000},
+    {id:'usd',created_at:'2026-10-10T10:41:00Z',saldo_actual_centavos:6400,moneda:'USD'}];
+  const h=harness(async()=>snapshot([]));
+  let options;h.api.getSyncEvents=async (_business,opts)=>{options=opts;return [];};
+  const journal=await h.api.getFinanceJournal('dcarela',{accounts,preferences:{},from:'2026-11-01'});
+  assert.equal(options.from,'2026-10-10T10:41:00Z');
+  assert.equal(require('./finance-core').effectiveAccountBalance(accounts[1],journal),6400);
+});
+
 // Y si se esta mirando un mes anterior al corte, manda el rango pedido: recortar en el corte
 // dejaria fuera justo los movimientos de ese mes.
 test('un mes anterior al corte manda sobre el corte',async()=>{

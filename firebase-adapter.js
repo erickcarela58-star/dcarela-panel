@@ -233,6 +233,8 @@
         }
         auth = firebase.auth();
         db = firebase.firestore();
+        // Evita que WebView/proxies retengan indefinidamente la respuesta en streaming.
+        if (db?.settings) db.settings({ experimentalForceLongPolling: true });
         // Enable offline persistence if available
         if (db && db.enablePersistence) {
           db.enablePersistence({ synchronizeTabs: true }).catch(err => {
@@ -2251,9 +2253,11 @@
       // antiguo cambia un saldo. Se pide desde el MENOR de dos: ese corte y el inicio del rango
       // que se esta mirando, para no quedarse corto en ninguno de los dos sentidos.
       //
-      // Si alguna cuenta no tiene corte no se recorta nada: sin saldo base, el historial
-      // completo es obligatorio. Preferir tardar antes que ensenar un saldo incompleto.
-      const cortes = accounts.map(item => item?.reconciled_at || item?.reconciledAt || '');
+      // El motor también usa la fecha de creación para cuentas sin conciliación.
+      // Una cuenta nueva no necesita eventos anteriores a su existencia. Si falta
+      // también esa fecha, se conserva la lectura completa.
+      const cortes = accounts.map(item => item?.reconciled_at || item?.reconciledAt || item?.created_at || item?.createdAt || '')
+        .map(fecha => Number.isFinite(Date.parse(fecha)) ? fecha : '');
       const desde = cortes.length && cortes.every(Boolean)
         ? [historyFrom, from, ...cortes].filter(Boolean).sort()[0]
         : '';
