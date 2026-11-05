@@ -101,7 +101,7 @@ test("Compromisos recupera las obligaciones historicas sin duplicarlas", () => {
   assert.match(panel, /getCollection\("cost_recurrents"/);
   assert.match(panel, /getCollection\("expenses"/);
   assert.match(panel, /const legacyRows = \(state\.costObligations \|\| \[\]\)\.map/);
-  assert.match(panel, /No estan borradas ni se duplicaron como compromisos nuevos/);
+  assert.match(fs.readFileSync(__dirname + '/panel.html', 'utf8'), /Ver historial pagado e inactivo/);
   assert.match(panel, /finStateCache\.costObligations = state\.obligations \|\| \[\]/);
   assert.match(panel, /data-fin-legacy-obligation/);
 });

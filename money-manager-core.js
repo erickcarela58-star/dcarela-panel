@@ -129,7 +129,7 @@
       due: financeCore.businessDay(item?.proximaFecha || item?.proxima_fecha || ""),
       periodAmount: number(item?.montoEstimadoCentavos ?? item?.monto_estimado_centavos),
       outstanding: number(item?.montoEstimadoCentavos ?? item?.monto_estimado_centavos),
-      active: item?.activo !== false,
+      active: item?.activo !== false && item?.activo !== 0,
       state: "previsto",
       raw: item,
     };

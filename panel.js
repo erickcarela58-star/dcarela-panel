@@ -24,7 +24,7 @@
     document.body?.classList.add("is-embedded");
   }
   const THEME_KEY = "dcarela.ui.theme";
-  const APP_BUILD = "1.0.121";
+  const APP_BUILD = "1.0.122";
   const financeCore = window.DcarelaFinanceCore;
   const moneyManagerCore = window.DcarelaMoneyManagerCore;
 
@@ -6154,17 +6154,27 @@
       monto_centavos: numero(item.montoCentavos ?? item.monto_centavos),
       saldo_pendiente_centavos: numero(item.saldoCentavos ?? item.saldo_centavos),
       capital_pendiente_centavos: null,
-      activo: !["anulada", "pagada", "cancelada", "pago_por_verificar"].includes(String(item.estado || "").toLowerCase()),
+      activo: !["anulada", "pagada", "cancelada", "eliminada", "eliminado", "pago_por_verificar"].includes(String(item.estado || "").toLowerCase()),
       estado_legacy: item.estado || "pendiente",
     }));
     const nativeIds = new Set((state.commitments || []).map(item => String(item.id)));
-    const rows = [...(state.commitments || []), ...legacyRows.filter(item => !nativeIds.has(String(item.legacy_id)))];
+    let rows = [...(state.commitments || []), ...legacyRows.filter(item => !nativeIds.has(String(item.legacy_id)))];
     const obligations = moneyManagerCore?.obligationSummary({
       commitments: state.commitments || [],
       costObligations: state.costObligations || [],
       costRecurrents: state.costRecurrents || [],
       month: state.month,
     });
+    const plannedRows = (obligations?.plannedMissing || []).map(item => ({
+      id: item.id, legacy: true, planned: true, nombre: item.name, nota: item.raw.acreedor || "Pago planificado",
+      frecuencia: item.raw.frecuencia, proximo_vencimiento: item.due, monto_centavos: item.periodAmount,
+      saldo_pendiente_centavos: item.outstanding, activo: true, estado_legacy: "previsto",
+    }));
+    const history = $("finCommitmentsHistory");
+    if (history) history.onchange = renderFinCommitments;
+    rows = [...rows, ...plannedRows].filter(item => history?.checked || (item.activo !== false && item.activo !== 0
+      && !["pagada", "pagado", "anulado", "anulada", "eliminada", "eliminado"].includes(String(item.estado || "").toLowerCase()))
+      || item.estado_legacy === "pago_por_verificar");
     const cardsByCurrency = new Map();
     state.accounts.filter(item => item.tipo === "tarjeta_credito" && item.estado !== "eliminada").forEach(account => {
       const currency = financeCore.accountCurrency(account);
@@ -6193,7 +6203,7 @@
       const installments = item.cuotas_totales
         ? `Cuota ${item.cuota_actual || Math.min(item.cuotas_pagadas + 1, item.cuotas_totales)} de ${item.cuotas_totales} (${Math.max(0, item.cuotas_totales - item.cuotas_pagadas)} restante(s))`
         : frequencyLabel(item);
-      const actions = item.legacy
+      const actions = item.planned ? '<button type="button" data-fin-open-plans>Ver plan</button>' : item.legacy
         ? `<button type="button" data-fin-legacy-obligation="${esc(item.legacy_id)}">Abrir en Facturas y deudas</button>`
         : canEdit ? `<div class="table-actions"><button type="button" data-fin-commitment-pay="${esc(item.id)}"${item.activo ? "" : " disabled"}>Pagar</button><button type="button" data-fin-commitment-edit="${esc(item.id)}">Editar</button>${item.activo ? `<button type="button" data-fin-commitment-off="${esc(item.id)}">Desactivar</button>` : ""}</div>` : "";
       return [
@@ -6207,9 +6217,7 @@
         actions,
       ];
     }, ["Compromiso", "Frecuencia / cuota", "Este mes", "Saldo total", "Capital", "Estado", "Acciones"]);
-    if (legacyRows.length) {
-      $("finCompromisosTabla").insertAdjacentHTML("afterbegin", `<div class="field-hint">Se recuperaron ${legacyRows.length.toLocaleString("es-DO")} obligacion(es) del historial de Facturas y deudas. No estan borradas ni se duplicaron como compromisos nuevos.</div>`);
-    }
+    $("finCompromisosTabla").querySelectorAll("[data-fin-open-plans]").forEach(button => button.addEventListener("click", () => setCostTab("recurrentes")));
     $("finCompromisosTabla").querySelectorAll("[data-fin-commitment-pay]").forEach(button => button.addEventListener("click", () => abrirPagoCompromisoFin(rows.find(item => item.id === button.dataset.finCommitmentPay))));
     $("finCompromisosTabla").querySelectorAll("[data-fin-commitment-edit]").forEach(button => button.addEventListener("click", () => abrirCompromisoFin(rows.find(item => item.id === button.dataset.finCommitmentEdit))));
     $("finCompromisosTabla").querySelectorAll("[data-fin-commitment-off]").forEach(button => button.addEventListener("click", () => desactivarCompromisoFin(rows.find(item => item.id === button.dataset.finCommitmentOff))));
