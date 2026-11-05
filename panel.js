@@ -24,7 +24,7 @@
     document.body?.classList.add("is-embedded");
   }
   const THEME_KEY = "dcarela.ui.theme";
-  const APP_BUILD = "1.0.123";
+  const APP_BUILD = "1.0.124";
   const financeCore = window.DcarelaFinanceCore;
   const moneyManagerCore = window.DcarelaMoneyManagerCore;
 
@@ -6158,7 +6158,11 @@
       estado_legacy: item.estado || "pendiente",
     }));
     const nativeIds = new Set((state.commitments || []).map(item => String(item.id)));
-    let rows = [...(state.commitments || []), ...legacyRows.filter(item => !nativeIds.has(String(item.legacy_id)))];
+    const nativeRows = (state.commitments || []).map(item => ({ ...item,
+      activo: item.activo !== false && item.activo !== 0
+        && !["pagado", "pagada", "anulado", "anulada", "cerrado", "cerrada", "eliminado", "eliminada"].includes(String(item.estado || "").toLowerCase()),
+    }));
+    let rows = [...nativeRows, ...legacyRows.filter(item => !nativeIds.has(String(item.legacy_id)))];
     const obligations = moneyManagerCore?.obligationSummary({
       commitments: state.commitments || [],
       costObligations: state.costObligations || [],
