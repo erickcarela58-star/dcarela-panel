@@ -62,6 +62,8 @@ allowed.add('shell-route-core.js');
 allowed.add('crm-layout-core.js');
 allowed.add('tool-layout-core.js');
 allowed.add('crm-layout.css');
+allowed.add('simple-finance.css');
+allowed.add('simple-finance-core.js');
 for (const folder of ['shell-assets','mobile/assets']) for (const file of fs.readdirSync(path.join(root,folder))) if (/^index-[\w-]+\.(js|css)$/.test(file)) allowed.add(folder+'/'+file);
 function createServer(){return http.createServer((req,res)=>{
   res.setHeader('Content-Security-Policy',"default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; frame-src 'self'; connect-src 'none'; form-action 'none'; base-uri 'none'; worker-src 'none'");
@@ -71,6 +73,10 @@ function createServer(){return http.createServer((req,res)=>{
   if(file==='qa-responsive.html'){
     res.setHeader('Content-Type','text/html; charset=utf-8');
     res.end('<!doctype html><html lang="es"><title>QA móvil del panel · 390 × 844</title><style>body{margin:0;padding:16px;background:#dee5f0;font:14px system-ui}h1{font-size:16px}iframe{display:block;width:390px;height:844px;border:1px solid #718096;border-radius:12px;background:white}</style><h1>QA local · viewport 390 × 844 · datos ficticios</h1><iframe title="Panel móvil de prueba" src="/mobile/index.html#finanzas"></iframe></html>');return;
+  }
+  if(file==='qa-simple-iphone.html'){
+    res.setHeader('Content-Type','text/html; charset=utf-8');
+    res.end('<!doctype html><html lang="es"><title>QA Finanzas · iPhone 15</title><style>body{margin:0;padding:16px;background:#dce5ed;font:14px system-ui}h1{font-size:16px}iframe{display:block;width:393px;height:852px;border:1px solid #718096;border-radius:28px;background:white}</style><h1>Prueba local · iPhone 15 · 393 × 852 · datos ficticios</h1><iframe title="Finanzas iPhone 15" src="/panel.html?simple=1#money-manager"></iframe></html>');return;
   }
   if(file==='preview-fixture.js'){res.setHeader('Content-Type','text/javascript');res.end(fixtureScript);return;}
   if(!allowed.has(file)){res.writeHead(404);res.end();return;}

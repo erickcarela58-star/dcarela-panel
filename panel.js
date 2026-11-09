@@ -18,6 +18,8 @@
   })();
   const BUSINESS = _urlBiz || window.__DCARELA_DEFAULT?.business || cfg?.business || "dcarela";
   const EMBEDDED = new URLSearchParams(location.search).get("embedded") === "1";
+  const SIMPLE_FINANCE = new URLSearchParams(location.search).get("simple") === "1";
+  const simpleFinanceCore = window.DcarelaSimpleFinanceCore;
   document.documentElement.classList.add("embedded-panel");
   if (EMBEDDED) {
     document.documentElement.classList.add("is-embedded");
@@ -125,6 +127,7 @@
   let finMovementPage = 0, finMovementFilterKey = "";
   const finMovementPageSize = 100;
   let moneyManagerTab = "resumen";
+  let simpleFinanceTab = SIMPLE_FINANCE ? "diario" : "";
   let moneyManagerSelectedDay = "";
   let finRealtimeChannel = null;
   let finFirebaseRealtime = null;
@@ -544,6 +547,19 @@
     $("branchCount").textContent = `${businessCatalog.length} sucursal${businessCatalog.length === 1 ? "" : "es"}`;
     const mobile = document.querySelector(".mobile-panel-link");
     if (mobile) mobile.href = `./mobile/?b=${encodeURIComponent(BUSINESS)}`;
+    const simpleLink = $("simpleModeLink");
+    if (simpleLink) {
+      simpleLink.href = SIMPLE_FINANCE
+        ? `./panel.html?b=${encodeURIComponent(BUSINESS)}#dashboard`
+        : `./panel.html?simple=1&b=${encodeURIComponent(BUSINESS)}#dashboard`;
+      simpleLink.textContent = SIMPLE_FINANCE ? "Panel completo" : "Vista simple";
+    }
+    if (SIMPLE_FINANCE) {
+      const financeLink = document.querySelector('#menu a[href="#money-manager"]');
+      if (financeLink) financeLink.dataset.title = "Finanzas";
+      const heading = document.querySelector('.money-manager-title h2');
+      if (heading) heading.textContent = "Finanzas";
+    }
     document.querySelector('a[href="#sucursales"]')?.classList.toggle("oculto", businessCatalog.length < 2);
   }
 
@@ -7230,13 +7246,80 @@
 
   function setMoneyManagerTab(tab) {
     const allowed = ["resumen", "calendario", "movimientos", "cuentas", "pagos"];
+    const changed = moneyManagerTab !== tab;
     moneyManagerTab = allowed.includes(tab) ? tab : "resumen";
+    if (SIMPLE_FINANCE && changed && ["movimientos", "cuentas", "pagos"].includes(moneyManagerTab)) simpleFinanceTab = "";
     document.querySelectorAll("[data-mm-tab]").forEach(button => {
       const active = button.dataset.mmTab === moneyManagerTab;
       button.classList.toggle("act", active);
       button.setAttribute("aria-selected", String(active));
     });
     allowed.forEach(name => $("mmPanel" + name.charAt(0).toUpperCase() + name.slice(1))?.classList.toggle("oculto", name !== moneyManagerTab));
+    if (SIMPLE_FINANCE) applySimpleFinanceTab();
+  }
+
+  function applySimpleFinanceTab() {
+    if (!SIMPLE_FINANCE) return;
+    const panels = ["Resumen", "Calendario", "Movimientos", "Cuentas", "Pagos", "Simple"];
+    const visible = { diario:"Simple", semana:"Simple", mes:"Simple", calendario:"Calendario", resumen:"Resumen" }[simpleFinanceTab];
+    if (visible) panels.forEach(name => $("mmPanel" + name)?.classList.toggle("oculto", name !== visible));
+    else $("mmPanelSimple")?.classList.add("oculto");
+    document.querySelectorAll("[data-simple-tab]").forEach(button => {
+      const active = button.dataset.simpleTab === simpleFinanceTab;
+      button.classList.toggle("act", active);
+      button.setAttribute("aria-current", active ? "page" : "false");
+    });
+  }
+
+  function setSimpleFinanceTab(tab) {
+    if (!SIMPLE_FINANCE || !["diario", "calendario", "semana", "mes", "resumen"].includes(tab)) return;
+    simpleFinanceTab = tab;
+    renderSimpleFinance();
+    applySimpleFinanceTab();
+  }
+
+  function simpleAmount(cents, currency = "DOP") {
+    if (currency === "DOP") return money(cents);
+    return new Intl.NumberFormat("es-DO", { style:"currency", currency, minimumFractionDigits:2 }).format(Number(cents || 0) / 100);
+  }
+
+  function renderSimpleFinance() {
+    if (!SIMPLE_FINANCE || !finStateCache || !simpleFinanceCore) return;
+    const state = finStateCache;
+    const month = $("mmMonth").value || state.month;
+    const currencies = Object.fromEntries(state.accounts.map(account => [account.id, financeCore.accountCurrency(account)]));
+    const days = simpleFinanceCore.group(state.movements, month, "day", currencies);
+    const dop = days.reduce((sum, day) => ({income:sum.income+day.income, expenses:sum.expenses+day.expenses}), {income:0,expenses:0});
+    const monthLabel = new Date(`${month}-01T12:00:00`).toLocaleDateString("es-DO", {month:"long",year:"numeric"});
+    $("mmSimpleMonthLabel").textContent = monthLabel.charAt(0).toUpperCase() + monthLabel.slice(1);
+    $("mmSimpleIncome").textContent = money(dop.income);
+    $("mmSimpleExpenses").textContent = money(dop.expenses);
+    $("mmSimpleResult").textContent = money(dop.income - dop.expenses);
+    const groups = simpleFinanceTab === "semana" ? simpleFinanceCore.group(state.movements, month, "week", currencies)
+      : simpleFinanceTab === "mes" ? simpleFinanceCore.group(state.movements, month, "month", currencies) : days;
+    const detailed = simpleFinanceTab === "diario";
+    const label = key => simpleFinanceTab === "semana"
+      ? `Semana del ${new Date(`${key}T12:00:00`).toLocaleDateString("es-DO", {day:"numeric",month:"short"})}`
+      : new Date(`${key}T12:00:00`).toLocaleDateString("es-DO", simpleFinanceTab === "mes"
+        ? {month:"long",year:"numeric"} : {weekday:"short",day:"numeric",month:"short"});
+    const accounts = new Map(state.accounts.map(account => [account.id, account.nombre]));
+    const categories = new Map(state.categories.map(category => [category.id, category.nombre]));
+    $("mmSimpleGroups").innerHTML = groups.length ? groups.map(group => {
+      const other = Object.entries(group.currencies).filter(([code]) => code !== "DOP")
+        .map(([code, total]) => `${code}: ${simpleAmount(total.income,code)} entradas · ${simpleAmount(total.expenses,code)} salidas`).join(" · ");
+      return `<article class="simple-finance-group"><header><b>${esc(group.key.slice(-2))}</b><small>${esc(label(group.key))}</small><span class="totals"><span class="income">+${money(group.income)}</span><span class="expense">−${money(group.expenses)}</span></span></header>`
+        + (detailed ? simpleFinanceRows(group.items, accounts, categories, currencies) : "")
+        + (other ? `<p class="simple-finance-currency-note">${esc(other)} · sin convertir a pesos</p>` : "") + `</article>`;
+    }).join("") : '<div class="empty-state"><strong>Sin movimientos en este mes</strong><p>El libro se actualizará cuando existan registros confirmados.</p></div>';
+  }
+
+  function simpleFinanceRows(items, accounts, categories, currencies) {
+    return items.map(item => {
+      const code = String(item.moneda || currencies[item.cuenta_id] || "DOP").toUpperCase();
+      const source = moneyManagerCore.sourceOf(item);
+      const category = categories.get(item.categoria_id) || item.categoria || MM_SOURCE_LABEL[source] || source;
+      return `<div class="simple-finance-row"><span><strong>${esc(item.descripcion || item.payee || "Movimiento")}</strong><small>${esc(category)} · ${esc(accounts.get(item.cuenta_id) || "Sin cuenta")}</small></span><em class="${esc(item.tipo)}">${item.tipo === "gasto" ? "−" : item.tipo === "ingreso" ? "+" : "↔"}${simpleAmount(item.monto_centavos,code)}</em></div>`;
+    }).join("");
   }
 
   function openFinanceTabFromMoneyManager(tab) {
@@ -7263,11 +7346,37 @@
   }
 
   function wireMoneyManagerStatic() {
+    if (SIMPLE_FINANCE) {
+      document.querySelectorAll("[data-simple-tab]").forEach(button => bindMoneyManagerControl(button, "click", () => setSimpleFinanceTab(button.dataset.simpleTab)));
+      document.querySelectorAll("[data-simple-month]").forEach(button => bindMoneyManagerControl(button, "click", async () => {
+        const value = $("mmMonth").value || financeCore.businessDay(new Date()).slice(0, 7);
+        const [year, month] = value.split("-").map(Number);
+        const date = new Date(year, month - 1 + Number(button.dataset.simpleMonth), 1);
+        $("mmMonth").value = `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,"0")}`;
+        $("provMes").value = $("mmMonth").value;
+        await cargarMoneyManager(true).catch(error => mostrarError("money-manager", error));
+      }));
+    }
     document.querySelectorAll("[data-mm-tab]").forEach(button => bindMoneyManagerControl(button, "click", () => setMoneyManagerTab(button.dataset.mmTab)));
     document.querySelectorAll("[data-mm-open]").forEach(button => bindMoneyManagerControl(button, "click", () => setMoneyManagerTab(button.dataset.mmOpen)));
     document.querySelectorAll("[data-mm-finance-tab]").forEach(button => bindMoneyManagerControl(button, "click", () => openFinanceTabFromMoneyManager(button.dataset.mmFinanceTab)));
     bindMoneyManagerControl($("btnMmExpense"), "click", () => abrirMovimientoFin("gasto"));
     bindMoneyManagerControl($("btnMmIncome"), "click", () => abrirMovimientoFin("ingreso"));
+    bindMoneyManagerControl($("btnSimpleAdd"), "click", () => {
+      const menu = $("simpleAddMenu");
+      menu.hidden = !menu.hidden;
+      $("btnSimpleAdd").setAttribute("aria-expanded", String(!menu.hidden));
+    });
+    bindMoneyManagerControl($("btnSimpleIncome"), "click", () => {
+      $("simpleAddMenu").hidden = true;
+      $("btnSimpleAdd").setAttribute("aria-expanded", "false");
+      abrirMovimientoFin("ingreso");
+    });
+    bindMoneyManagerControl($("btnSimpleExpense"), "click", () => {
+      $("simpleAddMenu").hidden = true;
+      $("btnSimpleAdd").setAttribute("aria-expanded", "false");
+      abrirMovimientoFin("gasto");
+    });
     bindMoneyManagerControl($("btnMmTransfer"), "click", abrirTransferenciaFin);
     bindMoneyManagerControl($("btnMmReconcile"), "click", abrirConciliacionMoneyManager);
     bindMoneyManagerControl($("btnMmMovementExpense"), "click", () => abrirMovimientoFin("gasto"));
@@ -7349,8 +7458,11 @@
       renderMoneyManagerCalendar();
     }));
     const dayRows = moneyManagerSelectedDay ? moneyManagerCore.filterMovements(state.movements, { day: moneyManagerSelectedDay }) : [];
+    const accounts = new Map(state.accounts.map(account => [account.id, account.nombre]));
+    const categories = new Map(state.categories.map(category => [category.id, category.nombre]));
+    const currencies = Object.fromEntries(state.accounts.map(account => [account.id, financeCore.accountCurrency(account)]));
     $("mmCalendarDay").innerHTML = moneyManagerSelectedDay
-      ? `<div class="surface-title"><div><h3>${esc(new Date(`${moneyManagerSelectedDay}T12:00:00`).toLocaleDateString("es-DO", { weekday: "long", day: "numeric", month: "long" }))}</h3><p>${dayRows.length} movimiento(s) confirmado(s).</p></div></div>${moneyManagerMovementRows(dayRows, false)}`
+      ? `<div class="surface-title"><div><h3>${esc(new Date(`${moneyManagerSelectedDay}T12:00:00`).toLocaleDateString("es-DO", { weekday: "long", day: "numeric", month: "long" }))}</h3><p>${dayRows.length} movimiento(s) confirmado(s).</p></div></div>${SIMPLE_FINANCE ? `<div class="simple-finance-group">${simpleFinanceRows(dayRows,accounts,categories,currencies)}</div>` : moneyManagerMovementRows(dayRows, false)}`
       : '<div class="empty-state"><p>Selecciona un día para ver el detalle.</p></div>';
   }
 
@@ -7429,8 +7541,11 @@
     renderMoneyManagerCalendar();
     renderMoneyManagerAccounts(accountState);
     renderMoneyManagerObligations(obligations);
+    renderSimpleFinance();
     $("mmSyncStatus").classList.toggle("warn", Boolean(state.partialError));
-    $("mmSyncStatus").textContent = state.partialError || `${movementSummary.movements.length.toLocaleString("es-DO")} movimiento(s) del mes · ${state.accounts.length} cuenta(s) · ${obligations.rows.length} obligación(es) · una sola fuente contable compartida con Finanzas y la caja.`;
+    $("mmSyncStatus").textContent = state.partialError || (SIMPLE_FINANCE
+      ? `Libro del panel central · ${movementSummary.movements.length.toLocaleString("es-DO")} movimientos este mes`
+      : `${movementSummary.movements.length.toLocaleString("es-DO")} movimiento(s) del mes · ${state.accounts.length} cuenta(s) · ${obligations.rows.length} obligación(es) · una sola fuente contable compartida con Finanzas y la caja.`);
     setMoneyManagerTab(moneyManagerTab);
   }
 

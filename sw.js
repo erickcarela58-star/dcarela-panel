@@ -16,6 +16,8 @@ const SHELL = [
   `./finance-revision-core.js?v=${APP_BUILD}`,
   `./virtual-cash-core.js?v=${APP_BUILD}`,
   `./money-manager-core.js?v=${APP_BUILD}`,
+  `./simple-finance-core.js?v=${APP_BUILD}`,
+  `./simple-finance.css?v=${APP_BUILD}`,
   `./client-period-filter.js?v=${APP_BUILD}`,
   `./shell-assets/index-a8e27158.js?v=${APP_BUILD}`,
   `./shell-assets/index-BIq1Swuf.css?v=${APP_BUILD}`,
@@ -27,6 +29,8 @@ const SHELL = [
   "./dcarela-logo.png",
   "./favicon.svg",
   "./manifest.webmanifest",
+  "./manifest-simple.webmanifest",
+  "./offline.html",
   "./app-version.json",
   "./config.js",
   "./firebase-config.js",
@@ -107,5 +111,5 @@ self.addEventListener("fetch", event => {
     if (response.ok) caches.open(CACHE).then(cache => cache.put(request, copy));
     return response;
   }).catch(() => caches.match(request).then(cached =>
-    cached || Response.error())));
+    cached || (request.mode === "navigate" ? caches.match("./offline.html") : null) || Response.error())));
 });

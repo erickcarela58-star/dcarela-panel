@@ -1,0 +1,97 @@
+/* Vista financiera opcional. Comparte sesión, libro y permisos con el panel completo. */
+html.simple-finance-mode,
+html.simple-finance-mode body { min-height: 100dvh; }
+html.simple-finance-mode #menu a:not([href="#dashboard"]):not([href="#money-manager"]),
+html.simple-finance-mode .mobile-command-dock a:not([href="#dashboard"]):not([href="#money-manager"]),
+html.simple-finance-mode .money-manager-mark,
+html.simple-finance-mode .money-manager-heading p,
+html.simple-finance-mode #mmTabs,
+html.simple-finance-mode .money-manager-tools,
+html.simple-finance-mode .money-manager-primary-actions #btnMmTransfer,
+html.simple-finance-mode .money-manager-primary-actions #btnMmReconcile,
+html.simple-finance-mode .money-manager-month { display: none !important; }
+html.simple-finance-mode .money-manager-toolbar { display:none !important; }
+html.simple-finance-mode .money-manager-heading { display:none !important; }
+html.simple-finance-mode .money-manager-sync { padding:0 3px; border:0; background:transparent; margin-bottom:10px; color:var(--ui-muted,#777); }
+html.simple-finance-mode #menu a[href="#money-manager"] .money-pig-icon { display:none; }
+html.simple-finance-mode #menu a[href="#money-manager"] { font-size:0; }
+html.simple-finance-mode #menu a[href="#money-manager"]::after { content:"Finanzas"; font-size:14px; }
+html.simple-finance-mode .mobile-command-dock a[href="#money-manager"] span { font-size:0; }
+html.simple-finance-mode .mobile-command-dock a[href="#money-manager"] span::after { content:"Finanzas"; font-size:11px; }
+html.simple-finance-mode .mobile-command-dock a[href="#money-manager"] i { font-size:0; }
+html.simple-finance-mode .mobile-command-dock a[href="#money-manager"] i::after { content:"▤"; font-size:20px; }
+html.simple-finance-mode .mobile-command-dock a[href="#dashboard"] span { font-size:11px; }
+html.simple-finance-mode .mobile-command-dock { justify-content:center; gap:8px; }
+html.simple-finance-mode .mobile-command-dock a { flex:1; max-width:180px; min-width:110px; }
+html.simple-finance-mode .money-manager-heading { margin-bottom:12px; }
+html.simple-finance-mode .money-manager-title h2 { font-size:clamp(26px,5vw,38px); }
+html.simple-finance-mode .money-manager-primary-actions { gap:8px; }
+html.simple-finance-mode .money-manager-primary-actions button { min-height:42px; }
+html.simple-finance-mode .simple-mode-link { display:inline-flex !important; }
+html.simple-finance-mode .simple-finance-controls { display:block; background:var(--ui-surface,#fff); border:1px solid var(--ui-line,#ddd); border-radius:18px; overflow:hidden; margin:0 0 10px; }
+.simple-finance-controls { display:none; }
+.simple-finance-month { display:flex; justify-content:center; align-items:center; gap:28px; padding:13px 12px 8px; }
+.simple-finance-month strong { min-width:150px; text-align:center; font-size:17px; }
+.simple-finance-month button { width:40px; height:40px; border:1px solid var(--ui-line,#ddd); border-radius:13px; background:transparent; color:var(--ui-text,#222); font-size:28px; line-height:1; }
+.simple-finance-tabs { display:flex; overflow-x:auto; gap:4px; padding:4px 10px 0; scrollbar-width:none; }
+.simple-finance-tabs button { flex:1 0 auto; min-height:45px; border:0; border-bottom:3px solid transparent; background:transparent; color:var(--ui-muted,#777); font-size:13px; font-weight:700; padding:8px 12px; }
+.simple-finance-tabs button.act { color:var(--ui-text,#222); border-bottom-color:var(--ui-accent,#f15b50); }
+.simple-finance-totals { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); border-top:1px solid var(--ui-line,#ddd); }
+.simple-finance-totals span { display:grid; gap:3px; text-align:center; padding:13px 6px; font-size:12px; color:var(--ui-muted,#777); }
+.simple-finance-totals span+span { border-left:1px solid var(--ui-line,#ddd); }
+.simple-finance-totals strong { font-size:clamp(13px,2vw,19px); color:var(--ui-text,#222); overflow-wrap:anywhere; }
+.simple-finance-totals span:first-child strong { color:#2379ca; }
+.simple-finance-totals span:nth-child(2) strong { color:#e2604f; }
+.simple-finance-currency-label { display:block; text-align:center; font-size:10px; color:var(--ui-muted,#777); padding:0 8px 8px; }
+.simple-finance-actions { display:flex; justify-content:flex-end; position:relative; margin:0 0 10px; }
+.simple-finance-actions.oculto { display:none; }
+.simple-finance-actions > button { min-height:40px; border-radius:12px; }
+#simpleAddMenu { position:absolute; z-index:20; top:44px; right:0; min-width:180px; padding:5px; border:1px solid var(--ui-line,#ddd); border-radius:12px; background:var(--ui-surface,#fff); box-shadow:0 12px 32px #17324b22; }
+#simpleAddMenu[hidden] { display:none; }
+#simpleAddMenu button { display:block; width:100%; padding:12px; border:0; border-radius:8px; background:transparent; color:var(--ui-text,#222); text-align:left; font-weight:700; }
+#simpleAddMenu button:hover,#simpleAddMenu button:focus-visible { background:var(--ui-surface-soft,#eef3f5); }
+.simple-finance-ledger { display:block; }
+.simple-finance-group { background:var(--ui-surface,#fff); border:1px solid var(--ui-line,#ddd); border-radius:0; overflow:hidden; margin:0; }
+.simple-finance-group:first-child { border-radius:17px 17px 0 0; }
+.simple-finance-group:last-child { border-radius:0 0 17px 17px; }
+.simple-finance-group+.simple-finance-group { border-top:0; }
+.simple-finance-group header { display:flex; gap:12px; align-items:center; padding:13px 15px; border-bottom:1px solid var(--ui-line,#ddd); }
+.simple-finance-group header b { font-size:23px; min-width:31px; }
+.simple-finance-group header small { flex:1; color:var(--ui-muted,#777); }
+.simple-finance-group header .income { color:#2379ca; }
+.simple-finance-group header .expense { color:#e2604f; }
+.simple-finance-group header .totals { display:flex; gap:13px; font-size:12px; font-weight:700; }
+.simple-finance-row { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:12px; padding:10px 15px; align-items:center; }
+.simple-finance-row+.simple-finance-row { border-top:1px solid var(--ui-line,#ddd); }
+.simple-finance-row span { min-width:0; display:grid; gap:4px; }
+.simple-finance-row strong { white-space:normal; line-height:1.35; }
+.simple-finance-row small { color:var(--ui-muted,#777); line-height:1.35; }
+.simple-finance-row em { font-style:normal; font-weight:750; white-space:nowrap; }
+.simple-finance-row em.ingreso { color:#2379ca; }
+.simple-finance-row em.gasto { color:#e2604f; }
+.simple-finance-currency-note { font-size:12px; color:var(--ui-muted,#777); padding:8px 15px; border-top:1px solid var(--ui-line,#ddd); }
+html.simple-finance-mode .money-manager-kpi strong { white-space:normal; overflow:visible; overflow-wrap:anywhere; text-overflow:clip; font-size:clamp(14px,3vw,20px); line-height:1.25; }
+@media (max-width:700px) {
+  html.simple-finance-mode .sidebar { display:none; }
+  html.simple-finance-mode .workspace { min-height:100dvh; padding-bottom:calc(82px + env(safe-area-inset-bottom)); }
+  html.simple-finance-mode .mobile-command-dock { display:flex !important; padding-bottom:env(safe-area-inset-bottom); }
+  html.simple-finance-mode .topbar { padding-top:max(12px,env(safe-area-inset-top)); }
+  html.simple-finance-mode .topbar .session-user,
+  html.simple-finance-mode .topbar #btnNotificaciones { display:none !important; }
+  html.simple-finance-mode .topbar .simple-mode-link { display:none !important; }
+  html.simple-finance-mode input,
+  html.simple-finance-mode select,
+  html.simple-finance-mode textarea { font-size:16px; }
+  .simple-finance-group header { flex-wrap:wrap; }
+  .simple-finance-group header .totals { flex:1 0 100%; padding-left:43px; }
+  html.simple-finance-mode .money-manager-calendar-surface { overflow-x:hidden; }
+  html.simple-finance-mode .money-manager-weekdays,
+  html.simple-finance-mode .money-manager-calendar { min-width:0; gap:3px; }
+  html.simple-finance-mode .money-manager-calendar-day { min-height:48px; padding:4px; gap:1px; border-radius:8px; }
+  html.simple-finance-mode .money-manager-calendar-day span,
+  html.simple-finance-mode .money-manager-calendar-day small { display:none; }
+  html.simple-finance-mode .money-manager-calendar-day:has(.income) { border-bottom:3px solid var(--mm-income); }
+  html.simple-finance-mode .money-manager-calendar-day:has(.expense) { border-bottom:3px solid var(--mm-expense); }
+  html.simple-finance-mode .money-manager-calendar-day b { font-size:12px; }
+  html.simple-finance-mode .money-manager-day-detail .table-wrap { overflow-x:auto; }
+}

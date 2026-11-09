@@ -60,7 +60,7 @@ test('el cerebro local funciona sin proveedor HTTP y anuncia consumo cero de API
   assert.equal(status.ok, true);
   assert.equal(status.local_engine, true);
   assert.equal(status.models[0].id, 'auto');
-  assert.match(status.models[0].level, /Local primero/i);
+  assert.match(status.models[0].level, /Solo local/i);
   assert.equal(status.models[1].id, 'local-pos');
   assert.match(status.models[1].level, /Sin consumo de API/);
 });
@@ -246,7 +246,7 @@ test('si Gemini agota cuota informa la caida y responde con el cerebro local', a
   assert.match(reply.effective_model, /Cerebro local POS/i);
 });
 
-test('automatico entrega a Gemini una pregunta que el buscador local no puede contestar', async () => {
+test('automatico no consume Gemini para preguntas abiertas', async () => {
   const requests = [];
   const ctx = { ...context(adapter({
     getFinanceJournal: async () => [
@@ -264,13 +264,9 @@ test('automatico entrega a Gemini una pregunta que el buscador local no puede co
     model: 'auto',
     custom_rules: '- No recomendar deuda nueva.',
   });
-  assert.match(reply.message.content, /se concentran en Comida/);
-  assert.doesNotMatch(reply.message.content, /No encontre movimientos/);
+  assert.match(reply.message.content, /Puedo seguir trabajando localmente/);
   const generation = requests.find(item => item.action === 'assistantGenerate');
-  assert.ok(generation);
-  assert.match(generation.operational_context, /CONTEXTO FINANCIERO VERIFICADO/);
-  assert.match(generation.operational_context, /Comida: RD\$500\.00/);
-  assert.match(generation.operational_context, /No recomendar deuda nueva/);
+  assert.equal(generation, undefined);
   assert.equal(reply.conversation.model, 'auto');
 });
 
@@ -286,11 +282,11 @@ test('Forzar Google Gemini no queda interceptado por saldo de cuenta en una expl
   assert.equal(reply.conversation.actions.length,0);
 });
 
-test('automatico deriva explicaciones conceptuales a Gemini en lugar de un resumen numerico', async () => {
+test('automatico conserva las explicaciones conceptuales en local', async () => {
   let remoteCalls=0;
   const ctx={...context(),remoteAssistant:async ()=>{remoteCalls++;return {content:'Explicacion conceptual sin registrar movimientos.',effective_model:'Google Gemini test'};}};
   const reply=await assistant.request('chat',ctx,{model:'auto',message:'Que significa el saldo de cuenta y cual es la diferencia con resultado?'});
-  assert.equal(remoteCalls,1);assert.match(reply.message.content,/Explicacion conceptual/);assert.equal(reply.conversation.actions.length,0);
+  assert.equal(remoteCalls,0);assert.match(reply.message.content,/Puedo seguir trabajando localmente/);assert.equal(reply.conversation.actions.length,0);
 });
 
 test('Forzar Google no evita la propuesta y aprobacion local para una escritura financiera', async () => {

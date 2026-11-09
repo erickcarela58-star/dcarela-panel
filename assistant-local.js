@@ -955,7 +955,9 @@
       }
     }
     let remoteWarning = '';
-    if (selectedModel !== 'local-pos' && ctx.remoteAssistant) {
+    // El modo automatico se queda en el motor local. Una consulta remota solo
+    // puede ocurrir tras elegir expresamente Google para esa conversacion.
+    if (selectedModel === 'google-gemini' && ctx.remoteAssistant) {
       try {
         const recent = (conversation?.messages || []).slice(-8).map(item => ({ role: item.role, content: text(item.content, 1800) }));
         const context = await operationalContext(ctx, prompt, data.custom_rules);
@@ -969,7 +971,7 @@
         remoteWarning = remoteFailureMessage(error);
       }
     }
-    const localContent = 'Puedo seguir trabajando localmente con datos reales del POS: ventas, gastos, cuentas, clientes, creditos, inventario, caja y turnos. Para una pregunta abierta que requiera generacion libre, vuelve a intentar Gemini mas tarde; para una operacion concreta, escribe el modulo y el resultado que necesitas.';
+    const localContent = 'Puedo seguir trabajando localmente con datos reales del POS: ventas, gastos, cuentas, clientes, creditos, inventario, caja y turnos. Para una operacion concreta, escribe el modulo y el resultado que necesitas.';
     return {
       content: `${remoteWarning ? `**${remoteWarning}**\n\n` : ''}${localContent}`,
       effectiveModel: 'Cerebro local POS · Firebase',
@@ -984,7 +986,7 @@
       let remoteError = '';
       try { remote = ctx.remoteAssistant ? await ctx.remoteAssistant({ action: 'assistantStatus' }) : null; }
       catch (error) { remoteError = remoteFailureMessage(error); }
-      const models = [{ id: 'auto', label: 'Automatico', level: 'Local primero · Gemini cuando haga falta' },
+      const models = [{ id: 'auto', label: 'Automatico', level: 'Solo local · sin consumo generativo' },
         { id: 'local-pos', label: 'Solo cerebro local', level: 'Sin consumo de API' }];
       if (remote?.configured) models.push({ id: 'google-gemini', label: 'Forzar Google Gemini', level: 'API protegida del servidor' });
       return {
