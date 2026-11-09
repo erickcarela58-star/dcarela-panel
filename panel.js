@@ -7544,8 +7544,8 @@
     renderSimpleFinance();
     $("mmSyncStatus").classList.toggle("warn", Boolean(state.partialError));
     $("mmSyncStatus").textContent = state.partialError || (SIMPLE_FINANCE
-      ? `Libro del panel central · ${movementSummary.movements.length.toLocaleString("es-DO")} movimientos este mes`
-      : `${movementSummary.movements.length.toLocaleString("es-DO")} movimiento(s) del mes · ${state.accounts.length} cuenta(s) · ${obligations.rows.length} obligación(es) · una sola fuente contable compartida con Finanzas y la caja.`);
+      ? `Libro ${authProvider === "firebase" ? "Firebase" : "Supabase"} del panel · ${movementSummary.movements.length.toLocaleString("es-DO")} movimientos este mes`
+      : `${movementSummary.movements.length.toLocaleString("es-DO")} movimiento(s) del mes · ${state.accounts.length} cuenta(s) · ${obligations.rows.length} obligación(es) · fuente ${authProvider === "firebase" ? "Firebase" : "Supabase"}.`);
     setMoneyManagerTab(moneyManagerTab);
   }
 
