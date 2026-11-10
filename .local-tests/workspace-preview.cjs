@@ -76,7 +76,8 @@ function createServer(){return http.createServer((req,res)=>{
   }
   if(file==='qa-simple-iphone.html'){
     res.setHeader('Content-Type','text/html; charset=utf-8');
-    res.end('<!doctype html><html lang="es"><title>QA Finanzas · iPhone 15</title><style>body{margin:0;padding:16px;background:#dce5ed;font:14px system-ui}h1{font-size:16px}iframe{display:block;width:393px;height:852px;border:1px solid #718096;border-radius:28px;background:white}</style><h1>Prueba local · iPhone 15 · 393 × 852 · datos ficticios</h1><iframe title="Finanzas iPhone 15" src="/panel.html?simple=1#money-manager"></iframe></html>');return;
+    const view=['money-manager','cuentas','buscar'].includes(url.searchParams.get('view'))?url.searchParams.get('view'):'money-manager';
+    res.end('<!doctype html><html lang="es"><title>QA Finanzas · iPhone 15</title><style>body{margin:0;padding:16px;background:#dce5ed;font:14px system-ui}h1{font-size:16px}iframe{display:block;width:393px;height:852px;border:1px solid #718096;border-radius:28px;background:white}</style><h1>Prueba local · iPhone 15 · 393 × 852 · datos ficticios</h1><iframe title="Finanzas iPhone 15" src="/panel.html?simple=1#'+view+'"></iframe></html>');return;
   }
   if(file==='preview-fixture.js'){res.setHeader('Content-Type','text/javascript');res.end(fixtureScript);return;}
   if(!allowed.has(file)){res.writeHead(404);res.end();return;}

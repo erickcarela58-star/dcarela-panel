@@ -29,3 +29,9 @@ Estado: **prototipo local, no publicado ni instalado en un iPhone real**. Rama `
 5. Retirar Gemini del panel completo y del servidor solo tras auditar dependencias; el cambio actual elimina su uso automático en este asistente POS.
 
 El IPA de Money Manager suministrado se inspeccionó solo para ubicar la estructura de la app; no se instaló ni se copiaron activos propietarios. La referencia visual fue la captura del dueño.
+
+## Corrección de búsqueda y Cuentas — 09/11/2026
+
+El dueño rechazó la búsqueda integrada como una línea dentro de Finanzas. Se cotejó la documentación oficial de Money Manager y se reemplazó por `#buscar`, una pantalla propia con autocompletado y filtros de periodo, cuenta, tipo y categoría. Después de buscar, los filtros se pliegan y los resultados quedan visibles agrupados por fecha. En la prueba local “Venta POS” encontró siete ventas ficticias y RD$8,750.00 de entradas.
+
+La navegación inferior ahora separa Resumen, Finanzas y Cuentas. Cuentas muestra disponible y deuda por moneda, filas compactas, historial al tocar la cuenta y conciliación para administradores mediante el formulario existente. Se abrió y canceló una conciliación ficticia sin escribir nada. Las capturas locales son `.local-tests/pwa-busqueda-resultados-iphone15-final.png` y `.local-tests/pwa-cuentas-iphone15-final.png`. Las fuentes, pruebas y límites están en `EVIDENCIA_BUSQUEDA_CUENTAS_IPHONE15_2026-11-09.md`. Este cambio sigue **sin publicar y sin prueba física en iPhone 15**.

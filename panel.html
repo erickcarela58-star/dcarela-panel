@@ -155,7 +155,6 @@
           </button>
           <div class="session-user"><span id="sessionEmail">Administrador</span><small id="backendLabel">Sesión protegida</small></div>
         </div>
-        <label id="simpleSearchField" class="simple-search-field" hidden><span>Buscar</span><input id="simpleSearchInput" type="search" placeholder="Buscar en este mes" autocomplete="off" aria-label="Buscar movimientos de este mes"></label>
       </header>
 
       <main>
@@ -455,6 +454,22 @@
             <label class="money-manager-month"><span>Mes</span><input id="mmMonth" type="month"></label>
           </div>
           <p id="mmSyncStatus" class="money-manager-sync" role="status">Comprobando el libro financiero…</p>
+          <section id="simpleSearchView" class="simple-search-view oculto" aria-label="Buscar movimientos">
+            <div class="simple-search-heading"><button id="simpleSearchBack" type="button" aria-label="Volver a Finanzas">‹</button><h2>Buscar movimientos</h2></div>
+            <label class="simple-search-query"><span>Palabra o importe</span><input id="simpleSearchInput" type="search" list="simpleSearchSuggestions" placeholder="Comercio, nota, categoría…" autocomplete="off"><datalist id="simpleSearchSuggestions"></datalist></label>
+            <button id="simpleSearchFiltersToggle" type="button" class="simple-search-filters-toggle" aria-expanded="true" aria-controls="simpleSearchFilters">Periodo, cuenta y categoría <span aria-hidden="true">⌄</span></button>
+            <div id="simpleSearchFilters" class="simple-search-filters">
+              <label><span>Desde</span><input id="simpleSearchFrom" type="date"></label>
+              <label><span>Hasta</span><input id="simpleSearchTo" type="date"></label>
+              <label><span>Cuenta</span><select id="simpleSearchAccount"><option value="">Todas las cuentas</option></select></label>
+              <label><span>Tipo</span><select id="simpleSearchType"><option value="">Todos</option><option value="ingreso">Entradas</option><option value="gasto">Salidas</option><option value="transferencia">Transferencias</option></select></label>
+              <label class="simple-search-category"><span>Categoría</span><select id="simpleSearchCategory"><option value="">Todas las categorías</option></select></label>
+            </div>
+            <button id="simpleSearchSubmit" type="button" class="simple-search-submit">Buscar</button>
+            <p id="simpleSearchStatus" class="simple-search-status" role="status">Elige los filtros y busca en el libro de esta sucursal.</p>
+            <div id="simpleSearchTotals" class="simple-search-totals" hidden></div>
+            <div id="simpleSearchResults" class="simple-search-results"></div>
+          </section>
           <div class="simple-finance-controls" aria-label="Periodo del libro simplificado">
             <div class="simple-finance-month"><button type="button" data-simple-month="-1" aria-label="Mes anterior">‹</button><strong id="mmSimpleMonthLabel">Mes</strong><button type="button" data-simple-month="1" aria-label="Mes siguiente">›</button></div>
             <nav class="simple-finance-tabs" aria-label="Vistas de Finanzas">
@@ -514,7 +529,8 @@
           </section>
 
           <section id="mmPanelCuentas" class="money-manager-panel oculto">
-            <div class="surface-title"><div><h3>Cuentas y tarjetas</h3><p>Revisa movimientos y registra operaciones identificadas. La conciliación de saldo está temporalmente bloqueada hasta verificar el historial con la caja.</p></div><div class="button-row admin-only oculto"><button id="btnMmNewAccount" type="button" class="secondary">Agregar cuenta</button><button id="btnMmAccountsTransfer" type="button" class="primary">Nueva transferencia</button></div></div>
+            <div class="surface-title"><div><h3>Cuentas</h3><p>Activos, tarjetas y deudas de la sucursal. Comprueba el saldo y la fecha de corte antes de conciliar.</p></div><div class="button-row admin-only oculto"><button id="btnMmNewAccount" type="button" class="secondary">Agregar cuenta</button><button id="btnMmAccountsTransfer" type="button" class="primary">Nueva transferencia</button></div></div>
+            <div id="mmSimpleAccountTotals" class="simple-account-totals"></div>
             <div id="mmAccounts" class="money-manager-accounts"></div>
             <section class="surface money-manager-rule"><strong>Regla contable</strong><p>Ingreso suma. Gasto resta. Transferencia mueve el mismo dinero y no se cuenta como venta. Consumo de tarjeta aumenta la deuda; pago de tarjeta la reduce sin registrar el gasto dos veces.</p></section>
           </section>
@@ -1071,9 +1087,10 @@
       <footer><span>D' Carela Compufoto</span><span id="footerClock"></span></footer>
     </div>
     <nav class="mobile-command-dock" aria-label="Accesos principales">
-      <a href="#dashboard"><i aria-hidden="true">▣</i><span>Resumen</span></a>
+      <a href="#dashboard"><i aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 11.5 12 4l8 7.5V20H4z"/><path d="M9 20v-6h6v6"/></svg></i><span>Resumen</span></a>
       <a href="#caja-virtual"><i aria-hidden="true">+</i><span>Vender</span></a>
-      <a href="#money-manager"><i aria-hidden="true">&#128055;</i><span>Money</span></a>
+      <a href="#money-manager"><i aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 5h16v14H4zM4 10h16M8 14h7"/></svg></i><span>Money</span></a>
+      <a class="simple-accounts-link" href="#cuentas"><i aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 8h18v12H3zM3 8l2-4h14l2 4M6 13h6M6 17h4"/></svg></i><span>Cuentas</span></a>
       <a href="#finanzas"><i aria-hidden="true">$</i><span>Finanzas</span></a>
       <a href="#inventario"><i aria-hidden="true">▦</i><span>Inventario</span></a>
       <a href="#asistente"><i aria-hidden="true">✦</i><span>IA</span></a>

@@ -2,7 +2,7 @@
 html.simple-finance-mode,
 html.simple-finance-mode body { min-height: 100dvh; }
 html.simple-finance-mode #menu a:not([href="#dashboard"]):not([href="#money-manager"]),
-html.simple-finance-mode .mobile-command-dock a:not([href="#dashboard"]):not([href="#money-manager"]),
+html.simple-finance-mode .mobile-command-dock a:not([href="#dashboard"]):not([href="#money-manager"]):not([href="#cuentas"]),
 html.simple-finance-mode .money-manager-mark,
 html.simple-finance-mode .money-manager-heading p,
 html.simple-finance-mode #mmTabs,
@@ -96,7 +96,7 @@ html.simple-finance-mode .money-manager-kpi strong { white-space:normal; overflo
 
 /* Organización móvil del libro: barra, periodo, pestañas, resumen y días en una
    sola superficie. Los recursos y el código de Money Manager no se reutilizan. */
-.simple-top-button,.simple-search-field { display:none; }
+.simple-top-button,.simple-search-field,.simple-search-view,.simple-accounts-link { display:none; }
 @media (max-width:700px) {
   html.simple-finance-mode,html.simple-finance-mode body,html.simple-finance-mode .workspace { background:#fff; }
   html.simple-finance-mode .workspace { padding-bottom:calc(70px + env(safe-area-inset-bottom)); }
@@ -107,6 +107,7 @@ html.simple-finance-mode .money-manager-kpi strong { white-space:normal; overflo
   html.simple-finance-mode .topbar h1 { font-size:20px; font-weight:750; color:#17211e; }
   html.simple-finance-mode .simple-top-button { display:grid; place-items:center; width:40px; height:40px; padding:8px; border:0; background:transparent; color:#24312c; border-radius:10px; box-shadow:none; }
   html.simple-finance-mode .simple-top-button svg { width:24px; height:24px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+  html.simple-finance-mode .mobile-command-dock svg { width:23px; height:23px; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
   html.simple-finance-mode .topbar .top-actions { display:none; position:absolute; top:60px; right:12px; left:12px; z-index:15; padding:12px; background:#fff; border:1px solid #dce4df; border-radius:12px; box-shadow:0 12px 24px #17211e22; }
   html.simple-finance-mode .topbar .top-actions.simple-open { display:flex; flex-wrap:wrap; }
   html.simple-finance-mode .topbar .branch-switcher { display:flex; }
@@ -141,6 +142,66 @@ html.simple-finance-mode .money-manager-kpi strong { white-space:normal; overflo
   html.simple-finance-mode .simple-finance-row small { font-size:11px; }
   html.simple-finance-mode .simple-finance-row em { font-size:13px; }
   html.simple-finance-mode .simple-finance-ledger { padding:0; border:0; box-shadow:none; }
+  html.simple-finance-mode .simple-accounts-link { display:grid !important; }
+  html.simple-finance-mode .simple-accounts-route .simple-finance-controls,
+  html.simple-finance-mode .simple-accounts-route .simple-finance-actions { display:none; }
+  html.simple-finance-mode.simple-accounts-route .simple-finance-controls,
+  html.simple-finance-mode.simple-accounts-route .simple-finance-actions,
+  html.simple-finance-mode.simple-accounts-route .money-manager-sync { display:none !important; }
+  html.simple-finance-mode.simple-search-route .topbar,
+  html.simple-finance-mode.simple-search-route .simple-finance-controls,
+  html.simple-finance-mode.simple-search-route .simple-finance-actions,
+  html.simple-finance-mode.simple-search-route .money-manager-sync,
+  html.simple-finance-mode.simple-search-route .money-manager-panel { display:none !important; }
+  html.simple-finance-mode .simple-search-view:not(.oculto) { display:block; padding:0 0 80px; }
+  html.simple-finance-mode .simple-search-heading { display:flex; align-items:center; gap:10px; min-height:66px; padding:8px 16px; border-bottom:1px solid #e4e9e6; }
+  html.simple-finance-mode .simple-search-heading h2 { margin:0; font-size:19px; }
+  html.simple-finance-mode .simple-search-heading button { width:36px; height:36px; border:0; background:#fff; color:#193f33; font-size:28px; }
+  html.simple-finance-mode .simple-search-query { display:block; padding:16px 16px 10px; }
+  html.simple-finance-mode .simple-search-query span,html.simple-finance-mode .simple-search-filters label span { display:block; margin-bottom:6px; color:#606b66; font-size:12px; font-weight:700; }
+  html.simple-finance-mode .simple-search-query input { width:100%; min-height:46px; padding:10px 12px; border:1px solid #cbd8d0; border-radius:9px; background:#fff; color:#17211e; }
+  html.simple-finance-mode .simple-search-filters-toggle { display:flex; justify-content:space-between; width:100%; min-height:42px; padding:10px 16px; border:0; border-block:1px solid #e4e9e6; background:#f6f8f7; color:#234d3a; text-align:left; font-weight:700; }
+  html.simple-finance-mode .simple-search-filters[hidden] { display:none; }
+  html.simple-finance-mode .simple-search-filters { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; padding:14px 16px; }
+  html.simple-finance-mode .simple-search-filters label { min-width:0; }
+  html.simple-finance-mode .simple-search-filters select,html.simple-finance-mode .simple-search-filters input { width:100%; min-height:42px; padding:8px; border:1px solid #cbd8d0; border-radius:8px; background:#fff; color:#17211e; }
+  html.simple-finance-mode .simple-search-category { grid-column:1/-1; }
+  html.simple-finance-mode .simple-search-submit { display:block; width:calc(100% - 32px); min-height:44px; margin:0 16px 12px; border:0; border-radius:9px; background:#155c43; color:#fff; font-weight:750; }
+  html.simple-finance-mode .simple-search-status { margin:0; padding:10px 16px; color:#59655f; font-size:12px; }
+  html.simple-finance-mode .simple-search-totals[hidden] { display:none; }
+  html.simple-finance-mode .simple-search-totals { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); padding:10px 8px; border-block:1px solid #e4e9e6; }
+  html.simple-finance-mode .simple-search-totals span { display:grid; gap:4px; text-align:center; font-size:11px; }
+  html.simple-finance-mode .simple-search-totals strong { font-size:13px; }
+  html.simple-finance-mode .simple-search-totals span:first-child strong { color:#2379ca; }
+  html.simple-finance-mode .simple-search-totals span:nth-child(2) strong { color:#e2604f; }
+  html.simple-finance-mode .simple-search-day h3 { margin:0; padding:11px 16px; border-top:6px solid #f3f5f4; border-bottom:1px solid #e4e9e6; font-size:13px; }
+  html.simple-finance-mode #mmPanelCuentas { padding:0; border:0; box-shadow:none; }
+  html.simple-finance-mode #mmPanelCuentas > .surface-title { margin:0; padding:14px 16px; border-bottom:1px solid #e4e9e6; }
+  html.simple-finance-mode #mmPanelCuentas .surface-title h3 { font-size:17px; }
+  html.simple-finance-mode #mmPanelCuentas .surface-title p { font-size:12px; }
+  html.simple-finance-mode .simple-account-totals { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); border-bottom:7px solid #f3f5f4; }
+  html.simple-finance-mode .simple-account-totals span { display:grid; gap:4px; min-width:0; padding:14px 12px; font-size:12px; color:#68736e; }
+  html.simple-finance-mode .simple-account-totals span+span { border-left:1px solid #e4e9e6; }
+  html.simple-finance-mode .simple-account-totals strong { color:#17211e; font-size:17px; overflow-wrap:anywhere; }
+  html.simple-finance-mode .money-manager-accounts { display:block; padding:0; }
+  html.simple-finance-mode .simple-account-row { border-bottom:1px solid #e4e9e6; background:#fff; }
+  html.simple-finance-mode .simple-account-main { display:grid; grid-template-columns:44px minmax(0,1fr) auto; gap:10px; align-items:center; width:100%; min-height:68px; padding:10px 16px; border:0; border-radius:0; background:#fff; color:#17211e; text-align:left; box-shadow:none; }
+  html.simple-finance-mode .simple-account-icon { display:grid; place-items:center; width:40px; height:40px; overflow:hidden; border-radius:11px; background:#e9f1ec; color:#155c43; font-size:20px; font-weight:750; }
+  html.simple-finance-mode .simple-account-icon svg { width:23px; height:23px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+  html.simple-finance-mode .simple-account-icon img { max-width:30px; max-height:30px; object-fit:contain; }
+  html.simple-finance-mode .simple-account-name,html.simple-finance-mode .simple-account-amount { display:grid; gap:3px; min-width:0; }
+  html.simple-finance-mode .simple-account-name b { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:14px; }
+  html.simple-finance-mode .simple-account-name small,html.simple-finance-mode .simple-account-amount small { color:#68736e; font-size:11px; }
+  html.simple-finance-mode .simple-account-amount { text-align:right; }
+  html.simple-finance-mode .simple-account-amount strong { font-size:14px; }
+  html.simple-finance-mode .simple-account-actions { display:flex; gap:8px; padding:0 16px 10px 70px; }
+  html.simple-finance-mode .simple-account-actions:empty { display:none; }
+  html.simple-finance-mode .simple-account-actions button { min-height:32px; padding:5px 9px; border:1px solid #cbd8d0; border-radius:7px; background:#fff; color:#155c43; font-size:12px; font-weight:700; }
+  html.simple-finance-mode .money-manager-account-card { margin:0; padding:12px 16px; border:0; border-bottom:1px solid #e4e9e6; border-radius:0; box-shadow:none; background:#fff; }
+  html.simple-finance-mode .money-manager-account-card .fin-account-open { padding:0; }
+  html.simple-finance-mode .money-manager-account-card .fin-account-actions { margin-top:8px; }
+  html.simple-finance-mode .money-manager-account-card .fin-account-actions button { min-height:34px; padding:5px 9px; border-radius:7px; font-size:12px; }
+  html.simple-finance-mode #mmPanelCuentas .money-manager-rule { margin:0; border:0; border-top:7px solid #f3f5f4; border-radius:0; box-shadow:none; }
   html.simple-finance-mode #mmPanelResumen .money-manager-kpis { gap:0; margin:0; padding:0; border-top:1px solid #e4e9e6; }
   html.simple-finance-mode #mmPanelResumen .money-manager-kpi { min-height:90px; margin:0; padding:12px; border:0; border-right:1px solid #e4e9e6; border-bottom:1px solid #e4e9e6; border-radius:0; box-shadow:none; background:#fff; }
   html.simple-finance-mode #mmPanelResumen .money-manager-kpi:nth-child(even) { border-right:0; }
@@ -148,7 +209,7 @@ html.simple-finance-mode .money-manager-kpi strong { white-space:normal; overflo
   html.simple-finance-mode #mmPanelResumen .surface,html.simple-finance-mode .money-manager-calendar-surface { margin:0; padding:14px; border:0; border-bottom:7px solid #f3f5f4; border-radius:0; box-shadow:none; background:#fff; }
   html.simple-finance-mode .mobile-command-dock { left:0; right:0; bottom:0 !important; width:100%; min-height:60px; padding:5px 16px calc(5px + env(safe-area-inset-bottom)); gap:0; justify-content:space-around; background:#fff !important; border:0; border-top:1px solid #e4e9e6; border-radius:0 !important; box-shadow:none !important; transform:none !important; backdrop-filter:none !important; }
   html.simple-finance-mode .mobile-command-dock a { min-height:48px; border-radius:0; color:#69736f; }
-  html.simple-finance-mode .mobile-command-dock a[href="#dashboard"],html.simple-finance-mode .mobile-command-dock a[href="#money-manager"] { max-width:50%; }
-  html.simple-finance-mode .mobile-command-dock a[href="#money-manager"].active,html.simple-finance-mode .mobile-command-dock a[href="#dashboard"].active { color:#155c43; }
+  html.simple-finance-mode .mobile-command-dock a[href="#dashboard"],html.simple-finance-mode .mobile-command-dock a[href="#money-manager"],html.simple-finance-mode .mobile-command-dock a[href="#cuentas"] { max-width:33.33%; min-width:0; }
+  html.simple-finance-mode .mobile-command-dock a[href="#money-manager"].active,html.simple-finance-mode .mobile-command-dock a[href="#dashboard"].active,html.simple-finance-mode .mobile-command-dock a[href="#cuentas"].active { color:#155c43; }
   html.simple-finance-mode .mobile-command-dock a:hover,html.simple-finance-mode .mobile-command-dock a:focus-visible { transform:none; background:#f4f7f5; }
 }
