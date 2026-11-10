@@ -11,7 +11,7 @@
 | Saldo real Caja Windows = CRM = PWA | NO VERIFICADO | La base local instalada está atrasada frente al panel; no se leyó la Caja del negocio ni saldos productivos en esta PWA. `MATRIZ_SALDOS.csv` contiene solo fixtures. |
 | Firestore Emulator: reglas de lectura/escritura | PASÓ en proyecto `demo-*` | Temurin JRE portátil verificado por SHA-256; Auth y Firestore emulados en 9199/9183. `finanzas/emulator-rules.test.mjs`: propietario lee/escribe Central, Plaza y usuarios ajenos denegados, lector sin escritura, borrado denegado. |
 | Adaptador: idempotencia y anulaciones | PASÓ en banco aislado | `firebase-finance-runtime.test.js`: 33/33, incluidos reintentos y anulaciones concurrentes. |
-| PWA con Auth y Firestore emulados | PASÓ parcialmente | En Chrome local, la sesión sintética leyó Central y una transferencia de RD$1.00 pasó de Banco a Efectivo: 2,000.00→1,999.00 y 1,000.00→1,001.00. El total patrimonial no cambió. Ingreso, gasto, conciliación y anulación aún no se recorrieron desde UI. |
+| PWA con Auth y Firestore emulados | PASÓ parcialmente | En Chrome local, la sesión sintética leyó Central y una transferencia de RD$1.00 pasó de Banco a Efectivo: 2,000.00→1,999.00 y 1,000.00→1,001.00. El total patrimonial no cambió. En una ejecución nueva, un ingreso ficticio de RD$1.00 subió Banco de 2,000.00 a 2,001.00 y el total de 3,000.00 a 3,001.00. Gasto, conciliación y anulación aún no se recorrieron desde UI. |
 | Firebase real con sesión, sucursales y datos autorizados | NO VERIFICADO | No se abrió una sesión real en esta ruta ni se consultaron cuentas productivas. |
 | Safari iPhone 15 físico e instalación PWA | NO VERIFICADO | Captura de navegador en tamaño móvil; no prueba física. |
 | URL/commit publicado | NO APLICA | Rama local sin push ni despliegue, según la restricción del dueño. |
@@ -40,7 +40,7 @@ Servidor local `py -m http.server 8899 --bind 127.0.0.1`; captura en `http://127
 ## Funciones
 
 - **Conectadas para lectura, pendientes de validar con sesión real:** Resumen, Diario, Calendario, Semana, Mes, Estadísticas, Búsqueda, cuentas, detalle de cuenta/movimiento, tarjetas, presupuestos y compromisos.
-- **Solo emulador por código:** `fin.transfer.create` validada desde la UI con cuenta origen y destino; `fin.movement.create`, `fin.movement.cancel` y `fin.account.reconcile` siguen sin recorrido UI, aunque tienen cobertura del adaptador.
+- **Solo emulador por código:** `fin.transfer.create` y `fin.movement.create` (ingreso) validadas desde la UI. Gasto, `fin.movement.cancel` y `fin.account.reconcile` siguen sin recorrido UI, aunque tienen cobertura del adaptador. Durante el intento de gasto se deshabilitó el control del navegador en Work; no se afirma resultado.
 - **Bloqueadas en UI real:** toda escritura financiera, editar cuenta/movimiento, pagos de compromisos y gestión de tarjetas/presupuestos.
 
 ## Para una activación futura
