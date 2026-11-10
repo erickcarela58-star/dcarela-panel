@@ -16,6 +16,8 @@
 | Safari iPhone 15 físico e instalación PWA | NO VERIFICADO | Captura de navegador en tamaño móvil; no prueba física. |
 | URL/commit publicado | PASÓ para archivos y ruta | El dueño autorizó publicar el 10/11. Pages run `42779979744` terminó success para `476991bfc93a65726528fa1054bf4801a8c61b65`; `https://panel.dcarelacompufoto.com/finanzas/` respondió 200. Siete archivos, incluidos `finanzas/app.js`, `firebase-adapter.js` y `finance-revision-core.js`, coincidieron por SHA-256 con el blob de Git. Falta prueba autenticada de la nueva ruta. |
 
+**Actualización visual v35, 10/11:** el commit de fuente `977d798067f92d00deda036ce73c6a570b658dd0` quedó `built` en Pages. La URL pública respondió 200; seis archivos de la PWA coincidieron byte a byte por SHA-256. En la URL pública, las 26 pantallas demo revisadas dejaron la barra tras el contenido y la ruta sin sesión rechazó los saldos y la escritura. Evidencias en `CONTINUIDAD.md` y `C:/tmp/finanzas-v35-publicacion-verificada-20261110.json`. No es prueba de sesión real, Caja física ni Safari.
+
 ## Seguimiento de sincronización — 10/11/2026
 
 - **Sesión existente:** el dueño inició sesión en `panel.dcarelacompufoto.com` como administrador. En la vista Finanzas de Central, el panel confirmó 183 ventas integradas por RD$61,791.60, 183 cobros por método, 50 eventos duplicados ignorados y 0 ventas anuladas incluidas. El Resumen advirtió que la última señal de Caja fue el 09/11 a las 6:02 p. m.; por ello no se afirma actualización en vivo de la terminal.
