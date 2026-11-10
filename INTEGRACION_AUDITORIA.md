@@ -2,7 +2,7 @@
 
 ## Fuente real y alcance
 
-- Rama de trabajo: `codex/integracion-finanzas-v33`, creada sobre `c0a112c`. Sin despliegue ni cambios en datos de producción.
+- Rama de trabajo: `codex/integracion-finanzas-v33`, creada sobre `c0a112c`. Publicada en `main` el 10/11/2026 por instrucción posterior del dueño. No hubo cambios en datos financieros de producción.
 - Repositorio del panel: `C:\Users\Erick\Documents\dcarela-panel-publish`. `panel.html` carga el SDK Firebase compat 10.13.0, `firebase-config.js`, `finance-revision-core.js`, `finance-core.js`, `money-manager-core.js`, `simple-finance-core.js` y `firebase-adapter.js` en ese orden. También conserva rutas heredadas Supabase, pero Finanzas V3.3 usa solo Firebase Auth y Firestore.
 - El ZIP V3.3 era una maqueta: `app.js` iniciaba en sucursales ficticias y `data-source.js` leía fixtures salvo `?mode=live`. No se copió su carpeta `engine` ni el contrato/reglas de referencia al sitio.
 - La ruta nueva `finanzas/` carga los motores originales desde la raíz del panel. `finance-revision-core.js` se recupera del repositorio real, no del ZIP. El panel existente solo recibe un enlace a la PWA de lectura.
@@ -12,7 +12,7 @@
 - Se reutiliza `window.DcarelaFirebase` y la sesión persistida de Firebase Auth del mismo origen. `waitForAuthState` espera la restauración; `getMembershipsForUser(uid)` y `getBusinessesByIds(ids)` limitan el selector a sucursales activas autorizadas. `?b=` no concede acceso.
 - En cada lectura se vuelve a verificar la membresía, la sucursal y el UID. Todas las colecciones y filas del diario deben declarar el `business_id` pedido. Una lectura incompleta, cuota, desconexión, cuenta sin saldo base o sesión cambiada bloquea las cifras.
 - `getFinanceJournal(businessId,{accounts,preferences})` es el diario canónico que une archivo, eventos de Caja, ventas y movimientos; no hay colección alternativa ni escritura directa. Los saldos usan `DcarelaFinanceCore.effectiveAccountBalance` del panel.
-- La vista normal es de solo lectura. Los controles de crear, transferir, conciliar, anular y editar quedan deshabilitados. `commitAction` solo puede llamar las cuatro acciones contables existentes desde localhost con proyecto `demo-*`, compuerta explícita y rol owner/admin; falta prueba con Firestore Emulator para abrir siquiera ese circuito de escritura.
+- La vista normal es de solo lectura. Los controles de crear, transferir, conciliar, anular y editar quedan deshabilitados. `commitAction` solo puede llamar las cuatro acciones contables existentes desde localhost con proyecto `demo-*`, compuerta explícita y rol owner/admin. Las reglas del emulador, un ingreso y una transferencia desde UI pasaron; faltan gasto, conciliación y anulación desde UI.
 - Demo requiere `?mode=demo`, importa fixtures solo en ese modo y nunca aparece como lectura real. Service Worker limitado a `finanzas/` y a recursos estáticos; no intercepta el diario, Firebase ni otras rutas del panel.
 
 ## Archivos modificados
