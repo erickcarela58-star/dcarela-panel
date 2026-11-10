@@ -164,6 +164,19 @@ html.simple-finance-mode .money-manager-kpi strong { white-space:normal; overflo
   html.simple-finance-mode .simple-search-filters[hidden] { display:none; }
   html.simple-finance-mode .simple-search-filters { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; padding:14px 16px; }
   html.simple-finance-mode .simple-search-filters label { min-width:0; }
+  html.simple-finance-mode .simple-search-account-control { min-width:0; }
+  html.simple-finance-mode .simple-search-account-control > span { display:block; margin-bottom:6px; color:#606b66; font-size:12px; font-weight:700; }
+  html.simple-finance-mode .simple-search-account-control > button { width:100%; min-height:42px; padding:8px; border:1px solid #cbd8d0; border-radius:8px; background:#fff; color:#17211e; text-align:left; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  html.simple-finance-mode .simple-search-account-picker[hidden] { display:none; }
+  html.simple-finance-mode .simple-search-account-picker { position:fixed; inset:0; z-index:30; display:flex; align-items:flex-end; background:#14231d88; }
+  html.simple-finance-mode .simple-search-account-sheet { width:100%; max-height:80vh; overflow:auto; padding:20px 16px calc(20px + env(safe-area-inset-bottom)); border-radius:16px 16px 0 0; background:#fff; box-shadow:0 -8px 30px #10261d30; }
+  html.simple-finance-mode .simple-search-account-sheet h3 { margin:0 0 4px; font-size:18px; }
+  html.simple-finance-mode .simple-search-account-sheet p { margin:0 0 14px; color:#68736e; font-size:12px; }
+  html.simple-finance-mode #simpleSearchAccountChecks label { display:flex; align-items:center; gap:12px; min-height:44px; border-top:1px solid #e4e9e6; font-size:14px; }
+  html.simple-finance-mode #simpleSearchAccountChecks input { width:18px; height:18px; accent-color:#155c43; }
+  html.simple-finance-mode .simple-search-account-actions { display:flex; justify-content:space-between; gap:10px; margin-top:12px; }
+  html.simple-finance-mode .simple-search-account-actions button { flex:1; min-height:42px; border:1px solid #cbd8d0; border-radius:8px; background:#fff; color:#155c43; font-weight:700; }
+  html.simple-finance-mode .simple-search-account-actions button:last-child { border-color:#155c43; background:#155c43; color:#fff; }
   html.simple-finance-mode .simple-search-filters select,html.simple-finance-mode .simple-search-filters input { width:100%; min-height:42px; padding:8px; border:1px solid #cbd8d0; border-radius:8px; background:#fff; color:#17211e; }
   html.simple-finance-mode .simple-search-category { grid-column:1/-1; }
   html.simple-finance-mode .simple-search-submit { display:block; width:calc(100% - 32px); min-height:44px; margin:0 16px 12px; border:0; border-radius:9px; background:#155c43; color:#fff; font-weight:750; }
@@ -176,25 +189,32 @@ html.simple-finance-mode .money-manager-kpi strong { white-space:normal; overflo
   html.simple-finance-mode .simple-search-totals span:nth-child(2) strong { color:#e2604f; }
   html.simple-finance-mode .simple-search-day h3 { margin:0; padding:11px 16px; border-top:6px solid #f3f5f4; border-bottom:1px solid #e4e9e6; font-size:13px; }
   html.simple-finance-mode #mmPanelCuentas { padding:0; border:0; box-shadow:none; }
-  html.simple-finance-mode #mmPanelCuentas > .surface-title { margin:0; padding:14px 16px; border-bottom:1px solid #e4e9e6; }
+  html.simple-finance-mode #mmPanelCuentas > .surface-title { min-height:0; margin:0; padding:0; border:0; }
+  html.simple-finance-mode #mmPanelCuentas > .surface-title:has(.button-row.oculto) { display:none; }
+  html.simple-finance-mode #mmPanelCuentas > .surface-title > div:first-child { display:none; }
+  html.simple-finance-mode #mmPanelCuentas > .surface-title .button-row:not(.oculto) { display:flex; width:100%; gap:8px; padding:8px 16px; border-bottom:1px solid #e4e9e6; }
+  html.simple-finance-mode #mmPanelCuentas > .surface-title .button-row button { min-height:32px; padding:5px 9px; border-radius:7px; font-size:12px; }
   html.simple-finance-mode #mmPanelCuentas .surface-title h3 { font-size:17px; }
   html.simple-finance-mode #mmPanelCuentas .surface-title p { font-size:12px; }
-  html.simple-finance-mode .simple-account-totals { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); border-bottom:7px solid #f3f5f4; }
-  html.simple-finance-mode .simple-account-totals span { display:grid; gap:4px; min-width:0; padding:14px 12px; font-size:12px; color:#68736e; }
+  html.simple-finance-mode .simple-account-totals { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); border-bottom:7px solid #f3f5f4; }
+  html.simple-finance-mode .simple-account-totals span { display:grid; gap:4px; min-width:0; padding:12px 7px; font-size:11px; color:#68736e; text-align:center; }
   html.simple-finance-mode .simple-account-totals span+span { border-left:1px solid #e4e9e6; }
-  html.simple-finance-mode .simple-account-totals strong { color:#17211e; font-size:17px; overflow-wrap:anywhere; }
+  html.simple-finance-mode .simple-account-totals strong { color:#17211e; font-size:13px; overflow-wrap:anywhere; }
+  html.simple-finance-mode .simple-account-totals span:first-child strong { color:#2379ca; }
+  html.simple-finance-mode .simple-account-totals span:nth-child(2) strong { color:#e2604f; }
   html.simple-finance-mode .money-manager-accounts { display:block; padding:0; }
+  html.simple-finance-mode .simple-account-group { margin:0; padding:7px 16px; background:#f3f5f4; border-bottom:1px solid #e4e9e6; color:#68736e; font-size:12px; font-weight:600; }
   html.simple-finance-mode .simple-account-row { border-bottom:1px solid #e4e9e6; background:#fff; }
-  html.simple-finance-mode .simple-account-main { display:grid; grid-template-columns:44px minmax(0,1fr) auto; gap:10px; align-items:center; width:100%; min-height:68px; padding:10px 16px; border:0; border-radius:0; background:#fff; color:#17211e; text-align:left; box-shadow:none; }
-  html.simple-finance-mode .simple-account-icon { display:grid; place-items:center; width:40px; height:40px; overflow:hidden; border-radius:11px; background:#e9f1ec; color:#155c43; font-size:20px; font-weight:750; }
+  html.simple-finance-mode .simple-account-main { display:grid; grid-template-columns:36px minmax(0,1fr) auto; gap:10px; align-items:center; width:100%; min-height:58px; padding:7px 16px; border:0; border-radius:0; background:#fff; color:#17211e; text-align:left; box-shadow:none; }
+  html.simple-finance-mode .simple-account-icon { display:grid; place-items:center; width:34px; height:34px; overflow:hidden; border-radius:9px; background:#e9f1ec; color:#155c43; font-size:18px; font-weight:750; }
   html.simple-finance-mode .simple-account-icon svg { width:23px; height:23px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
-  html.simple-finance-mode .simple-account-icon img { max-width:30px; max-height:30px; object-fit:contain; }
+  html.simple-finance-mode .simple-account-icon img { max-width:26px; max-height:26px; object-fit:contain; }
   html.simple-finance-mode .simple-account-name,html.simple-finance-mode .simple-account-amount { display:grid; gap:3px; min-width:0; }
   html.simple-finance-mode .simple-account-name b { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:14px; }
   html.simple-finance-mode .simple-account-name small,html.simple-finance-mode .simple-account-amount small { color:#68736e; font-size:11px; }
   html.simple-finance-mode .simple-account-amount { text-align:right; }
   html.simple-finance-mode .simple-account-amount strong { font-size:14px; }
-  html.simple-finance-mode .simple-account-actions { display:flex; gap:8px; padding:0 16px 10px 70px; }
+  html.simple-finance-mode .simple-account-actions { display:flex; gap:8px; padding:0 16px 7px 62px; }
   html.simple-finance-mode .simple-account-actions:empty { display:none; }
   html.simple-finance-mode .simple-account-actions button { min-height:32px; padding:5px 9px; border:1px solid #cbd8d0; border-radius:7px; background:#fff; color:#155c43; font-size:12px; font-weight:700; }
   html.simple-finance-mode .money-manager-account-card { margin:0; padding:12px 16px; border:0; border-bottom:1px solid #e4e9e6; border-radius:0; box-shadow:none; background:#fff; }

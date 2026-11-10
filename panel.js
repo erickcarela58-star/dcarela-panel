@@ -129,6 +129,7 @@
   let moneyManagerTab = "resumen";
   let simpleFinanceTab = SIMPLE_FINANCE ? "diario" : "";
   let simpleSearchRun = 0;
+  const simpleSearchAccounts = new Set();
   let moneyManagerSelectedDay = "";
   let finRealtimeChannel = null;
   let finFirebaseRealtime = null;
@@ -7351,11 +7352,13 @@
       $("simpleSearchTo").value = today.startsWith(`${month}-`) ? today
         : new Date(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0).toISOString().slice(0, 10);
     }
-    const account = $("simpleSearchAccount").value;
-    $("simpleSearchAccount").innerHTML = `<option value="">Todas las cuentas</option>${state.accounts
-      .filter(item => item.estado !== "eliminada")
-      .map(item => `<option value="${esc(item.id)}">${esc(item.nombre)}</option>`).join("")}`;
-    $("simpleSearchAccount").value = account;
+    const visibleAccounts = state.accounts.filter(item => item.estado !== "eliminada");
+    for (const id of simpleSearchAccounts) if (!visibleAccounts.some(item => item.id === id)) simpleSearchAccounts.delete(id);
+    $("simpleSearchAccountChecks").innerHTML = visibleAccounts.map(item => `<label><input type="checkbox" value="${esc(item.id)}"${simpleSearchAccounts.has(item.id) ? " checked" : ""}>${esc(item.nombre)}</label>`).join("");
+    $("simpleSearchAccountToggle").textContent = simpleSearchAccounts.size
+      ? simpleSearchAccounts.size === 1 ? visibleAccounts.find(item => simpleSearchAccounts.has(item.id))?.nombre || "1 cuenta" : `${simpleSearchAccounts.size} cuentas`
+      : "Todas las cuentas";
+    $("simpleSearchFiltersToggle").innerHTML = `Periodo, ${simpleSearchAccounts.size ? `${simpleSearchAccounts.size} cuenta${simpleSearchAccounts.size === 1 ? "" : "s"}` : "cuenta"} y categoría <span aria-hidden="true">⌄</span>`;
     const category = $("simpleSearchCategory").value;
     const type = $("simpleSearchType").value;
     $("simpleSearchCategory").innerHTML = `<option value="">Todas las categorías</option>${state.categories
@@ -7394,7 +7397,8 @@
       if (run !== simpleSearchRun || business !== BUSINESS) return;
       const normalize = value => String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("es-DO");
       const query = normalize($("simpleSearchInput").value.trim());
-      const account = $("simpleSearchAccount").value;
+      const accountIds = new Set([...$("simpleSearchAccountChecks").querySelectorAll("input:checked")].map(input => input.value));
+      simpleSearchAccounts.clear(); accountIds.forEach(id => simpleSearchAccounts.add(id));
       const category = $("simpleSearchCategory").value;
       const type = $("simpleSearchType").value;
       const accounts = new Map(finStateCache.accounts.map(item => [item.id, item.nombre]));
@@ -7402,7 +7406,7 @@
       const matched = moneyManagerCore.activeMovements(rows).filter(item => {
         const day = String(item.fecha || "").slice(0, 10);
         if (day < from || day > to || (type && item.tipo !== type)
-          || (account && item.cuenta_id !== account && item.cuenta_destino_id !== account)
+          || (accountIds.size && !accountIds.has(item.cuenta_id) && !accountIds.has(item.cuenta_destino_id))
           || (category && item.categoria_id !== category)) return false;
         return !query || [item.descripcion, item.payee, item.nota, item.monto_centavos,
           item.categoria, categories.get(item.categoria_id), accounts.get(item.cuenta_id)]
@@ -7457,6 +7461,25 @@
         const filters = $("simpleSearchFilters");
         filters.hidden = !filters.hidden;
         $("simpleSearchFiltersToggle").setAttribute("aria-expanded", String(!filters.hidden));
+      });
+      bindMoneyManagerControl($("simpleSearchAccountToggle"), "click", () => {
+        $("simpleSearchAccountPicker").hidden = false;
+        $("simpleSearchAccountToggle").setAttribute("aria-expanded", "true");
+      });
+      bindMoneyManagerControl($("simpleSearchAccountAll"), "click", () => {
+        $("simpleSearchAccountChecks").querySelectorAll("input").forEach(input => { input.checked = false; });
+      });
+      bindMoneyManagerControl($("simpleSearchAccountCancel"), "click", () => {
+        $("simpleSearchAccountPicker").hidden = true;
+        $("simpleSearchAccountToggle").setAttribute("aria-expanded", "false");
+        syncSimpleSearchOptions();
+      });
+      bindMoneyManagerControl($("simpleSearchAccountDone"), "click", () => {
+        simpleSearchAccounts.clear();
+        $("simpleSearchAccountChecks").querySelectorAll("input:checked").forEach(input => simpleSearchAccounts.add(input.value));
+        $("simpleSearchAccountPicker").hidden = true;
+        $("simpleSearchAccountToggle").setAttribute("aria-expanded", "false");
+        syncSimpleSearchOptions();
       });
       bindMoneyManagerControl($("simpleSearchSubmit"), "click", executeSimpleSearch);
       bindMoneyManagerControl($("simpleSearchInput"), "keydown", event => { if (event.key === "Enter") executeSimpleSearch(); });
@@ -7592,19 +7615,30 @@
       accountState.rows.filter(item => item.tipo === "tarjeta_credito")
         .forEach(item => { const code = financeCore.accountCurrency(item); debts[code] = (debts[code] || 0) + Math.max(0, -item.effective_balance_cents); });
       const debtRows = Object.entries(debts).map(([currency, centavos]) => ({ currency, centavos }));
-      $("mmSimpleAccountTotals").innerHTML = `<span>Disponible<strong>${financeCore.formatCurrencyTotals(accountState.availableByCurrency, money)}</strong></span><span>Deuda en tarjetas<strong>${financeCore.formatCurrencyTotals(debtRows, money)}</strong></span>`;
+      const available = new Map(accountState.availableByCurrency.map(item => [item.currency, item.centavos]));
+      const netRows = [...new Set([...available.keys(), ...Object.keys(debts)])]
+        .map(currency => ({ currency, centavos:(available.get(currency) || 0) - (debts[currency] || 0) }));
+      $("mmSimpleAccountTotals").innerHTML = `<span>Disponible<strong>${financeCore.formatCurrencyTotals(accountState.availableByCurrency, money)}</strong></span><span>Deuda<strong>${financeCore.formatCurrencyTotals(debtRows, money)}</strong></span><span>Neto<strong>${financeCore.formatCurrencyTotals(netRows, money)}</strong></span>`;
     }
-    mount.innerHTML = accountState.rows.map(account => {
+    const simpleMode = typeof SIMPLE_FINANCE !== "undefined" && SIMPLE_FINANCE;
+    const groupOf = account => account.tipo === "tarjeta_credito" ? "Tarjetas" : account.tipo === "efectivo" ? "Efectivo" : account.tipo === "banco" ? "Bancos" : "Otras cuentas";
+    const order = ["Efectivo", "Bancos", "Tarjetas", "Otras cuentas"];
+    const shownRows = simpleMode ? [...accountState.rows].sort((a,b) => order.indexOf(groupOf(a)) - order.indexOf(groupOf(b))) : accountState.rows;
+    let lastGroup = "";
+    mount.innerHTML = shownRows.map(account => {
       const isCard = account.tipo === "tarjeta_credito";
       const display = isCard ? Math.max(0, -account.effective_balance_cents) : account.effective_balance_cents;
       const {bank, primary, secondary, style, icon} = finAccountVisual(account);
-      if (typeof SIMPLE_FINANCE !== "undefined" && SIMPLE_FINANCE) {
+      if (simpleMode) {
+        const group = groupOf(account);
+        const heading = group !== lastGroup ? `<h4 class="simple-account-group">${group}</h4>` : "";
+        lastGroup = group;
         const fallbackIcon = isCard
           ? '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="5" width="19" height="14" rx="2.5"/><path d="M2.5 9.5h19M6 15h4"/></svg>'
           : account.tipo === "banco"
             ? '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 9 9-5 9 5M4.5 10h15M6.5 10v8m5.5-8v8m5.5-8v8M3 20h18"/></svg>'
             : '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M15 8.5c-.8-.7-1.7-1-3-1-1.7 0-3 1-3 2.3 0 3.5 6 1 6 4.5 0 1.4-1.4 2.2-3.3 2.2-1.4 0-2.6-.5-3.4-1.2M12 5.5v13"/></svg>';
-        return `<article class="simple-account-row"><button type="button" class="simple-account-main" data-mm-account-ledger="${esc(account.id)}">
+        return `${heading}<article class="simple-account-row"><button type="button" class="simple-account-main" data-mm-account-ledger="${esc(account.id)}">
           <span class="simple-account-icon">${bank?.logo ? `<img src="${esc(bank.logo)}" alt="" loading="lazy">` : fallbackIcon}</span>
           <span class="simple-account-name"><b>${esc(account.nombre)}</b><small>${esc(FIN_TIPO_LABEL[account.tipo] || account.tipo)}${account.oculta ? " · oculta" : ""}${account.incluir_en_total === false ? " · fuera del total" : ""}</small></span>
           <span class="simple-account-amount"><strong>${financeCore.formatAccountMoney(account, display, money)}</strong><small>${isCard ? "Deuda" : display < 0 ? "Negativo" : "Saldo"}</small></span>
@@ -7620,7 +7654,8 @@
     mount.querySelectorAll("[data-mm-account-ledger]").forEach(button => button.addEventListener("click", () => {
       if (typeof SIMPLE_FINANCE !== "undefined" && SIMPLE_FINANCE) {
         syncSimpleSearchOptions();
-        $("simpleSearchAccount").value = button.dataset.mmAccountLedger;
+        simpleSearchAccounts.clear(); simpleSearchAccounts.add(button.dataset.mmAccountLedger);
+        syncSimpleSearchOptions();
         location.hash = "buscar";
         executeSimpleSearch();
         return;

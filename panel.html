@@ -461,10 +461,11 @@
             <div id="simpleSearchFilters" class="simple-search-filters">
               <label><span>Desde</span><input id="simpleSearchFrom" type="date"></label>
               <label><span>Hasta</span><input id="simpleSearchTo" type="date"></label>
-              <label><span>Cuenta</span><select id="simpleSearchAccount"><option value="">Todas las cuentas</option></select></label>
+              <div class="simple-search-account-control"><span>Cuenta</span><button id="simpleSearchAccountToggle" type="button" aria-expanded="false" aria-controls="simpleSearchAccountPicker">Todas las cuentas</button></div>
               <label><span>Tipo</span><select id="simpleSearchType"><option value="">Todos</option><option value="ingreso">Entradas</option><option value="gasto">Salidas</option><option value="transferencia">Transferencias</option></select></label>
               <label class="simple-search-category"><span>Categoría</span><select id="simpleSearchCategory"><option value="">Todas las categorías</option></select></label>
             </div>
+            <div id="simpleSearchAccountPicker" class="simple-search-account-picker" role="dialog" aria-modal="true" aria-label="Elegir cuentas" hidden><div class="simple-search-account-sheet"><h3>Elegir cuentas</h3><p>Puedes buscar en varias cuentas a la vez.</p><div id="simpleSearchAccountChecks"></div><div class="simple-search-account-actions"><button id="simpleSearchAccountCancel" type="button">Cancelar</button><button id="simpleSearchAccountAll" type="button">Todas</button><button id="simpleSearchAccountDone" type="button">Aplicar</button></div></div></div>
             <button id="simpleSearchSubmit" type="button" class="simple-search-submit">Buscar</button>
             <p id="simpleSearchStatus" class="simple-search-status" role="status">Elige los filtros y busca en el libro de esta sucursal.</p>
             <div id="simpleSearchTotals" class="simple-search-totals" hidden></div>
