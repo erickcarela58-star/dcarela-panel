@@ -5,12 +5,14 @@ const $=id=>document.getElementById(id);
 const esc=x=>String(x??'').replace(/[&<>"']/g,s=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s]));
 const ico=(id,cls='')=>`<svg class="ico ${cls}" aria-hidden="true"><use href="#ic-${id}"></use></svg>`;
 const today=core.businessDay(new Date());
+const initialMonth=today.slice(0,7);
+const initialMonthEnd=new Date(Date.UTC(Number(initialMonth.slice(0,4)),Number(initialMonth.slice(5,7)),0)).toISOString().slice(0,10);
 const params=new URLSearchParams(location.search);
 const branches=isLive?{}:{'sucursal-a':'Sucursal A · Demo','sucursal-b':'Sucursal B · Demo'};
 const state={business:params.get('b')||(isLive?'':'sucursal-a'),loading:true,error:'',data:null,tab:'home',route:'',financeView:'diario',
  month:today.slice(0,7),day:today,theme:localStorage.getItem('dcarela-mm-theme')==='light'?'light':'dark',
  currency:'DOP',statsType:'gasto',modal:null,accountId:null,movementId:null,accountDraft:null,
- search:{query:'',type:'',category:'',from:'2026-11-01',to:'2026-11-30',accountIds:[]},searched:false,
+ search:{query:'',type:'',category:'',from:`${initialMonth}-01`,to:initialMonthEnd,accountIds:[]},searched:false,
  entryType:'gasto',entryDigits:'',entryAccount:'',entryDest:'',entryCategory:'',entryNote:'',entryDate:today,
  reconcileDigits:'',reconcileReason:'',editingNote:'',pendingRequestId:null,busy:false};
 const nMonth=(m,delta)=>{const [y,n]=m.split('-').map(Number);const d=new Date(Date.UTC(y,n-1+delta,1));return d.toISOString().slice(0,7)};
@@ -45,7 +47,7 @@ function note(msg){const el=$('toast-region');el.innerHTML=`<div role="status" c
 function customOptions(items,selected){return items.map(x=>`<option value="${esc(x.id)}" ${x.id===selected?'selected':''}>${esc(x.nombre)}</option>`).join('')}
 const cashAccountOptions=(selected,skip='')=>accounts().filter(a=>a.id!==skip&&a.tipo!=='tarjeta_credito').map(a=>`<option value="${esc(a.id)}" ${selected===a.id?'selected':''}>${esc(a.nombre)} · ${a.moneda}</option>`).join('');
 function setTheme(theme){state.theme=theme;document.documentElement.dataset.theme=theme;localStorage.setItem('dcarela-mm-theme',theme);render()}
-let loadSerial=0;
+let loadSerial=0,lastLoadedAt=0;
 async function load(){const serial=++loadSerial;state.loading=true;state.error='';state.data=null;render();try{
  if(params.get('fail')==='1')throw new Error('Error de lectura simulado: no se pudo obtener el libro financiero.');
  const data=await loadFinance(state.business);
@@ -58,8 +60,10 @@ async function load(){const serial=++loadSerial;state.loading=true;state.error='
  state.entryAccount=data.accounts.find(a=>a.moneda==='DOP'&&a.tipo!=='tarjeta_credito')?.id||data.accounts[0]?.id||'';
  state.entryDest=data.accounts.find(a=>a.moneda==='DOP'&&a.id!==state.entryAccount)?.id||'';
  state.entryCategory=data.categories.find(c=>c.tipo===state.entryType)?.id||'';
+ lastLoadedAt=Date.now();
  }catch(e){if(serial===loadSerial)state.error=e?.message||'No fue posible comprobar los datos.';}finally{if(serial===loadSerial){state.loading=false;render()}}}
 function renderHeader(){return `<header class="topbar"><div class="brand-block"><div class="brandmark" aria-hidden="true">DC</div><div><div class="brand-title">D' Carela <span style="font-weight:450">Finanzas</span></div><div class="brand-sub">CONTROL FINANCIERO</div></div></div><div class="top-actions">
+ <button class="round-button" data-do="refresh" aria-label="Actualizar movimientos de Caja" title="Actualizar movimientos de Caja">${ico('refresh')}</button>
  <button class="round-button" data-do="theme" aria-label="Cambiar tema">${ico(state.theme==='dark'?'sun':'moon')}</button>
  <button class="round-button" data-do="open-settings" aria-label="Abrir ajustes">${ico('settings')}</button>
  </div></header>${!isLive?`<div class="demo-ribbon"><span><span class="dot"></span><strong>PROTOTIPO</strong> · Datos 100% ficticios</span><span>Sin conexión real</span></div>`:`<div class="demo-ribbon"><span>Libro Firebase del CRM · solo lectura</span><span>Escrituras en validación</span></div>`}`}
@@ -131,7 +135,15 @@ function renderSearch(){return `<main id="main" class="page"><section class="scr
 const moreItems=[['debts','clock','Compromisos y deudas','Cuotas y próximos vencimientos'],['budgets','target','Presupuestos','Control por categoría'],['cards','card','Tarjetas','Límites, corte y pagos'],['settings','settings','Ajustes','Moneda, apariencia y sucursal']];
 function renderMore(){return `<main id="main" class="page"><section class="screen-intro"><div class="eyebrow">HERRAMIENTAS</div><h1 class="page-title">Más opciones</h1><div class="subline">Configura y consulta tus finanzas</div></section><div class="card settings-list">${moreItems.map(([route,ic,title,caption])=>`<button class="setting-row" data-do="route" data-route="${route}"><span class="setting-icon">${ico(ic)}</span><span class="row-copy"><b>${title}</b><small>${caption}</small></span>${ico('chevron','sm chev')}</button>`).join('')}</div><div class="section-head"><h2>Estado de la interfaz</h2></div><div class="card small-card"><h3>${isLive?'Modo de integración':'Modo de demostración'}</h3><p>${isLive?'La lectura exige sesión del CRM y adaptador inyectado.':'Solo se utilizan registros sintéticos. Ningún formulario de esta maqueta escribe en Firebase ni modifica contabilidad real.'}</p></div></main>`}
 function routeHead(title,desc){return `<section class="screen-intro"><button class="round-button" data-do="back-more" aria-label="Regresar a Más">${ico('back')}</button><div class="eyebrow">HERRAMIENTAS</div><h1 class="page-title">${title}</h1><div class="subline">${desc}</div></section>`}
-function renderDebts(){const data=state.data.commitments;return `<main class="page" id="main">${routeHead('Compromisos','Préstamos, cuotas y obligaciones')}<div class="card">${data.map(d=>`<div class="budget-item"><div class="title-row"><b>${esc(d.nombre||'Compromiso')}</b><span class="warning-text">${moneyText(d.saldo_pendiente_centavos??0,'DOP')}</span></div><div class="soft-note">${esc(d.tipo||'Obligación')} · Próximo vencimiento: ${esc(d.proximo_vencimiento||'No verificado')}</div><button class="secondary-btn" data-do="debt" data-id="${esc(d.id)}" style="min-height:44px">Ver detalle</button></div>`).join('')||'<div class="empty">No hay compromisos.</div>'}</div><p class="soft-note">Los pagos de préstamos requieren desglosar capital, intereses y cargos; esta pantalla no realiza pagos en modo demostración.</p></main>`}
+function renderDebts(){
+ const data=state.data.commitments, obligations=state.data.costObligations||[], payments=state.data.costPayments||[];
+ const latest=[...payments].sort((a,b)=>String(b.pagadoEn||b.fecha||'').localeCompare(String(a.pagadoEn||a.fecha||''))).slice(0,30);
+ return `<main class="page" id="main">${routeHead('Compromisos','Préstamos, cuotas y obligaciones')}
+ <div class="section-head"><h2>Compromisos financieros</h2></div><div class="card">${data.map(d=>`<div class="budget-item"><div class="title-row"><b>${esc(d.nombre||'Compromiso')}</b><span class="warning-text">${moneyText(d.saldo_pendiente_centavos,'DOP')}</span></div><div class="soft-note">${esc(d.tipo||'Obligación')} · Próximo vencimiento: ${esc(d.proximo_vencimiento||'No verificado')}</div><button class="secondary-btn" data-do="debt" data-id="${esc(d.id)}" style="min-height:44px">Ver detalle</button></div>`).join('')||'<div class="empty">No hay compromisos.</div>'}</div>
+ <div class="section-head"><h2>Facturas y obligaciones de Caja</h2></div><div class="card">${obligations.map(d=>`<div class="budget-item"><div class="title-row"><b>${esc(d.concepto||'Obligación')}</b><span class="warning-text">${moneyText(d.saldoCentavos??d.saldo_centavos,'DOP')}</span></div><div class="soft-note">${esc(d.estado||'Estado no verificado')} · Vence: ${esc(d.venceEn||d.vence_en||'No verificado')}</div></div>`).join('')||'<div class="empty">No hay obligaciones registradas.</div>'}</div>
+ <div class="section-head"><h2>Pagos registrados en Caja</h2></div><div class="card">${latest.map(p=>`<div class="budget-item"><div class="title-row"><b>${esc(p.concepto||'Pago de obligación')}</b><span>${moneyText(p.montoCentavos??p.monto_centavos,'DOP')}</span></div><div class="soft-note">${esc(p.pagadoEn||p.fecha||'Fecha no verificada')} · ${esc(p.metodoPago||p.metodo_pago||'Método no verificado')}</div></div>`).join('')||'<div class="empty">No hay pagos de obligaciones registrados.</div>'}</div>
+ <p class="soft-note">El pago de una obligación reduce su pendiente. Su salida de dinero solo se cuenta en el diario cuando existe el movimiento contable correspondiente.</p></main>`
+}
 function renderBudgets(){return `<main class="page" id="main">${routeHead('Presupuestos','Seguimiento mensual por categoría')}<div class="card">${state.data.budgets.map(b=>{const spent=core.summarizeMovements(rows().filter(m=>m.categoria_id===b.categoria_id),`${state.month}-01`,`${state.month}-31`).gastos_centavos;const pct=b.monto_centavos?Math.floor(spent*100/b.monto_centavos):0;return `<div class="budget-item"><div class="title-row"><b>${esc(cat(b.categoria_id)?.nombre||'Categoría')}</b><span>${pct}% utilizado</span></div><div class="progress-track"><span class="${pct>=85?'warn':''}" style="width:${Math.min(pct,100)}%"></span></div><div class="budget-footer"><span>Gastado: ${moneyText(spent,'DOP')}</span><span>Objetivo: ${moneyText(b.monto_centavos,'DOP')}</span></div></div>`}).join('')||'<div class="empty">No hay presupuestos.</div>'}</div><p class="soft-note">Presupuesto y gasto se muestran en la misma moneda, sin convertir divisas.</p></main>`}
 function renderCards(){return `<main class="page" id="main">${routeHead('Tarjetas','Fechas de corte y límites')}<div class="card">${state.data.cards.map(c=>{const a=account(c.cuenta_id);const debt=Math.abs(Math.min(0,a?accountBalance(a):0));return `<div class="budget-item"><div class="title-row"><b>${esc(c.nombre||a?.nombre||'Tarjeta')}</b><span>Crédito</span></div><div class="account-large" style="margin-top:14px"><small>Deuda actual</small><strong style="font-size:1.55rem">${moneyText(debt,a?.moneda||'DOP')}</strong></div><div class="soft-note">Límite: ${moneyText(c.limite_credito_centavos||0,a?.moneda||'DOP')} · Corte día ${esc(c.dia_corte||'—')} · Pago día ${esc(c.dia_pago||'—')}</div><button class="secondary-btn" data-do="account" data-id="${esc(a?.id||'')}">Abrir cuenta</button></div>`}).join('')||'<div class="empty">No hay tarjetas.</div>'}</div></main>`}
 function renderSettings(){return `<main class="page" id="main">${routeHead('Ajustes','Personaliza la visualización')}<div class="card" style="padding:15px"><label class="field-label" for="branch-choice" style="margin-top:0">Sucursal</label><select class="field-select" id="branch-choice" name="branch">${Object.entries(branches).map(([key,label])=>`<option value="${key}" ${key===state.business?'selected':''}>${esc(label)}</option>`).join('')}</select><label class="field-label" for="theme-choice">Apariencia</label><select class="field-select" id="theme-choice" name="theme"><option value="light" ${state.theme==='light'?'selected':''}>Claro</option><option value="dark" ${state.theme==='dark'?'selected':''}>Oscuro</option></select><label class="field-label" for="pref-currency">Moneda de las vistas</label><select class="field-select" id="pref-currency" name="currency">${currencyOption('DOP')}${currencyOption('USD')}</select><div class="notice">Las monedas se muestran por separado; cambiar el selector nunca convierte importes ni modifica el libro.</div></div><div class="section-head"><h2>Estado de conexión</h2></div><div class="card small-card"><h3>${isLive?'Integración bajo validación':'Demostración sin escritura'}</h3><p>La vista solo presenta información disponible. Una lectura fallida bloquea los saldos y ofrece reintentar.</p></div></main>`}
@@ -178,6 +190,7 @@ async function handleClick(e){const btn=e.target.closest('[data-do]');if(!btn)re
  if(action==='backdrop'){if(e.target===btn)closeModal();return}
  if(action==='close'){closeModal();return}
  if(action==='retry'){params.delete('fail');history.replaceState(null,'',`${location.pathname}?${params.toString()}`);await load();return}
+ if(action==='refresh'){if(!state.loading)await load();return}
  if(action==='theme'){setTheme(state.theme==='light'?'dark':'light');return}
  if(action==='open-settings'){state.route='settings';state.tab='more';render();return}
  if(action==='tab'){openTab(btn.dataset.tab);return}
@@ -233,6 +246,11 @@ document.addEventListener('change',handleChange);
 document.addEventListener('input',handleInput);
 document.addEventListener('submit',handleSubmit);
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&state.modal)closeModal()});
+// Al regresar de otra app se consulta de nuevo si el libro quedó viejo. Evita
+// sondeos continuos y conserva una actualización manual para movimientos remotos.
+document.addEventListener('visibilitychange',()=>{
+ if(isLive && !document.hidden && !state.loading && Date.now()-lastLoadedAt>120000)load();
+});
 if('serviceWorker' in navigator&&location.protocol!=='file:')navigator.serviceWorker.register('./sw.js').catch(()=>{});
 if (!isLive) window.__DCARELA_UI_DEBUG={state,render,openModal,openTab}; // Solo demo.
 if (isLive && window.DcarelaFirebase?.onAuthStateChanged) {

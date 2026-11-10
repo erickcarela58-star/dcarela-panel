@@ -18,6 +18,7 @@ function mock(overrides={}) {
     getFinanceAccounts:async()=>[{id:'cash',business_id:'central',moneda:'DOP',saldo_inicial_centavos:0}],
     getFinanceCategories:async()=>[], getFinanceBudgets:async()=>[],
     getFinanceCards:async()=>[], getFinanceCommitments:async()=>[],
+    getCollection:async()=>[],
     getFinancePreferences:async()=>({id:'central',business_id:'central'}),
     getFinanceJournal:async(id,options)=>{calls.push(['journal',id,options]);return [{id:'m1',business_id:'central',monto_centavos:12500}]},
     adminAction:async(...args)=>{calls.push(['write',...args]);return {ok:true}},
@@ -53,6 +54,22 @@ test('usa el diario canónico una vez y conserva centavos y sucursal',async()=>{
   assert.equal(calls[0][2].accounts[0].id,'cash');
 });
 
+test('lee pagos y obligaciones de Caja por sucursal sin agregarlos al diario',async()=>{
+  const collections=[];
+  const {calls}=mock({getCollection:async(name,filters)=>{
+    collections.push([name,filters]);
+    return name==='cost_payments'?[{id:'p1',business_id:'central',montoCentavos:3000}]:
+      [{id:'o1',business_id:'central',saldoCentavos:7000}];
+  }});
+  const data=await loadFinance('central');
+  assert.equal(data.costPayments[0].montoCentavos,3000);
+  assert.equal(data.costObligations[0].saldoCentavos,7000);
+  assert.equal(data.movements.length,1);
+  assert.equal(calls.filter(c=>c[0]==='journal').length,1);
+  assert.deepEqual(collections.map(c=>c[0]).sort(),['cost_obligations','cost_payments']);
+  assert.ok(collections.every(([,filter])=>filter[0][2]==='central'));
+});
+
 test('falla cerrado ante lectura parcial, documento ajeno o sesión cambiada',async()=>{
   mock({getFinanceCards:async()=>null});
   await assert.rejects(loadFinance('central'),/tarjetas.*incompleta/);
@@ -62,6 +79,9 @@ test('falla cerrado ante lectura parcial, documento ajeno o sesión cambiada',as
   await assert.rejects(loadFinance('central'),/saldo base verificable/);
   mock({getFinanceJournal:async()=>Object.assign([], {partial_error:'quota'})});
   await assert.rejects(loadFinance('central'),/diario.*incompleta/);
+  mock({getCollection:async name=>name==='cost_payments'?
+    [{id:'p1',business_id:'ajena'}]:[]});
+  await assert.rejects(loadFinance('central'),/pagos de Caja.*fuera de la sucursal/);
   let n=0;
   mock({getCurrentUser:()=>({uid:++n===1?'owner-1':'intruso'})});
   await assert.rejects(loadFinance('central'),/sesión cambió/);

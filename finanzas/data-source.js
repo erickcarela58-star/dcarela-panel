@@ -59,9 +59,12 @@ export async function loadFinance(requestedBusinessId) {
   if (!allowed.some(b => b.id === chosen)) {
     throw new Error('Acceso denegado: esta sucursal no pertenece a tu sesión.');
   }
-  const [accounts, categories, budgets, cards, commitments, preferences] = await Promise.all([
+  const [accounts, categories, budgets, cards, commitments, preferences,
+    costObligations, costPayments] = await Promise.all([
     api.getFinanceAccounts(chosen), api.getFinanceCategories(chosen), api.getFinanceBudgets(chosen),
-    api.getFinanceCards(chosen), api.getFinanceCommitments(chosen), api.getFinancePreferences(chosen)
+    api.getFinanceCards(chosen), api.getFinanceCommitments(chosen), api.getFinancePreferences(chosen),
+    api.getCollection('cost_obligations', [['business_id', '==', chosen]]),
+    api.getCollection('cost_payments', [['business_id', '==', chosen]])
   ]);
   scopedRows(accounts, chosen, 'cuentas');
   if (!accounts.length) throw new Error('Esta sucursal no tiene cuentas verificadas; no se mostrará un saldo cero.');
@@ -75,6 +78,8 @@ export async function loadFinance(requestedBusinessId) {
   scopedRows(budgets, chosen, 'presupuestos');
   scopedRows(cards, chosen, 'tarjetas');
   scopedRows(commitments, chosen, 'compromisos');
+  scopedRows(costObligations, chosen, 'obligaciones de Caja');
+  scopedRows(costPayments, chosen, 'pagos de Caja');
   if (preferences && preferences.business_id !== chosen) {
     throw new Error('Las preferencias pertenecen a otra sucursal.');
   }
@@ -83,7 +88,10 @@ export async function loadFinance(requestedBusinessId) {
   if (api.getCurrentUser()?.uid !== user.uid) {
     throw new Error('La sesión cambió durante la lectura. Vuelve a intentarlo.');
   }
+  // CostoPagoRegistrado acredita una deuda, pero no demuestra por sí solo una
+  // salida de cuenta. El diario ya registra la salida contable una sola vez.
   return {accounts, categories, movements, budgets, cards, commitments,
+    costObligations, costPayments,
     preferences, authorizedBusinesses:allowed, businessId:chosen, demo:false};
 }
 
