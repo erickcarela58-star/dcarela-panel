@@ -26,6 +26,9 @@ body,:root[data-theme="dark"] body{background:var(--bg);background-image:radial-
 .expense-text,.metric.expense strong{text-shadow:0 0 13px rgba(218,86,97,.17)}
 .row-amount.balance-text,.warning-text{color:var(--ink)}
 .account-icon.bank-logo img{filter:grayscale(1) contrast(1.1)}
+.option-account .account-icon{flex:0 0 28px;width:28px;height:28px;overflow:hidden}
+.option-account .account-icon.bank-logo img{max-width:100%;max-height:100%}
+.option-account>span:last-child{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .bottom-nav,:root[data-theme="dark"] .bottom-nav{
   background:var(--nav-bg);border-top:1px solid rgba(255,255,255,.15);
   backdrop-filter:blur(22px) saturate(1.55);-webkit-backdrop-filter:blur(22px) saturate(1.55);
