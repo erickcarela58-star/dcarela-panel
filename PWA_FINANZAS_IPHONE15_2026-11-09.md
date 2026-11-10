@@ -12,15 +12,18 @@ Estado: **prototipo local, no publicado ni instalado en un iPhone real**. Rama `
 
 ## Pruebas realizadas
 
-- 419/419 pruebas Node aprobadas; `node --check panel.js` y `git diff --check` sin errores.
+- 420/420 pruebas Node aprobadas; `node --check panel.js` y `git diff --check` sin errores.
+- Prueba de contrato con un `VentaCobrada` ficticio de pago mixto: Caja lo expresa como un solo evento Firebase, el adaptador del panel lo deduplica y la PWA suma los dos medios de cobro una sola vez. No escribe en Firebase ni modifica Caja.
 - Vista local aislada con datos ficticios, sin conexión a Firebase ni escritura: `node .local-tests/web-review-preview.cjs 8898` y `http://127.0.0.1:8898/qa-simple-iphone.html` (marco de 393 × 852).
 - Se inspeccionaron Diario, Calendario, Semana y Resumen. El calendario cabe en el ancho de 393 px y el detalle del día usa lista compacta.
+- Captura de revisión: `.local-tests/pwa-finanzas-iphone15-review-final.png`. La vista nueva inicia en claro si no hay una preferencia guardada; conserva la preferencia existente. La captura usa exclusivamente importes ficticios.
+- Lectura autenticada de la producción actual (1.0.127): el panel central mostró movimientos de Caja del 09/11 y cuentas de Firebase; no se registró ni modificó ningún movimiento. La Caja local inspeccionada tiene último movimiento del 02/11 y por eso no sirve para comparar saldos actuales.
 
 ## Pendientes para entrega
 
 1. Revisión visual y aprobación del dueño antes de publicar el cambio estético.
 2. Cambiar build y URL versionada de los recursos al crear la publicación; mantener `app-version.json`, `sw.js` y `panel.html` coherentes. El build público continúa 1.0.127.
-3. Verificar inicio de sesión, cambio de sucursal, movimientos y formulario con datos reales sin registrar una operación de prueba; probar Safari e instalación en un iPhone 15 físico. El marco de navegador no simula por completo Safari, notch ni teclado.
+3. Verificar el modo simple en sesión autenticada, cambio de sucursal y formulario sin registrar una operación de prueba; probar Safari e instalación en un iPhone 15 físico. El marco de navegador no simula por completo Safari, notch ni teclado.
 4. Verificar manifest, service worker y reapertura sin conexión en Safari; Push y badge no están implementados en esta entrega.
 5. Retirar Gemini del panel completo y del servidor solo tras auditar dependencias; el cambio actual elimina su uso automático en este asistente POS.
 

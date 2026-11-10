@@ -17,12 +17,13 @@
       // Solo el shell propio declara el modo embebido de forma explícita.
       const isEmbedded = panelParams.get("embedded") === "1";
       const requestedTheme = panelParams.get("theme");
-      let savedTheme = "dark";
-      try { savedTheme = localStorage.getItem("dcarela.ui.theme") || "dark"; } catch {}
+      let savedTheme = panelParams.get("simple") === "1" ? "light" : "dark";
+      try { savedTheme = localStorage.getItem("dcarela.ui.theme") || savedTheme; } catch {}
       const theme = requestedTheme === "light" || requestedTheme === "dark" ? requestedTheme : savedTheme;
       document.documentElement.dataset.theme = theme;
       document.documentElement.classList.toggle("dark", theme === "dark");
       document.documentElement.style.colorScheme = theme;
+      document.querySelector('meta[name="theme-color"]')?.setAttribute("content", theme === "light" ? "#fafafa" : "#09090b");
       document.documentElement.classList.add("embedded-panel");
       if (isEmbedded) {
         document.documentElement.classList.add("is-embedded");
@@ -30,7 +31,14 @@
     })();
   </script>
   <link id="appManifest" rel="manifest" href="manifest.webmanifest">
-  <script>if (document.documentElement.classList.contains("simple-finance-mode")) document.getElementById("appManifest")?.setAttribute("href", "manifest-simple.webmanifest");</script>
+  <script>
+    if (document.documentElement.classList.contains("simple-finance-mode")) {
+      document.getElementById("appManifest")?.setAttribute("href", "manifest-simple.webmanifest");
+      document.querySelector('meta[name="apple-mobile-web-app-title"]')?.setAttribute("content", "D' Carela Finanzas");
+      document.querySelector('meta[name="description"]')?.setAttribute("content", "Resumen y finanzas de D' Carela conectados al mismo libro Firebase del panel central.");
+      document.title = "D' Carela | Finanzas";
+    }
+  </script>
   <link rel="icon" href="favicon.svg">
   <link rel="apple-touch-icon" href="dcarela-logo.png">
   <link rel="stylesheet" href="panel.css?v=2026.11.05.1.0.127.0">
