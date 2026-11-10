@@ -7653,7 +7653,9 @@
     }).join("") || '<div class="empty-state"><strong>Sin cuentas</strong><p>Agrega la primera cuenta para comenzar.</p></div>';
     mount.querySelectorAll("[data-mm-account-ledger]").forEach(button => button.addEventListener("click", () => {
       if (typeof SIMPLE_FINANCE !== "undefined" && SIMPLE_FINANCE) {
-        syncSimpleSearchOptions();
+        $("simpleSearchInput").value = "";
+        $("simpleSearchType").value = "";
+        $("simpleSearchCategory").value = "";
         simpleSearchAccounts.clear(); simpleSearchAccounts.add(button.dataset.mmAccountLedger);
         syncSimpleSearchOptions();
         location.hash = "buscar";
