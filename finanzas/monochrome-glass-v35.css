@@ -1,0 +1,105 @@
+/* Vidrio puntual y monocromo para la PWA móvil. La información sigue siendo del libro del CRM. */
+:root {
+  color-scheme:light;
+  --bg:#f4f5f6;--surface:#f8f9fa;--surface-2:#e9ebed;
+  --ink:#111315;--muted:#62676c;--border:#d7dade;
+  --accent:#151719;--accent-soft:#e9ebed;--nav-bg:rgba(246,247,248,.77);
+  --income:#167c59;--expense:#bb5158;--focus:#43484d;
+  --tone-1:#212325;--tone-2:#4d5053;--tone-3:#74787c;--tone-4:#9ba0a4;--tone-5:#c1c5c8;
+}
+:root[data-theme="dark"] {
+  color-scheme:dark;
+  --bg:#080a0c;--surface:#0e1113;--surface-2:#1b1e20;
+  --ink:#f5f6f7;--muted:#a4a9ad;--border:#303439;
+  --accent:#f6f7f8;--accent-soft:#272a2d;--nav-bg:rgba(15,17,20,.72);
+  --income:#8fe1ba;--expense:#f3999d;--focus:#d5d9dd;
+  --tone-1:#f4f4f4;--tone-2:#cccccc;--tone-3:#a4a4a4;--tone-4:#7d7d7d;--tone-5:#555555;
+}
+body,:root[data-theme="dark"] body{background:var(--bg);background-image:radial-gradient(ellipse 95% 40% at 68% -4%,rgba(255,255,255,.075),transparent 75%),linear-gradient(170deg,#0d0f12,#080a0c 62%);background-attachment:fixed}
+:root:not([data-theme="dark"]) body{background-image:radial-gradient(ellipse 90% 36% at 68% -4%,rgba(255,255,255,1),transparent 75%),linear-gradient(170deg,#fcfcfd,#f1f3f5 60%,#f8f9fa)}
+.page-title,.hero-main{color:var(--ink);text-shadow:0 0 18px rgba(255,255,255,.12)}
+:root:not([data-theme="dark"]) .page-title,:root:not([data-theme="dark"]) .hero-main{text-shadow:0 0 20px rgba(255,255,255,.75)}
+.brand-sub{color:var(--muted)}
+.income-text,.metric.income strong{color:var(--income)}
+.expense-text,.metric.expense strong{color:var(--expense)}
+.income-text,.metric.income strong{text-shadow:0 0 13px rgba(44,196,128,.18)}
+.expense-text,.metric.expense strong{text-shadow:0 0 13px rgba(218,86,97,.17)}
+.row-amount.balance-text,.warning-text{color:var(--ink)}
+.account-icon.bank-logo img{filter:grayscale(1) contrast(1.1)}
+.bottom-nav,:root[data-theme="dark"] .bottom-nav{
+  background:var(--nav-bg);border-top:1px solid rgba(255,255,255,.15);
+  backdrop-filter:blur(22px) saturate(1.55);-webkit-backdrop-filter:blur(22px) saturate(1.55);
+  box-shadow:0 -12px 36px rgba(0,0,0,.11);
+}
+:root:not([data-theme="dark"]) .bottom-nav{border-top-color:rgba(0,0,0,.10)}
+.tab-button.is-active{color:var(--ink)}
+.flow-panel,.finance-filter-menu{
+  background:linear-gradient(145deg,rgba(255,255,255,.10),rgba(255,255,255,.035) 54%,rgba(255,255,255,.07));
+  border:0;border-radius:22px;box-shadow:0 15px 40px rgba(0,0,0,.12),inset 0 1px 0 rgba(255,255,255,.11);
+  backdrop-filter:blur(24px) saturate(1.5);-webkit-backdrop-filter:blur(24px) saturate(1.5);
+}
+:root:not([data-theme="dark"]) .flow-panel,:root:not([data-theme="dark"]) .finance-filter-menu{
+  background:linear-gradient(145deg,rgba(255,255,255,.90),rgba(255,255,255,.52) 70%,rgba(255,255,255,.72));
+  box-shadow:0 17px 39px rgba(28,38,49,.07),inset 0 1px 0 #fff;
+}
+.month-swipe{display:flex;justify-content:space-between;align-items:center;gap:8px;margin:4px 0 7px;min-height:42px;touch-action:pan-y;user-select:none;cursor:grab}
+.month-swipe span{font-size:.84rem;font-weight:640;letter-spacing:-.02em}
+.month-swipe small{font-size:.6rem;color:var(--muted)}
+.finance-filter{display:grid;grid-template-columns:minmax(0,1fr) 42px;align-items:center;margin:3px 0 11px;padding:4px 0 8px;gap:4px;touch-action:pan-y;user-select:none;cursor:grab;background:linear-gradient(90deg,transparent,rgba(255,255,255,.06),transparent);border:0;border-bottom:1px solid var(--border);border-radius:0;box-shadow:none;backdrop-filter:none}
+:root:not([data-theme="dark"]) .finance-filter{background:linear-gradient(90deg,transparent,rgba(255,255,255,.72),transparent)}
+.filter-step,.filter-current,.filter-open{background:transparent;border:0;color:var(--ink);min-height:43px;border-radius:14px}
+.filter-step,.filter-open{display:grid;place-items:center}
+.filter-step svg,.filter-open svg{width:17px;height:17px;stroke-width:1.65}
+.filter-open{border:0;border-radius:50%;color:var(--muted)}
+.filter-current{text-align:left;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:2px;padding-left:2px}
+.filter-current span{font-size:.55rem;letter-spacing:.16em;color:var(--muted);font-weight:650}
+.filter-current strong{font-size:.93rem;font-weight:650;letter-spacing:-.01em}
+.finance-filter-menu{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px;padding:9px;margin-bottom:14px;animation:glassRise .25s ease both}
+.finance-filter-menu button{background:transparent;border:0;color:var(--muted);min-height:39px;text-align:left;padding:7px 10px;border-radius:9px;font-size:.74rem}
+.finance-filter-menu button.selected{background:var(--accent-soft);color:var(--ink);font-weight:700}
+.filter-currency{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;gap:12px;color:var(--muted);font-size:.7rem;padding:7px 10px 3px}
+.filter-currency select{min-height:36px;border:0;border-radius:9px;background:var(--accent-soft);color:var(--ink);padding:0 10px;font-size:.72rem}
+.triple-summary,:root[data-theme="dark"] .triple-summary{padding:1px 0;margin:12px 0 20px;border:0;border-radius:0;background:transparent;box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none}
+.triple-summary>div{padding:12px 5px}
+.triple-summary>div+div{border-left:0;padding-left:10px}
+.triple-summary strong{font-size:.73rem}
+.flow-panel{padding:18px 15px 14px;margin:20px 0 23px;overflow:hidden}
+.flow-head{display:flex;justify-content:space-between;align-items:baseline;gap:7px}
+.flow-head h2{font-size:.83rem;font-weight:650;margin:0}
+.flow-head small{font-size:.62rem;color:var(--muted);text-align:right}
+.flow-svg{width:100%;height:150px;display:block;margin-top:13px;overflow:visible}
+.flow-svg .flow-grid{fill:none;stroke:var(--border);stroke-width:.8;opacity:.7}
+.flow-svg .flow-income,.flow-svg .flow-expense{fill:none;stroke-linecap:round;stroke-linejoin:round;stroke-width:2.7}
+.flow-svg .flow-income{stroke:var(--ink);filter:drop-shadow(0 0 6px rgba(255,255,255,.28))}
+.flow-svg .flow-expense{stroke:var(--muted);stroke-width:1.9;stroke-dasharray:4 4}
+.flow-svg text{fill:var(--muted);font-size:9px;font-weight:550}
+.flow-legend{display:flex;gap:16px;color:var(--muted);font-size:.65rem}
+.category-panel{margin:20px 0 22px}
+.category-panel .section-head{margin:0 0 15px}
+.signals-panel{margin:8px 0 25px}
+.signals-panel .section-head{margin:0 0 15px}
+.signal-row{margin:0 0 14px}
+.signal-row>div:first-child{display:flex;justify-content:space-between;gap:8px;font-size:.71rem}
+.signal-row strong{font-weight:650}
+.period-card{padding:12px 0 4px;border-bottom:1px solid var(--border)}
+.period-detail{margin-top:14px}
+.period-detail .date-section{margin-bottom:15px}
+.category-bar-row{margin:0 0 15px}
+.category-bar-row>div:first-child{display:flex;justify-content:space-between;gap:8px;font-size:.71rem}
+.category-bar-row strong{font-weight:650;white-space:nowrap}
+.category-track{height:4px;background:var(--surface-2);border-radius:20px;margin-top:8px;overflow:hidden}
+.category-track span{height:100%;display:block;background:var(--ink);border-radius:20px}
+.day-cell.active{border-color:var(--border);background:rgba(255,255,255,.08)}
+.day-cell.today .day-number{background:var(--ink);color:var(--bg)}
+.donut{filter:grayscale(1)}
+.primary-btn,:root[data-theme="dark"] .primary-btn{background:var(--ink);color:var(--bg);border:0;box-shadow:0 8px 22px rgba(0,0,0,.13)}
+.fab{background:var(--ink);color:var(--bg)}
+.sheet,:root[data-theme="dark"] .sheet{background:rgba(15,17,20,.91);backdrop-filter:blur(26px);-webkit-backdrop-filter:blur(26px)}
+:root:not([data-theme="dark"]) .sheet{background:rgba(250,251,252,.94)}
+@keyframes glassRise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@keyframes drawLine{from{stroke-dashoffset:1}to{stroke-dashoffset:0}}
+.view-enter .page{animation:glassRise .32s cubic-bezier(.2,.8,.2,1) both}
+.flow-svg .flow-income{stroke-dasharray:1;stroke-dashoffset:1;animation:drawLine .8s .15s ease forwards}
+.flow-panel{animation:glassRise .4s ease both}
+.filter-open:active,.tab-button:active{transform:scale(.95)}
+@media(prefers-reduced-motion:reduce){.view-enter .page,.flow-panel,.finance-filter-menu,.flow-svg .flow-income{animation:none;stroke-dashoffset:0}.filter-open:active,.tab-button:active{transform:none}}
