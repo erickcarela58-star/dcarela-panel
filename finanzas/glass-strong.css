@@ -1,0 +1,136 @@
+/* V3.1 · Cristal traslúcido real — la capa de presentación.
+ * Mantiene el motor contable intacto y los logos bancarios originales.
+ * Valores deliberadamente translúcidos para que el blur sea visible. */
+:root{
+  --bg:#d5d9df;
+  --surface:rgba(253,254,255,.43);
+  --surface-2:rgba(248,250,252,.31);
+  --border:rgba(255,255,255,.73);
+  --nav-bg:rgba(249,250,253,.52);
+  --shadow:0 18px 38px rgba(43,52,66,.105),0 3px 12px rgba(52,59,70,.06),inset 0 1px 0 rgba(255,255,255,.87),inset 0 -1px 0 rgba(255,255,255,.1);
+}
+:root[data-theme="dark"]{
+  --bg:#0d1015;
+  --surface:rgba(66,73,84,.29);
+  --surface-2:rgba(77,88,101,.20);
+  --border:rgba(242,246,255,.23);
+  --nav-bg:rgba(30,35,43,.43);
+  --shadow:0 16px 38px rgba(0,0,0,.32),0 2px 10px rgba(0,0,0,.14),inset 0 1px 0 rgba(255,255,255,.17),inset 0 -1px 0 rgba(255,255,255,.045);
+}
+html{background:var(--bg)}
+body{
+  background:
+    radial-gradient(ellipse 260px 330px at 104% 19%,rgba(137,152,176,.38),transparent 78%),
+    radial-gradient(ellipse 230px 285px at -22% 57%,rgba(102,119,145,.24),transparent 78%),
+    radial-gradient(ellipse 210px 250px at 99% 89%,rgba(180,190,207,.26),transparent 78%),
+    linear-gradient(135deg,#c5ccd5 0%,#f2f5f8 35%,#d1d8e0 69%,#ffffff 100%);
+  background-attachment:fixed;
+}
+:root[data-theme="dark"] body{
+  background:
+    radial-gradient(ellipse 240px 340px at 106% 13%,rgba(115,133,161,.41),transparent 78%),
+    radial-gradient(ellipse 270px 360px at -22% 62%,rgba(72,88,113,.36),transparent 76%),
+    radial-gradient(ellipse 230px 250px at 96% 89%,rgba(99,113,134,.24),transparent 80%),
+    linear-gradient(145deg,#262e3b 0%,#10151d 45%,#303847 76%,#090c11 100%);
+  background-attachment:fixed;
+}
+/* Cristal del contenido: transparencia, refracción y contorno brillante. */
+.card,.metric,.triple-summary,.period-card,.filter-trigger,.mini-switch,.settings-list,.segmented{
+  background:linear-gradient(143deg,rgba(255,255,255,.57) 0%,rgba(255,255,255,.33) 53%,rgba(236,241,248,.29) 100%);
+  border:1px solid rgba(255,255,255,.81);
+  box-shadow:var(--shadow);
+  backdrop-filter:blur(27px) saturate(142%);
+  -webkit-backdrop-filter:blur(27px) saturate(142%);
+}
+:root[data-theme="dark"] .card,
+:root[data-theme="dark"] .metric,
+:root[data-theme="dark"] .triple-summary,
+:root[data-theme="dark"] .period-card,
+:root[data-theme="dark"] .filter-trigger,
+:root[data-theme="dark"] .mini-switch,
+:root[data-theme="dark"] .settings-list,
+:root[data-theme="dark"] .segmented{
+  background:linear-gradient(145deg,rgba(180,193,211,.17),rgba(112,127,148,.14) 43%,rgba(24,30,39,.25) 100%);
+  border-color:rgba(226,236,251,.23);
+}
+/* Banner de saldo: ya no es una placa opaca. */
+.hero{
+  background:linear-gradient(121deg,rgba(254,255,255,.59) 0%,rgba(245,248,252,.38) 46%,rgba(211,222,234,.30) 100%);
+  border:1px solid rgba(255,255,255,.88);
+  box-shadow:0 22px 46px rgba(67,78,95,.17),inset 0 1px 0 rgba(255,255,255,.96),inset 1px 0 0 rgba(255,255,255,.55);
+  backdrop-filter:blur(29px) saturate(155%);
+  -webkit-backdrop-filter:blur(29px) saturate(155%);
+}
+.hero:after{
+  top:-207px;right:-172px;border-color:rgba(255,255,255,.50);
+  box-shadow:0 0 0 37px rgba(255,255,255,.095),0 0 0 85px rgba(255,255,255,.075);
+}
+:root[data-theme="dark"] .hero{
+  background:linear-gradient(127deg,rgba(170,184,204,.30),rgba(86,103,128,.26) 51%,rgba(29,38,53,.35));
+  border-color:rgba(240,246,255,.32);
+  box-shadow:0 22px 47px rgba(0,0,0,.34),inset 0 1px 0 rgba(255,255,255,.30),inset 1px 0 0 rgba(255,255,255,.14);
+}
+:root[data-theme="dark"] .hero:after{border-color:rgba(255,255,255,.17)}
+/* Elementos pequeños glass; no se modifican las imágenes institucionales. */
+.round-button,.account-icon:not(.bank-logo),.move-icon,.setting-icon,.tab-icon,.keypad button,.date-box,.screen-kicker{
+  background:linear-gradient(140deg,rgba(255,255,255,.62),rgba(241,246,253,.28));
+  border:1px solid rgba(255,255,255,.82);
+  box-shadow:0 5px 14px rgba(53,64,78,.085),inset 0 1px 0 rgba(255,255,255,.88);
+  backdrop-filter:blur(17px) saturate(135%);
+  -webkit-backdrop-filter:blur(17px) saturate(135%);
+}
+:root[data-theme="dark"] .round-button,
+:root[data-theme="dark"] .account-icon:not(.bank-logo),
+:root[data-theme="dark"] .move-icon,
+:root[data-theme="dark"] .setting-icon,
+:root[data-theme="dark"] .tab-icon,
+:root[data-theme="dark"] .keypad button,
+:root[data-theme="dark"] .date-box,
+:root[data-theme="dark"] .screen-kicker{
+  background:linear-gradient(135deg,rgba(230,238,251,.20),rgba(91,109,132,.09));
+  border-color:rgba(238,244,255,.26);
+  box-shadow:0 5px 15px rgba(0,0,0,.14),inset 0 1px 0 rgba(255,255,255,.24);
+}
+/* Los iconos oficiales quedan sobre cristal blanco para legibilidad de marca. */
+.account-icon.bank-logo{background:rgba(255,255,255,.84);box-shadow:0 5px 15px rgba(38,50,64,.09),inset 0 1px 0 rgba(255,255,255,.92)}
+:root[data-theme="dark"] .account-icon.bank-logo{background:rgba(255,255,255,.96)}
+/* Navegación y hojas inferiores mantienen transparencia visible. */
+.bottom-nav{
+  background:linear-gradient(115deg,rgba(255,255,255,.59),rgba(238,244,251,.38));
+  border-top:1px solid rgba(255,255,255,.79);
+  backdrop-filter:blur(32px) saturate(145%);
+  -webkit-backdrop-filter:blur(32px) saturate(145%);
+  box-shadow:0 -10px 30px rgba(53,63,78,.11),inset 0 1px 0 rgba(255,255,255,.91);
+}
+:root[data-theme="dark"] .bottom-nav{
+  background:linear-gradient(120deg,rgba(74,87,106,.37),rgba(24,30,39,.36));
+  border-color:rgba(233,241,254,.20);
+  box-shadow:0 -13px 38px rgba(0,0,0,.28),inset 0 1px 0 rgba(255,255,255,.20);
+}
+.sheet{
+  background:linear-gradient(125deg,rgba(253,254,255,.76),rgba(231,239,249,.65));
+  border:1px solid rgba(255,255,255,.83);
+  backdrop-filter:blur(39px) saturate(148%);
+  -webkit-backdrop-filter:blur(39px) saturate(148%);
+}
+:root[data-theme="dark"] .sheet{
+  background:linear-gradient(135deg,rgba(85,102,124,.66),rgba(30,38,51,.68));
+  border-color:rgba(239,246,255,.28);
+}
+.field-control,.field-select,.field-area,.filter-trigger{
+  background:linear-gradient(145deg,rgba(255,255,255,.62),rgba(238,243,248,.30));
+  backdrop-filter:blur(17px);-webkit-backdrop-filter:blur(17px)
+}
+:root[data-theme="dark"] .field-control,
+:root[data-theme="dark"] .field-select,
+:root[data-theme="dark"] .field-area,
+:root[data-theme="dark"] .filter-trigger{background:rgba(236,245,255,.09)}
+/* No se sacrifica contraste por estética. */
+.row-copy b,.hero-main,.row-amount,.metric strong{opacity:1}
+@media(prefers-reduced-transparency:reduce){
+ .card,.metric,.triple-summary,.period-card,.segmented,.hero,.sheet,.bottom-nav,.round-button,.move-icon{backdrop-filter:none;-webkit-backdrop-filter:none}
+ .card,.metric,.triple-summary,.period-card,.segmented{background:#f7f9fb}
+ .hero{background:#eff2f6}
+ :root[data-theme="dark"] .card,:root[data-theme="dark"] .metric,:root[data-theme="dark"] .triple-summary,:root[data-theme="dark"] .period-card,:root[data-theme="dark"] .segmented{background:#262d38}
+ :root[data-theme="dark"] .hero{background:#313b4b}
+}

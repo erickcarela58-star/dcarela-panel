@@ -1,0 +1,7 @@
+origen,escenario,business_id,cuenta,moneda,panel_core_centavos,pwa_core_centavos,caja_windows_centavos,estado
+fixture_V33,solo_lectura,sucursal-a,sucursal-a-cash,DOP,12894500,12894500,,CAJA_NO_VERIFICADA
+fixture_V33,solo_lectura,sucursal-a,sucursal-a-popular,DOP,7520630,7520630,,CAJA_NO_VERIFICADA
+fixture_V33,solo_lectura,sucursal-a,sucursal-a-reservas,DOP,4750320,4750320,,CAJA_NO_VERIFICADA
+fixture_V33,cuenta_excluida,sucursal-a,sucursal-a-petty,DOP,824100,824100,,CAJA_NO_VERIFICADA
+fixture_V33,moneda_separada,sucursal-a,sucursal-a-usd,USD,231640,231640,,CAJA_NO_VERIFICADA
+fixture_V33,tarjeta_deuda,sucursal-a,sucursal-a-visa,DOP,-643200,-643200,,CAJA_NO_VERIFICADA

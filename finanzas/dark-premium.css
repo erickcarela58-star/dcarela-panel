@@ -1,0 +1,102 @@
+/* V3.2 — Midnight graphite: fondo OPACO de negro a gris.
+   Únicamente las superficies de interfaz tienen translucidez. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg:#050607;
+  --surface:rgba(104,109,122,.15);
+  --surface-2:rgba(123,129,143,.13);
+  --border:rgba(243,246,252,.18);
+  --ink:#f6f7fa;
+  --muted:#a6aab4;
+  --accent:#eceef2;
+  --accent-soft:rgba(255,255,255,.10);
+  --nav-bg:rgba(34,36,42,.42);
+  --shadow:0 14px 38px rgba(0,0,0,.28),inset 0 1px 0 rgba(255,255,255,.12);
+}
+html[data-theme="dark"] {background:#050607 !important;}
+:root[data-theme="dark"] body {
+  /* Fondo 100% opaco: sin transparencia, manchas radiales ni blur */
+  background-color:#050607 !important;
+  background-image:linear-gradient(152deg,#020203 0%,#070809 27%,#121419 64%,#25282f 100%) !important;
+  background-attachment:fixed !important;
+  background-repeat:no-repeat;
+  color:var(--ink);
+}
+:root[data-theme="dark"] .shell,
+:root[data-theme="dark"] #app{background:transparent}
+/* El cristal sí es translúcido; es independiente del fondo negro-gris */
+:root[data-theme="dark"] .card,
+:root[data-theme="dark"] .metric,
+:root[data-theme="dark"] .triple-summary,
+:root[data-theme="dark"] .period-card,
+:root[data-theme="dark"] .filter-trigger,
+:root[data-theme="dark"] .mini-switch,
+:root[data-theme="dark"] .settings-list,
+:root[data-theme="dark"] .segmented {
+  background:linear-gradient(137deg,rgba(209,213,223,.135) 0%,rgba(103,109,122,.11) 44%,rgba(27,29,35,.19) 100%);
+  border:1px solid rgba(250,251,255,.18);
+  box-shadow:0 16px 38px rgba(0,0,0,.19),inset 0 1px 0 rgba(255,255,255,.18),inset 0 -1px 0 rgba(255,255,255,.015);
+  backdrop-filter:blur(23px) saturate(125%);
+  -webkit-backdrop-filter:blur(23px) saturate(125%);
+}
+:root[data-theme="dark"] .hero {
+  background:linear-gradient(135deg,rgba(203,209,222,.225) 0%,rgba(110,115,127,.13) 40%,rgba(34,36,43,.14) 100%);
+  border:1px solid rgba(246,248,254,.25);
+  box-shadow:0 23px 43px rgba(0,0,0,.25),inset 0 1px 0 rgba(255,255,255,.21),inset 1px 0 0 rgba(255,255,255,.08);
+  backdrop-filter:blur(26px) saturate(125%);
+  -webkit-backdrop-filter:blur(26px) saturate(125%);
+}
+:root[data-theme="dark"] .hero:after {border-color:rgba(255,255,255,.17)}
+:root[data-theme="dark"] .hero-label,
+:root[data-theme="dark"] .hero-usd,
+:root[data-theme="dark"] .hero-bottom span {color:#c2c5cd}
+:root[data-theme="dark"] .round-button,
+:root[data-theme="dark"] .account-icon:not(.bank-logo),
+:root[data-theme="dark"] .move-icon,
+:root[data-theme="dark"] .setting-icon,
+:root[data-theme="dark"] .tab-icon,
+:root[data-theme="dark"] .keypad button,
+:root[data-theme="dark"] .date-box,
+:root[data-theme="dark"] .screen-kicker {
+  background:linear-gradient(145deg,rgba(230,234,245,.17),rgba(55,58,67,.09));
+  border:1px solid rgba(249,250,255,.24);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.18),0 5px 14px rgba(0,0,0,.12);
+}
+:root[data-theme="dark"] .account-icon.bank-logo{
+  /* El logo original se conserva íntegro y legible */
+  background:rgba(255,255,255,.94);
+  border:1px solid rgba(255,255,255,.36);
+}
+:root[data-theme="dark"] .bottom-nav {
+  background:linear-gradient(142deg,rgba(94,99,112,.31),rgba(17,19,25,.35));
+  border-color:rgba(255,255,255,.18);
+  box-shadow:0 -12px 30px rgba(0,0,0,.23),inset 0 1px 0 rgba(255,255,255,.15);
+  backdrop-filter:blur(28px) saturate(115%);
+  -webkit-backdrop-filter:blur(28px) saturate(115%);
+}
+:root[data-theme="dark"] .sheet {
+  background:linear-gradient(145deg,rgba(54,58,67,.79),rgba(17,19,24,.82));
+  border-color:rgba(250,251,255,.20);
+  backdrop-filter:blur(34px) saturate(122%);
+  -webkit-backdrop-filter:blur(34px) saturate(122%);
+}
+:root[data-theme="dark"] .demo-ribbon {
+  background:rgba(104,109,120,.10);
+  border:1px solid rgba(249,250,255,.16);
+  backdrop-filter:blur(17px);
+}
+:root[data-theme="dark"] .field-control,
+:root[data-theme="dark"] .field-select,
+:root[data-theme="dark"] .field-area{background:rgba(173,180,197,.10);border-color:rgba(255,255,255,.17)}
+:root[data-theme="dark"] .row-group-label{background:rgba(255,255,255,.065)}
+:root[data-theme="dark"] .segment.active{
+  background:linear-gradient(145deg,rgba(238,239,244,.20),rgba(255,255,255,.055));
+  border-color:rgba(255,255,255,.22);
+}
+/* Protección ante el colapso de transparencia por preferencias del sistema. */
+@media (prefers-reduced-transparency: reduce){
+ :root[data-theme="dark"] .card,
+ :root[data-theme="dark"] .metric,
+ :root[data-theme="dark"] .triple-summary,
+ :root[data-theme="dark"] .hero{background:linear-gradient(135deg,#292c33,#191b20)}
+}

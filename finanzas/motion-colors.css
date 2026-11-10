@@ -1,0 +1,62 @@
+/* D' Carela V3.3: colores semánticos + movimiento suave de interfaz.
+   Fondo oscuro OPACO: este CSS no altera el degradado de dark-premium.css. */
+:root {--income:#137d51;--expense:#bf334a;--warning:#976706;--income-soft:rgba(25,146,89,.12);--expense-soft:rgba(209,61,80,.11);--warning-soft:rgba(190,143,30,.13)}
+:root[data-theme="dark"] {--income:#45dfa1;--expense:#ff737b;--warning:#f0c86b;--income-soft:rgba(42,221,141,.14);--expense-soft:rgba(255,98,112,.14);--warning-soft:rgba(244,186,66,.14)}
+.income-text,.row-amount.ingreso,.move-icon.ingreso,.stat-row strong.income-text {color:var(--income)!important}
+.expense-text,.row-amount.gasto,.move-icon.gasto,.stat-row strong.expense-text {color:var(--expense)!important}
+.warning-text,.balance-text,.row-amount.transferencia,.move-icon.transferencia {color:var(--warning)!important}
+.hero-main.balance-text {color:var(--ink)!important;text-shadow:0 1px 18px rgba(255,255,255,.12)}
+:root[data-theme="dark"] .hero-main.balance-text {color:#f7f3e7!important}
+.row-amount.ingreso,.row-amount.gasto,.row-amount.transferencia {font-variant-numeric:tabular-nums}
+.move-icon.ingreso {background:linear-gradient(145deg,rgba(49,205,131,.22),rgba(33,153,101,.09))!important;border-color:rgba(72,222,151,.26)}
+.move-icon.gasto {background:linear-gradient(145deg,rgba(239,89,111,.22),rgba(161,52,74,.07))!important;border-color:rgba(255,124,139,.24)}
+.move-icon.transferencia {background:linear-gradient(145deg,rgba(245,190,70,.19),rgba(170,123,24,.07))!important;border-color:rgba(245,199,102,.23)}
+.triple-summary .income-text,.metric.income strong {color:var(--income)!important}
+.triple-summary .expense-text,.metric.expense strong {color:var(--expense)!important}
+.day-cell .income,.mini-switch button[data-do="stats-type"][data-type="ingreso"].active {color:var(--income)!important}
+.day-cell .expense,.mini-switch button[data-do="stats-type"][data-type="gasto"].active {color:var(--expense)!important}
+.notice:not(.warning){color:var(--warning);background:var(--warning-soft);border-color:rgba(198,145,29,.22)}
+.notice.warning {color:var(--expense);background:var(--expense-soft);border-color:rgba(244,113,135,.23)}
+.progress-track span.warn{background:var(--warning)}
+.sheet-tabs button[data-type="gasto"].active{color:var(--expense);box-shadow:inset 0 -2px var(--expense)}
+.sheet-tabs button[data-type="ingreso"].active{color:var(--income);box-shadow:inset 0 -2px var(--income)}
+.sheet-tabs button[data-type="transferencia"].active{color:var(--warning);box-shadow:inset 0 -2px var(--warning)}
+.sheet .input-amount.income-text,.sheet .input-amount.expense-text,.sheet .input-amount.warning-text{font-weight:840}
+/* Animaciones contenidas y con estados diferenciados. */
+@keyframes dcSlideIn{from{opacity:0;transform:translate3d(0,12px,0)}to{opacity:1;transform:translate3d(0,0,0)}}
+@keyframes dcSheetUp{from{opacity:.7;transform:translate3d(0,44px,0) scale(.988)}to{opacity:1;transform:translate3d(0,0,0) scale(1)}}
+@keyframes dcOverlayFade{from{background:rgba(0,0,0,0)}to{background:rgba(0,0,0,.57)}}
+@keyframes dcAmountIn{from{opacity:.35;transform:translateY(7px);filter:blur(3px)}to{opacity:1;transform:translateY(0);filter:blur(0)}}
+@keyframes dcRowIn{from{opacity:.18;transform:translateY(9px)}to{opacity:1;transform:translateY(0)}}
+@keyframes dcFill{from{transform:scaleX(.1)}to{transform:scaleX(1)}}
+.view-enter .page{animation:dcSlideIn .29s cubic-bezier(.2,.8,.25,1) both}
+.view-enter .page .page-title{animation:dcSlideIn .3s .035s both}
+.view-enter .page .hero,.view-enter .page .triple-summary,.view-enter .page .metric-grid{animation:dcSlideIn .34s .05s both}
+.view-enter .page .hero-main,.view-enter .page .triple-summary strong,.view-enter .animated-amount{animation:dcAmountIn .38s .1s both}
+.view-enter .date-section,.view-enter .card .movement-row,.view-enter .account-row{animation:dcRowIn .31s cubic-bezier(.2,.75,.22,1) both}
+.view-enter .date-section:nth-of-type(2),.view-enter .account-row:nth-child(2),.view-enter .movement-row:nth-child(2){animation-delay:.045s}
+.view-enter .date-section:nth-of-type(3),.view-enter .account-row:nth-child(3),.view-enter .movement-row:nth-child(3){animation-delay:.085s}
+.view-enter .date-section:nth-of-type(4),.view-enter .account-row:nth-child(4),.view-enter .movement-row:nth-child(4){animation-delay:.12s}
+.overlay:not(.no-enter){animation:dcOverlayFade .24s ease-out both}
+.overlay:not(.no-enter) .sheet{animation:dcSheetUp .32s cubic-bezier(.19,.82,.25,1) both}
+.sheet-header h2,.sheet .account-large strong {animation:dcAmountIn .3s both}
+.progress-track span {transform-origin:left;animation:dcFill .48s cubic-bezier(.2,.7,.3,1) both}
+button,.tab-icon,.segment,.setting-icon,.account-icon,.move-icon,.card,.hero,.fab{transition:transform .18s cubic-bezier(.2,.8,.2,1),border-color .22s,box-shadow .22s,background-color .22s,color .18s}
+button:active,.keypad button:active{transform:scale(.965)}
+.tab-button.is-active .tab-icon{transform:translateY(-2px);box-shadow:inset 0 1px 0 rgba(255,255,255,.25),0 5px 16px rgba(0,0,0,.13)}
+.segment.active{transition:transform .22s,background .22s,box-shadow .22s;box-shadow:inset 0 1px 0 rgba(255,255,255,.23),0 4px 12px rgba(0,0,0,.09)}
+.fab:active{transform:scale(.90) rotate(45deg)}
+.sheet-tabs button.active{transform:translateY(-1px)}
+.toast{animation:dcSlideIn .23s ease-out both}
+/* Evita animación permanente, flashes en cada tecla y sensibilidad vestibular. */
+@media(prefers-reduced-motion:reduce){
+  .view-enter .page,.view-enter .page .page-title,.view-enter .page .hero,.view-enter .page .triple-summary,.view-enter .page .metric-grid,.view-enter .page .hero-main,.view-enter .page .triple-summary strong,.view-enter .date-section,.view-enter .card .movement-row,.view-enter .account-row,.overlay,.overlay .sheet,.sheet-header h2,.sheet .account-large strong,.progress-track span,.toast{animation:none!important}
+  button,.tab-icon,.segment,.setting-icon,.account-icon,.move-icon,.card,.hero,.fab{transition:none!important}
+}
+/* Ancho exacto del scroller: margen original 18 px no coincide con padding 16 px de la V3. */
+@media(min-width:391px){.segment-wrap{margin-inline:-16px;max-width:calc(100% + 32px);padding-inline:16px}}
+/* Las insignias bancarias nunca se estiran al seleccionar varias cuentas. */
+.option-account .account-icon,.option-line.option-account .account-icon{flex:0 0 42px!important;width:42px!important;max-width:42px;min-width:42px}
+.option-account .account-icon img{height:100%;width:100%;object-fit:contain}
+
+.overlay.closing{pointer-events:none;animation:none!important}
