@@ -99,6 +99,9 @@ body,:root[data-theme="dark"] body{background:var(--bg);background-image:radial-
 .fab{background:var(--ink);color:var(--bg)}
 .sheet,:root[data-theme="dark"] .sheet{background:rgba(15,17,20,.91);backdrop-filter:blur(26px);-webkit-backdrop-filter:blur(26px)}
 :root:not([data-theme="dark"]) .sheet{background:rgba(250,251,252,.94)}
+.sheet-header .round-button,:root[data-theme="dark"] .sheet-header .round-button{position:relative;border:0;border-radius:0;outline:0;box-shadow:none;background:transparent}
+.sheet-header .round-button:focus-visible,:root[data-theme="dark"] .sheet-header .round-button:focus-visible{outline:0;box-shadow:none;background:transparent}
+.sheet-header .round-button:focus-visible::after{content:"";position:absolute;bottom:4px;left:12px;right:12px;height:2px;background:var(--focus)}
 @keyframes glassRise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 @keyframes drawLine{from{stroke-dashoffset:1}to{stroke-dashoffset:0}}
 .view-enter .page{animation:glassRise .32s cubic-bezier(.2,.8,.2,1) both}
