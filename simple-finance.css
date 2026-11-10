@@ -16,10 +16,8 @@ html.simple-finance-mode .money-manager-sync { padding:0 3px; border:0; backgrou
 html.simple-finance-mode #menu a[href="#money-manager"] .money-pig-icon { display:none; }
 html.simple-finance-mode #menu a[href="#money-manager"] { font-size:0; }
 html.simple-finance-mode #menu a[href="#money-manager"]::after { content:"Finanzas"; font-size:14px; }
-html.simple-finance-mode .mobile-command-dock a[href="#money-manager"] span { font-size:0; }
-html.simple-finance-mode .mobile-command-dock a[href="#money-manager"] span::after { content:"Finanzas"; font-size:11px; }
-html.simple-finance-mode .mobile-command-dock a[href="#money-manager"] i { font-size:0; }
-html.simple-finance-mode .mobile-command-dock a[href="#money-manager"] i::after { content:"▤"; font-size:20px; }
+html.simple-finance-mode .mobile-command-dock a[href="#money-manager"] span { font-size:11px; }
+html.simple-finance-mode .mobile-command-dock a[href="#money-manager"] i { font-size:20px; }
 html.simple-finance-mode .mobile-command-dock a[href="#dashboard"] span { font-size:11px; }
 html.simple-finance-mode .mobile-command-dock { justify-content:center; gap:8px; }
 html.simple-finance-mode .mobile-command-dock a { flex:1; max-width:180px; min-width:110px; }
@@ -94,4 +92,63 @@ html.simple-finance-mode .money-manager-kpi strong { white-space:normal; overflo
   html.simple-finance-mode .money-manager-calendar-day:has(.expense) { border-bottom:3px solid var(--mm-expense); }
   html.simple-finance-mode .money-manager-calendar-day b { font-size:12px; }
   html.simple-finance-mode .money-manager-day-detail .table-wrap { overflow-x:auto; }
+}
+
+/* Organización móvil del libro: barra, periodo, pestañas, resumen y días en una
+   sola superficie. Los recursos y el código de Money Manager no se reutilizan. */
+.simple-top-button,.simple-search-field { display:none; }
+@media (max-width:700px) {
+  html.simple-finance-mode,html.simple-finance-mode body,html.simple-finance-mode .workspace { background:#fff; }
+  html.simple-finance-mode .workspace { padding-bottom:calc(70px + env(safe-area-inset-bottom)); }
+  html.simple-finance-mode main { padding:0; }
+  html.simple-finance-mode .topbar { position:sticky; top:0; z-index:10; min-height:64px; padding:10px 16px; grid-template-columns:40px minmax(0,1fr) 40px; gap:8px; background:#fff; border-bottom:0; box-shadow:none; backdrop-filter:none; }
+  html.simple-finance-mode .topbar-back,html.simple-finance-mode .topbar .eyebrow { display:none; }
+  html.simple-finance-mode .topbar-title { text-align:center; }
+  html.simple-finance-mode .topbar h1 { font-size:20px; font-weight:750; color:#17211e; }
+  html.simple-finance-mode .simple-top-button { display:grid; place-items:center; width:40px; height:40px; padding:8px; border:0; background:transparent; color:#24312c; border-radius:10px; box-shadow:none; }
+  html.simple-finance-mode .simple-top-button svg { width:24px; height:24px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+  html.simple-finance-mode .topbar .top-actions { display:none; position:absolute; top:60px; right:12px; left:12px; z-index:15; padding:12px; background:#fff; border:1px solid #dce4df; border-radius:12px; box-shadow:0 12px 24px #17211e22; }
+  html.simple-finance-mode .topbar .top-actions.simple-open { display:flex; flex-wrap:wrap; }
+  html.simple-finance-mode .topbar .branch-switcher { display:flex; }
+  html.simple-finance-mode .simple-search-field:not([hidden]) { display:block; grid-column:1/-1; width:100%; }
+  html.simple-finance-mode .simple-search-field span { position:absolute; width:1px; height:1px; overflow:hidden; }
+  html.simple-finance-mode .simple-search-field input { width:100%; min-height:42px; padding:8px 12px; border:1px solid #dce4df; border-radius:9px; background:#fff; color:#17211e; }
+  html.simple-finance-mode #v-money-manager { margin:0; padding:0; background:#fff; }
+  html.simple-finance-mode .money-manager-sync { margin:0; padding:0 16px 8px; font-size:11px; background:#fff; }
+  html.simple-finance-mode .simple-finance-controls { margin:0; border:0; border-radius:0; background:#fff; }
+  html.simple-finance-mode .simple-finance-month { justify-content:space-between; padding:10px 22px 8px; gap:0; }
+  html.simple-finance-mode .simple-finance-month strong { font-size:16px; font-weight:700; }
+  html.simple-finance-mode .simple-finance-month button { width:32px; height:36px; border:0; border-radius:0; font-size:26px; }
+  html.simple-finance-mode .simple-finance-tabs { justify-content:space-between; gap:0; padding:0 8px; }
+  html.simple-finance-mode .simple-finance-tabs button { flex:1 1 20%; padding:8px 0; min-height:44px; font-size:12px; font-weight:600; white-space:nowrap; }
+  html.simple-finance-mode .simple-finance-tabs button.act { color:#155c43; border-bottom-color:#155c43; }
+  html.simple-finance-mode .simple-finance-totals { border-top:1px solid #e4e9e6; border-bottom:1px solid #e4e9e6; }
+  html.simple-finance-mode .simple-finance-totals span { padding:10px 3px; font-size:12px; }
+  html.simple-finance-mode .simple-finance-totals span+span { border-left:0; }
+  html.simple-finance-mode .simple-finance-totals strong { font-size:15px; }
+  html.simple-finance-mode .simple-finance-currency-label { padding:6px 12px; border-bottom:7px solid #f3f5f4; }
+  html.simple-finance-mode .simple-finance-actions { margin:0; padding:7px 16px; border-bottom:1px solid #e5e9e6; }
+  html.simple-finance-mode .simple-finance-actions > button { min-height:34px; padding:5px 12px; border-radius:8px; font-size:12px; }
+  html.simple-finance-mode .simple-finance-group { margin:0; border:0; border-radius:0; background:#fff; }
+  html.simple-finance-mode .simple-finance-group:first-child,html.simple-finance-mode .simple-finance-group:last-child { border-radius:0; }
+  html.simple-finance-mode .simple-finance-group+.simple-finance-group { border-top:7px solid #f3f5f4; }
+  html.simple-finance-mode .simple-finance-group header { gap:6px; padding:10px 14px; border-bottom:1px solid #e4e9e6; }
+  html.simple-finance-mode .simple-finance-group header b { min-width:30px; font-size:27px; }
+  html.simple-finance-mode .simple-finance-group header small { font-size:11px; }
+  html.simple-finance-mode .simple-finance-group header .totals { flex:0 0 auto; gap:12px; margin-left:auto; padding:0; font-size:11px; }
+  html.simple-finance-mode .simple-finance-row { min-height:60px; padding:9px 15px; border-top:0; border-bottom:1px solid #e9edeb; }
+  html.simple-finance-mode .simple-finance-row strong { font-size:13px; }
+  html.simple-finance-mode .simple-finance-row small { font-size:11px; }
+  html.simple-finance-mode .simple-finance-row em { font-size:13px; }
+  html.simple-finance-mode .simple-finance-ledger { padding:0; border:0; box-shadow:none; }
+  html.simple-finance-mode #mmPanelResumen .money-manager-kpis { gap:0; margin:0; padding:0; border-top:1px solid #e4e9e6; }
+  html.simple-finance-mode #mmPanelResumen .money-manager-kpi { min-height:90px; margin:0; padding:12px; border:0; border-right:1px solid #e4e9e6; border-bottom:1px solid #e4e9e6; border-radius:0; box-shadow:none; background:#fff; }
+  html.simple-finance-mode #mmPanelResumen .money-manager-kpi:nth-child(even) { border-right:0; }
+  html.simple-finance-mode #mmPanelResumen .money-manager-grid { gap:0; }
+  html.simple-finance-mode #mmPanelResumen .surface,html.simple-finance-mode .money-manager-calendar-surface { margin:0; padding:14px; border:0; border-bottom:7px solid #f3f5f4; border-radius:0; box-shadow:none; background:#fff; }
+  html.simple-finance-mode .mobile-command-dock { left:0; right:0; bottom:0 !important; width:100%; min-height:60px; padding:5px 16px calc(5px + env(safe-area-inset-bottom)); gap:0; justify-content:space-around; background:#fff !important; border:0; border-top:1px solid #e4e9e6; border-radius:0 !important; box-shadow:none !important; transform:none !important; backdrop-filter:none !important; }
+  html.simple-finance-mode .mobile-command-dock a { min-height:48px; border-radius:0; color:#69736f; }
+  html.simple-finance-mode .mobile-command-dock a[href="#dashboard"],html.simple-finance-mode .mobile-command-dock a[href="#money-manager"] { max-width:50%; }
+  html.simple-finance-mode .mobile-command-dock a[href="#money-manager"].active,html.simple-finance-mode .mobile-command-dock a[href="#dashboard"].active { color:#155c43; }
+  html.simple-finance-mode .mobile-command-dock a:hover,html.simple-finance-mode .mobile-command-dock a:focus-visible { transform:none; background:#f4f7f5; }
 }

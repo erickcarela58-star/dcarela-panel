@@ -136,8 +136,10 @@
     <div class="workspace">
       <header class="topbar">
         <button id="btnVolver" class="topbar-back" type="button" title="Volver" aria-label="Volver">&#8592;</button>
+        <button id="simpleSearchToggle" class="simple-top-button" type="button" aria-label="Buscar movimientos" aria-expanded="false" aria-controls="simpleSearchField"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.4"/><path d="m15.6 15.6 5 5"/></svg></button>
         <div class="topbar-title"><p class="eyebrow" id="branchEyebrow">D' Carela POS 1.0.127</p><h1 id="pageTitle">Resumen operativo</h1></div>
-        <div class="top-actions">
+        <button id="simpleSettingsToggle" class="simple-top-button" type="button" aria-label="Opciones de cuenta y sucursal" aria-expanded="false" aria-controls="simpleSettingsPanel"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M3 12h18M3 18h18"/><circle cx="8" cy="6" r="2"/><circle cx="16" cy="12" r="2"/><circle cx="10" cy="18" r="2"/></svg></button>
+        <div id="simpleSettingsPanel" class="top-actions">
           <label class="branch-switcher" for="branchSelector">
             <span>Sucursal</span>
             <select id="branchSelector" aria-label="Cambiar sucursal"></select>
@@ -153,6 +155,7 @@
           </button>
           <div class="session-user"><span id="sessionEmail">Administrador</span><small id="backendLabel">Sesión protegida</small></div>
         </div>
+        <label id="simpleSearchField" class="simple-search-field" hidden><span>Buscar</span><input id="simpleSearchInput" type="search" placeholder="Buscar en este mes" autocomplete="off" aria-label="Buscar movimientos de este mes"></label>
       </header>
 
       <main>
