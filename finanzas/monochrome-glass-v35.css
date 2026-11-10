@@ -35,6 +35,9 @@ body,:root[data-theme="dark"] body{background:var(--bg);background-image:radial-
   box-shadow:0 -12px 36px rgba(0,0,0,.11);
 }
 :root:not([data-theme="dark"]) .bottom-nav{border-top-color:rgba(0,0,0,.10)}
+.shell{display:flex;flex-direction:column;padding-bottom:0}
+.shell>.page{flex:1 0 auto}
+.bottom-nav,:root[data-theme="dark"] .bottom-nav{position:static;left:auto;right:auto;bottom:auto;flex:none;width:100%;max-width:none;margin-top:auto}
 .tab-button.is-active{color:var(--ink)}
 .flow-panel,.finance-filter-menu{
   background:linear-gradient(145deg,rgba(255,255,255,.10),rgba(255,255,255,.035) 54%,rgba(255,255,255,.07));
