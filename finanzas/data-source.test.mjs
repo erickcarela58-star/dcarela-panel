@@ -39,7 +39,7 @@ test('solo entrega sucursales activas con membresía; ignora un negocio suelto',
 
 test('rechaza sesión ausente y sucursal ajena antes de consultar el libro',async()=>{
   mock({waitForAuthState:async()=>null});
-  await assert.rejects(sessionBusinesses(),/Inicia sesión/);
+  await assert.rejects(sessionBusinesses(),error=>error.code==='AUTH_REQUIRED'&&/Inicia sesión/.test(error.message));
   const {calls}=mock();
   await assert.rejects(loadFinance('ajena'),/Acceso denegado/);
   assert.equal(calls.length,0);

@@ -23,7 +23,7 @@ export function authorizedBusinesses(memberships, businesses) {
 export async function sessionBusinesses(api = adapter()) {
   const user = await api.waitForAuthState(8000);
   if (!user?.uid || api.getCurrentUser()?.uid !== user.uid) {
-    throw new Error('Inicia sesión en el panel del CRM para consultar Finanzas.');
+    throw Object.assign(new Error('Inicia sesión para consultar Finanzas.'), {code:'AUTH_REQUIRED'});
   }
   const memberships = await api.getMembershipsForUser(user.uid);
   const ids = [...new Set((memberships || []).filter(m => m?.active === true).map(m => m.business_id))];

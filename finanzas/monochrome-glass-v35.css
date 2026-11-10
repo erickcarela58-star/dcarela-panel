@@ -38,6 +38,15 @@ body,:root[data-theme="dark"] body{background:var(--bg);background-image:radial-
 .shell{display:flex;flex-direction:column;padding-bottom:0}
 .shell>.page{flex:1 0 auto}
 .bottom-nav,:root[data-theme="dark"] .bottom-nav{position:static;left:auto;right:auto;bottom:auto;flex:none;width:100%;max-width:none;margin-top:auto}
+.login-screen{max-width:420px;margin:clamp(40px,12vh,110px) auto 36px;padding:0 5px}
+.login-screen .page-title{font-size:clamp(2rem,9vw,2.8rem);margin:10px 0 12px}
+.login-screen .subline{line-height:1.55;max-width:35ch}
+.login-form{margin-top:34px}
+.login-form .field-label{margin-top:18px}
+.login-form .field-control{min-height:52px;background:transparent;border-radius:12px}
+.login-form .primary-btn{margin-top:28px;min-height:52px}
+.login-error{color:var(--expense);font-size:.78rem;line-height:1.5;margin:13px 0 0}
+.finance-signout{margin-top:24px}
 .tab-button.is-active{color:var(--ink)}
 .flow-panel,.finance-filter-menu{
   background:linear-gradient(145deg,rgba(255,255,255,.10),rgba(255,255,255,.035) 54%,rgba(255,255,255,.07));
