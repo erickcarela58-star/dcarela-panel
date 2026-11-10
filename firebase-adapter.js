@@ -225,7 +225,10 @@
 
   // Las lecturas puntuales que validan el acceso no necesitan un canal persistente.
   // Se usa el ID token del usuario (reglas Firestore), nunca credenciales de servidor.
-  const canReadDirect = () => typeof fetch === 'function' && cfg?.projectId && auth?.currentUser?.getIdToken;
+  // Los proyectos demo usan el SDK conectado al emulador. El REST público
+  // ignoraría useEmulator() y consultaría un proyecto remoto inexistente.
+  const canReadDirect = () => typeof fetch === 'function' && cfg?.projectId
+    && !String(cfg.projectId).startsWith('demo-') && auth?.currentUser?.getIdToken;
   async function firestoreDirect(path, body = null) {
     const user = auth.currentUser;
     const key = `rest-read|${user.uid}|${path}|${JSON.stringify(body)}`;

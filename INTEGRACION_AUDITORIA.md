@@ -23,10 +23,13 @@
 - `finanzas/data-source.js`: autorización, lectura canónica, validación de completitud y compuerta de escritura solo para emulador.
 - `finanzas/sw.js`, `finanzas/manifest.webmanifest`: alcance PWA propio, caché solo de shell estático.
 - `finanzas/data-source.test.mjs`: pruebas sintéticas de permisos, fallos de lectura y compuerta de escritura.
+- `finanzas/emulator-rules.test.mjs`: Auth y reglas Firestore reales en proyecto `demo-*`, sin tocar datos productivos.
+- `firebase-adapter.js`: proyectos `demo-*` consultan el SDK conectado al emulador; el REST público permanece para producción.
 
 ## Diferencias y riesgos pendientes
 
 - No se comprobó una sesión real autorizada ni el saldo de Caja Windows frente a PWA. Las capturas son del demo local o de la pantalla local sin sesión, nunca de saldos reales.
-- El adaptador real contiene operaciones idempotentes, pero falta una prueba de escrituras y reglas en Firebase Emulator con ingreso, gasto, transferencia, conciliación, anulación, reintentos y reversión. La CLI existe, `java` no está en PATH y el emulador no está configurado; no se habilitan escrituras en producción.
+- El adaptador real contiene operaciones idempotentes; 33 pruebas de ejecución y reintentos pasaron. Las reglas de Firestore y Auth pasaron en emuladores aislados para lectura/escritura de Central, rechazo de Plaza, lector sin escritura y borrado denegado. Una transferencia se guardó desde la PWA en el emulador y mantuvo el patrimonio; faltan recorridos UI de ingreso, gasto, conciliación y anulación. Ninguna escritura se habilitó en producción. En proyectos `demo-*` el adaptador usa el SDK emulado en vez del REST público.
+- La Caja instalada en esta PC está atrasada frente al panel remoto: última venta local 02/11 y última sincronización 03/11, con 43 eventos pendientes. El panel autenticado mostró datos del 09/11. Esa base no sirve como testigo para afirmar paridad de saldos actuales.
 - El diario histórico es costoso; esta ruta lo consulta una vez por carga/cambio de sucursal y reutiliza los cortes del adaptador. Falta medir cuota y latencia con historial real.
 - Safari en iPhone 15 físico, instalación PWA, notch, teclado, modo offline y accesibilidad aún no están verificados.
