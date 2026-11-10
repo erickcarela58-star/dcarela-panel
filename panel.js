@@ -427,7 +427,7 @@
   };
 
   function mostrarVista(name) {
-    const simpleRoute = SIMPLE_FINANCE && ["cuentas", "buscar"].includes(name) ? name : "";
+    const simpleRoute = SIMPLE_FINANCE && ["cuentas", "buscar", "estadisticas"].includes(name) ? name : "";
     if (simpleRoute) name = "money-manager";
     if (name === "conciliacion") name = "recalcular";
     if (name === "proveedores") {
@@ -450,8 +450,12 @@
     if (SIMPLE_FINANCE) {
       document.documentElement.classList.toggle("simple-accounts-route", simpleRoute === "cuentas");
       document.documentElement.classList.toggle("simple-search-route", simpleRoute === "buscar");
+      document.documentElement.classList.toggle("simple-stats-route", simpleRoute === "estadisticas");
       $("simpleSearchView")?.classList.toggle("oculto", simpleRoute !== "buscar");
-      if (simpleRoute === "cuentas") { setMoneyManagerTab("cuentas"); $("pageTitle").textContent = "Cuentas"; }
+      $("simpleStatsView")?.classList.toggle("oculto", simpleRoute !== "estadisticas");
+      if (name === "dashboard" && !simpleRoute && !finStateCache) cargarMoneyManager(false).catch(() => {});
+      if (simpleRoute === "estadisticas") { $("pageTitle").textContent = "Estadísticas"; renderSimpleStats(); }
+      else if (simpleRoute === "cuentas") { setMoneyManagerTab("cuentas"); $("pageTitle").textContent = "Cuentas"; }
       else if (simpleRoute === "buscar") { $("pageTitle").textContent = "Buscar"; }
       else if (name === "money-manager") { simpleFinanceTab ||= "diario"; setMoneyManagerTab("resumen"); $("pageTitle").textContent = "Finanzas"; }
       document.querySelectorAll(".mobile-command-dock a").forEach(link => link.classList.toggle("active", link.getAttribute("href") === `#${simpleRoute || name}`));
@@ -7301,6 +7305,50 @@
     return new Intl.NumberFormat("es-DO", { style:"currency", currency, minimumFractionDigits:2 }).format(Number(cents || 0) / 100);
   }
 
+  // Importe corto para celdas pequeñas (calendario): 600 → «600», 9 350 → «9.3k», 12 000 → «12k».
+  function compactAmount(cents) {
+    const whole = Math.round(Math.abs(Number(cents) || 0) / 100);
+    if (whole < 1000) return String(whole);
+    const thousands = whole / 1000;
+    return `${thousands >= 10 ? Math.round(thousands) : (Math.round(thousands * 10) / 10).toString()}k`;
+  }
+
+  let simpleStatsKind = "gasto";
+  const SIMPLE_STATS_COLORS = ["#2f6df6", "#e25555", "#f0a020", "#18a96b", "#8a5cf6", "#18a0b8", "#d6567f", "#7a8896"];
+  function simpleDonut(label, percent, amount, tone) {
+    const value = Math.max(0, Math.min(100, Math.round(percent)));
+    return `<div class="ring" style="--p:${value}"><b>${value}%</b></div><figcaption><span class="${tone}">${esc(label)}</span><strong>${esc(amount)}</strong></figcaption>`;
+  }
+  // Resumen con las cuentas del negocio (diseño del Resumen del CRM): copia las filas ya calculadas de Cuentas.
+  function renderSimpleDashAccounts() {
+    const mount = $("simpleDashAccountsList");
+    if (!SIMPLE_FINANCE || !mount) return;
+    const rows = [...document.querySelectorAll("#mmAccounts .simple-account-row")];
+    $("simpleDashAccountsCount").textContent = rows.length ? `${rows.length} cuentas` : "";
+    if (!rows.length) { mount.innerHTML = '<p class="simple-finance-currency-label">Sin cuentas para mostrar.</p>'; return; }
+    mount.innerHTML = rows.slice(0, 6).map(row => `<a class="simple-dash-account" href="#cuentas">${row.querySelector(".simple-account-main")?.innerHTML || ""}</a>`).join("");
+  }
+
+  function renderSimpleStats() {
+    if (!SIMPLE_FINANCE || !finStateCache || !simpleFinanceCore || !$("simpleStatsView")) return;
+    const state = finStateCache;
+    const month = $("mmMonth").value || state.month;
+    const currencies = Object.fromEntries(state.accounts.map(account => [account.id, financeCore.accountCurrency(account)]));
+    const names = Object.fromEntries(state.categories.map(category => [category.id, category.nombre]));
+    const expenses = simpleFinanceCore.breakdown(state.movements, month, "gasto", "DOP", names, currencies);
+    const income = simpleFinanceCore.breakdown(state.movements, month, "ingreso", "DOP", names, currencies);
+    const both = income.total + expenses.total;
+    { const label = new Date(`${month}-01T12:00:00`).toLocaleDateString("es-DO", { month: "long", year: "numeric" }); $("simpleStatsMonth").textContent = label.charAt(0).toUpperCase() + label.slice(1); }
+    $("simpleStatsDonutIncome").innerHTML = simpleDonut("Entradas", both ? income.total / both * 100 : 0, money(income.total), "income");
+    $("simpleStatsDonutExpense").innerHTML = simpleDonut("Salidas", both ? expenses.total / both * 100 : 0, money(expenses.total), "expense");
+    $("simpleStatsResult").textContent = money(income.total - expenses.total);
+    document.querySelectorAll("[data-stats-kind]").forEach(button => button.classList.toggle("act", button.dataset.statsKind === simpleStatsKind));
+    const current = simpleStatsKind === "ingreso" ? income : expenses;
+    $("simpleStatsList").innerHTML = current.items.length
+      ? current.items.map((item, index) => `<div class="simple-stats-row"><span class="chip" style="--c:${SIMPLE_STATS_COLORS[index % SIMPLE_STATS_COLORS.length]}">${Math.round(item.porcentaje)}%</span><span class="name"><b>${esc(item.nombre)}</b><small>${item.movimientos} movimiento${item.movimientos === 1 ? "" : "s"}</small></span><strong>${money(item.centavos)}</strong></div>`).join("")
+      : '<div class="empty-state"><p>Sin movimientos de este tipo en el mes.</p></div>';
+  }
+
   function renderSimpleFinance() {
     if (!SIMPLE_FINANCE || !finStateCache || !simpleFinanceCore) return;
     const state = finStateCache;
@@ -7490,6 +7538,7 @@
         $("simpleSettingsToggle").setAttribute("aria-expanded", String(panel.classList.contains("simple-open")));
       });
       document.querySelectorAll("[data-simple-tab]").forEach(button => bindMoneyManagerControl(button, "click", () => setSimpleFinanceTab(button.dataset.simpleTab)));
+      document.querySelectorAll("[data-stats-kind]").forEach(button => bindMoneyManagerControl(button, "click", () => { simpleStatsKind = button.dataset.statsKind; renderSimpleStats(); }));
       document.querySelectorAll("[data-simple-month]").forEach(button => bindMoneyManagerControl(button, "click", async () => {
         const value = $("mmMonth").value || financeCore.businessDay(new Date()).slice(0, 7);
         const [year, month] = value.split("-").map(Number);
@@ -7588,13 +7637,14 @@
     const state = finStateCache;
     const month = $("mmMonth")?.value || state?.month;
     const calendar = moneyManagerCore.calendar(state?.movements || [], month);
+    const calendarAmount = value => SIMPLE_FINANCE ? compactAmount(value) : money(value);
     if (!moneyManagerSelectedDay || !moneyManagerSelectedDay.startsWith(`${month}-`)) {
       const today = financeCore.businessDay(new Date());
       moneyManagerSelectedDay = today.startsWith(`${month}-`) ? today : "";
     }
     $("mmCalendar").innerHTML = calendar.cells.map(item => item.outside
       ? '<span class="money-manager-calendar-day outside" aria-hidden="true"></span>'
-      : `<button type="button" class="money-manager-calendar-day${moneyManagerSelectedDay === item.date ? " act" : ""}" data-mm-day="${item.date}"><b>${item.day}</b>${item.income ? `<span class="income">+${money(item.income)}</span>` : ""}${item.expenses ? `<span class="expense">−${money(item.expenses)}</span>` : ""}${item.transfers ? `<span class="transfer">↔ ${money(item.transfers)}</span>` : ""}<small>${item.count ? `${item.count} movimiento(s)` : "Sin movimientos"}</small></button>`).join("");
+      : `<button type="button" class="money-manager-calendar-day${moneyManagerSelectedDay === item.date ? " act" : ""}" data-mm-day="${item.date}"><b>${item.day}</b>${item.income ? `<span class="income">+${calendarAmount(item.income)}</span>` : ""}${item.expenses ? `<span class="expense">−${calendarAmount(item.expenses)}</span>` : ""}${item.transfers ? `<span class="transfer">↔ ${money(item.transfers)}</span>` : ""}<small>${item.count ? `${item.count} movimiento(s)` : "Sin movimientos"}</small></button>`).join("");
     $("mmCalendar").querySelectorAll("[data-mm-day]").forEach(button => button.addEventListener("click", () => {
       moneyManagerSelectedDay = button.dataset.mmDay;
       renderMoneyManagerCalendar();
@@ -7724,6 +7774,8 @@
     renderMoneyManagerAccounts(accountState);
     renderMoneyManagerObligations(obligations);
     renderSimpleFinance();
+    renderSimpleStats();
+    renderSimpleDashAccounts();
     syncSimpleSearchOptions();
     $("mmSyncStatus").classList.toggle("warn", Boolean(state.partialError));
     $("mmSyncStatus").textContent = state.partialError || (SIMPLE_FINANCE

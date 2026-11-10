@@ -44,5 +44,31 @@
         transfers: items.filter(item => item.tipo === "transferencia").length };
     });
   }
-  return { group, mondayOf };
+  // Estadísticas al estilo Money Manager: reparto por categoría de un mes para UNA moneda (sin convertir).
+  // `tipo` es «ingreso» o «gasto»; cada categoría trae su importe y su porcentaje del total del tipo.
+  function breakdown(rows, month, tipo = "gasto", currency = "DOP", categories = {}, accountCurrencies = {}) {
+    if (!/^\d{4}-\d{2}$/.test(month) || !["ingreso", "gasto"].includes(tipo)) return { total: 0, items: [] };
+    const wanted = String(currency || "DOP").toUpperCase();
+    const inMonth = (rows || []).filter(row => {
+      const day = dayOf(row);
+      return validDay(day) && day.startsWith(`${month}-`)
+        && String(row.moneda || accountCurrencies[row.cuenta_id] || "DOP").toUpperCase() === wanted;
+    });
+    const unique = finance.summarizeMovements(inMonth, `${month}-01`, `${month}-31`).movements
+      .filter(item => item.tipo === tipo && item.afecta_resultado !== false);
+    const byCategory = new Map();
+    for (const item of unique) {
+      const id = item.categoria_id || "";
+      const name = categories[id] || item.categoria || "Sin categoría";
+      const key = id || name;
+      const current = byCategory.get(key) || { id, nombre: name, centavos: 0, movimientos: 0 };
+      current.centavos += Number(item.monto_centavos) || 0; current.movimientos += 1;
+      byCategory.set(key, current);
+    }
+    const total = [...byCategory.values()].reduce((sum, item) => sum + item.centavos, 0);
+    const items = [...byCategory.values()].sort((a, b) => b.centavos - a.centavos)
+      .map(item => ({ ...item, porcentaje: total ? Math.round(item.centavos / total * 1000) / 10 : 0 }));
+    return { total, items };
+  }
+  return { group, mondayOf, breakdown };
 });

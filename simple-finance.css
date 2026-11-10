@@ -2,7 +2,7 @@
 html.simple-finance-mode,
 html.simple-finance-mode body { min-height: 100dvh; }
 html.simple-finance-mode #menu a:not([href="#dashboard"]):not([href="#money-manager"]),
-html.simple-finance-mode .mobile-command-dock a:not([href="#dashboard"]):not([href="#money-manager"]):not([href="#cuentas"]),
+html.simple-finance-mode .mobile-command-dock a:not([href="#dashboard"]):not([href="#money-manager"]):not([href="#cuentas"]):not([href="#estadisticas"]),
 html.simple-finance-mode .money-manager-mark,
 html.simple-finance-mode .money-manager-heading p,
 html.simple-finance-mode #mmTabs,
@@ -96,7 +96,7 @@ html.simple-finance-mode .money-manager-kpi strong { white-space:normal; overflo
 
 /* Organización móvil del libro: barra, periodo, pestañas, resumen y días en una
    sola superficie. Los recursos y el código de Money Manager no se reutilizan. */
-.simple-top-button,.simple-search-field,.simple-search-view,.simple-accounts-link { display:none; }
+.simple-top-button,.simple-search-field,.simple-search-view,.simple-accounts-link,.simple-stats-link,.simple-stats-view { display:none; }
 @media (max-width:700px) {
   html.simple-finance-mode,html.simple-finance-mode body,html.simple-finance-mode .workspace { background:#fff; }
   html.simple-finance-mode .workspace { padding-bottom:calc(70px + env(safe-area-inset-bottom)); }
@@ -233,3 +233,86 @@ html.simple-finance-mode .money-manager-kpi strong { white-space:normal; overflo
   html.simple-finance-mode .mobile-command-dock a[href="#money-manager"].active,html.simple-finance-mode .mobile-command-dock a[href="#dashboard"].active,html.simple-finance-mode .mobile-command-dock a[href="#cuentas"].active { color:#155c43; }
   html.simple-finance-mode .mobile-command-dock a:hover,html.simple-finance-mode .mobile-command-dock a:focus-visible { transform:none; background:#f4f7f5; }
 }
+
+/* ===== Estructura tipo Money Manager (10/11/2026): calendario con importes, estadisticas, boton + ===== */
+html.simple-finance-mode .simple-stats-link { display:grid !important; }
+/* Calendario: cuadricula fina con el importe de entradas (azul) y salidas (rojo) dentro de cada dia. */
+html.simple-finance-mode .money-manager-calendar { gap:0; border-top:1px solid #e3e8e6; border-left:1px solid #e3e8e6; }
+html.simple-finance-mode .money-manager-calendar-day { min-height:62px; padding:3px 2px 2px; border:0; border-right:1px solid #e3e8e6; border-bottom:1px solid #e3e8e6; border-radius:0; background:transparent; align-content:start; justify-items:start; text-align:left; box-shadow:none; }
+html.simple-finance-mode .money-manager-calendar-day b { font-size:11px; font-weight:600; }
+html.simple-finance-mode .money-manager-calendar-day span { display:block !important; max-width:100%; overflow:hidden; font-size:9.5px; line-height:1.2; font-weight:600; font-variant-numeric:tabular-nums; white-space:nowrap; }
+html.simple-finance-mode .money-manager-calendar-day span.income { color:#1f66d1; }
+html.simple-finance-mode .money-manager-calendar-day span.expense { color:#d34848; }
+html.simple-finance-mode .money-manager-calendar-day span.transfer, html.simple-finance-mode .money-manager-calendar-day small { display:none !important; }
+html.simple-finance-mode .money-manager-calendar-day:has(.income), html.simple-finance-mode .money-manager-calendar-day:has(.expense) { border-bottom:1px solid #e3e8e6; }
+html.simple-finance-mode .money-manager-calendar-day.act { background:#eaf2ff; outline:2px solid #1f66d1; outline-offset:-2px; }
+html.simple-finance-mode .money-manager-calendar-day.outside { background:#f6f8f7; }
+/* Estadisticas: dos donas (entradas / salidas), resultado, pestañas y lista por categoria con porcentaje. */
+html.simple-finance-mode.simple-stats-route .topbar,
+html.simple-finance-mode.simple-stats-route .simple-finance-controls,
+html.simple-finance-mode.simple-stats-route .money-manager-sync,
+html.simple-finance-mode.simple-stats-route .money-manager-panel { display:none !important; }
+html.simple-finance-mode .simple-stats-view { display:block; padding:12px 0 96px; }
+html.simple-finance-mode .simple-stats-view.oculto { display:none; }
+html.simple-finance-mode .simple-stats-month { display:grid; grid-template-columns:44px 1fr 44px; align-items:center; text-align:center; margin:0 12px 8px; }
+html.simple-finance-mode .simple-stats-month button { border:0; background:transparent; font-size:26px; line-height:1; color:#33403b; min-height:44px; }
+html.simple-finance-mode .simple-stats-month strong { font-size:16px; }
+html.simple-finance-mode .simple-stats-donuts { display:grid; grid-template-columns:1fr 1fr; gap:10px; padding:8px 12px 4px; }
+html.simple-finance-mode .simple-stats-donut { margin:0; display:grid; justify-items:center; gap:6px; }
+html.simple-finance-mode .simple-stats-donut .ring { --ring:#1f66d1; position:relative; width:112px; height:112px; border-radius:50%; background:conic-gradient(var(--ring) calc(var(--p) * 1%), #e8ecea 0); display:grid; place-items:center; }
+html.simple-finance-mode .simple-stats-donut.expense .ring { --ring:#d34848; }
+html.simple-finance-mode .simple-stats-donut .ring::after { content:""; position:absolute; inset:13px; border-radius:50%; background:#fff; }
+html.simple-finance-mode .simple-stats-donut .ring b { position:relative; z-index:1; font-size:20px; }
+html.simple-finance-mode .simple-stats-donut figcaption { display:grid; gap:1px; text-align:center; font-size:12px; color:#5b6862; }
+html.simple-finance-mode .simple-stats-donut figcaption .income { color:#1f66d1; font-weight:700; }
+html.simple-finance-mode .simple-stats-donut figcaption .expense { color:#d34848; font-weight:700; }
+html.simple-finance-mode .simple-stats-donut figcaption strong { font-size:13px; color:#1b2420; }
+html.simple-finance-mode .simple-stats-total { display:flex; justify-content:space-between; align-items:center; margin:10px 12px 0; padding:10px 14px; border-radius:12px; background:#f3f6f4; font-size:13px; }
+html.simple-finance-mode .simple-stats-total strong { font-size:16px; }
+html.simple-finance-mode .simple-stats-tabs { display:grid; grid-template-columns:1fr 1fr; margin:12px 12px 0; border-bottom:1px solid #dfe5e2; }
+html.simple-finance-mode .simple-stats-tabs button { min-height:42px; border:0; border-bottom:3px solid transparent; background:transparent; font-weight:600; color:#6a7771; }
+html.simple-finance-mode .simple-stats-tabs button.act { color:#1b2420; border-bottom-color:#d34848; }
+html.simple-finance-mode .simple-stats-tabs button[data-stats-kind="ingreso"].act { border-bottom-color:#1f66d1; }
+html.simple-finance-mode .simple-stats-list { padding:0 12px; }
+html.simple-finance-mode .simple-stats-row { display:grid; grid-template-columns:52px 1fr auto; gap:10px; align-items:center; min-height:56px; border-bottom:1px solid #e9edeb; }
+html.simple-finance-mode .simple-stats-row .chip { display:grid; place-items:center; height:30px; border-radius:7px; background:var(--c, #7a8896); color:#fff; font-size:12px; font-weight:700; }
+html.simple-finance-mode .simple-stats-row .name { display:grid; gap:1px; min-width:0; }
+html.simple-finance-mode .simple-stats-row .name b { font-size:13px; }
+html.simple-finance-mode .simple-stats-row .name small { font-size:11px; color:#6a7771; }
+html.simple-finance-mode .simple-stats-row strong { font-size:13px; font-variant-numeric:tabular-nums; }
+/* Boton flotante + (registrar movimiento), como en la referencia. */
+html.simple-finance-mode .simple-finance-actions { position:fixed; right:16px; bottom:88px; z-index:40; margin:0; padding:0; background:transparent; border:0; box-shadow:none; }
+html.simple-finance-mode #btnSimpleAdd { width:56px; height:56px; min-height:56px; padding:0; border-radius:50%; font-size:0; line-height:1; box-shadow:0 8px 20px rgba(11,107,58,.35); }
+html.simple-finance-mode #btnSimpleAdd::before { content:"+"; font-size:32px; font-weight:400; }
+html.simple-finance-mode #simpleAddMenu { position:absolute; right:0; bottom:66px; min-width:190px; }
+html.simple-finance-mode.simple-accounts-route .simple-finance-actions,
+html.simple-finance-mode.simple-search-route .simple-finance-actions,
+html.simple-finance-mode.simple-stats-route .simple-finance-actions { display:none !important; }
+
+/* ===== Resumen con el diseño del Resumen del CRM (10/11/2026): tarjeta principal con grafica, tres recuadros y Cuentas del negocio ===== */
+html.simple-finance-mode #v-dashboard .section-heading { display:none; }
+html.simple-finance-mode #v-dashboard .dashboard-ledger { display:none; }
+html.simple-finance-mode #v-dashboard .metric-strip { display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:10px; margin:12px; padding:14px; border-radius:24px; background:#fff; border:1px solid #e3e8f4; box-shadow:0 10px 30px rgba(40,60,120,.10); }
+html.simple-finance-mode #v-dashboard .metric-strip .metric-item { min-width:0; padding:12px 12px 10px; border:0; border-radius:20px; background:#eaf0ff; display:grid; gap:2px; align-content:start; }
+html.simple-finance-mode #v-dashboard .metric-strip .metric-item:nth-child(1) { grid-column:1 / -1; padding:4px 4px 8px; background:transparent; }
+html.simple-finance-mode #v-dashboard .metric-strip .metric-item:nth-child(1) span { font-size:13px; color:#44505c; }
+html.simple-finance-mode #v-dashboard .metric-strip .metric-item:nth-child(1) strong { font-size:36px; line-height:1.1; letter-spacing:-.02em; }
+html.simple-finance-mode #v-dashboard .metric-strip .metric-item:nth-child(1) .kpi-sparkline { height:96px; }
+html.simple-finance-mode #v-dashboard .metric-strip .metric-item:nth-child(n+5) { display:none; }
+html.simple-finance-mode #v-dashboard .metric-strip .metric-item:not(:nth-child(1)) strong { font-size:19px; }
+html.simple-finance-mode #v-dashboard .metric-strip .metric-item:not(:nth-child(1)) span { font-size:12px; color:#44505c; }
+html.simple-finance-mode #v-dashboard .metric-strip .metric-item:not(:nth-child(1)) small { font-size:10.5px; }
+html.simple-finance-mode #v-dashboard .metric-strip .metric-item:not(:nth-child(1)) .kpi-sparkline { display:none; }
+html.simple-finance-mode .simple-dash-accounts { margin:12px; padding:14px 14px 6px; border-radius:24px; background:#fff; border:1px solid #e3e8f4; box-shadow:0 10px 30px rgba(40,60,120,.10); }
+html.simple-finance-mode .simple-dash-accounts header { display:flex; align-items:center; gap:10px; margin-bottom:4px; }
+html.simple-finance-mode .simple-dash-accounts header h3 { font-size:16px; margin:0; }
+html.simple-finance-mode .simple-dash-accounts header span { flex:1; font-size:12px; color:#6a7771; }
+html.simple-finance-mode .simple-dash-accounts header a { padding:8px 12px; border-radius:14px; background:#eaf0ff; color:#1b2420; font-size:12px; font-weight:600; text-decoration:none; }
+html.simple-finance-mode .simple-dash-account { display:grid; grid-template-columns:44px 1fr auto; gap:12px; align-items:center; min-height:64px; border-bottom:1px solid #eceff4; color:inherit; text-decoration:none; }
+html.simple-finance-mode .simple-dash-account:last-child { border-bottom:0; }
+html.simple-finance-mode .simple-dash-account .simple-account-name { display:grid; gap:1px; }
+html.simple-finance-mode .simple-dash-account .simple-account-amount { display:grid; justify-items:end; }
+html.simple-finance-mode .simple-dash-account .simple-account-amount small { display:none; }
+html.simple-finance-mode #v-dashboard .metric-strip { grid-template-columns:repeat(3, minmax(0,1fr)) !important; }
+html.simple-finance-mode #v-dashboard .metric-strip .metric-item:not(:nth-child(1)) { min-height:0 !important; padding:10px 10px 8px !important; }
+html.simple-finance-mode .simple-dash-accounts header span { white-space:nowrap; }
