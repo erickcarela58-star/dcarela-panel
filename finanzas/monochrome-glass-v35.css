@@ -47,7 +47,16 @@ body,:root[data-theme="dark"] body{background:var(--bg);background-image:radial-
 .login-form .primary-btn{margin-top:28px;min-height:52px}
 .login-error{color:var(--expense);font-size:.78rem;line-height:1.5;margin:13px 0 0}
 .finance-signout{margin-top:24px}
-.tab-button.is-active{color:var(--ink)}
+.bottom-nav .tab-button{height:60px;gap:3px;transition:color .22s ease,transform .22s ease}
+.bottom-nav .tab-button.is-active{color:var(--ink)}
+.bottom-nav .tab-button.is-active::before{content:none}
+.bottom-nav .tab-icon{width:32px;height:30px;display:grid;place-items:center;padding:0;background:transparent;border-radius:0;transition:transform .3s cubic-bezier(.2,.8,.2,1),filter .3s ease}
+.bottom-nav .tab-button svg{width:20px;height:20px;stroke-width:1.7}
+.bottom-nav .tab-button.is-active .tab-icon{background:transparent;padding:0;filter:drop-shadow(0 0 5px rgba(255,255,255,.44));transform:translateY(-2px)}
+:root:not([data-theme="dark"]) .bottom-nav .tab-button.is-active .tab-icon{filter:drop-shadow(0 0 5px rgba(38,46,53,.23))}
+.bottom-nav .tab-label{font-size:.65rem;line-height:1.1;transition:transform .22s ease,text-shadow .22s ease}
+.bottom-nav .tab-button.is-active .tab-label{text-shadow:0 0 9px rgba(255,255,255,.38)}
+:root:not([data-theme="dark"]) .bottom-nav .tab-button.is-active .tab-label{text-shadow:0 0 8px rgba(70,80,90,.19)}
 .flow-panel,.finance-filter-menu{
   background:linear-gradient(145deg,rgba(255,255,255,.10),rgba(255,255,255,.035) 54%,rgba(255,255,255,.07));
   border:0;border-radius:22px;box-shadow:0 15px 40px rgba(0,0,0,.12),inset 0 1px 0 rgba(255,255,255,.11);
@@ -75,6 +84,7 @@ body,:root[data-theme="dark"] body{background:var(--bg);background-image:radial-
 .filter-currency{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;gap:12px;color:var(--muted);font-size:.7rem;padding:7px 10px 3px}
 .filter-currency select{min-height:36px;border:0;border-radius:9px;background:var(--accent-soft);color:var(--ink);padding:0 10px;font-size:.72rem}
 main.page{touch-action:pan-y}
+.finance-view-body{touch-action:pan-y}
 .daily-picker{margin:10px 0 23px}
 .daily-picker-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
 .daily-picker-head>div{display:flex;flex-direction:column;gap:3px}
@@ -130,10 +140,27 @@ main.page{touch-action:pan-y}
 .sheet-header .round-button,:root[data-theme="dark"] .sheet-header .round-button{position:relative;border:0;border-radius:0;outline:0;box-shadow:none;background:transparent}
 .sheet-header .round-button:focus-visible,:root[data-theme="dark"] .sheet-header .round-button:focus-visible{outline:0;box-shadow:none;background:transparent}
 .sheet-header .round-button:focus-visible::after{content:"";position:absolute;bottom:4px;left:12px;right:12px;height:2px;background:var(--focus)}
+.hero-main.balance-text,:root[data-theme="dark"] .hero-main.balance-text{text-shadow:0 0 20px rgba(255,255,255,.30)}
+:root:not([data-theme="dark"]) .hero-main.balance-text{text-shadow:0 0 18px rgba(255,255,255,.96),0 0 24px rgba(68,79,90,.10)}
+.filter-current strong,.daily-picker-head strong{ text-shadow:0 0 10px rgba(255,255,255,.22)}
+:root:not([data-theme="dark"]) .filter-current strong,:root:not([data-theme="dark"]) .daily-picker-head strong{text-shadow:0 0 12px rgba(255,255,255,.95)}
+.bottom-nav .tab-button:active .tab-icon,.filter-open:active svg,.round-button:active svg,.daily-calendar:active svg{transform:scale(.88)}
+.filter-open svg,.round-button svg,.daily-calendar svg{transition:transform .25s cubic-bezier(.2,.8,.2,1),filter .25s ease}
+.bottom-nav .tab-button.is-active svg{filter:drop-shadow(0 0 5px currentColor)}
+.view-enter .page>.screen-intro{animation:glassRise .28s ease both}
+.view-enter .page>.hero,.view-enter .page>.month-swipe,.view-enter .page>.finance-filter{animation:glassRise .35s .04s ease both}
+.view-enter .page>.metric-grid,.view-enter .page>.triple-summary,.view-enter .page>.finance-view-body{animation:glassRise .38s .08s ease both}
+.view-enter .page .income-text,.view-enter .page .expense-text,.view-enter .page .hero-main{animation:numberReveal .4s .09s ease both}
+.view-enter .page .account-row:nth-child(-n+5),.view-enter .page .movement-row:nth-child(-n+5){animation:glassRise .3s ease both;animation-delay:calc(var(--row-index,0) * 45ms)}
+.view-enter .page .account-row:nth-child(2),.view-enter .page .movement-row:nth-child(2){--row-index:1}
+.view-enter .page .account-row:nth-child(3),.view-enter .page .movement-row:nth-child(3){--row-index:2}
+.view-enter .page .account-row:nth-child(4),.view-enter .page .movement-row:nth-child(4){--row-index:3}
+.view-enter .page .account-row:nth-child(5),.view-enter .page .movement-row:nth-child(5){--row-index:4}
+@keyframes numberReveal{from{opacity:.55;filter:brightness(.85)}to{opacity:1;filter:brightness(1)}}
 @keyframes glassRise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 @keyframes drawLine{from{stroke-dashoffset:1}to{stroke-dashoffset:0}}
 .view-enter .page{animation:glassRise .32s cubic-bezier(.2,.8,.2,1) both}
 .flow-svg .flow-income{stroke-dasharray:1;stroke-dashoffset:1;animation:drawLine .8s .15s ease forwards}
 .flow-panel{animation:glassRise .4s ease both}
 .filter-open:active,.tab-button:active{transform:scale(.95)}
-@media(prefers-reduced-motion:reduce){.view-enter .page,.flow-panel,.finance-filter-menu,.flow-svg .flow-income{animation:none;stroke-dashoffset:0}.filter-open:active,.tab-button:active{transform:none}}
+@media(prefers-reduced-motion:reduce){.view-enter .page,.view-enter .page>*,.view-enter .page .income-text,.view-enter .page .expense-text,.view-enter .page .hero-main,.view-enter .page .account-row,.view-enter .page .movement-row,.flow-panel,.finance-filter-menu,.flow-svg .flow-income{animation:none;stroke-dashoffset:0}.bottom-nav .tab-button,.bottom-nav .tab-icon,.bottom-nav .tab-label,.filter-open svg,.round-button svg,.daily-calendar svg{transition:none}.filter-open:active,.tab-button:active,.bottom-nav .tab-button:active .tab-icon,.filter-open:active svg,.round-button:active svg,.daily-calendar:active svg{transform:none}}
