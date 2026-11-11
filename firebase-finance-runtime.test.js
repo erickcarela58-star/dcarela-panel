@@ -289,6 +289,28 @@ test('pago, transferencia y reintentos son atomicos en ejecucion',async()=>{
   assert.equal(h.docs.get('fin_accounts/cash').saldo_actual_centavos,2736000);
   assert.equal(h.docs.has('fin_movements/rent'),false);
 });
+
+test('requestId financiero no confirma otra cifra ni otra cuenta en un reintento',async()=>{
+  const h=harness();
+  const movement={cuentaId:'cash',tipo:'gasto',montoCentavos:4500,
+    descripcion:'Compra fixture',requestId:'gasto-fijo'};
+  await h.api.adminAction('fin.movement.create','test','admin','gasto-fijo',movement);
+  await h.api.adminAction('fin.movement.create','test','admin','gasto-fijo',movement);
+  const cash=h.docs.get('fin_accounts/cash').saldo_actual_centavos;
+  await assert.rejects(h.api.adminAction('fin.movement.create','test','admin','gasto-fijo',
+    {...movement,montoCentavos:4600}),/otro movimiento/);
+  assert.equal(h.docs.get('fin_accounts/cash').saldo_actual_centavos,cash);
+  const transfer={cuentaOrigenId:'cash',cuentaDestinoId:'bank',montoCentavos:10000,
+    descripcion:'Traslado fixture',requestId:'traslado-fijo'};
+  await h.api.adminAction('fin.transfer.create','test','admin',null,transfer);
+  await h.api.adminAction('fin.transfer.create','test','admin',null,transfer);
+  const balances=[h.docs.get('fin_accounts/cash').saldo_actual_centavos,
+    h.docs.get('fin_accounts/bank').saldo_actual_centavos];
+  await assert.rejects(h.api.adminAction('fin.transfer.create','test','admin',null,
+    {...transfer,cuentaOrigenId:'bank',cuentaDestinoId:'cash'}),/otra transferencia/);
+  assert.deepEqual([h.docs.get('fin_accounts/cash').saldo_actual_centavos,
+    h.docs.get('fin_accounts/bank').saldo_actual_centavos],balances);
+});
 test('crear editar y anular gasto no lee documentos inexistentes ni sobreescribe eventos',async()=>{
   const h=harness();
   const expense={cuentaId:'cash',montoCentavos:1100000,fecha:'2026-09-07',requestId:'rent'};

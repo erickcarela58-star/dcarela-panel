@@ -1348,7 +1348,7 @@
       const eventRef = d.collection('sync_events').doc(eventId);
       const categoryId = text(data.categoriaId, 160) || null;
       const categoryRef = categoryId ? d.collection('fin_categories').doc(categoryId) : null;
-      await eventTransaction(ctx, eventId, 'LedgerMovimientoRegistrado', async transaction => {
+      const committed = await eventTransaction(ctx, eventId, 'LedgerMovimientoRegistrado', async transaction => {
         const [accountDoc, categoryDoc] = await Promise.all([
           transaction.get(accountRef),
           categoryRef ? transaction.get(categoryRef) : Promise.resolve(null),
@@ -1374,6 +1374,15 @@
           'fin_movements', movementId, financeLedgerPayload(movement, accountDoc.data(), categoryDoc?.data()), createdAt));
         transaction.update(accountRef, { saldo_actual_centavos: current + signed, updated_at: createdAt });
       });
+      if (committed?.deduplicated) {
+        const prior = committed.payload || {};
+        if (prior.ledgerId !== movementId || prior.tipo !== type.toUpperCase()
+          || prior.cuentaId !== accountId || prior.importeDopCentavos !== amount
+          || prior.categoriaId !== categoryId
+          || prior.descripcion !== (text(data.descripcion, 500) || type)
+          || (data.fecha && prior.fecha !== text(data.fecha, 10)))
+          throw new Error('El identificador pertenece a otro movimiento. No se aplicó el reintento.');
+      }
       return { ok: true, id: movementId, event: { id: eventId, entity_id: movementId },
         message: 'Movimiento financiero registrado y enviado a sincronizacion.' };
     }
@@ -1432,7 +1441,7 @@
       const movementId = text(data.requestId, 80) || uuid();
       const eventId = `ledger-${movementId}`;
       const eventRef = d.collection('sync_events').doc(eventId);
-      await eventTransaction(ctx, eventId, 'LedgerMovimientoRegistrado', async transaction => {
+      const committed = await eventTransaction(ctx, eventId, 'LedgerMovimientoRegistrado', async transaction => {
         const [sourceDoc, targetDoc] = await Promise.all([transaction.get(sourceRef), transaction.get(targetRef)]);
         if (!sourceDoc.exists || !targetDoc.exists || sourceDoc.data().business_id !== ctx.businessId || targetDoc.data().business_id !== ctx.businessId) {
           throw new Error('Las cuentas de la transferencia no son validas.');
@@ -1468,6 +1477,14 @@
         transaction.update(sourceRef, { saldo_actual_centavos: sourceBalance - amount - fee, updated_at: createdAt });
         transaction.update(targetRef, { saldo_actual_centavos: targetBalance + amount, updated_at: createdAt });
       });
+      if (committed?.deduplicated) {
+        const prior = committed.payload || {};
+        if (prior.ledgerId !== movementId || prior.tipo !== 'TRANSFERENCIA'
+          || prior.cuentaOrigenId !== sourceId || prior.cuentaDestinoId !== targetId
+          || prior.importeDopCentavos !== amount || prior.comisionCentavos !== fee
+          || prior.descripcion !== (text(data.descripcion, 500) || 'Transferencia entre cuentas'))
+          throw new Error('El identificador pertenece a otra transferencia. No se aplicó el reintento.');
+      }
       return { ok: true, id: movementId, event: { id: eventId, entity_id: movementId },
         message: 'Transferencia registrada y sincronizada sin duplicar patrimonio.' };
     }
