@@ -1,4 +1,4 @@
-import {loadFinance,commitAction,isLive,canRegister} from './data-source.js?v=35.18';
+import {loadFinance,commitAction,getTerminalReceipt,isLive,canRegister} from './data-source.js?v=35.19';
 const emulatorWritesAllowed=()=>isLive && ['localhost','127.0.0.1'].includes(location.hostname)
  && String(window.__DCARELA_FIREBASE_CONFIG?.projectId||'').startsWith('demo-')
  && window.__DCARELA_FINANCE_STAGING_WRITE__===true;
@@ -18,7 +18,8 @@ const state={business:params.get('b')||(isLive?'':'sucursal-a'),loading:true,err
  currency:'DOP',statsType:'gasto',modal:null,accountId:null,movementId:null,accountDraft:null,
  search:{query:'',type:'',category:'',from:`${initialMonth}-01`,to:initialMonthEnd,accountIds:[]},searched:false,
  entryType:'gasto',entryDigits:'',entryAccount:'',entryDest:'',entryCategory:'',entryNote:'',entryDate:today,
- reconcileDigits:'',reconcileReason:'',editingNote:'',pendingRequestId:null,busy:false,financeFilterOpen:false};
+ reconcileDigits:'',reconcileReason:'',editingNote:'',pendingRequestId:null,busy:false,financeFilterOpen:false,
+ receiptMovementId:null,receiptStatus:null,receiptBusy:false};
 const nMonth=(m,delta)=>{const [y,n]=m.split('-').map(Number);const d=new Date(Date.UTC(y,n-1+delta,1));return d.toISOString().slice(0,7)};
 const nDay=(day,delta)=>{const [y,m,d]=day.split('-').map(Number);return new Date(Date.UTC(y,m-1,d+delta)).toISOString().slice(0,10)};
 const longMonth=m=>new Intl.DateTimeFormat('es-DO',{month:'long',year:'numeric',timeZone:'UTC'}).format(new Date(`${m}-15T12:00:00Z`));
@@ -206,7 +207,19 @@ function saleDetailHtml(m){
  <h3>Productos y servicios</h3><div class="card">${lines.length?lines.map(l=>`<div class="info-line"><span>${esc(l.nombre||l.descripcion||l.productoNombre||'Línea de venta')}${l.cantidad!=null?' · '+esc(l.cantidad):''}</span><strong>${saleMoney(l.importeFinalCentavos??l.totalCentavos)}</strong></div>`).join(''):'<div class="empty">Caja no entregó el desglose de productos de esta venta.</div>'}</div>
  ${payments.length?`<h3>Pagos de la venta</h3><div class="card">${payments.map(pay=>`<div class="info-line"><span>${esc(pay.metodo||pay.metodoPago||pay.method||'Método no indicado')}</span><strong>${saleMoney(pay.montoCentavos??pay.monto_centavos??pay.amountCents)}</strong></div>`).join('')}</div>`:''}${p.nota?`<p class="soft-note">${esc(p.nota)}</p>`:''}`;
 }
-function modalMovement(){const m=rows().find(x=>x.id===state.movementId);if(!m)return modalFrame('Movimiento','<div class="empty">No disponible</div>');return modalFrame('Detalle del movimiento',`<div class="pill">${esc(m.tipo.toUpperCase())} · ${esc(m.estado)}</div><div class="account-large"><small>${esc(movementTitle(m))}</small><strong class="${m.tipo==='gasto'?'expense-text':m.tipo==='ingreso'?'income-text':'warning-text'}">${m.tipo==='gasto'?'−':m.tipo==='ingreso'?'+':''}${moneyText(m.monto_centavos,curr(m))}</strong></div><div class="card"><div class="info-line"><span>Fecha</span><strong>${niceDay(m.fecha)}</strong></div><div class="info-line"><span>Categoría</span><strong>${esc(cat(m.categoria_id)?.nombre||'Sin categoría')}</strong></div><div class="info-line"><span>Cuenta</span><strong>${esc(account(m.cuenta_id)?.nombre||'No verificada')}</strong></div>${m.tipo==='transferencia'?`<div class="info-line"><span>Destino</span><strong>${esc(account(m.cuenta_destino_id)?.nombre||'No verificado')}</strong></div>`:''}<div class="info-line"><span>Estado</span><strong>${esc(m.estado)}</strong></div></div>${saleDetailHtml(m)}<div class="btn-pair" style="margin-top:14px"><button class="secondary-btn" data-do="movement-edit">${ico('edit','sm')} Editar</button><button class="danger-btn" data-do="void-confirm" ${m.estado==='anulado'?'disabled':''}>Anular</button></div><div class="notice warning">Anular conserva el asiento y su historial; nunca lo elimina.</div>`)}
+function terminalReceiptUI(m){
+ if(!isLive||m.origen!=='panel'||!m.sync_event_id)return '';
+ const receipt=state.receiptMovementId===m.id?state.receiptStatus:null;
+ const message=receipt?.status==='applied'
+  ?`Caja ${esc(receipt.deviceId)} confirmó la recepción${receipt.appliedAt?` · ${esc(receipt.appliedAt)}`:''}. Esto no coteja el saldo físico.`
+  :receipt?.status==='not_observed'?'Aún no se encontró acuse de Caja. El asiento figura en el CRM.'
+  :receipt?.status==='inconclusive'?'La consulta alcanzó su límite; no se puede concluir si Caja lo recibió.'
+  :receipt?.status==='unavailable'?'Faltan datos del asiento para consultar el acuse de Caja.'
+  :receipt?.status==='error'?`No se pudo verificar Caja: ${esc(receipt.message)}`
+  :'Registrado en CRM. Recepción de Caja sin comprobar.';
+ return `<div class="notice" role="status">${message}</div><button class="secondary-btn full" data-do="check-terminal-receipt" ${state.receiptBusy?'disabled':''}>${state.receiptBusy?'Consultando Caja…':'Comprobar recepción en Caja'}</button>`;
+}
+function modalMovement(){const m=rows().find(x=>x.id===state.movementId);if(!m)return modalFrame('Movimiento','<div class="empty">No disponible</div>');return modalFrame('Detalle del movimiento',`<div class="pill">${esc(m.tipo.toUpperCase())} · ${esc(m.estado)}</div><div class="account-large"><small>${esc(movementTitle(m))}</small><strong class="${m.tipo==='gasto'?'expense-text':m.tipo==='ingreso'?'income-text':'warning-text'}">${m.tipo==='gasto'?'−':m.tipo==='ingreso'?'+':''}${moneyText(m.monto_centavos,curr(m))}</strong></div><div class="card"><div class="info-line"><span>Fecha</span><strong>${niceDay(m.fecha)}</strong></div><div class="info-line"><span>Categoría</span><strong>${esc(cat(m.categoria_id)?.nombre||'Sin categoría')}</strong></div><div class="info-line"><span>Cuenta</span><strong>${esc(account(m.cuenta_id)?.nombre||'No verificada')}</strong></div>${m.tipo==='transferencia'?`<div class="info-line"><span>Destino</span><strong>${esc(account(m.cuenta_destino_id)?.nombre||'No verificado')}</strong></div>`:''}<div class="info-line"><span>Estado</span><strong>${esc(m.estado)}</strong></div></div>${terminalReceiptUI(m)}${saleDetailHtml(m)}<div class="btn-pair" style="margin-top:14px"><button class="secondary-btn" data-do="movement-edit">${ico('edit','sm')} Editar</button><button class="danger-btn" data-do="void-confirm" ${m.estado==='anulado'?'disabled':''}>Anular</button></div><div class="notice warning">Anular conserva el asiento y su historial; nunca lo elimina.</div>`)}
 function modalVoid(){return modalFrame('Confirmar anulación',`<div class="notice warning">Esta acción preservará el movimiento original con estado «anulado». No crea otro gasto ni otra transferencia.</div><label class="field-label" for="void-reason">Motivo de anulación</label><textarea class="field-area" id="void-reason" name="void-reason" placeholder="Motivo obligatorio" rows="3"></textarea><div class="btn-pair" style="margin-top:14px"><button class="secondary-btn" data-do="movement" data-id="${esc(state.movementId)}">Volver</button><button class="danger-btn" data-do="void-save">Confirmar anulación</button></div>`)}
 function modalMovementEdit(){const m=rows().find(x=>x.id===state.movementId);if(!m)return modalFrame('Editar','<div class="empty">Sin movimiento.</div>');return modalFrame('Editar movimiento',`<div class="notice warning">El adaptador entregado no incluye una acción «fin.movement.edit». Esta pantalla permite revisar una corrección, pero no la aplica.</div><label class="field-label">Importe original</label><div class="account-large" style="margin:5px 0">${moneyText(m.monto_centavos,curr(m))}</div><label class="field-label" for="edit-desc">Descripción</label><input id="edit-desc" class="field-control" name="edit-desc" value="${esc(m.descripcion)}"><label class="field-label" for="edit-note">Nota de la corrección</label><textarea id="edit-note" class="field-area" name="edit-note" rows="3">${esc(m.nota||'')}</textarea><button data-do="edit-preview" class="secondary-btn full" style="margin-top:15px">Revisar cambios (sin guardar)</button>`)}
 function modalAccountEdit(){const a=account(state.accountId);if(!a)return '';
@@ -269,7 +282,18 @@ async function handleClick(e){if(Date.now()<swipeSuppressClickUntil)return;const
  if(action==='day'){state.day=btn.dataset.day;state.financeView='calendario';state.tab='finance';render();return}
  if(action==='stats-type'){state.statsType=btn.dataset.type;render();return}
  if(action==='account'){state.accountId=btn.dataset.id;openModal('account');return}
- if(action==='movement'){state.movementId=btn.dataset.id;openModal('movement');return}
+ if(action==='movement'){state.movementId=btn.dataset.id;state.receiptMovementId=null;state.receiptStatus=null;openModal('movement');return}
+ if(action==='check-terminal-receipt'){
+  const movement=rows().find(row=>row.id===state.movementId);
+  if(!movement||state.receiptBusy)return;
+  state.receiptBusy=true;render();
+  try{const receipt=await getTerminalReceipt(state.business,movement);
+    if(state.movementId===movement.id){state.receiptMovementId=movement.id;state.receiptStatus=receipt;}}
+  catch(error){if(state.movementId===movement.id){state.receiptMovementId=movement.id;
+    state.receiptStatus={status:'error',message:error?.message||'Lectura no disponible.'};}}
+  finally{state.receiptBusy=false;render()}
+  return;
+ }
  if(action==='accounts-filter'){openModal('accounts-filter');return}
  if(action==='entry'){state.entryType='gasto';state.entryDigits='';state.entryNote='';state.entryDate=core.businessDay(new Date());state.pendingRequestId=null;state.entryCategory=cats().find(c=>c.tipo==='gasto')?.id||'';openModal('entry');return}
  if(action==='open-finance-panel'){location.assign(new URL('../panel.html#finanzas',location.href).href);return}

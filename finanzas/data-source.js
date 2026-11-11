@@ -122,3 +122,40 @@ export async function commitAction(action, businessId, entityId, data) {
   if (!member || !['owner','admin'].includes(member.role)) throw new Error('No tienes permiso de escritura en esta sucursal.');
   return api.adminAction(action, businessId, member.role, entityId, data);
 }
+
+// Consulta bajo demanda: el asiento en Firebase y su aplicación en una Caja
+// son hechos distintos. Un resultado vacío no confirma que la terminal falló.
+export async function getTerminalReceipt(businessId, movement) {
+  if (!isLive) return {status:'demo'};
+  const eventId = String(movement?.sync_event_id || '');
+  const movementId = String(movement?.id || '');
+  const createdAt = String(movement?.created_at || '');
+  if (!eventId || !movementId || !Number.isFinite(Date.parse(createdAt))) {
+    return {status:'unavailable'};
+  }
+  const api = adapter();
+  if (typeof api.getSyncEvents !== 'function') throw new Error('No se puede consultar el acuse de Caja.');
+  const {user, allowed} = await sessionBusinesses(api);
+  if (!allowed.some(branch => branch.id === businessId) || movement.business_id !== businessId) {
+    throw new Error('Movimiento fuera de la sucursal autorizada.');
+  }
+  const limit = 500;
+  const events = await api.getSyncEvents(businessId, {
+    from:createdAt, eventTypes:['EventoNubeAplicado'], includeArchives:false, limit
+  });
+  if (!Array.isArray(events) || api.getCurrentUser()?.uid !== user.uid) {
+    throw new Error('No se pudo verificar la lectura del acuse con tu sesión.');
+  }
+  const receipt = events.find(event => event?.business_id === businessId
+    && event.event_type === 'EventoNubeAplicado'
+    && event.source === 'pos_local_firebase'
+    && event.payload?.sourceEventId === eventId
+    && event.payload?.sourceEventType === 'LedgerMovimientoRegistrado'
+    && event.payload?.sourceEntityId === movementId
+    && event.device_id === event.payload?.appliedByDeviceId
+    && typeof event.payload?.appliedByDeviceId === 'string'
+    && event.payload.appliedByDeviceId.trim());
+  if (receipt) return {status:'applied', deviceId:receipt.payload.appliedByDeviceId,
+    appliedAt:receipt.payload.appliedAt || receipt.received_at_cloud || ''};
+  return {status:events.length >= limit ? 'inconclusive' : 'not_observed'};
+}

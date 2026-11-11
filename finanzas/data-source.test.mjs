@@ -5,7 +5,7 @@ import {readFile} from 'node:fs/promises';
 globalThis.location = {search:'?mode=live',hostname:'localhost'};
 globalThis.window = {};
 const source = await readFile(new URL('./data-source.js', import.meta.url), 'utf8');
-const {authorizedBusinesses, sessionBusinesses, loadFinance, commitAction, canRegister} =
+const {authorizedBusinesses, sessionBusinesses, loadFinance, commitAction, canRegister, getTerminalReceipt} =
   await import(`data:text/javascript,${encodeURIComponent(source)}`);
 
 function mock(overrides={}) {
@@ -21,6 +21,7 @@ function mock(overrides={}) {
     getCollection:async()=>[],
     getFinancePreferences:async()=>({id:'central',business_id:'central'}),
     getFinanceJournal:async(id,options)=>{calls.push(['journal',id,options]);return [{id:'m1',business_id:'central',monto_centavos:12500}]},
+    getSyncEvents:async(id,options)=>{calls.push(['events',id,options]);return []},
     adminAction:async(...args)=>{calls.push(['write',...args]);return {ok:true}},
     ...overrides
   };
@@ -141,4 +142,38 @@ test('compuerta de emulador reenvía requestId estable al adaptador',async()=>{
   await commitAction('fin.movement.create','central','stable-1',payload);
   assert.deepEqual(calls.find(c=>c[0]==='write').slice(1),
     ['fin.movement.create','central','owner','stable-1',payload]);
+});
+
+test('el acuse de Caja exige evento, movimiento, sucursal y dispositivo coincidentes',async()=>{
+  const movement={id:'m1',business_id:'central',sync_event_id:'ledger-m1',created_at:'2026-11-11T12:00:00.000Z'};
+  const matching={business_id:'central',event_type:'EventoNubeAplicado',source:'pos_local_firebase',device_id:'pos-central-1',payload:{
+    sourceEventId:'ledger-m1',sourceEventType:'LedgerMovimientoRegistrado',
+    sourceEntityId:'m1',appliedByDeviceId:'pos-central-1',appliedAt:'2026-11-11T12:01:00Z'
+  }};
+  const {calls}=mock({getSyncEvents:async(id,options)=>{
+    calls.push(['events',id,options]);return [
+      {...matching,business_id:'plaza'},
+      {...matching,payload:{...matching.payload,sourceEventId:'ledger-otro'}},
+      {...matching,source:'otro'},
+      matching
+    ];
+  }});
+  assert.deepEqual(await getTerminalReceipt('central',movement),{
+    status:'applied',deviceId:'pos-central-1',appliedAt:'2026-11-11T12:01:00Z'
+  });
+  assert.deepEqual(calls[0],['events','central',{
+    from:movement.created_at,eventTypes:['EventoNubeAplicado'],includeArchives:false,limit:500
+  }]);
+  await assert.rejects(getTerminalReceipt('plaza',movement),/fuera de la sucursal/);
+});
+
+test('sin acuse no inventa aplicación; consulta saturada queda inconclusa',async()=>{
+  const movement={id:'m1',business_id:'central',sync_event_id:'ledger-m1',created_at:'2026-11-11T12:00:00.000Z'};
+  mock({getSyncEvents:async()=>[]});
+  assert.deepEqual(await getTerminalReceipt('central',movement),{status:'not_observed'});
+  mock({getSyncEvents:async()=>Array.from({length:500},(_,i)=>({
+    business_id:'central',event_type:'EventoNubeAplicado',payload:{sourceEventId:`otro-${i}`}
+  }))});
+  assert.deepEqual(await getTerminalReceipt('central',movement),{status:'inconclusive'});
+  assert.deepEqual(await getTerminalReceipt('central',{...movement,created_at:''}),{status:'unavailable'});
 });
