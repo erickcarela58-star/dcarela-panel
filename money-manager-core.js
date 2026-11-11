@@ -146,9 +146,19 @@
       const due = financeCore.businessDay(item?.venceEn || item?.vence_en || item?.fechaVencimiento || "");
       return [text(item?.periodoClave || item?.periodo_clave), recurringId && due ? `${recurringId}:${due}` : ""];
     }).filter(Boolean));
+    // Algunas facturas anteriores no guardaron recurrenteId. El mismo concepto
+    // y vencimiento ya materializados representan esa cuota, incluso si fue
+    // pagada parcialmente. No se infiere un pago ni se modifica su saldo.
+    const materializedNames = new Set(costObligations.map(item => {
+      const name = lower(item?.concepto || item?.descripcion).normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ");
+      const due = financeCore.businessDay(item?.venceEn || item?.vence_en || item?.fechaVencimiento || "");
+      return name && due ? `${name}|${due}` : "";
+    }).filter(Boolean));
     const planned = costRecurrents.map(plannedObligation).filter(item => {
       if (!item.active || !item.due || item.periodAmount <= 0) return false;
       if (item.recurringId && materializedRecurringKeys.has(`${text(item.recurringId)}:${item.due}`)) return false;
+      const name = lower(item.name).normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ");
+      if (materializedNames.has(`${name}|${item.due}`)) return false;
       return item.due <= range.to;
     });
     const rows = [...native, ...legacy, ...planned].filter(item => item.active);

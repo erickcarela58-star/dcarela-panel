@@ -160,6 +160,15 @@ test("una factura vieja del mismo plan no oculta el vencimiento nuevo", () => {
   assert.equal(summary.currentDue, 298105);
 });
 
+test("factura y plan sin identificador recurrente no duplican la misma cuota", () => {
+  const summary = money.obligationSummary({month:"2026-11",
+    costObligations:[{id:"factura-1",concepto:"Suscripción Adobe",venceEn:"2026-11-18",saldoCentavos:167504,estado:"pendiente"}],
+    costRecurrents:[{id:"plan-1",nombre:"Suscripcion Adobe",proximaFecha:"2026-11-18",montoEstimadoCentavos:167504,activo:true}]});
+  assert.equal(summary.current.length,1);
+  assert.equal(summary.plannedMissing.length,0);
+  assert.equal(summary.currentDue,167504);
+});
+
 test("el calendario conserva centavos y agrupa entradas, salidas y transferencias por dia", () => {
   const result = money.calendar([
     { tipo: "ingreso", fecha: "2026-09-05", monto_centavos: 10001 },
