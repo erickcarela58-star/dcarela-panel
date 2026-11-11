@@ -169,6 +169,16 @@ test("factura y plan sin identificador recurrente no duplican la misma cuota", (
   assert.equal(summary.currentDue,167504);
 });
 
+test("pago por verificar queda visible para revisión sin aumentar la deuda pagadera", () => {
+  const summary = money.obligationSummary({ month: "2026-11", costObligations: [
+    { id: "claro-8651", concepto: "Claro 8651", venceEn: "2026-11-18", saldoCentavos: 298105, estado: "pago_por_verificar" },
+  ] });
+  assert.equal(summary.rows.length, 0);
+  assert.equal(summary.review.length, 1);
+  assert.equal(summary.review[0].name, "Claro 8651");
+  assert.equal(summary.payableNow, 0);
+});
+
 test("el calendario conserva centavos y agrupa entradas, salidas y transferencias por dia", () => {
   const result = money.calendar([
     { tipo: "ingreso", fecha: "2026-09-05", monto_centavos: 10001 },

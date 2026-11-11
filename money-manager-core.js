@@ -162,6 +162,9 @@
       return item.due <= range.to;
     });
     const rows = [...native, ...legacy, ...planned].filter(item => item.active);
+    // Un pago declarado pero sin conciliación no equivale a una deuda saldada.
+    // Se muestra para revisión, fuera de los totales pagaderos, sin reabrirlo.
+    const review = legacy.filter(item => item.state === "pago_por_verificar" && item.outstanding > 0);
     const current = rows.filter(item => item.due >= range.from && item.due <= range.to);
     const overdue = rows.filter(item => item.due && item.due < range.from);
     const dueNow = [...overdue, ...current];
@@ -179,6 +182,7 @@
     return {
       ...range,
       rows,
+      review,
       current,
       overdue,
       dueNow,
