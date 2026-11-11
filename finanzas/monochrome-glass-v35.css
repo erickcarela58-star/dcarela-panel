@@ -74,6 +74,22 @@ body,:root[data-theme="dark"] body{background:var(--bg);background-image:radial-
 .finance-filter-menu button.selected{background:var(--accent-soft);color:var(--ink);font-weight:700}
 .filter-currency{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;gap:12px;color:var(--muted);font-size:.7rem;padding:7px 10px 3px}
 .filter-currency select{min-height:36px;border:0;border-radius:9px;background:var(--accent-soft);color:var(--ink);padding:0 10px;font-size:.72rem}
+main.page{touch-action:pan-y}
+.daily-picker{margin:10px 0 23px}
+.daily-picker-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+.daily-picker-head>div{display:flex;flex-direction:column;gap:3px}
+.daily-picker-head small{font-size:.55rem;letter-spacing:.14em;color:var(--muted);font-weight:650}
+.daily-picker-head strong{font-size:.94rem;letter-spacing:-.02em}
+.daily-calendar{width:44px;height:44px;display:grid;place-items:center;position:relative;color:var(--ink);cursor:pointer}
+.daily-calendar svg{width:20px;height:20px}
+.daily-calendar input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}
+.daily-calendar:focus-within{outline:2px solid var(--ink);outline-offset:2px;border-radius:10px}
+.daily-days{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px;touch-action:pan-y;user-select:none}
+.daily-day{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-width:0;min-height:56px;border:0;border-radius:16px;background:transparent;color:var(--muted);cursor:pointer}
+.daily-day small{font-size:.58rem;text-transform:capitalize}
+.daily-day strong{font-size:.89rem;font-weight:650}
+.daily-day.active{background:var(--ink);color:var(--bg);box-shadow:0 7px 20px rgba(0,0,0,.13)}
+.daily-hint{margin:9px 2px 0;color:var(--muted);font-size:.6rem;text-align:center}
 .triple-summary,:root[data-theme="dark"] .triple-summary{padding:1px 0;margin:12px 0 20px;border:0;border-radius:0;background:transparent;box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none}
 .triple-summary>div{padding:12px 5px}
 .triple-summary>div+div{border-left:0;padding-left:10px}

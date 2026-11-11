@@ -1,4 +1,4 @@
-const CACHE = 'dcarela-finanzas-ui-v35-monochrome-7';
+const CACHE = 'dcarela-finanzas-ui-v35-monochrome-8';
 const SHELL = ['./index.html','./app.css','./minimal-v34.css','./monochrome-glass-v35.css','./assets/bancos/popular.png','./assets/bancos/banreservas.png','./assets/bancos/bhd.png','./assets/bancos/qik.png','./app.js','./data-source.js','./manifest.webmanifest','./icons/icon.svg','./icons/icon-192.png','./icons/icon-512.png','./icons/apple-touch-icon.png'];
 self.addEventListener('install', event => event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(SHELL)).then(() => self.skipWaiting())));
 self.addEventListener('activate', event => event.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k=>k.startsWith('dcarela-finanzas-ui-')&&k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));

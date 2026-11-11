@@ -20,6 +20,7 @@ const state={business:params.get('b')||(isLive?'':'sucursal-a'),loading:true,err
  entryType:'gasto',entryDigits:'',entryAccount:'',entryDest:'',entryCategory:'',entryNote:'',entryDate:today,
  reconcileDigits:'',reconcileReason:'',editingNote:'',pendingRequestId:null,busy:false,financeFilterOpen:false};
 const nMonth=(m,delta)=>{const [y,n]=m.split('-').map(Number);const d=new Date(Date.UTC(y,n-1+delta,1));return d.toISOString().slice(0,7)};
+const nDay=(day,delta)=>{const [y,m,d]=day.split('-').map(Number);return new Date(Date.UTC(y,m-1,d+delta)).toISOString().slice(0,10)};
 const longMonth=m=>new Intl.DateTimeFormat('es-DO',{month:'long',year:'numeric',timeZone:'UTC'}).format(new Date(`${m}-15T12:00:00Z`));
 const niceDay=date=>new Intl.DateTimeFormat('es-DO',{day:'numeric',month:'long',year:'numeric',timeZone:'UTC'}).format(new Date(`${date}T12:00:00Z`));
 const weekDay=date=>['domingo','lunes','martes','miércoles','jueves','viernes','sábado'][new Date(`${date}T12:00:00Z`).getUTCDay()];
@@ -124,7 +125,9 @@ function periodPicker(){return `<div class="month-swipe" data-swipe="month" role
 function financeNavigation(){const index=Math.max(0,FINANCE_VIEWS.findIndex(([id])=>id===state.financeView));
  return `<div class="finance-filter" data-swipe="view" role="group" tabindex="0" aria-label="${FINANCE_VIEWS[index][1]}. Desliza horizontalmente para cambiar vista"><div class="filter-current"><span>VISTA ${index+1} DE ${FINANCE_VIEWS.length}</span><strong>${FINANCE_VIEWS[index][1]}</strong></div><button class="filter-open" data-do="filter-toggle" aria-label="Mostrar filtros" aria-expanded="${state.financeFilterOpen}">${ico('filter')}</button></div>${state.financeFilterOpen?`<div class="finance-filter-menu" role="group" aria-label="Filtros de finanzas">${FINANCE_VIEWS.map(([id,label])=>`<button data-do="view" data-view="${id}" class="${id===state.financeView?'selected':''}" ${id===state.financeView?'aria-current="true"':''}>${label}</button>`).join('')}<label class="filter-currency">Moneda<select name="currency" aria-label="Moneda de la vista">${currencyOption('DOP')}${currencyOption('USD')}</select></label></div>`:''}`}
 function totalsUI(){const t=monthTotals();return `<div class="triple-summary"><div><small>Ingresos</small><strong class="income-text" title="${moneyText(t.ingresos_centavos,state.currency)}">+${moneyText(t.ingresos_centavos,state.currency,t.ingresos_centavos>=100000000)}</strong></div><div><small>Gastos</small><strong class="expense-text" title="${moneyText(t.gastos_centavos,state.currency)}">−${moneyText(t.gastos_centavos,state.currency,t.gastos_centavos>=100000000)}</strong></div><div><small>Resultado</small><strong class="${t.ingresos_centavos>=t.gastos_centavos?'income-text':'expense-text'}">${moneyText(t.ingresos_centavos-t.gastos_centavos,state.currency,Math.abs(t.ingresos_centavos-t.gastos_centavos)>=100000000)}</strong></div></div>`}
-function renderDay(){return groupedByDate(active().filter(r=>matchingMonth(r)&&curr(r)===state.currency))}
+function renderDay(){const selected=active().filter(r=>r.fecha===state.day&&curr(r)===state.currency);
+ const days=Array.from({length:7},(_,i)=>nDay(state.day,i-3));
+ return `<section class="daily-picker" aria-label="Seleccionar día"><div class="daily-picker-head"><div><small>DÍA SELECCIONADO</small><strong>${esc(niceDay(state.day))}</strong></div><label class="daily-calendar" aria-label="Elegir fecha en calendario">${ico('calendar','sm')}<input name="finance-day" type="date" value="${state.day}" aria-label="Elegir fecha"></label></div><div class="daily-days" data-swipe="day" aria-label="Desliza para cambiar de día">${days.map(day=>`<button class="daily-day ${day===state.day?'active':''}" data-do="select-day" data-day="${day}" ${day===state.day?'aria-current="date"':''}><small>${esc(weekDay(day).slice(0,3))}</small><strong>${Number(day.slice(8))}</strong></button>`).join('')}</div><p class="daily-hint">Desliza para ver otro día</p></section><div class="section-head"><h2>Movimientos del día</h2><small>${selected.length}</small></div><div class="card">${movementsUI(selected)}</div>`}
 function renderCalendar(){const cm=money.calendar(getMonthRows(),state.month);const byDate=Object.fromEntries(cm.cells.filter(c=>!c.outside).map(c=>[c.date,c]));
  // El motor del calendario trabaja con una sola moneda aquí (filtrada antes).
  const cells=cm.cells.map(c=>c.outside?'<span class="day-cell outside" aria-hidden="true"></span>':`<button class="day-cell ${state.day===c.date?'active':''} ${c.date===today?'today':''}" data-do="day" data-day="${c.date}" aria-label="${c.day} de ${longMonth(state.month)}"><span class="day-number">${c.day}</span>${c.income?`<span class="tiny-num income">${moneyText(c.income,state.currency,true)}</span>`:'<span class="tiny-num">&nbsp;</span>'}${c.expenses?`<span class="tiny-num expense">${moneyText(c.expenses,state.currency,true)}</span>`:'<span class="tiny-num">&nbsp;</span>'}</button>`).join('');
@@ -226,6 +229,7 @@ async function handleClick(e){if(Date.now()<swipeSuppressClickUntil)return;const
  if(action==='filter-toggle'){state.financeFilterOpen=!state.financeFilterOpen;render();return}
  if(action==='view-step'){const index=FINANCE_VIEWS.findIndex(([id])=>id===state.financeView);state.financeView=FINANCE_VIEWS[(index+Number(btn.dataset.step)+FINANCE_VIEWS.length)%FINANCE_VIEWS.length][0];state.financeFilterOpen=false;render();return}
  if(action==='view'){state.financeView=btn.dataset.view;state.financeFilterOpen=false;render();return}
+ if(action==='select-day'){state.day=btn.dataset.day;state.month=state.day.slice(0,7);render();return}
  if(action==='prev-month'||action==='next-month'){state.month=nMonth(state.month,action==='prev-month'?-1:1);state.day=state.month+'-01';render();return}
  if(action==='day'){state.day=btn.dataset.day;state.financeView='calendario';state.tab='finance';render();return}
  if(action==='stats-type'){state.statsType=btn.dataset.type;render();return}
@@ -255,6 +259,7 @@ async function handleClick(e){if(Date.now()<swipeSuppressClickUntil)return;const
 }
 function handleChange(e){const target=e.target,name=target.name;switch(name){
  case 'currency':state.currency=target.value;render();break;
+ case 'finance-day':if(/^\d{4}-\d{2}-\d{2}$/.test(target.value)){state.day=target.value;state.month=target.value.slice(0,7);render()}break;
  case 'theme':setTheme(target.value);break;
  case 'branch':changeBusiness(target.value);break;
  case 'search-type':state.search.type=target.value;break;
@@ -279,9 +284,9 @@ async function handleSubmit(e){if(e.target.id==='login-form'){
  return;
  }if(e.target.id!=='search-form')return;e.preventDefault();state.search.query=e.target.querySelector('[name="search-query"]').value;
  if(state.search.from>state.search.to){note('El inicio no puede ser posterior al fin.');return}if(state.search.accountIds.length===0){note('Selecciona al menos una cuenta.');return}state.searched=true;render()}
-function stepSwipe(kind,step){if(kind==='month'){state.month=nMonth(state.month,step);state.day=`${state.month}-01`;}else if(kind==='view'){const index=Math.max(0,FINANCE_VIEWS.findIndex(([id])=>id===state.financeView));state.financeView=FINANCE_VIEWS[(index+step+FINANCE_VIEWS.length)%FINANCE_VIEWS.length][0];state.financeFilterOpen=false;}render()}
+function stepSwipe(kind,step){if(kind==='month'){state.month=nMonth(state.month,step);state.day=`${state.month}-01`;}else if(kind==='view'){const index=Math.max(0,FINANCE_VIEWS.findIndex(([id])=>id===state.financeView));state.financeView=FINANCE_VIEWS[(index+step+FINANCE_VIEWS.length)%FINANCE_VIEWS.length][0];state.financeFilterOpen=false;}else if(kind==='day'){state.day=nDay(state.day,step);state.month=state.day.slice(0,7);}else if(kind==='tab'){const tabs=['home','finance','search','more'];const next=tabs.indexOf(state.tab)+step;if(next<0||next>=tabs.length)return;openTab(tabs[next]);return;}render()}
 let swipeStart=null,swipeSuppressClickUntil=0;
-document.addEventListener('pointerdown',e=>{const zone=e.target.closest('[data-swipe]');if(zone&&e.target.tagName!=='SELECT')swipeStart={id:e.pointerId,kind:zone.dataset.swipe,x:e.clientX,y:e.clientY};});
+document.addEventListener('pointerdown',e=>{if(state.modal||state.route||state.loading||state.error||state.authRequired||e.target.closest('input,select,textarea,a,[contenteditable],.bottom-nav'))return;const zone=e.target.closest('[data-swipe]');const main=e.target.closest('main.page');if(zone||main)swipeStart={id:e.pointerId,kind:zone?.dataset.swipe||'tab',x:e.clientX,y:e.clientY};});
 document.addEventListener('pointerup',e=>{if(!swipeStart||e.pointerId!==swipeStart.id)return;const {kind,x,y}=swipeStart;swipeStart=null;const dx=e.clientX-x,dy=e.clientY-y;if(Math.abs(dx)<45||Math.abs(dx)<Math.abs(dy)*1.3)return;swipeSuppressClickUntil=Date.now()+350;stepSwipe(kind,dx<0?1:-1);});
 document.addEventListener('pointercancel',()=>{swipeStart=null});
 document.addEventListener('click',handleClick);
