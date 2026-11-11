@@ -26,6 +26,8 @@ El acceso fue publicado en `0fb28d44f1e064967c07b5eeb45c1b1c2de33bdf`: Pages `bu
 
 **Interfaz 35.16:** el botón de tema volvió a la cabecera y las vistas/gestos tienen transición horizontal direccional; el banco local comprobó claro, oscuro, calendario, estadísticas, brillo, movimiento reducido y ancho de 393 px. Cuatro capturas y el script `C:/tmp/dcarela-pwa-motion-qa-20261111.cjs` contienen la evidencia. La suite completa con emuladores pasó 434/434. Las capturas son demo sintética, no prueba de Caja productiva ni de Safari físico.
 
+**Entrega 35.16:** Pages run `42986684817` terminó correctamente para `10fc14a`; seis recursos HTTP de `https://panel.dcarelacompufoto.com/finanzas/` igualaron los blobs de Git por SHA-256 (`C:/tmp/dcarela-pwa-motion-publica-20261111.json`). El banco de interacción pasó también sobre ese dominio con datos demo. Escritura real y paridad física continúan no verificadas.
+
 ## Seguimiento de sincronización — 10/11/2026
 
 - **Sesión existente:** el dueño inició sesión en `panel.dcarelacompufoto.com` como administrador. En la vista Finanzas de Central, el panel confirmó 183 ventas integradas por RD$61,791.60, 183 cobros por método, 50 eventos duplicados ignorados y 0 ventas anuladas incluidas. El Resumen advirtió que la última señal de Caja fue el 09/11 a las 6:02 p. m.; por ello no se afirma actualización en vivo de la terminal.
