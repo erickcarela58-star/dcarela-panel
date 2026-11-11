@@ -10,6 +10,7 @@
 | Producción sin sesión no presenta saldo ni habilita Registrar | PASÓ local | `finanzas-v33-sin-sesion.png`. |
 | Saldo real Caja Windows = CRM = PWA | NO VERIFICADO | La base local instalada está atrasada frente al panel; no se leyó la Caja del negocio ni saldos productivos en esta PWA. `MATRIZ_SALDOS.csv` contiene solo fixtures. |
 | Firestore Emulator: reglas de lectura/escritura | PASÓ en proyecto `demo-*` | Temurin JRE portátil verificado por SHA-256; Auth y Firestore emulados en 9199/9183. `finanzas/emulator-rules.test.mjs`: propietario lee/escribe Central, Plaza y usuarios ajenos denegados, lector sin escritura, borrado denegado. |
+
 | Adaptador: idempotencia y anulaciones | PASÓ en banco aislado | `firebase-finance-runtime.test.js`: 33/33, incluidos reintentos y anulaciones concurrentes. |
 | PWA con Auth y Firestore emulados | PASÓ en operaciones aisladas | En Chrome local, la sesión sintética leyó Central y una transferencia de RD$1.00 pasó de Banco a Efectivo: 2,000.00→1,999.00 y 1,000.00→1,001.00. El total patrimonial no cambió. Un ingreso ficticio de RD$1.00 subió Banco y total una sola vez. El 10/11 se registró desde la UI un gasto de RD$1.23, se anuló con motivo y Firestore confirmó que el asiento permanece con `estado=anulado`; una conciliación dejó Banco ficticio en RD$1,999.99, visto en la siguiente carga. Ninguna operación fue productiva. |
 | Firebase real con sesión, sucursales y datos autorizados | NO VERIFICADO | No se abrió una sesión real en esta ruta ni se consultaron cuentas productivas. |
@@ -20,6 +21,10 @@ El acceso fue publicado en `0fb28d44f1e064967c07b5eeb45c1b1c2de33bdf`: Pages `bu
 | URL/commit publicado | PASÓ para archivos y ruta | El dueño autorizó publicar el 10/11. Pages run `42779979744` terminó success para `476991bfc93a65726528fa1054bf4801a8c61b65`; `https://panel.dcarelacompufoto.com/finanzas/` respondió 200. Siete archivos, incluidos `finanzas/app.js`, `firebase-adapter.js` y `finance-revision-core.js`, coincidieron por SHA-256 con el blob de Git. Falta prueba autenticada de la nueva ruta. |
 
 **Actualización visual v35, 10/11:** el commit de fuente `977d798067f92d00deda036ce73c6a570b658dd0` quedó `built` en Pages. La URL pública respondió 200; seis archivos de la PWA coincidieron byte a byte por SHA-256. En la URL pública, las 26 pantallas demo revisadas dejaron la barra tras el contenido y la ruta sin sesión rechazó los saldos y la escritura. Evidencias en `CONTINUIDAD.md` y `C:/tmp/finanzas-v35-publicacion-verificada-20261110.json`. No es prueba de sesión real, Caja física ni Safari.
+
+**Revalidación 11/11:** Auth y Firestore se ejecutaron con JRE portátil y proyecto `demo-dcarela-finanzas`; la suite completa aprobó **434/434, sin omisiones**. El adaptador publicado en `72362da` coincide por SHA-256 con el blob Git (`f401e3bc9eeef3fd6e90423d71e7972c2d4dc4369e0584891e4f24bf7606e9ac`) y el run Pages `42983460540` terminó `success`. La Caja activa usa otro `device_id` que la base de esta PC; su parche `76a283e` no está instalado allí. Por eso los botones de escritura productiva continúan bloqueados y la paridad física Caja/CRM/PWA permanece **no verificada**. La instalación y gestos en Safari/iPhone 15 tampoco se comprobaron físicamente.
+
+**Interfaz 35.16:** el botón de tema volvió a la cabecera y las vistas/gestos tienen transición horizontal direccional; el banco local comprobó claro, oscuro, calendario, estadísticas, brillo, movimiento reducido y ancho de 393 px. Cuatro capturas y el script `C:/tmp/dcarela-pwa-motion-qa-20261111.cjs` contienen la evidencia. La suite completa con emuladores pasó 434/434. Las capturas son demo sintética, no prueba de Caja productiva ni de Safari físico.
 
 ## Seguimiento de sincronización — 10/11/2026
 
