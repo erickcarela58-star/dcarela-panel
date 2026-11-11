@@ -59,12 +59,13 @@ export async function loadFinance(requestedBusinessId) {
   if (!allowed.some(b => b.id === chosen)) {
     throw new Error('Acceso denegado: esta sucursal no pertenece a tu sesión.');
   }
-  const [accounts, categories, budgets, cards, commitments, preferences,
-    costObligations, costPayments] = await Promise.all([
+  const [accounts, categories, budgets, cards, commitments, commitmentPayments, preferences,
+    costObligations, costPayments, costRecurrents] = await Promise.all([
     api.getFinanceAccounts(chosen), api.getFinanceCategories(chosen), api.getFinanceBudgets(chosen),
-    api.getFinanceCards(chosen), api.getFinanceCommitments(chosen), api.getFinancePreferences(chosen),
+    api.getFinanceCards(chosen), api.getFinanceCommitments(chosen), api.getFinanceCommitmentPayments(chosen), api.getFinancePreferences(chosen),
     api.getCollection('cost_obligations', [['business_id', '==', chosen]]),
-    api.getCollection('cost_payments', [['business_id', '==', chosen]])
+    api.getCollection('cost_payments', [['business_id', '==', chosen]]),
+    api.getCollection('cost_recurrents', [['business_id', '==', chosen]])
   ]);
   scopedRows(accounts, chosen, 'cuentas');
   if (!accounts.length) throw new Error('Esta sucursal no tiene cuentas verificadas; no se mostrará un saldo cero.');
@@ -78,8 +79,10 @@ export async function loadFinance(requestedBusinessId) {
   scopedRows(budgets, chosen, 'presupuestos');
   scopedRows(cards, chosen, 'tarjetas');
   scopedRows(commitments, chosen, 'compromisos');
+  scopedRows(commitmentPayments, chosen, 'pagos de compromisos');
   scopedRows(costObligations, chosen, 'obligaciones de Caja');
   scopedRows(costPayments, chosen, 'pagos de Caja');
+  scopedRows(costRecurrents, chosen, 'costos recurrentes');
   if (preferences && preferences.business_id !== chosen) {
     throw new Error('Las preferencias pertenecen a otra sucursal.');
   }
@@ -90,8 +93,9 @@ export async function loadFinance(requestedBusinessId) {
   }
   // CostoPagoRegistrado acredita una deuda, pero no demuestra por sí solo una
   // salida de cuenta. El diario ya registra la salida contable una sola vez.
-  return {accounts, categories, movements, budgets, cards, commitments,
-    costObligations, costPayments,
+  const sales = scopedRows(movements.sales || [], chosen, 'detalle de ventas');
+  return {accounts, categories, movements, sales, budgets, cards, commitments, commitmentPayments,
+    costObligations, costPayments, costRecurrents,
     preferences, authorizedBusinesses:allowed, businessId:chosen, demo:false};
 }
 

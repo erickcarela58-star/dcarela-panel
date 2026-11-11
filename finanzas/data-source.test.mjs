@@ -17,7 +17,7 @@ function mock(overrides={}) {
     getBusinessesByIds:async()=>[{id:'central',nombre:'Central',active:true}],
     getFinanceAccounts:async()=>[{id:'cash',business_id:'central',moneda:'DOP',saldo_inicial_centavos:0}],
     getFinanceCategories:async()=>[], getFinanceBudgets:async()=>[],
-    getFinanceCards:async()=>[], getFinanceCommitments:async()=>[],
+    getFinanceCards:async()=>[], getFinanceCommitments:async()=>[], getFinanceCommitmentPayments:async()=>[],
     getCollection:async()=>[],
     getFinancePreferences:async()=>({id:'central',business_id:'central'}),
     getFinanceJournal:async(id,options)=>{calls.push(['journal',id,options]);return [{id:'m1',business_id:'central',monto_centavos:12500}]},
@@ -59,15 +59,27 @@ test('lee pagos y obligaciones de Caja por sucursal sin agregarlos al diario',as
   const {calls}=mock({getCollection:async(name,filters)=>{
     collections.push([name,filters]);
     return name==='cost_payments'?[{id:'p1',business_id:'central',montoCentavos:3000}]:
-      [{id:'o1',business_id:'central',saldoCentavos:7000}];
+      name==='cost_obligations'?[{id:'o1',business_id:'central',saldoCentavos:7000}]:[];
   }});
   const data=await loadFinance('central');
   assert.equal(data.costPayments[0].montoCentavos,3000);
   assert.equal(data.costObligations[0].saldoCentavos,7000);
   assert.equal(data.movements.length,1);
   assert.equal(calls.filter(c=>c[0]==='journal').length,1);
-  assert.deepEqual(collections.map(c=>c[0]).sort(),['cost_obligations','cost_payments']);
+  assert.deepEqual(collections.map(c=>c[0]).sort(),['cost_obligations','cost_payments','cost_recurrents']);
   assert.ok(collections.every(([,filter])=>filter[0][2]==='central'));
+});
+
+test('conserva el detalle de venta y los pagos vinculados sin sumar otro movimiento',async()=>{
+  const event={id:'sale-event',business_id:'central',event_type:'VentaCobrada',payload:{ventaId:'sale-1',folio:28,lineas:[{nombre:'Retrato',cantidad:1}],pagos:[{metodo:'efectivo',montoCentavos:12500}]}};
+  mock({getFinanceJournal:async()=>Object.assign([{id:'pos-sale:sale-event:0',business_id:'central',tipo:'ingreso',monto_centavos:12500}],{sales:[event]}),
+    getFinanceCommitmentPayments:async()=>[{id:'cp1',business_id:'central',compromiso_id:'c1',monto_centavos:5000}],
+    getCollection:async name=>name==='cost_recurrents'?[{id:'r1',business_id:'central',montoEstimadoCentavos:7000}]:[]});
+  const data=await loadFinance('central');
+  assert.equal(data.movements.length,1);
+  assert.equal(data.sales[0].payload.lineas[0].nombre,'Retrato');
+  assert.equal(data.commitmentPayments[0].compromiso_id,'c1');
+  assert.equal(data.costRecurrents[0].montoEstimadoCentavos,7000);
 });
 
 test('falla cerrado ante lectura parcial, documento ajeno o sesión cambiada',async()=>{
