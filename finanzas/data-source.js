@@ -1,5 +1,12 @@
 // Mismo adaptador y libro del panel; fixtures solo con ?mode=demo.
 export const isLive = new URLSearchParams(location.search).get('mode') !== 'demo';
+const isIsolatedEmulator = () => ['localhost','127.0.0.1'].includes(location.hostname)
+  && String(window.__DCARELA_FIREBASE_CONFIG?.projectId||'').startsWith('demo-')
+  && window.__DCARELA_FINANCE_STAGING_WRITE__ === true;
+const isOfficialFinance = () => location.hostname === 'panel.dcarelacompufoto.com'
+  && location.protocol === 'https:'
+  && window.__DCARELA_FIREBASE_CONFIG?.projectId === 'erikccarela';
+export const canRegister = () => isLive && (isIsolatedEmulator() || isOfficialFinance());
 
 function adapter() {
   const api = window.DcarelaFirebase;
@@ -101,17 +108,13 @@ export async function loadFinance(requestedBusinessId) {
 
 export async function commitAction(action, businessId, entityId, data) {
   if (!isLive) return {preview:true};
-  // Compuerta temporal: ninguna escritura en el proyecto de producción.
-  if (location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
-    throw new Error('Las escrituras de V3.3 están bloqueadas hasta completar la validación financiera.');
-  }
-  const projectId = window.__DCARELA_FIREBASE_CONFIG?.projectId || '';
-  if (!projectId.startsWith('demo-') || window.__DCARELA_FINANCE_STAGING_WRITE__ !== true) {
-    throw new Error('Las escrituras solo están disponibles en el emulador financiero aislado.');
-  }
   if (!['fin.movement.create','fin.transfer.create','fin.movement.cancel','fin.account.reconcile'].includes(action) ||
       !data?.requestId || typeof data.requestId !== 'string') {
     throw new Error('Operación financiera no admitida o sin identificador estable.');
+  }
+  if (!canRegister()) throw new Error('Registra desde la PWA oficial o usa el panel central.');
+  if (isOfficialFinance() && !['fin.movement.create','fin.transfer.create'].includes(action)) {
+    throw new Error('Esta operación requiere comprobar primero la Caja activa.');
   }
   const api = adapter();
   const {allowed} = await sessionBusinesses(api);

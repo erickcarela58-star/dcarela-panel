@@ -5,7 +5,7 @@ import {readFile} from 'node:fs/promises';
 globalThis.location = {search:'?mode=live',hostname:'localhost'};
 globalThis.window = {};
 const source = await readFile(new URL('./data-source.js', import.meta.url), 'utf8');
-const {authorizedBusinesses, sessionBusinesses, loadFinance, commitAction} =
+const {authorizedBusinesses, sessionBusinesses, loadFinance, commitAction, canRegister} =
   await import(`data:text/javascript,${encodeURIComponent(source)}`);
 
 function mock(overrides={}) {
@@ -99,9 +99,9 @@ test('falla cerrado ante lectura parcial, documento ajeno o sesión cambiada',as
   await assert.rejects(loadFinance('central'),/sesión cambió/);
 });
 
-test('producción y usuarios sin rol admin no pueden escribir',async()=>{
+test('un origen no oficial y usuarios sin rol admin no pueden escribir',async()=>{
   const {calls}=mock();
-  await assert.rejects(commitAction('fin.movement.create','central','op-1',{requestId:'op-1'}),/emulador/);
+  await assert.rejects(commitAction('fin.movement.create','central','op-1',{requestId:'op-1'}),/PWA oficial/);
   assert.equal(calls.filter(c=>c[0]==='write').length,0);
   window.__DCARELA_FIREBASE_CONFIG.projectId='demo-finanzas';
   window.__DCARELA_FINANCE_STAGING_WRITE__=true;
@@ -109,6 +109,28 @@ test('producción y usuarios sin rol admin no pueden escribir',async()=>{
   window.__DCARELA_FIREBASE_CONFIG.projectId='demo-finanzas';
   window.__DCARELA_FINANCE_STAGING_WRITE__=true;
   await assert.rejects(commitAction('fin.movement.create','central','op-1',{requestId:'op-1'}),/permiso/);
+});
+
+test('PWA oficial registra ingreso, gasto y transferencia solo con rol admin y requestId estable',async()=>{
+  const previous={hostname:location.hostname,protocol:location.protocol};
+  location.hostname='panel.dcarelacompufoto.com';location.protocol='https:';
+  try{
+    const {calls}=mock();
+    assert.equal(canRegister(),true);
+    for(const action of ['fin.movement.create','fin.transfer.create']){
+      const requestId=`stable-${action}`;
+      await commitAction(action,'central',requestId,{requestId,montoCentavos:12500});
+      assert.deepEqual(calls.at(-1),['write',action,'central','owner',requestId,{requestId,montoCentavos:12500}]);
+    }
+    await assert.rejects(commitAction('fin.movement.cancel','central','m1',{requestId:'cancel-1'}),/Caja activa/);
+    assert.equal(calls.filter(c=>c[0]==='write').length,2);
+    mock({getMembershipsForUser:async()=>[{business_id:'central',role:'viewer',active:true}]});
+    await assert.rejects(commitAction('fin.movement.create','central','viewer-1',{requestId:'viewer-1'}),/permiso/);
+    assert.equal(canRegister(),true);
+    location.protocol='http:';
+    assert.equal(canRegister(),false);
+    await assert.rejects(commitAction('fin.movement.create','central','http-1',{requestId:'http-1'}),/PWA oficial/);
+  }finally{location.hostname=previous.hostname;location.protocol=previous.protocol}
 });
 
 test('compuerta de emulador reenvía requestId estable al adaptador',async()=>{
