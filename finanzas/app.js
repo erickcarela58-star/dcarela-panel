@@ -75,7 +75,7 @@ async function load(){const serial=++loadSerial;state.loading=true;state.error='
  state.entryCategory=data.categories.find(c=>c.tipo===state.entryType)?.id||'';
  lastLoadedAt=Date.now();
  }catch(e){if(serial===loadSerial){state.error=e?.message||'No fue posible comprobar los datos.';state.authRequired=e?.code==='AUTH_REQUIRED';}}finally{if(serial===loadSerial){state.loading=false;render()}}}
-function renderHeader(){return `<header class="topbar"><div class="brand-block"><div><div class="brand-title">D’ Carela</div><div class="brand-sub">FINANZAS</div></div></div><div class="top-actions">
+function renderHeader(){return `<header class="topbar"><div class="brand-block"><img class="brand-logo" src="./icons/dcarela-logo.png" width="38" height="38" alt="Logo D’ Carela"><div><div class="brand-title">D’ Carela</div><div class="brand-sub">FINANZAS</div></div></div><div class="top-actions">
  <button class="round-button" data-do="refresh" aria-label="Actualizar movimientos de Caja" title="Actualizar movimientos de Caja">${ico('refresh')}</button>
  </div></header>${!isLive?`<div class="demo-ribbon"><span><span class="dot"></span><strong>PROTOTIPO</strong> · Datos 100% ficticios</span><span>Sin conexión real</span></div>`:emulatorWritesAllowed()?`<div class="demo-ribbon"><span>Emulador Firebase aislado</span><span>Datos ficticios</span></div>`:`<div class="demo-ribbon"><span>Libro Firebase del CRM · solo lectura</span><span>Escrituras en validación</span></div>`}`}
 function renderBottom(){const nav=[['home','house','Resumen'],['finance','bars','Finanzas'],['search','search','Buscar'],['more','more','Más']];const selected=state.tab;
@@ -319,9 +319,28 @@ async function handleSubmit(e){if(e.target.id==='login-form'){
  if(state.search.from>state.search.to){note('El inicio no puede ser posterior al fin.');return}if(state.search.accountIds.length===0){note('Selecciona al menos una cuenta.');return}state.searched=true;render()}
 function stepSwipe(kind,step){if(kind==='month'){state.month=nMonth(state.month,step);state.day=`${state.month}-01`;}else if(kind==='view'){const index=Math.max(0,FINANCE_VIEWS.findIndex(([id])=>id===state.financeView));state.financeView=FINANCE_VIEWS[(index+step+FINANCE_VIEWS.length)%FINANCE_VIEWS.length][0];state.financeFilterOpen=false;}else if(kind==='day'){state.day=nDay(state.day,step);state.month=state.day.slice(0,7);}else if(kind==='tab'){const tabs=['home','finance','search','more'];const next=tabs.indexOf(state.tab)+step;if(next<0||next>=tabs.length)return;openTab(tabs[next]);return;}render()}
 let swipeStart=null,swipeSuppressClickUntil=0;
-document.addEventListener('pointerdown',e=>{if(state.modal||state.route||state.loading||state.error||state.authRequired||e.target.closest('input,select,textarea,a,[contenteditable],.bottom-nav'))return;const zone=e.target.closest('[data-swipe]');const main=e.target.closest('main.page');if(zone||main)swipeStart={id:e.pointerId,kind:zone?.dataset.swipe||'tab',x:e.clientX,y:e.clientY};});
-document.addEventListener('pointerup',e=>{if(!swipeStart||e.pointerId!==swipeStart.id)return;const {kind,x,y}=swipeStart;swipeStart=null;const dx=e.clientX-x,dy=e.clientY-y;if(Math.abs(dx)<45||Math.abs(dx)<Math.abs(dy)*1.3)return;swipeSuppressClickUntil=Date.now()+350;stepSwipe(kind,dx<0?1:-1);});
-document.addEventListener('pointercancel',()=>{swipeStart=null});
+function beginSwipe(target,id,x,y){
+ if(state.modal||state.route||state.loading||state.error||state.authRequired||target.closest('input,select,textarea,a,[contenteditable],.bottom-nav'))return;
+ const zone=target.closest('[data-swipe]'),main=target.closest('main.page');
+ if(zone||main)swipeStart={id,kind:zone?.dataset.swipe||(state.tab==='finance'?'view':'tab'),x,y};
+}
+function finishSwipe(id,x,y){
+ if(!swipeStart||swipeStart.id!==id)return false;
+ const start=swipeStart;swipeStart=null;
+ const dx=x-start.x,dy=y-start.y;
+ if(Math.abs(dx)<45||Math.abs(dx)<Math.abs(dy)*1.3)return false;
+ swipeSuppressClickUntil=Date.now()+350;
+ stepSwipe(start.kind,dx<0?1:-1);
+ return true;
+}
+// Safari en iPhone puede cancelar Pointer Events al iniciar un gesto nativo.
+// Touch Events manejan el dedo; Pointer Events quedan para ratón y lápiz.
+document.addEventListener('touchstart',e=>{if(e.touches.length!==1)return;const t=e.touches[0];beginSwipe(e.target,t.identifier,t.clientX,t.clientY)},{passive:true});
+document.addEventListener('touchend',e=>{if(e.changedTouches.length!==1)return;const t=e.changedTouches[0];if(finishSwipe(t.identifier,t.clientX,t.clientY)&&e.cancelable)e.preventDefault()},{passive:false});
+document.addEventListener('touchcancel',()=>{swipeStart=null},{passive:true});
+document.addEventListener('pointerdown',e=>{if(e.pointerType==='touch')return;beginSwipe(e.target,e.pointerId,e.clientX,e.clientY)});
+document.addEventListener('pointerup',e=>{if(e.pointerType==='touch')return;finishSwipe(e.pointerId,e.clientX,e.clientY)});
+document.addEventListener('pointercancel',e=>{if(e.pointerType!=='touch')swipeStart=null});
 document.addEventListener('click',handleClick);
 document.addEventListener('change',handleChange);
 document.addEventListener('input',handleInput);

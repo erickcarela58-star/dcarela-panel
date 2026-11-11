@@ -164,3 +164,8 @@ main.page{touch-action:pan-y}
 .flow-panel{animation:glassRise .4s ease both}
 .filter-open:active,.tab-button:active{transform:scale(.95)}
 @media(prefers-reduced-motion:reduce){.view-enter .page,.view-enter .page>*,.view-enter .page .income-text,.view-enter .page .expense-text,.view-enter .page .hero-main,.view-enter .page .account-row,.view-enter .page .movement-row,.flow-panel,.finance-filter-menu,.flow-svg .flow-income{animation:none;stroke-dashoffset:0}.bottom-nav .tab-button,.bottom-nav .tab-icon,.bottom-nav .tab-label,.filter-open svg,.round-button svg,.daily-calendar svg{transition:none}.filter-open:active,.tab-button:active,.bottom-nav .tab-button:active .tab-icon,.filter-open:active svg,.round-button:active svg,.daily-calendar:active svg{transform:none}}
+/* iOS amplía automáticamente la página al enfocar controles con texto menor de 16 px. */
+html{-webkit-text-size-adjust:100%}
+.brand-logo{width:38px;height:38px;object-fit:contain;flex:none}
+@media(max-width:700px){input:not([type="checkbox"]):not([type="radio"]),select,textarea,.filter-currency select{font-size:16px}}
+button{touch-action:manipulation}
