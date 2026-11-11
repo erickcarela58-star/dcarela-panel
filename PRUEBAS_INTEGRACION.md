@@ -56,6 +56,7 @@ Servidor local `py -m http.server 8899 --bind 127.0.0.1`; captura en `http://127
 - **Conectadas para lectura, pendientes de validar con sesión real:** Resumen, Diario, Calendario, Semana, Mes, Estadísticas, Búsqueda, cuentas, detalle de cuenta/movimiento, tarjetas, presupuestos y compromisos.
 - **Solo emulador por código:** `fin.transfer.create`, `fin.movement.create` (ingreso y gasto), `fin.movement.cancel` y `fin.account.reconcile` validadas desde la UI en proyecto `demo-*`; gasto anulado conservado en Firestore y saldo conciliado visto al recargar. Los scripts/evidencias del último recorrido están en `C:/tmp/dcarela-emulator-ui-check-20261110.cjs` y `CONTINUIDAD.md`. El control del navegador de Work sigue deshabilitado, pero el Chromium aislado se probó por CDP sin credenciales de producción.
 - **Bloqueadas en UI real:** toda escritura financiera, editar cuenta/movimiento, pagos de compromisos y gestión de tarjetas/presupuestos. La publicación no convierte las escrituras en operativas.
+- **Acceso al registro:** la PWA 35.17 muestra el botón «+» también en producción; su popup abre `/panel.html#finanzas`, donde está el registro operativo del panel central. La PWA no envía movimientos directamente. El recorrido del popup pasó en Auth/Firestore Emulator con datos ficticios y 434/434 pruebas; el salto en Safari/iPhone físico y la paridad con la Caja activa siguen sin verificar.
 
 ## Para una activación futura
 
