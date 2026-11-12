@@ -130,7 +130,8 @@ export async function getTerminalReceipt(businessId, movement) {
   const eventId = String(movement?.sync_event_id || '');
   const movementId = String(movement?.id || '');
   const createdAt = String(movement?.created_at || '');
-  if (!eventId || !movementId || !Number.isFinite(Date.parse(createdAt))) {
+  const historicalCashRepair = /^owner-repair-20261105-cash-(entrada|comida|regalos|desayuno|viajante|intermediarios)$/.test(movementId);
+  if ((!eventId && !historicalCashRepair) || !movementId || !Number.isFinite(Date.parse(createdAt))) {
     return {status:'unavailable'};
   }
   const api = adapter();
@@ -139,9 +140,31 @@ export async function getTerminalReceipt(businessId, movement) {
   if (!allowed.some(branch => branch.id === businessId) || movement.business_id !== businessId) {
     throw new Error('Movimiento fuera de la sucursal autorizada.');
   }
+  let sourceEventId = eventId;
+  let from = createdAt;
+  if (historicalCashRepair) {
+    if (typeof api.getDocument !== 'function') throw new Error('No se puede verificar el evento de reparación.');
+    const repairId = `projection-repair-20261111-${movementId}`;
+    const repair = await api.getDocument('sync_events', repairId);
+    const repairAt = String(repair?.received_at_cloud || '');
+    const accountId = String(movement.cuenta_id || '');
+    const amount = Number(movement.monto_centavos);
+    const payload = repair?.payload || {};
+    const accountMatches = movement.tipo === 'ingreso'
+      ? payload.cuentaDestinoId === accountId
+      : payload.cuentaOrigenId === accountId;
+    if (repair?.id !== repairId || repair.business_id !== businessId
+      || repair.event_type !== 'LedgerMovimientoRegistrado'
+      || repair.projection_repair_only !== true || repair.entity_id !== movementId
+      || payload.ledgerId !== movementId || !Number.isSafeInteger(amount)
+      || payload.importeDopCentavos !== amount || !accountId || !accountMatches
+      || !Number.isFinite(Date.parse(repairAt))) return {status:'unavailable'};
+    sourceEventId = repairId;
+    from = repairAt;
+  }
   const limit = 500;
   const events = await api.getSyncEvents(businessId, {
-    from:createdAt, eventTypes:['EventoNubeAplicado'], includeArchives:false, limit
+    from, eventTypes:['EventoNubeAplicado'], includeArchives:false, limit
   });
   if (!Array.isArray(events) || api.getCurrentUser()?.uid !== user.uid) {
     throw new Error('No se pudo verificar la lectura del acuse con tu sesión.');
@@ -149,13 +172,14 @@ export async function getTerminalReceipt(businessId, movement) {
   const receipt = events.find(event => event?.business_id === businessId
     && event.event_type === 'EventoNubeAplicado'
     && event.source === 'pos_local_firebase'
-    && event.payload?.sourceEventId === eventId
+    && event.payload?.sourceEventId === sourceEventId
     && event.payload?.sourceEventType === 'LedgerMovimientoRegistrado'
     && event.payload?.sourceEntityId === movementId
     && event.device_id === event.payload?.appliedByDeviceId
     && typeof event.payload?.appliedByDeviceId === 'string'
     && event.payload.appliedByDeviceId.trim());
   if (receipt) return {status:'applied', deviceId:receipt.payload.appliedByDeviceId,
-    appliedAt:receipt.payload.appliedAt || receipt.received_at_cloud || ''};
+    appliedAt:receipt.payload.appliedAt || receipt.received_at_cloud || '',
+    ...(historicalCashRepair ? {historicalRepair:true} : {})};
   return {status:events.length >= limit ? 'inconclusive' : 'not_observed'};
 }

@@ -1,4 +1,4 @@
-import {loadFinance,commitAction,getTerminalReceipt,isLive,canRegister} from './data-source.js?v=35.19';
+import {loadFinance,commitAction,getTerminalReceipt,isLive,canRegister} from './data-source.js?v=35.20';
 const emulatorWritesAllowed=()=>isLive && ['localhost','127.0.0.1'].includes(location.hostname)
  && String(window.__DCARELA_FIREBASE_CONFIG?.projectId||'').startsWith('demo-')
  && window.__DCARELA_FINANCE_STAGING_WRITE__===true;
@@ -208,10 +208,11 @@ function saleDetailHtml(m){
  ${payments.length?`<h3>Pagos de la venta</h3><div class="card">${payments.map(pay=>`<div class="info-line"><span>${esc(pay.metodo||pay.metodoPago||pay.method||'Método no indicado')}</span><strong>${saleMoney(pay.montoCentavos??pay.monto_centavos??pay.amountCents)}</strong></div>`).join('')}</div>`:''}${p.nota?`<p class="soft-note">${esc(p.nota)}</p>`:''}`;
 }
 function terminalReceiptUI(m){
- if(!isLive||m.origen!=='panel'||!m.sync_event_id)return '';
+ const historicalCashRepair=/^owner-repair-20261105-cash-(entrada|comida|regalos|desayuno|viajante|intermediarios)$/.test(String(m.id||''));
+ if(!isLive||(!historicalCashRepair&&(m.origen!=='panel'||!m.sync_event_id)))return '';
  const receipt=state.receiptMovementId===m.id?state.receiptStatus:null;
  const message=receipt?.status==='applied'
-  ?`Caja ${esc(receipt.deviceId)} confirmó la recepción${receipt.appliedAt?` · ${esc(receipt.appliedAt)}`:''}. Esto no coteja el saldo físico.`
+  ?`Caja ${esc(receipt.deviceId)} confirmó ${receipt.historicalRepair?'la reparación histórica':'la recepción'}${receipt.appliedAt?` · ${esc(receipt.appliedAt)}`:''}. Esto no coteja el saldo físico.`
   :receipt?.status==='not_observed'?'Aún no se encontró acuse de Caja. El asiento figura en el CRM.'
   :receipt?.status==='inconclusive'?'La consulta alcanzó su límite; no se puede concluir si Caja lo recibió.'
   :receipt?.status==='unavailable'?'Faltan datos del asiento para consultar el acuse de Caja.'

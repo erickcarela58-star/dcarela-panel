@@ -19,6 +19,7 @@ function mock(overrides={}) {
     getFinanceCategories:async()=>[], getFinanceBudgets:async()=>[],
     getFinanceCards:async()=>[], getFinanceCommitments:async()=>[], getFinanceCommitmentPayments:async()=>[],
     getCollection:async()=>[],
+    getDocument:async()=>null,
     getFinancePreferences:async()=>({id:'central',business_id:'central'}),
     getFinanceJournal:async(id,options)=>{calls.push(['journal',id,options]);return [{id:'m1',business_id:'central',monto_centavos:12500}]},
     getSyncEvents:async(id,options)=>{calls.push(['events',id,options]);return []},
@@ -176,4 +177,33 @@ test('sin acuse no inventa aplicación; consulta saturada queda inconclusa',asyn
   }))});
   assert.deepEqual(await getTerminalReceipt('central',movement),{status:'inconclusive'});
   assert.deepEqual(await getTerminalReceipt('central',{...movement,created_at:''}),{status:'unavailable'});
+});
+
+test('los seis asientos históricos solo muestran el acuse de su reparación verificada',async()=>{
+  const movement={id:'owner-repair-20261105-cash-comida',business_id:'central',tipo:'gasto',
+    cuenta_id:'cash',monto_centavos:45000,created_at:'2026-11-05T12:00:00Z',
+    sync_event_id:'ledger-owner-repair-20261105-cash-comida'};
+  const repairId=`projection-repair-20261111-${movement.id}`;
+  const repair={id:repairId,event_id:repairId,business_id:'central',
+    event_type:'LedgerMovimientoRegistrado',entity_id:movement.id,
+    projection_repair_only:true,received_at_cloud:'2026-11-11T20:40:00Z',
+    payload:{ledgerId:movement.id,importeDopCentavos:45000,cuentaOrigenId:'cash'}};
+  const receipt={business_id:'central',event_type:'EventoNubeAplicado',source:'pos_local_firebase',
+    device_id:'pos-central-1',payload:{sourceEventId:repairId,
+      sourceEventType:'LedgerMovimientoRegistrado',sourceEntityId:movement.id,
+      appliedByDeviceId:'pos-central-1',appliedAt:'2026-11-11T20:45:00Z'}};
+  const {calls}=mock({getDocument:async(collection,id)=>{calls.push(['document',collection,id]);return repair},
+    getSyncEvents:async(id,options)=>{calls.push(['events',id,options]);return [receipt]}});
+  assert.deepEqual(await getTerminalReceipt('central',movement),{
+    status:'applied',deviceId:'pos-central-1',appliedAt:'2026-11-11T20:45:00Z',historicalRepair:true
+  });
+  assert.deepEqual(calls[0],['document','sync_events',repairId]);
+  assert.deepEqual(calls[1],['events','central',{
+    from:repair.received_at_cloud,eventTypes:['EventoNubeAplicado'],includeArchives:false,limit:500
+  }]);
+  calls.length=0;
+  mock({getDocument:async()=>({...repair,payload:{...repair.payload,importeDopCentavos:97500}}),
+    getSyncEvents:async()=>{throw Error('No debe consultar acuses de una reparación que no coincide')}});
+  assert.deepEqual(await getTerminalReceipt('central',movement),{status:'unavailable'});
+  await assert.rejects(getTerminalReceipt('plaza',movement),/fuera de la sucursal/);
 });
