@@ -240,7 +240,24 @@ function modalEntry(){if(isLive&&!canRegister())return modalFrame('Registrar mov
  return modalFrame('Registrar movimiento',`<div class="sheet-tabs" role="group" aria-label="Tipo de movimiento"><button class="${type==='gasto'?'active':''}" data-do="entry-type" data-type="gasto">Gasto</button><button class="${type==='ingreso'?'active':''}" data-do="entry-type" data-type="ingreso">Ingreso</button><button class="${isTransfer?'active':''}" data-do="entry-type" data-type="transferencia">Transferencia</button></div><div class="input-amount ${type==='gasto'?'expense-text':type==='ingreso'?'income-text':'warning-text'}" aria-label="Importe actual" role="status">${type==='gasto'?'−':type==='ingreso'?'+':''}${moneyText(amt,currency)}</div><div class="keypad" role="group" aria-label="Teclado para introducir el importe">${['1','2','3','4','5','6','7','8','9','00','0','⌫'].map(v=>`<button data-do="digit" data-digit="${v}" aria-label="${v==='⌫'?'Borrar último dígito':`Agregar ${v}`}">${v}</button>`).join('')}</div><label class="field-label" for="entry-account">${isTransfer?'Cuenta de origen':'Cuenta'}</label><select class="field-select" id="entry-account" name="entry-account">${cashAccountOptions(state.entryAccount)}</select>${isTransfer?`<label class="field-label" for="entry-dest">Cuenta de destino</label><select class="field-select" id="entry-dest" name="entry-dest">${cashAccountOptions(state.entryDest)}</select>`:`<label class="field-label" for="entry-category">Categoría</label><select class="field-select" id="entry-category" name="entry-category">${cats().filter(c=>c.tipo===type).map(c=>`<option value="${esc(c.id)}" ${state.entryCategory===c.id?'selected':''}>${esc(c.nombre)}</option>`).join('')}</select>`}<div class="filter-grid"><div><label class="field-label" for="entry-date">Fecha</label><input class="field-control" id="entry-date" type="date" name="entry-date" value="${esc(state.entryDate)}"></div><div><label class="field-label" for="entry-note">Concepto</label><input class="field-control" id="entry-note" name="entry-note" value="${esc(state.entryNote)}" placeholder="Descripción" maxlength="180"></div></div><div class="notice">${!canWriteBranch()?'Tu cuenta puede consultar, pero no registrar movimientos en esta sucursal.':isLive?'Se registra en el libro del CRM con tu permiso de sucursal. La Caja física aún no ha confirmado esta integración.':'Previsualización: el registro no alterará saldos, historial ni Firebase.'}</div><button class="primary-btn full" data-do="entry-save" ${state.busy||!canWriteBranch()?'disabled':''}>${isLive?'Guardar movimiento':'Revisar simulación'}</button>`)}
 function renderModal(){if(!state.modal)return '';switch(state.modal){case 'account':return modalAccount();case 'accounts-filter':return modalAccountsFilter();case 'movement':return modalMovement();case 'void':return modalVoid();case 'movement-edit':return modalMovementEdit();case 'account-edit':return modalAccountEdit();case 'reconcile':return modalReconcile();case 'debt':return modalDebt();case 'entry':return modalEntry();default:return ''}}
 let previousModal=null, previousViewKey='', popupSerial=0, navigationDirection=0;
-function render(){const modalIsNew=!!state.modal&&state.modal!==previousModal;const viewKey=`${state.tab}/${state.route}/${state.financeView}/${state.month}/${state.financeView==='diario'?state.day:''}`;const viewIsNew=viewKey!==previousViewKey;const motion=viewIsNew&&navigationDirection?`slide-${navigationDirection>0?'forward':'back'}`:'';navigationDirection=0;previousModal=state.modal;previousViewKey=viewKey;document.documentElement.dataset.theme=state.theme;document.querySelector('meta[name="theme-color"]')?.setAttribute('content',state.theme==='dark'?'#050607':'#e8e9eb');document.body.classList.toggle('modal-open',Boolean(state.modal));$('app').innerHTML=`<div class="shell ${viewIsNew?'view-enter':''} ${motion}">${renderHeader()}${renderMain()}${renderBottom()}</div>${renderModal()}`;if(isLive&&!emulatorWritesAllowed()){for(const button of document.querySelectorAll('[data-do="account-transfer"],[data-do="reconcile"],[data-do="void-confirm"],[data-do="entry-save"],[data-do="reconcile-save"],[data-do="void-save"],[data-do="account-edit"],[data-do="movement-edit"]')){if(canWriteBranch()&&['account-transfer','entry-save'].includes(button.dataset.do))continue;button.disabled=true;button.title='Acción bloqueada hasta comprobar Caja y permisos';}}if(state.modal&&!modalIsNew)document.querySelector('.overlay')?.classList.add('no-enter');requestAnimationFrame(()=>{const scroller=document.querySelector('.segment-wrap');const active=scroller?.querySelector('.segment.active');if(scroller&&active)scroller.scrollLeft=Math.max(0,active.offsetLeft-(scroller.clientWidth-active.clientWidth)/2)})}
+const reducedMotion=()=>window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+function stagePageExit(direction){
+ document.querySelector('.page-exit')?.remove();
+ if(!direction||reducedMotion())return null;
+ const page=document.querySelector('#app .shell>.page');
+ if(!page)return null;
+ const box=page.getBoundingClientRect(),appBox=$('app').getBoundingClientRect();
+ if(box.bottom<=0||box.top>=innerHeight)return null;
+ const drag=Number(page.style.transform.match(/translate3d\((-?[\d.]+)px/)?.[1]||0);
+ page.remove();
+ page.classList.add('page-exit',direction>0?'page-exit-forward':'page-exit-back');
+ page.setAttribute('aria-hidden','true');page.inert=true;
+ page.style.cssText=`position:absolute;left:${box.left-appBox.left}px;top:${box.top-appBox.top}px;width:${box.width}px;height:${box.height}px;margin:0;pointer-events:none;z-index:2;overflow:hidden;--nav-drag:${drag}px;`;
+ page.addEventListener('animationend',()=>page.remove(),{once:true});
+ setTimeout(()=>page.remove(),650);
+ return {page,drag};
+}
+function render(){const modalIsNew=!!state.modal&&state.modal!==previousModal;const viewKey=`${state.tab}/${state.route}/${state.financeView}/${state.month}/${state.financeView==='diario'?state.day:''}`;const viewIsNew=viewKey!==previousViewKey;const direction=viewIsNew?navigationDirection:0;const motion=direction?`slide-${direction>0?'forward':'back'}`:'';const exit=viewIsNew&&previousViewKey?stagePageExit(direction):null;navigationDirection=0;previousModal=state.modal;previousViewKey=viewKey;document.documentElement.dataset.theme=state.theme;document.querySelector('meta[name="theme-color"]')?.setAttribute('content',state.theme==='dark'?'#050607':'#e8e9eb');document.body.classList.toggle('modal-open',Boolean(state.modal));$('app').innerHTML=`<div class="shell ${viewIsNew?'view-enter':''} ${motion}" style="--nav-drag:${exit?.drag||0}px">${renderHeader()}${renderMain()}${renderBottom()}</div>${renderModal()}`;if(exit)$('app').append(exit.page);if(isLive&&!emulatorWritesAllowed()){for(const button of document.querySelectorAll('[data-do="account-transfer"],[data-do="reconcile"],[data-do="void-confirm"],[data-do="entry-save"],[data-do="reconcile-save"],[data-do="void-save"],[data-do="account-edit"],[data-do="movement-edit"]')){if(canWriteBranch()&&['account-transfer','entry-save'].includes(button.dataset.do))continue;button.disabled=true;button.title='Acción bloqueada hasta comprobar Caja y permisos';}}if(state.modal&&!modalIsNew)document.querySelector('.overlay')?.classList.add('no-enter');requestAnimationFrame(()=>{const scroller=document.querySelector('.segment-wrap');const active=scroller?.querySelector('.segment.active');if(scroller&&active)scroller.scrollTo({left:Math.max(0,active.offsetLeft-(scroller.clientWidth-active.clientWidth)/2),behavior:reducedMotion()?'instant':'smooth'})})}
 function openModal(type){popupSerial++;state.modal=type;render();requestAnimationFrame(()=>document.querySelector('.sheet [data-do="close"]')?.focus({preventScroll:true}))}
 function closeModal(){
  const which=state.modal,serial=popupSerial,sheet=document.querySelector('.sheet');
@@ -345,30 +362,51 @@ async function handleSubmit(e){if(e.target.id==='login-form'){
  return;
  }if(e.target.id!=='search-form')return;e.preventDefault();state.search.query=e.target.querySelector('[name="search-query"]').value;
  if(state.search.from>state.search.to){note('El inicio no puede ser posterior al fin.');return}if(state.search.accountIds.length===0){note('Selecciona al menos una cuenta.');return}state.searched=true;render()}
-function stepSwipe(kind,step){navigationDirection=step;if(kind==='month'){state.month=nMonth(state.month,step);state.day=`${state.month}-01`;}else if(kind==='view'){const index=Math.max(0,FINANCE_VIEWS.findIndex(([id])=>id===state.financeView));state.financeView=FINANCE_VIEWS[(index+step+FINANCE_VIEWS.length)%FINANCE_VIEWS.length][0];state.financeFilterOpen=false;}else if(kind==='day'){state.day=nDay(state.day,step);state.month=state.day.slice(0,7);}else if(kind==='tab'){const tabs=['home','finance','search','more'];const next=tabs.indexOf(state.tab)+step;if(next<0||next>=tabs.length)return;openTab(tabs[next]);return;}render()}
+function stepSwipe(kind,step){navigationDirection=step;if(kind==='month'){state.month=nMonth(state.month,step);state.day=`${state.month}-01`;}else if(kind==='view'){const index=Math.max(0,FINANCE_VIEWS.findIndex(([id])=>id===state.financeView));state.financeView=FINANCE_VIEWS[(index+step+FINANCE_VIEWS.length)%FINANCE_VIEWS.length][0];state.financeFilterOpen=false;}else if(kind==='day'){state.day=nDay(state.day,step);state.month=state.day.slice(0,7);}else if(kind==='tab'){const tabs=['home','finance','search','more'];const next=tabs.indexOf(state.tab)+step;if(next<0||next>=tabs.length){navigationDirection=0;return false}openTab(tabs[next]);return true;}render();return true}
 let swipeStart=null,swipeSuppressClickUntil=0;
 function beginSwipe(target,id,x,y){
  if(state.modal||state.route||state.loading||state.error||state.authRequired||target.closest('input,select,textarea,a,[contenteditable],.bottom-nav'))return;
  const zone=target.closest('[data-swipe]'),main=target.closest('main.page');
- if(zone||main)swipeStart={id,kind:zone?.dataset.swipe||(state.tab==='finance'?'view':'tab'),x,y};
+ if(zone||main)swipeStart={id,kind:zone?.dataset.swipe||(state.tab==='finance'?'view':'tab'),x,y,page:main,active:false,canceled:false};
+}
+function restoreSwipePage(start){
+ const page=start.page;if(!page?.isConnected||!start.active||reducedMotion())return;
+ clearTimeout(page._swipeRestoreTimer);
+ page.style.transition='transform .28s cubic-bezier(.16,1,.3,1),opacity .28s ease';
+ page.style.transform='translate3d(0,0,0)';page.style.opacity='1';
+ page._swipeRestoreTimer=setTimeout(()=>{if(page.isConnected){page.style.removeProperty('transition');page.style.removeProperty('transform');page.style.removeProperty('opacity');page.style.removeProperty('will-change')}},300);
+}
+function trackSwipe(id,x,y,event){
+ const start=swipeStart;if(!start||start.id!==id||start.canceled)return;
+ const dx=x-start.x,dy=y-start.y;
+ if(!start.active){if(Math.abs(dx)<9&&Math.abs(dy)<9)return;if(Math.abs(dy)>Math.abs(dx)*1.15){start.canceled=true;return}start.active=true}
+ if(event.cancelable)event.preventDefault();
+ if(!start.page?.isConnected||reducedMotion())return;
+ clearTimeout(start.page._swipeRestoreTimer);
+ const offset=Math.sign(dx)*Math.min(96,Math.abs(dx)*.55);
+ start.page.style.transition='none';start.page.style.willChange='transform,opacity';
+ start.page.style.transform=`translate3d(${offset}px,0,0)`;
+ start.page.style.opacity=String(1-Math.min(.12,Math.abs(offset)/800));
 }
 function finishSwipe(id,x,y){
  if(!swipeStart||swipeStart.id!==id)return false;
  const start=swipeStart;swipeStart=null;
  const dx=x-start.x,dy=y-start.y;
- if(Math.abs(dx)<45||Math.abs(dx)<Math.abs(dy)*1.3)return false;
+ if(start.canceled||Math.abs(dx)<45||Math.abs(dx)<Math.abs(dy)*1.3){restoreSwipePage(start);return false}
  swipeSuppressClickUntil=Date.now()+350;
- stepSwipe(start.kind,dx<0?1:-1);
+ if(!stepSwipe(start.kind,dx<0?1:-1)){restoreSwipePage(start);return false}
  return true;
 }
 // Safari en iPhone puede cancelar Pointer Events al iniciar un gesto nativo.
 // Touch Events manejan el dedo; Pointer Events quedan para ratón y lápiz.
 document.addEventListener('touchstart',e=>{if(e.touches.length!==1)return;const t=e.touches[0];beginSwipe(e.target,t.identifier,t.clientX,t.clientY)},{passive:true});
+document.addEventListener('touchmove',e=>{if(e.touches.length!==1)return;const t=e.touches[0];trackSwipe(t.identifier,t.clientX,t.clientY,e)},{passive:false});
 document.addEventListener('touchend',e=>{if(e.changedTouches.length!==1)return;const t=e.changedTouches[0];if(finishSwipe(t.identifier,t.clientX,t.clientY)&&e.cancelable)e.preventDefault()},{passive:false});
-document.addEventListener('touchcancel',()=>{swipeStart=null},{passive:true});
+document.addEventListener('touchcancel',()=>{if(swipeStart)restoreSwipePage(swipeStart);swipeStart=null},{passive:true});
 document.addEventListener('pointerdown',e=>{if(e.pointerType==='touch')return;beginSwipe(e.target,e.pointerId,e.clientX,e.clientY)});
+document.addEventListener('pointermove',e=>{if(e.pointerType==='touch'||!e.buttons)return;trackSwipe(e.pointerId,e.clientX,e.clientY,e)});
 document.addEventListener('pointerup',e=>{if(e.pointerType==='touch')return;finishSwipe(e.pointerId,e.clientX,e.clientY)});
-document.addEventListener('pointercancel',e=>{if(e.pointerType!=='touch')swipeStart=null});
+document.addEventListener('pointercancel',e=>{if(e.pointerType!=='touch'&&swipeStart){restoreSwipePage(swipeStart);swipeStart=null}});
 document.addEventListener('click',handleClick);
 document.addEventListener('change',handleChange);
 document.addEventListener('input',handleInput);
