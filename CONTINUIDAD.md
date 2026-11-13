@@ -1,5 +1,19 @@
 # Continuidad del panel web
 
+## Finanzas PWA v35.30 — Dos PWAs independientes por sucursal sin transferencias cruzadas (13/11/2026)
+
+- **Sustitución sobre `v35.29`**: se retiró por completo el puente, enlaces cruzados y transferencias entre Central y Plaza Artesanal. Cada PWA opera de forma estrictamente independiente con su propia pantalla de login (`?login=1`) y su sucursal fija (`defaultBranchId`).
+- **Commit código PWA (`main`)**: `958adb0` — GitHub Pages run **`43482701853`** (`completed success`, `34s`, `2026-11-13T18:26:45Z`). Verificación `HTTP 200` y paridad **SHA-256 `16/16` (`ALL_MATCH=True`)** en `https://panel.dcarelacompufoto.com/finanzas/`:
+  - **Central**: `index.html` + `manifest.webmanifest` (fijada a Central).
+  - **Plaza Artesanal**: `plaza.html` + `manifest-plaza.webmanifest` + `icons/icon-plaza*.{svg,png}` + `icons/apple-touch-icon-plaza.png` (fijada a Plaza Artesanal).
+  - **Caché Service Worker**: `sw.js` (`dcarela-finanzas-v35-30`).
+- **Cambios en `v35.30`**:
+  1. `app.js`: `state.business` y `load()` quedan fijados a `defaultBranchId` (incluido tras cerrar sesión); eliminados `siblingBranchId`, `branchAppHref`, `DEMO_INTERBRANCH_KEY`, `loadBranchBridge`, `entryScope`, `entryDestBranch`, `openInterbranchTransfer`, `changeBusiness`, `.v3526-branch-switcher` y `<select id="branch-choice">` (reemplazado por fila de solo lectura `Sucursal de esta PWA`).
+  2. `v35-26-inbox-fiscal.js` y `v35-26-motion.css`: eliminados `renderToolsBridgeHost()` y estilos `.v3526-branch-switcher`.
+  3. Se conservan íntegramente las gráficas a ancho completo (`flow-svg` / `mini-svg`), botones circulares sin marco en `Resumen`, vinculación bancaria estricta de `Códigos Cash y Transferencias` (`transfer_cash` solo como destino atómico a `Caja / Efectivo`) y las dos pantallas de login por separado.
+- **Backend (`erikccarela`)**: eliminados `pwaBranchBridge`, `getBranchBridgeSummary` y `executeInterBranchTransferFromPwa`; `crmApi` y `crmFacturasGmail` redesplegados (`Deploy complete!`, GET directo `HTTP 405`).
+- **Pruebas locales y visuales**: `node --check` + `git diff --check` exit `0`; `node --test finanzas/*.test.mjs` → `20/21` pasaron (`0` fallidas, `1` omitida: requiere emuladores locales); `firebase-functions` `npm.cmd test` → `3331/3332` pasaron (`0` fallidas, `1` omitida: `MODNet...`) y `pwa-finance-inbox.test.js` `8/8`. QA visual en `393x852` (Demo) sin transferencias entre sucursales ni enlaces cruzados; no se ejecutaron transacciones reales contra Firestore vivo de producción para no alterar saldos reales.
+
 ## Finanzas PWA v35.29 — Gráficas completas, Códigos Cash vinculados al banco y 2 PWAs por sucursal (13/11/2026)
 
 - **Commit código PWA (`main`)**: `c480e0d` — GitHub Pages run **`43480404622`** (`completed success`, `30s`). Verificación `HTTP 200` y paridad **SHA-256 `16/16`** en `https://panel.dcarelacompufoto.com/finanzas/`:
