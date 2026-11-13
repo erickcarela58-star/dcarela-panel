@@ -1,5 +1,11 @@
 # Continuidad del panel web
 
+## Finanzas PWA v35.32 — Pausa de anulaciones hasta verificar Caja (13/11/2026)
+
+La v35.31 habilitó `fin.movement.cancel` desde la PWA oficial. El adaptador Firebase anula el asiento y ajusta el saldo en la misma transacción, y publica otra revisión `LedgerMovimientoRegistrado` con el mismo `ledgerId`. La Caja Central documentada como 1.0.77 precede al parche POS `76a283e`: su receptor intenta insertar de nuevo ese ID y puede dejar Firebase anulado mientras el libro local sigue confirmado. No hay prueba de que el parche esté instalado en la terminal activa. Por seguridad, v35.32 deshabilita «Anular» en la PWA de producción y bloquea el envío desde `commitAction`; la prueba aislada con proyecto `demo-` conserva la operación. El detalle explica que falta verificar la actualización de Caja. No se modificó ningún movimiento, saldo, venta ni dato real.
+
+Pruebas: `node --check` para `app.js` y `data-source.js`, `git diff --check`, y suite completa bajo Auth/Firestore Emulator `demo-dcarela-finanzas`: **457/457**, cero fallos/omisiones. Registro: `C:/tmp/dcarela-pwa-public-audit-20261113/v3532-emulator-test.log`. La primera pasada detectó dos aserciones antiguas que aún esperaban caché 35.25 y el título anterior de Libros fiscales; se actualizaron a la versión y navegación actuales y se repitió la suite. Esto no verifica Safari físico ni el libro de la Caja. La pausa es de la PWA; el adaptador compartido de otros paneles conserva la acción y requiere una revisión aparte. **Publicación y cotejo HTTP pendientes** hasta registrar el commit y el despliegue.
+
 ## Finanzas PWA v35.31 — Conexión en vivo con Base de datos, Caja POS y CRM por sucursal (13/11/2026)
 
 - **Sustitución sobre `v35.30`**: manteniendo estrictamente separadas las dos PWAs (`index.html` fija a **Central / `dcarela`** y `plaza.html` fija a **Plaza Artesanal / `plaza-artesanal`**, sin puente ni transferencias cruzadas), se conectaron ambas PWAs de extremo a extremo con **Base de datos (`erikccarela` Firebase Auth + Firestore)**, **Caja (POS Desktop C# `1.0.77` + `cash_shifts` + `devices` + `sync_events` + `sales`)** y **CRM (`crmApi`, `crm_conversations`, `crm_quotes`, `clients`, `employee_tasks`, `wa_bridge_control`)**.

@@ -2380,7 +2380,7 @@ async function ensureCategoryLinker() {
   if (window.DcarelaCategoryLinker) return;
   await new Promise((resolve) => {
     const sc = document.createElement('script');
-    sc.src = './v35-26-category-emojis.js?v=35.31';
+    sc.src = './v35-26-category-emojis.js?v=35.32';
     sc.onload = resolve;
     sc.onerror = resolve;
     document.head.appendChild(sc);

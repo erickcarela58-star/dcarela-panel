@@ -13,6 +13,10 @@ const isOfficialFinance = () => OFFICIAL_FINANCE_HOSTS.has(location.hostname)
   && location.protocol === 'https:'
   && window.__DCARELA_FIREBASE_CONFIG?.projectId === 'erikccarela';
 export const canRegister = () => isLive && (isIsolatedEmulator() || isOfficialFinance());
+// Caja 1.0.77 no aplica revisiones de estado del mismo ledgerId. Hasta que la
+// terminal activa confirme una versión compatible, una anulación dejaría
+// Firebase y el libro físico en estados distintos.
+export const canCancelMovement = () => !isLive || isIsolatedEmulator();
 
 function adapter() {
   const api = window.DcarelaFirebase;
@@ -137,6 +141,9 @@ export async function loadFullFinanceHistory(requestedBusinessId, { accounts = [
 
 export async function commitAction(action, businessId, entityId, data) {
   if (!isLive) return {preview:true};
+  if (action === 'fin.movement.cancel' && !canCancelMovement()) {
+    throw new Error('La anulación desde la PWA está pausada hasta verificar la actualización de Caja. No se modificó el movimiento.');
+  }
   if (!['fin.movement.create','fin.transfer.create','fin.movement.cancel','fin.account.reconcile','fin.books.request','cost.recurring.upsert','cost.obligation.upsert'].includes(action) ||
       !data?.requestId || typeof data.requestId !== 'string') {
     throw new Error('Operación financiera no admitida o sin identificador estable.');

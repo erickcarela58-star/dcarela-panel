@@ -5,7 +5,7 @@ import {readFile} from 'node:fs/promises';
 globalThis.location = {search:'?mode=live',hostname:'localhost'};
 globalThis.window = {};
 const source = await readFile(new URL('./data-source.js', import.meta.url), 'utf8');
-const {authorizedBusinesses, sessionBusinesses, loadFinance, loadLiveConnectivity, commitAction, canRegister, getTerminalReceipt} =
+const {authorizedBusinesses, sessionBusinesses, loadFinance, loadLiveConnectivity, commitAction, canRegister, canCancelMovement, getTerminalReceipt} =
   await import(`data:text/javascript,${encodeURIComponent(source)}`);
 
 function mock(overrides={}) {
@@ -113,16 +113,25 @@ test('un origen no oficial y usuarios sin rol admin no pueden escribir',async()=
   await assert.rejects(commitAction('fin.movement.create','central','op-1',{requestId:'op-1'}),/permiso/);
 });
 
-test('PWA oficial registra movimientos, ajustes, anulaciones y obligaciones solo con rol admin/supervisor y requestId estable',async()=>{
+test('la anulación conserva su prueba aislada sin abrir escrituras en producción',async()=>{
+  const {calls}=mock();
+  window.__DCARELA_FIREBASE_CONFIG.projectId='demo-finanzas';
+  window.__DCARELA_FINANCE_STAGING_WRITE__=true;
+  assert.equal(canCancelMovement(),true);
+  await commitAction('fin.movement.cancel','central','mov-demo',{requestId:'void-demo'});
+  assert.equal(calls.filter(c=>c[0]==='write').length,1);
+});
+
+test('PWA oficial registra movimientos y obligaciones, pero detiene anulaciones hasta verificar Caja',async()=>{
   const previous={hostname:location.hostname,protocol:location.protocol};
   location.hostname='panel.dcarelacompufoto.com';location.protocol='https:';
   try{
     const {calls}=mock();
     assert.equal(canRegister(),true);
+    assert.equal(canCancelMovement(),false);
     const supported=[
       'fin.movement.create',
       'fin.transfer.create',
-      'fin.movement.cancel',
       'fin.account.reconcile',
       'cost.recurring.upsert',
       'cost.obligation.upsert',
@@ -135,8 +144,8 @@ test('PWA oficial registra movimientos, ajustes, anulaciones y obligaciones solo
     location.hostname='crm.dcarelacompufoto.com';
     await commitAction('fin.account.reconcile','central','rec-crm-1',{requestId:'rec-crm-1',montoCentavos:5000});
     location.hostname='erikccarela.web.app';
-    await commitAction('fin.movement.cancel','central','m-web-1',{requestId:'m-web-1'});
-    assert.equal(calls.filter(c=>c[0]==='write').length,8);
+    await assert.rejects(commitAction('fin.movement.cancel','central','m-web-1',{requestId:'m-web-1'}),/anulación desde la PWA está pausada/i);
+    assert.equal(calls.filter(c=>c[0]==='write').length,6);
     mock({getMembershipsForUser:async()=>[{business_id:'central',role:'viewer',active:true}]});
     await assert.rejects(commitAction('fin.movement.create','central','viewer-1',{requestId:'viewer-1'}),/permiso/);
     assert.equal(canRegister(),true);

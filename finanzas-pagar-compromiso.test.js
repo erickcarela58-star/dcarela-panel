@@ -25,20 +25,20 @@ test('el gasto viaja con el enlace al compromiso y el adaptador lo guarda y lo p
   assert.match(adapter, /obligacionId: movement\.obligacion_id \|\| null,/);
 });
 
-test('la versión 35.25 se sirve sin caché vieja y activa vidrio translúcido para iPhone 15', () => {
+test('la versión 35.32 renueva caché y conserva el vidrio translúcido para iPhone 15', () => {
   const html = fs.readFileSync(path.join(__dirname, 'finanzas', 'index.html'), 'utf8');
   const sw = fs.readFileSync(path.join(__dirname, 'finanzas', 'sw.js'), 'utf8');
   const css = fs.readFileSync(path.join(__dirname, 'finanzas', 'monochrome-glass-v35.css'), 'utf8');
-  assert.match(html, /app\.js\?v=35.25/); assert.match(html, /firebase-adapter\.js\?v=35.25/);
-  assert.match(html, /monochrome-glass-v35\.css\?v=35.25/);
-  assert.match(sw, /dcarela-finanzas-ui-v35-monochrome-25/); assert.match(sw, /'\.\/app\.js\?v=35.25'/);
+  assert.match(html, /app\.js\?v=35.32/); assert.match(html, /firebase-adapter\.js\?v=35.32/);
+  assert.match(html, /monochrome-glass-v35\.css\?v=35.32/);
+  assert.match(sw, /dcarela-finanzas-v35-32/); assert.match(sw, /'\.\/app\.js\?v=35.32'/);
   assert.match(css, /backdrop-filter:blur\(32px\)/); assert.match(css, /\.keypad button/);
   assert.match(app, /cashAccountOptions\(state\.entryAccount,'',type==='gasto'\)/);
 });
 
 test('Libros fiscales: pantalla en Más, interruptor y «Anotar ahora» con la acción fin.books.request', () => {
   const ds = fs.readFileSync(path.join(__dirname, 'finanzas', 'data-source.js'), 'utf8');
-  assert.match(app, /\['books','book','Libros fiscales'/); assert.match(app, /if\(state\.route==='books'\)return renderBooks\(\)/);
+  assert.match(app, /\['books','book','Libros fiscales/); assert.match(app, /if\(state\.route==='books'\)return renderBooks\(\)/);
   assert.match(app, /await commit\('fin\.books\.request',state\.business,\{requestId:state\.pendingRequestId,\.\.\.\(action==='books-toggle'\?\{auto:!cfg\.auto\}:\{\}\)\}\)/);
   assert.match(ds, /'fin\.books\.request','cost\.recurring\.upsert','cost\.obligation\.upsert'\]\.includes\(action\)/);
   assert.match(adapter, /if \(action === 'fin\.books\.request'\) \{/);
