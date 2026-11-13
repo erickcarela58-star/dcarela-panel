@@ -35,6 +35,91 @@
     { rx: /dgii|itbis|e-?cf|606|607/i, emoji: '📑' }
   ];
 
+  const APPLE_EMOJI_CODES = Object.freeze({
+    '💸': '1f4b8',
+    '💰': '1f4b0',
+    '🔁': '1f501',
+    '⏰': '23f0',
+    '🔔': '1f514',
+    '💳': '1f4b3',
+    '🧾': '1f9fe',
+    '✉️': '2709',
+    '✉': '2709',
+    '📑': '1f4d1',
+    '🖥️': '1f5a5',
+    '🖥': '1f5a5',
+    '🎨': '1f3a8',
+    '🖌️': '1f58c',
+    '🖌': '1f58c',
+    '☀️': '2600',
+    '☀': '2600',
+    '🌙': '1f319',
+    '🏢': '1f3e2',
+    '🌐': '1f310',
+    '💱': '1f4b1',
+    '✨': '2728',
+    '✅': '2705',
+    '⚠️': '26a0',
+    '⚠': '26a0',
+    '🚨': '1f6a8',
+    '📋': '1f4cb',
+    '📥': '1f4e5',
+    '📤': '1f4e4',
+    '🏦': '1f3e6',
+    '💵': '1f4b5',
+    '🏷️': '1f3f7',
+    '🏷': '1f3f7',
+    '🔍': '1f50d',
+    '📅': '1f4c5',
+    '🗓️': '1f5d3',
+    '🗓': '1f5d3',
+    '📊': '1f4ca',
+    '⚙️': '2699',
+    '⚙': '2699',
+    '📸': '1f4f8',
+    '🎬': '1f3ac',
+    '💻': '1f4bb',
+    '📣': '1f4e3',
+    '🚗': '1f697',
+    '⚡': '26a1',
+    '🍽️': '1f37d',
+    '🍽': '1f37d',
+    '🔧': '1f527',
+    '👥': '1f465',
+    '🏧': '1f3e7',
+    '🤖': '1f916',
+    '🚕': '1f695',
+    '🛒': '1f6d2',
+    '📶': '1f4f6',
+    '💊': '1f48a',
+    '☕': '2615',
+    '🔒': '1f512',
+    '🟢': '1f7e2',
+    '🟡': '1f7e1',
+    '⏳': '23f3',
+    '📝': '1f4dd',
+    '🎛️': '1f4ca',
+    '🎛': '1f4ca',
+    '🔄': '1f501',
+    '🧪': '2728'
+  });
+
+  function appleEmojiUrl(emoji) {
+    const raw = String(emoji || '').trim();
+    if (!raw) return '';
+    const code = APPLE_EMOJI_CODES[raw] || APPLE_EMOJI_CODES[raw.replace(/\uFE0F/g, '')];
+    return code ? `./assets/emojis/${code}.png` : '';
+  }
+
+  function appleEmojiHtml(emoji, size = 18, className = '') {
+    const raw = String(emoji || '').trim();
+    if (!raw) return '';
+    const url = appleEmojiUrl(raw);
+    const cls = className ? `v3526-apple-emoji ${className}` : 'v3526-apple-emoji';
+    if (!url) return `<span>${raw}</span>`;
+    return `<img class="${cls}" src="${url}" width="${size}" height="${size}" alt="" aria-hidden="true" draggable="false" loading="eager" style="width:${size}px;height:${size}px">`;
+  }
+
   const PALETTES = [
     { id: 'obsidian', name: 'Grafito Glass', swatch: 'linear-gradient(135deg,#334155,#64748b)' },
     { id: 'sapphire', name: 'Zafiro Real', swatch: 'linear-gradient(135deg,#2563eb,#06b6d4)' },
@@ -88,7 +173,7 @@
       { test: /uber|indrive|gasolina|combustible|peaje|shell|texaco|total|transporte|didi|estacionamiento/i, cat: /transporte|combustible|movilidad|vi[aá]tico/i },
       { test: /claro|altice|edesur|edenorte|agua|internet|luz|tel[eé]fono|electricidad/i, cat: /servicio|internet|luz|energ[ií]a|fijo|oficina/i },
       { test: /alquiler|renta|local/i, cat: /alquiler|renta|local/i },
-      { test: /sirena|jumbo|nacional|bravo|supermercado|restaurante|caf[eé]|starbucks|almuerzo|comida/i, cat: /comida|alimentaci|dieta|supermercado|catering/i },
+      { test: /sirena|jumbo|nacional|bravo|supermercado|restaurante|caf[eé]|starbucks|almuerzo|comida|cena|desayuno|pizza|burger|mcdonald|wendy|kfc|pollo|yokomo|refrigerio/i, cat: /comida|alimentaci|dieta|supermercado|catering/i },
       { test: /dgii|itbis|isr|impuesto|contab/i, cat: /impuesto|dgii|fiscal|contab/i },
       { test: /c[aá]mara|lente|tr[ií]pode|flash|estudio|mantenimiento|reparaci|ferreter/i, cat: /equipo|mantenimiento|producci|estudio|costo/i },
       { test: /n[oó]mina|salario|freelance|maquill|decoraci|asistente|honorario/i, cat: /n[oó]mina|personal|honorario|equipo/i }
@@ -151,8 +236,9 @@
           id: 'demo-cons-usd-1',
           merchant: 'OPENAI *CHATGPT PLUS',
           cardLast4: '4821',
-          bankName: 'Banco Popular',
-          accountId: 'tc-popular',
+          bankName: 'Banco BHD',
+          bankKey: 'bhd',
+          accountId: 'sucursal-a-visa',
           currency: 'USD',
           originalCentavos: 2000,
           date: today,
@@ -165,9 +251,10 @@
         {
           id: 'demo-cons-dop-1',
           merchant: 'LA SIRENA CHURCHILL',
-          cardLast4: '4821',
-          bankName: 'Banco Popular',
-          accountId: 'tc-popular',
+          cardLast4: '9042',
+          bankName: 'Banreservas',
+          bankKey: 'banreservas',
+          accountId: 'sucursal-a-reservas',
           currency: 'DOP',
           originalCentavos: 485000,
           date: today,
@@ -199,22 +286,30 @@
         }
       ],
       fx: {
-        selectedBankKey: 'popular',
         updatedAt: new Date().toISOString(),
+        confirmedDate: today,
+        confirmedToday: true,
         banks: [
-          { key: 'popular', label: 'Banco Popular', rateSell: 61.25, source: 'demo_live' },
-          { key: 'banreservas', label: 'Banreservas', rateSell: 61.10, source: 'demo_live' },
-          { key: 'bhd', label: 'Banco BHD', rateSell: 61.35, source: 'demo_live' },
-          { key: 'scotiabank', label: 'Scotiabank', rateSell: 61.40, source: 'demo_live' }
+          { key: 'banreservas', label: 'Banreservas', rateSell: 61.10, usdCompra: 58.40, bankUrl: 'https://www.banreservas.com/calculadoras/divisas', source: 'banreservas.com/calculadoras/divisas · Confirmado hoy', confirmedToday: true },
+          { key: 'bhd', label: 'Banco BHD', rateSell: 61.35, usdCompra: 58.20, bankUrl: 'https://www.infodolar.com.do/', source: 'infodolar.com.do · Confirmado hoy', confirmedToday: true },
+          { key: 'popular', label: 'Banco Popular', rateSell: 61.25, usdCompra: 58.15, bankUrl: 'https://www.infodolar.com.do/', source: 'infodolar.com.do · Confirmado hoy', confirmedToday: true },
+          { key: 'scotiabank', label: 'Scotiabank', rateSell: 61.40, usdCompra: 58.10, bankUrl: 'https://www.infodolar.com.do/', source: 'infodolar.com.do · Confirmado hoy', confirmedToday: true }
         ]
       },
       cardLinks: {
         '4821': {
           cardLast4: '4821',
-          bankKey: 'popular',
-          accountId: 'tc-popular',
-          accountName: 'Visa Business Popular ****4821',
+          bankKey: 'bhd',
+          accountId: 'sucursal-a-visa',
+          accountName: 'Tarjeta empresarial BHD ****4821',
           auto_debit_digital: true
+        },
+        '9042': {
+          cardLast4: '9042',
+          bankKey: 'banreservas',
+          accountId: 'sucursal-a-reservas',
+          accountName: 'Cuenta Banreservas ****9042',
+          auto_debit_digital: false
         }
       },
       mail: {
@@ -325,6 +420,9 @@
 
   const api = {
     PALETTES,
+    APPLE_EMOJI_CODES,
+    appleEmojiUrl,
+    appleEmojiHtml,
     emojiForCategory,
     emojiForAccount,
     emojiForMerchant,

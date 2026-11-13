@@ -1,4 +1,4 @@
-import {loadFinance,commitAction,getTerminalReceipt,isLive,canRegister} from './data-source.js?v=35.26';
+import {loadFinance,loadFullFinanceHistory,commitAction,getTerminalReceipt,isLive,canRegister} from './data-source.js?v=35.28';
 const emulatorWritesAllowed=()=>isLive && ['localhost','127.0.0.1'].includes(location.hostname)
  && String(window.__DCARELA_FIREBASE_CONFIG?.projectId||'').startsWith('demo-')
  && window.__DCARELA_FINANCE_STAGING_WRITE__===true;
@@ -14,10 +14,10 @@ const initialMonthEnd=monthEndOf(initialMonth);
 const defaultCommitmentForm=(catId='')=>({kind:'recurrente',nombre:'',acreedor:'',monto:'',categoriaId:catId,frecuencia:'mensual',diaMes1:'',diaMes2:'',proximaFecha:today,emitidaEn:today,numeroFactura:'',metodoPago:'transferencia',montoVariable:false,nota:''});
 const params=new URLSearchParams(location.search);
 const branches=isLive?{}:{'sucursal-a':'Sucursal A · Demo','sucursal-b':'Sucursal B · Demo'};
-const FINANCE_VIEWS=[['diario','Diario'],['calendario','Calendario'],['semana','Semana'],['mes','Mes'],['resumen','Resumen'],['estadisticas','Estadísticas']];
+const FINANCE_VIEWS=[['diario','Día'],['calendario','Calendario'],['semana','Semana'],['mes','Mes'],['ano','Año'],['personalizado','Personalizado'],['resumen','Resumen'],['estadisticas','Estadísticas']];
 const state={business:params.get('b')||(isLive?'':'sucursal-a'),loading:true,error:'',authRequired:false,loginBusy:false,loginError:'',loginEmail:'',data:null,tab:'home',route:'',financeView:'diario',
- month:today.slice(0,7),day:today,theme:localStorage.getItem('dcarela-mm-theme')==='dark'?'dark':'light',
- currency:'DOP',statsType:'gasto',modal:null,accountId:null,movementId:null,accountDraft:null,
+ month:today.slice(0,7),day:today,year:today.slice(0,4),customFrom:`${initialMonth}-01`,customTo:today,theme:localStorage.getItem('dcarela-mm-theme')==='dark'?'dark':'light',
+ currency:'DOP',statsType:'gasto',modal:null,accountId:null,movementId:null,accountDraft:null,historyLoaded:!isLive,historyLoading:false,
  search:{query:'',type:'',category:'',from:`${initialMonth}-01`,to:initialMonthEnd,accountIds:[]},searched:false,
  entryType:'gasto',entryDigits:'',entryAccount:'',entryDest:'',entryCategory:'',entryNote:'',entryDate:today,
  commitmentForm:defaultCommitmentForm(),
@@ -39,7 +39,7 @@ function moneyText(cents,currency='DOP',compact=false){
 }
 const accounts=()=>state.data?.accounts||[];
 const rows=()=>state.data?.movements||[];
-const cats=()=>state.data?.categories||[];
+const cats=()=>{const list=state.data?.categories||[];if(!state.data||list.some(c=>c.tipo==='gasto'&&/\bcomida\b/i.test(c.nombre||'')))return list;return [{id:'recon-cat-comida',business_id:state.business,nombre:'Comida',tipo:'gasto',color:'#e07a5f'},...list]};
 const canWriteBranch=()=>!isLive || (canRegister() && state.data?.authorizedBusinesses?.some(b=>b.id===state.business&&['owner','admin'].includes(b.role)));
 const account=id=>accounts().find(a=>a.id===id);
 const cat=id=>cats().find(c=>c.id===id);
@@ -63,6 +63,8 @@ const accountCurrencies=()=>Object.fromEntries(accounts().map(a=>[a.id,a.moneda]
 const matchingMonth=row=>String(row.fecha||'').startsWith(`${state.month}-`);
 const active=()=>money.activeMovements(rows());
 const getMonthRows=(currency=state.currency)=>rows().filter(r=>matchingMonth(r)&&curr(r)===currency);
+const getRangeRows=(from,to,currency=state.currency)=>rows().filter(r=>{const d=String(r.fecha||'');return (!from||d>=from)&&(!to||d<=to)&&curr(r)===currency;});
+const rangeTotals=(from,to,currency=state.currency)=>core.summarizeMovements(getRangeRows(from,to,currency),from||'1900-01-01',to||'2999-12-31');
 const monthTotals=(currency=state.currency)=>core.summarizeMovements(getMonthRows(currency),`${state.month}-01`,`${state.month}-31`);
 const accountBalance=a=>core.effectiveAccountBalance(a,rows());
 const activeByAccount=a=>rows().filter(r=>r.cuenta_id===a.id||r.cuenta_destino_id===a.id).sort((x,y)=>`${y.fecha} ${y.hora||''}`.localeCompare(`${x.fecha} ${x.hora||''}`));
@@ -80,19 +82,32 @@ function customOptions(items,selected){return items.map(x=>`<option value="${esc
 const cashAccountOptions=(selected,skip='',allowCredit=false)=>accounts().filter(a=>a.id!==skip&&(allowCredit||a.tipo!=='tarjeta_credito')&&(!isLive||a.moneda==='DOP')).map(a=>`<option value="${esc(a.id)}" ${selected===a.id?'selected':''}>${esc(a.nombre)} · ${a.moneda}</option>`).join('');
 function setTheme(theme){state.theme=theme;document.documentElement.dataset.theme=theme;localStorage.setItem('dcarela-mm-theme',theme);render()}
 let loadSerial=0,lastLoadedAt=0;
-async function load(){const serial=++loadSerial;state.loading=true;state.error='';state.authRequired=false;state.data=null;render();try{
+async function ensureFullHistory(){
+ if(!isLive||!state.data||state.historyLoaded||state.historyLoading)return;
+ const reqBusiness=state.business,reqSerial=loadSerial;
+ state.historyLoading=true;
+ try{
+  const full=await loadFullFinanceHistory(reqBusiness,{accounts:state.data.accounts,preferences:state.data.preferences});
+  if(reqSerial!==loadSerial||state.business!==reqBusiness||!state.data)return;
+  state.data={...state.data,movements:full.movements,sales:full.sales,fullHistoryLoaded:true};
+  state.historyLoaded=true;
+ }catch{ /* Mantiene los movimientos ya leídos si falla la carga histórica en segundo plano */ }
+ finally{if(reqSerial===loadSerial){state.historyLoading=false;render()}}
+}
+async function load(){const serial=++loadSerial;state.loading=true;state.error='';state.authRequired=false;state.data=null;state.historyLoaded=!isLive;state.historyLoading=false;render();try{
  if(params.get('fail')==='1')throw new Error('Error de lectura simulado: no se pudo obtener el libro financiero.');
  const data=await loadFinance(state.business);
  if(serial!==loadSerial)return;
  state.business=data.businessId;
  for(const key of Object.keys(branches))delete branches[key];
  for(const b of data.authorizedBusinesses)branches[b.id]=b.name;
- for(const a of data.accounts){const balance=core.effectiveAccountBalance(a,data.movements);if(!Number.isSafeInteger(balance))throw new Error('Saldo fuera de rango o sin verificación para una cuenta.')}state.data=data;state.currency='DOP';
+ for(const a of data.accounts){const balance=core.effectiveAccountBalance(a,data.movements);if(!Number.isSafeInteger(balance))throw new Error('Saldo fuera de rango o sin verificación para una cuenta.')}state.data=data;state.currency='DOP';state.historyLoaded=!isLive||Boolean(data.fullHistoryLoaded);
  state.search.accountIds=data.accounts.map(a=>a.id);
  state.entryAccount=data.accounts.find(a=>a.moneda==='DOP'&&a.tipo!=='tarjeta_credito')?.id||data.accounts[0]?.id||'';
  state.entryDest=data.accounts.find(a=>a.moneda==='DOP'&&a.id!==state.entryAccount)?.id||'';
  state.entryCategory=data.categories.find(c=>c.tipo===state.entryType)?.id||'';
  lastLoadedAt=Date.now();
+ if(isLive&&!state.historyLoaded)setTimeout(()=>ensureFullHistory(),350);
  }catch(e){if(serial===loadSerial){state.error=e?.message||'No fue posible comprobar los datos.';state.authRequired=e?.code==='AUTH_REQUIRED';}}finally{if(serial===loadSerial){state.loading=false;render()}}}
 function renderHeader(){return `<header class="topbar"><div class="brand-block"><img class="brand-logo" src="./icons/dcarela-logo.png" width="38" height="38" alt="Logo D’ Carela"><div><div class="brand-title">D’ Carela</div><div class="brand-sub">FINANZAS</div></div></div><div class="top-actions">
  <button class="round-button theme-toggle" data-do="theme" aria-label="Cambiar a tema ${state.theme==='dark'?'claro':'oscuro'}" title="Cambiar a tema ${state.theme==='dark'?'claro':'oscuro'}">${ico(state.theme==='dark'?'sun':'moon')}</button>
@@ -131,12 +146,12 @@ function groupedByDate(list){if(!list.length)return '<div class="card"><div clas
 function flowChart(currency=state.currency){const groups=simple.group(getMonthRows(currency),state.month,'day',accountCurrencies()).reverse();
  if(!groups.length)return '<div class="empty">Sin movimientos para graficar este mes.</div>';
  const entries=groups.map(g=>({day:g.key,income:g.currencies[currency]?.income||0,expense:g.currencies[currency]?.expenses||0}));
- const max=Math.max(1,...entries.flatMap(e=>[e.income,e.expense]));const left=12,right=328,top=14,bottom=115;
+ const max=Math.max(1,...entries.flatMap(e=>[e.income,e.expense]));const left=16,right=324,top=18,bottom=112;
  const x=i=>left+i*(right-left)/Math.max(1,entries.length-1);
  const y=v=>bottom-Math.sqrt(Math.max(0,v)/max)*(bottom-top);
  const path=kind=>entries.map((e,i)=>`${i?'L':'M'}${x(i).toFixed(1)} ${y(e[kind]).toFixed(1)}`).join(' ');
  const marks=[0,Math.floor((entries.length-1)/2),entries.length-1].filter((v,i,a)=>a.indexOf(v)===i);
- return `<section class="flow-panel" aria-label="Tendencia diaria de ${esc(longMonth(state.month))}"><div class="flow-head"><h2>Movimiento del mes</h2><small>${esc(currency)} · ${entries.length} días con actividad</small></div><svg class="flow-svg" viewBox="0 0 340 150" role="img" aria-label="Ingresos y gastos confirmados por día"><path class="flow-grid" d="M12 14H328 M12 64H328 M12 115H328"/><path class="flow-income" pathLength="1" d="${path('income')}"/><path class="flow-expense" pathLength="1" d="${path('expense')}"/>${marks.map(i=>`<text x="${x(i).toFixed(1)}" y="141" text-anchor="${i===0?'start':i===entries.length-1?'end':'middle'}">${entries[i].day.slice(8)}</text>`).join('')}</svg><div class="flow-legend"><span>— Ingresos</span><span>┄ Gastos</span></div></section>`}
+ return `<section class="flow-panel" aria-label="Tendencia diaria de ${esc(longMonth(state.month))}"><div class="flow-head"><h2>Movimiento del mes</h2><small>${esc(currency)} · ${entries.length} días con actividad</small></div><svg class="flow-svg" viewBox="0 0 340 150" role="img" aria-label="Ingresos y gastos confirmados por día"><path class="flow-grid" d="M16 18H324 M16 65H324 M16 112H324"/><path class="flow-income" pathLength="1" d="${path('income')}"/><path class="flow-expense" pathLength="1" d="${path('expense')}"/>${marks.map(i=>`<text x="${x(i).toFixed(1)}" y="140" text-anchor="${i===0?'start':i===entries.length-1?'end':'middle'}">${entries[i].day.slice(8)}</text>`).join('')}</svg><div class="flow-legend"><span>— Ingresos</span><span>┄ Gastos</span></div></section>`}
 function categoryChart(currency=state.currency){const b=simple.breakdown(rows(),state.month,'gasto',currency,categoryMap(),accountCurrencies());
  return `<section class="category-panel"><div class="section-head"><h2>Gastos por categoría</h2><small>${esc(currency)}</small></div>${b.items.length?b.items.slice(0,5).map(item=>`<div class="category-bar-row"><div class="category-bar-head"><span class="category-bar-label">${catBadge(item,'gasto')}<span>${esc(item.nombre)}</span><small class="cat-pct">${item.porcentaje}%</small></span><strong>${moneyText(item.centavos,currency)}</strong></div><div class="category-track"><span style="width:${Math.max(1,item.porcentaje)}%"></span></div></div>`).join(''):'<div class="empty">Sin gastos en este periodo.</div>'}</section>`}
 function dashboardSignals(){const t=monthTotals('DOP'),income=t.ingresos_centavos,expense=t.gastos_centavos;
@@ -160,10 +175,20 @@ function renderHome(){const total=monthTotals('DOP');const acct=accounts().filte
  ${upcomingPayments()}${flowChart('DOP')}${dashboardSignals()}${categoryChart('DOP')}
  <div class="section-head"><h2>Cuentas del negocio</h2><small>${acct.length} cuentas</small></div><div class="card">${accountRows(acct)}</div><div class="soft-note">Los saldos de monedas distintas no se convierten ni se suman entre sí.</div>
  <div class="section-head"><h2>Actividad reciente</h2><button class="round-button" data-do="tab" data-tab="finance" aria-label="Ver todos los movimientos">${ico('chevron')}</button></div><div class="card">${movementsUI(active().slice(0,6))}</div></main>`}
-function periodPicker(){return `<div class="month-swipe" data-swipe="month" role="group" tabindex="0" aria-label="${esc(longMonth(state.month))}. Desliza horizontalmente para cambiar mes"><span>${esc(longMonth(state.month))}</span><small>Desliza para cambiar mes</small></div>`}
+function periodPicker(){
+ if(state.financeView==='ano')return `<div class="month-swipe year-picker" role="group" aria-label="Año ${esc(state.year)}"><button class="year-step-btn" type="button" data-do="prev-year" aria-label="Año anterior">${ico('back','sm')}</button><span>Año ${esc(state.year)}</span><button class="year-step-btn" type="button" data-do="next-year" aria-label="Año siguiente">${ico('chevron','sm')}</button></div>`;
+ if(state.financeView==='personalizado')return `<div class="month-swipe range-banner" role="group" aria-label="Periodo personalizado ${esc(state.customFrom)} a ${esc(state.customTo)}"><span>${esc(niceDay(state.customFrom))} — ${esc(niceDay(state.customTo))}</span><small>${state.historyLoading?'Cargando base antigua…':'Base histórica completa'}</small></div>`;
+ return `<div class="month-swipe" data-swipe="month" role="group" tabindex="0" aria-label="${esc(longMonth(state.month))}. Desliza horizontalmente para cambiar mes"><span>${esc(longMonth(state.month))}</span><small>Desliza para cambiar mes</small></div>`;
+}
 function financeNavigation(){const index=Math.max(0,FINANCE_VIEWS.findIndex(([id])=>id===state.financeView));
  return `<div class="finance-filter" data-swipe="view" role="group" tabindex="0" aria-label="${FINANCE_VIEWS[index][1]}. Desliza horizontalmente para cambiar vista"><div class="filter-current"><span>VISTA ${index+1} DE ${FINANCE_VIEWS.length}</span><strong>${FINANCE_VIEWS[index][1]}</strong></div><button class="filter-open" data-do="filter-toggle" aria-label="Mostrar filtros" aria-expanded="${state.financeFilterOpen}">${ico('filter')}</button></div>${state.financeFilterOpen?`<div class="finance-filter-menu" role="group" aria-label="Filtros de finanzas">${FINANCE_VIEWS.map(([id,label])=>`<button data-do="view" data-view="${id}" class="${id===state.financeView?'selected':''}" ${id===state.financeView?'aria-current="true"':''}>${label}</button>`).join('')}<label class="filter-currency">Moneda<select name="currency" aria-label="Moneda de la vista">${currencyOption('DOP')}${currencyOption('USD')}</select></label></div>`:''}`}
-function totalsUI(){const daily=state.financeView==='diario',t=daily?core.summarizeMovements(getMonthRows(),state.day,state.day):monthTotals(),scope=daily?'del día':'del mes';return `<div class="triple-summary" role="group" aria-label="Totales ${daily?`del ${niceDay(state.day)}`:`de ${longMonth(state.month)}`}"><div><small>Ingresos ${scope}</small><strong class="income-text" title="${moneyText(t.ingresos_centavos,state.currency)}">+${moneyText(t.ingresos_centavos,state.currency,t.ingresos_centavos>=100000000)}</strong></div><div><small>Gastos ${scope}</small><strong class="expense-text" title="${moneyText(t.gastos_centavos,state.currency)}">−${moneyText(t.gastos_centavos,state.currency,t.gastos_centavos>=100000000)}</strong></div><div><small>Resultado ${scope}</small><strong class="${t.ingresos_centavos>=t.gastos_centavos?'income-text':'expense-text'}">${moneyText(t.ingresos_centavos-t.gastos_centavos,state.currency,Math.abs(t.ingresos_centavos-t.gastos_centavos)>=100000000)}</strong></div></div>`}
+function totalsUI(){
+ let t,scope,label;
+ if(state.financeView==='diario'){t=core.summarizeMovements(getMonthRows(),state.day,state.day);scope='del día';label=`del ${niceDay(state.day)}`;}
+ else if(state.financeView==='ano'){t=rangeTotals(`${state.year}-01-01`,`${state.year}-12-31`);scope='del año';label=`del año ${state.year}`;}
+ else if(state.financeView==='personalizado'){const f=state.customFrom<=state.customTo?state.customFrom:state.customTo;const to=state.customFrom<=state.customTo?state.customTo:state.customFrom;t=rangeTotals(f,to);scope='del periodo';label=`de ${f} a ${to}`;}
+ else{t=monthTotals();scope='del mes';label=`de ${longMonth(state.month)}`;}
+ return `<div class="triple-summary" role="group" aria-label="Totales ${esc(label)}"><div><small>Ingresos ${scope}</small><strong class="income-text" title="${moneyText(t.ingresos_centavos,state.currency)}">+${moneyText(t.ingresos_centavos,state.currency,t.ingresos_centavos>=100000000)}</strong></div><div><small>Gastos ${scope}</small><strong class="expense-text" title="${moneyText(t.gastos_centavos,state.currency)}">−${moneyText(t.gastos_centavos,state.currency,t.gastos_centavos>=100000000)}</strong></div><div><small>Resultado ${scope}</small><strong class="${t.ingresos_centavos>=t.gastos_centavos?'income-text':'expense-text'}">${moneyText(t.ingresos_centavos-t.gastos_centavos,state.currency,Math.abs(t.ingresos_centavos-t.gastos_centavos)>=100000000)}</strong></div></div>`}
 function renderDay(){const selected=active().filter(r=>r.fecha===state.day&&curr(r)===state.currency);
  const days=Array.from({length:7},(_,i)=>nDay(state.day,i-3));
  return `<section class="daily-picker" aria-label="Seleccionar día"><div class="daily-picker-head"><div><small>DÍA SELECCIONADO</small><strong>${esc(niceDay(state.day))}</strong></div><label class="daily-calendar" aria-label="Elegir fecha en calendario">${ico('calendar','sm')}<input name="finance-day" type="date" value="${state.day}" aria-label="Elegir fecha"></label></div><div class="daily-days" data-swipe="day" aria-label="Desliza para cambiar de día">${days.map(day=>`<button class="daily-day ${day===state.day?'active':''}" data-do="select-day" data-day="${day}" ${day===state.day?'aria-current="date"':''}><small>${esc(weekDay(day).slice(0,3))}</small><strong>${Number(day.slice(8))}</strong></button>`).join('')}</div><p class="daily-hint">Desliza para ver otro día</p></section><div class="section-head"><h2>Movimientos del día</h2><small>${selected.length}</small></div><div class="card">${movementsUI(selected)}</div>`}
@@ -178,8 +203,51 @@ function renderFinSummary(){const t=monthTotals();
 function getStat(){return simple.breakdown(rows(),state.month,state.statsType,state.currency,categoryMap(),accountCurrencies())}
 function statList(short=false){const b=getStat();const tones=['var(--tone-1)','var(--tone-2)','var(--tone-3)','var(--tone-4)','var(--tone-5)'];return `<div class="card" style="padding:5px 15px">${b.items.slice(0,short?4:undefined).map((x,i)=>`<div class="stat-row">${catBadge(x,state.statsType)}<span class="cat">${esc(x.nombre)}<small><span class="stat-dot" style="background:${tones[i%tones.length]}"></span>${x.porcentaje}% · ${x.movimientos} mov.</small></span><strong class="${state.statsType==='ingreso'?'income-text':'expense-text'}">${moneyText(x.centavos,state.currency)}</strong></div>`).join('')||'<div class="empty">No hay categorías para el filtro.</div>'}</div>`}
 function renderStats(){const b=getStat();let total=0;const tones=['var(--tone-1)','var(--tone-2)','var(--tone-3)','var(--tone-4)','var(--tone-5)'];const parts=b.items.map((x,i)=>{const start=total;const size=b.total?x.centavos*100/b.total:0;total+=size;return `${tones[i%tones.length]} ${start.toFixed(3)}% ${total.toFixed(3)}%`}).join(',');return `<div class="mini-switch" role="group" aria-label="Estadística de ingresos o gastos"><button data-do="stats-type" data-type="gasto" class="${state.statsType==='gasto'?'active':''}">Gastos</button><button data-do="stats-type" data-type="ingreso" class="${state.statsType==='ingreso'?'active':''}">Ingresos</button></div><div class="card donut-panel" style="margin-top:12px"><div class="eyebrow" style="text-align:center">DISTRIBUCIÓN POR CATEGORÍA</div><div class="donut" style="background:${b.total?`conic-gradient(${parts})`:'var(--surface-2)'}"><div class="donut-center"><small>Total ${state.statsType==='gasto'?'gastos':'ingresos'}</small><strong>${moneyText(b.total,state.currency)}</strong></div></div><div class="soft-note" style="text-align:center;margin-bottom:0">${longMonth(state.month)} · ${state.currency} · sin conversión de divisas</div></div><div class="section-head"><h2>Categorías</h2><small>${b.items.length} categorías</small></div>${statList()}`}
-function renderFinance(){let content='';switch(state.financeView){case 'calendario':content=renderCalendar();break;case 'semana':content=`${flowChart()}<div class="section-head"><h2>Semanas del mes</h2></div>${periodGroups('week')}`;break;case 'mes':content=`${flowChart()}${categoryChart()}<div class="section-head"><h2>Día por día</h2></div>${groupedByDate(active().filter(r=>matchingMonth(r)&&curr(r)===state.currency))}`;break;case 'resumen':content=renderFinSummary();break;case 'estadisticas':content=renderStats();break;default:content=renderDay()}
- return `<main id="main" class="page"><section class="screen-intro finance-intro"><h1 class="page-title">Finanzas</h1><span class="screen-kicker">${state.currency}</span></section>${periodPicker()}${financeNavigation()}${totalsUI()}<section class="finance-view-body" data-swipe="view" aria-label="${FINANCE_VIEWS.find(([id])=>id===state.financeView)?.[1]||'Diario'}. Desliza para cambiar de vista">${content}</section></main>`}
+function availableYears(){
+ const years=new Set([today.slice(0,4),String(Number(today.slice(0,4))-1),state.year]);
+ for(const r of rows()){const y=String(r.fecha||'').slice(0,4);if(/^\d{4}$/.test(y))years.add(y);}
+ return [...years].sort((a,b)=>b.localeCompare(a));
+}
+function renderYear(){
+ const years=availableYears();
+ const from=`${state.year}-01-01`,to=`${state.year}-12-31`;
+ const yearRows=active().filter(r=>String(r.fecha||'').startsWith(`${state.year}-`)&&curr(r)===state.currency);
+ const monthNames=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+ const byMonth=Array.from({length:12},(_,idx)=>{
+  const mKey=`${state.year}-${String(idx+1).padStart(2,'0')}`;
+  const mRows=yearRows.filter(r=>String(r.fecha||'').startsWith(`${mKey}-`));
+  const s=core.summarizeMovements(mRows,`${mKey}-01`,`${mKey}-31`);
+  return {idx,mKey,label:monthNames[idx],income:s.ingresos_centavos,expense:s.gastos_centavos,count:mRows.length};
+ }).filter(m=>m.count>0||m.mKey===state.month);
+ const peak=Math.max(1,...byMonth.flatMap(m=>[m.income,m.expense]));
+ return `<div class="search-chips year-chips" role="group" aria-label="Años disponibles">${years.map(y=>`<button type="button" class="chip ${y===state.year?'is-active':''}" data-do="select-year" data-year="${esc(y)}">${esc(y)}</button>`).join('')}${isLive&&!state.historyLoaded?`<button type="button" class="chip" data-do="load-full-history">${state.historyLoading?'Cargando base antigua…':'Cargar todo el historial'}</button>`:''}</div>
+ <div class="section-head"><h2>Resumen mensual · ${esc(state.year)}</h2><small>${yearRows.length} movimientos</small></div>
+ <div class="period-stack">${byMonth.length?byMonth.map(m=>{const top=m.income+m.expense;const pct=top>0?Math.round(m.income*100/top):0;return `<button type="button" class="period-card year-month-row" data-do="jump-month" data-month="${esc(m.mKey)}"><div class="period-line"><span>${esc(m.label)} ${esc(state.year)}</span><small>${m.count} mov.</small></div><div class="horizontal-bar"><span class="gain" style="width:${pct}%"></span><span class="spend" style="width:${100-pct}%"></span></div><div class="period-values"><span class="income-text">+ ${moneyText(m.income,state.currency,m.income>=peak&&m.income>=1000000)}</span><span class="expense-text">− ${moneyText(m.expense,state.currency,m.expense>=1000000)}</span></div></button>`;}).join(''):'<div class="empty">Sin movimientos registrados en este año.</div>'}</div>
+ <div class="section-head"><h2>Detalle del año ${esc(state.year)}</h2><small>${yearRows.length}</small></div>
+ ${groupedByDate(yearRows.slice(0,120))}`;
+}
+function renderCustomRange(){
+ const from=state.customFrom<=state.customTo?state.customFrom:state.customTo;
+ const to=state.customFrom<=state.customTo?state.customTo:state.customFrom;
+ const rangeRows=active().filter(r=>{const d=String(r.fecha||'');return d>=from&&d<=to&&curr(r)===state.currency;});
+ return `<section class="custom-range-panel" aria-label="Filtro personalizado por periodo">
+  <div class="search-chips" role="group" aria-label="Rangos rápidos">
+   <button type="button" class="chip" data-do="custom-preset" data-preset="7d">7 días</button>
+   <button type="button" class="chip" data-do="custom-preset" data-preset="month">Este mes</button>
+   <button type="button" class="chip" data-do="custom-preset" data-preset="90d">90 días</button>
+   <button type="button" class="chip" data-do="custom-preset" data-preset="prev-year">${Number(today.slice(0,4))-1}</button>
+   <button type="button" class="chip" data-do="custom-preset" data-preset="all">Todo</button>
+  </div>
+  <div class="filter-grid">
+   <div><label class="field-label" for="fin-custom-from">Desde</label><input class="field-control" id="fin-custom-from" type="date" name="finance-custom-from" value="${esc(state.customFrom)}"></div>
+   <div><label class="field-label" for="fin-custom-to">Hasta</label><input class="field-control" id="fin-custom-to" type="date" name="finance-custom-to" value="${esc(state.customTo)}"></div>
+  </div>
+ </section>
+ <div class="section-head"><h2>Movimientos del periodo</h2><small>${rangeRows.length} movimientos</small></div>
+ ${groupedByDate(rangeRows)}`;
+}
+function renderFinance(){let content='';switch(state.financeView){case 'calendario':content=renderCalendar();break;case 'semana':content=`${flowChart()}<div class="section-head"><h2>Semanas del mes</h2></div>${periodGroups('week')}`;break;case 'mes':content=`${flowChart()}${categoryChart()}<div class="section-head"><h2>Día por día</h2></div>${groupedByDate(active().filter(r=>matchingMonth(r)&&curr(r)===state.currency))}`;break;case 'ano':content=renderYear();break;case 'personalizado':content=renderCustomRange();break;case 'resumen':content=renderFinSummary();break;case 'estadisticas':content=renderStats();break;default:content=renderDay()}
+ return `<main id="main" class="page"><section class="screen-intro finance-intro"><h1 class="page-title">Finanzas</h1><span class="screen-kicker">${state.currency}</span></section>${periodPicker()}${financeNavigation()}${totalsUI()}<section class="finance-view-body" data-swipe="view" aria-label="${FINANCE_VIEWS.find(([id])=>id===state.financeView)?.[1]||'Día'}. Desliza para cambiar de vista">${content}</section></main>`}
 function searchResults(){if(!state.searched)return `<div class="card"><div class="empty">Selecciona los filtros y pulsa Buscar movimientos.</div></div>`;
  const q=state.search.query.trim().toLocaleLowerCase('es');const found=rows().filter(m=>{
   const d=m.fecha||'';if(d<state.search.from||d>state.search.to)return false;
@@ -195,6 +263,7 @@ function searchChips(){
   ['this-month','Este mes',state.search.from===`${initialMonth}-01`&&state.search.to===initialMonthEnd],
   ['last-month','Mes pasado',state.search.from===`${prevMonth}-01`&&state.search.to===prevEnd],
   ['30d','Últimos 30 días',state.search.from===d30&&state.search.to===today],
+  ['all-time','Todo el historial',state.search.from<='2020-01-01'],
   ['gasto','Solo gastos',state.search.type==='gasto'],
   ['ingreso','Solo ingresos',state.search.type==='ingreso'],
   ['transferencia','Transferencias',state.search.type==='transferencia'],
@@ -202,10 +271,12 @@ function searchChips(){
  ];
  return `<div class="search-chips" role="group" aria-label="Filtros rápidos">${chips.map(([id,label,active])=>`<button type="button" class="chip ${active?'is-active':''}" data-do="search-chip" data-chip="${id}" aria-pressed="${active?'true':'false'}">${label}</button>`).join('')}</div>`;
 }
-function renderSearch(fromTools=false){return `<main id="main" class="page" data-v3526-page="search">${fromTools?routeHead('Búsqueda','Filtra el historial de tu sucursal'):`<section class="screen-intro"><div class="eyebrow">ENCUENTRA CUALQUIER OPERACIÓN</div><h1 class="page-title">Búsqueda</h1><div class="subline">Filtra el historial de tu sucursal</div></section>`}${searchChips()}<form id="search-form" class="card" style="padding:15px"><label class="field-label" for="query" style="margin-top:0">Concepto, nota o categoría</label><div class="search-input-wrapper">${ico('search')}<input class="field-control" id="query" name="search-query" value="${esc(state.search.query)}" placeholder="Buscar movimientos..." autocomplete="off"></div>
- <div class="filter-grid"><div><label class="field-label" for="date-from">Desde</label><input class="field-control" type="date" name="from" id="date-from" value="${state.search.from}"></div><div><label class="field-label" for="date-to">Hasta</label><input class="field-control" type="date" name="to" id="date-to" value="${state.search.to}"></div></div>
- <label class="field-label">Cuentas</label><button type="button" class="filter-trigger" data-do="accounts-filter"><span>${state.search.accountIds.length===accounts().length?'Todas las cuentas':`${state.search.accountIds.length} cuentas seleccionadas`}</span>${ico('chevron','sm')}</button>
- <div class="filter-grid"><div><label class="field-label" for="search-type">Tipo</label><select class="field-select" id="search-type" name="search-type"><option value="">Todos</option><option value="ingreso" ${state.search.type==='ingreso'?'selected':''}>Ingreso</option><option value="gasto" ${state.search.type==='gasto'?'selected':''}>Gasto</option><option value="transferencia" ${state.search.type==='transferencia'?'selected':''}>Transferencia</option></select></div><div><label class="field-label" for="search-cat">Categoría</label><select class="field-select" id="search-cat" name="search-category"><option value="">Todas</option>${cats().map(c=>`<option value="${esc(c.id)}" ${state.search.category===c.id?'selected':''}>${esc(c.nombre)}</option>`).join('')}</select></div></div><button type="submit" class="primary-btn full" style="margin-top:17px">${ico('search','sm')} Buscar movimientos</button></form><p class="search-summary">Incluye registros anulados en los resultados para conservar la trazabilidad.</p>${searchResults()}</main>`}
+function renderSearch(fromTools=false){return `<main id="main" class="page" data-v3526-page="search">${fromTools?routeHead('Búsqueda','Filtra el historial de tu sucursal'):`<section class="screen-intro"><div class="eyebrow">ENCUENTRA CUALQUIER OPERACIÓN</div><h1 class="page-title">Búsqueda</h1><div class="subline">Filtra el historial de tu sucursal</div></section>`}${searchChips()}<form id="search-form" class="card search-form-card"><label class="field-label" for="query" style="margin-top:0">Concepto, nota o categoría</label><div class="search-input-wrapper">${ico('search')}<input class="field-control" id="query" name="search-query" value="${esc(state.search.query)}" placeholder="Buscar movimientos..." autocomplete="off"></div>
+ <div class="search-advanced-fields" id="search-advanced-fields">
+  <div class="filter-grid"><div><label class="field-label" for="date-from">Desde</label><input class="field-control" type="date" name="from" id="date-from" value="${state.search.from}"></div><div><label class="field-label" for="date-to">Hasta</label><input class="field-control" type="date" name="to" id="date-to" value="${state.search.to}"></div></div>
+  <div class="search-accounts"><label class="field-label">Cuentas</label><button type="button" class="filter-trigger" data-do="accounts-filter"><span>${state.search.accountIds.length===accounts().length?'Todas las cuentas':`${state.search.accountIds.length} cuentas seleccionadas`}</span>${ico('chevron','sm')}</button></div>
+  <div class="filter-grid"><div><label class="field-label" for="search-type">Tipo</label><select class="field-select" id="search-type" name="search-type"><option value="">Todos</option><option value="ingreso" ${state.search.type==='ingreso'?'selected':''}>Ingreso</option><option value="gasto" ${state.search.type==='gasto'?'selected':''}>Gasto</option><option value="transferencia" ${state.search.type==='transferencia'?'selected':''}>Transferencia</option></select></div><div><label class="field-label" for="search-cat">Categoría</label><select class="field-select" id="search-cat" name="search-category"><option value="">Todas</option>${cats().map(c=>`<option value="${esc(c.id)}" ${state.search.category===c.id?'selected':''}>${esc(c.nombre)}</option>`).join('')}</select></div></div>
+ </div><button type="submit" class="primary-btn full" style="margin-top:16px">${ico('search','sm')} Buscar movimientos</button></form><p class="search-summary">Incluye registros anulados en los resultados para conservar la trazabilidad.</p>${searchResults()}</main>`}
 const moreItems=[['search','search','Buscar movimientos','Filtra historial por fecha, monto y categoría'],['mail','mail','Correos y Códigos Cash','Cuentas Gmail, transferencias y retiros'],['books','book','Libros fiscales · Hermes','Compras 606, ventas 607 y validación'],['budgets','target','Presupuestos','Control y avance por categoría'],['cards','card','Tarjetas y bancos','Límites, corte, FX USD y débito digital'],['settings','settings','Ajustes y Apariencia','Paleta glass, alertas push y sucursal']];
 function renderMore(){return `<main id="main" class="page" data-v3526-page="tools"><section class="screen-intro"><h1 class="page-title">Herramientas</h1><div class="subline">Accesos avanzados, búsqueda, correos y control</div></section><div class="card settings-list">${moreItems.map(([route,ic,title,caption])=>`<button class="setting-row" data-do="route" data-route="${route}"><span class="setting-icon" aria-hidden="true">${ico(ic,'sm')}</span><span class="row-copy"><b>${title}</b><small>${caption}</small></span>${ico('chevron','sm chev')}</button>`).join('')}</div>${isLive?'<button class="secondary-btn full finance-signout" data-do="sign-out">Cerrar sesión</button>':''}</main>`}
 function routeHead(title,desc,actionHtml=''){const intro=`<section class="screen-intro"><button class="round-button" data-do="back-more" aria-label="Regresar a Herramientas">${ico('back')}</button><div class="eyebrow">HERRAMIENTAS</div><h1 class="page-title">${title}</h1><div class="subline">${desc}</div></section>`;return actionHtml?`<div class="route-head-row">${intro}${actionHtml}</div>`:intro}
@@ -424,8 +495,24 @@ function modalCommitment(){
  <div class="notice">${!can?'Tu cuenta puede consultar, pero no crear compromisos en esta sucursal.':isLive?'Se guarda en el libro del CRM y se sincroniza con la Caja del estudio.':'Previsualización: el formulario valida el envío sin guardar cambios reales.'}</div>
  <button class="primary-btn full" type="button" data-do="debt-save" style="margin-top:10px" ${state.busy||!can?'disabled':''}>${isLive?'Guardar compromiso':'Revisar simulación'}</button>`);
 }
-function modalEntry(){if(isLive&&!canRegister())return modalFrame('Registrar movimiento',`<div class="notice warning">El registro no está disponible desde este origen. Usa la PWA oficial o el panel central con una cuenta autorizada.</div><button class="primary-btn full" type="button" data-do="open-finance-panel" style="margin:16px 0">Abrir Finanzas del panel central</button>`);const type=state.entryType;const isTransfer=type==='transferencia';const a=account(state.entryAccount);const amt=state.entryDigits?Number(state.entryDigits):0;const currency=a?.moneda||'DOP';
- return modalFrame(state.entryLink&&type==='gasto'?'Pagar compromiso':'Registrar movimiento',`${state.entryLink&&type==='gasto'?`<div class="notice">Pago vinculado a <b>${esc(state.entryLink.name)}</b>. Revisa el monto y la cuenta antes de guardar.</div>`:''}<div class="sheet-tabs" role="group" aria-label="Tipo de movimiento"><button class="${type==='gasto'?'active':''}" data-do="entry-type" data-type="gasto">Gasto</button><button class="${type==='ingreso'?'active':''}" data-do="entry-type" data-type="ingreso">Ingreso</button><button class="${isTransfer?'active':''}" data-do="entry-type" data-type="transferencia">Transferencia</button></div><div class="input-amount ${type==='gasto'?'expense-text':type==='ingreso'?'income-text':'warning-text'}" aria-label="Importe actual" role="status">${type==='gasto'?'−':type==='ingreso'?'+':''}${moneyText(amt,currency)}</div><div class="keypad" role="group" aria-label="Teclado para introducir el importe">${['1','2','3','4','5','6','7','8','9','00','0','⌫'].map(v=>`<button data-do="digit" data-digit="${v}" aria-label="${v==='⌫'?'Borrar último dígito':`Agregar ${v}`}">${v}</button>`).join('')}</div><label class="field-label" for="entry-account">${isTransfer?'Cuenta de origen':'Cuenta'}</label><select class="field-select" id="entry-account" name="entry-account">${cashAccountOptions(state.entryAccount,'',type==='gasto')}</select>${isTransfer?`<label class="field-label" for="entry-dest">Cuenta de destino</label><select class="field-select" id="entry-dest" name="entry-dest">${cashAccountOptions(state.entryDest,state.entryAccount,true)}</select>`:`<label class="field-label" for="entry-category">Categoría</label><select class="field-select" id="entry-category" name="entry-category">${cats().filter(c=>c.tipo===type).map(c=>`<option value="${esc(c.id)}" ${state.entryCategory===c.id?'selected':''}>${esc(`${window.DcarelaCategoryLinker?.emojiForCategory?.(c.nombre)||''} ${c.nombre}`.trim())}</option>`).join('')}</select>`}<div class="filter-grid"><div><label class="field-label" for="entry-date">Fecha</label><input class="field-control" id="entry-date" type="date" name="entry-date" value="${esc(state.entryDate)}"></div><div><label class="field-label" for="entry-note">Concepto</label><input class="field-control" id="entry-note" name="entry-note" value="${esc(state.entryNote)}" placeholder="Descripción" maxlength="180"></div></div><div class="notice">${!canWriteBranch()?'Tu cuenta puede consultar, pero no registrar movimientos en esta sucursal.':isLive?'Se registra en el libro del CRM con tu permiso de sucursal. La Caja física aún no ha confirmado esta integración.':'Previsualización: el registro no alterará saldos, historial ni Firebase.'}</div><button class="primary-btn full" data-do="entry-save" ${state.busy||!canWriteBranch()?'disabled':''}>${isLive?'Guardar movimiento':'Revisar simulación'}</button>`)}
+function updateEntryAmountDOM(){
+ const el=document.querySelector('.sheet .input-amount');
+ if(!el)return false;
+ const type=state.entryType,a=account(state.entryAccount),amt=state.entryDigits?Number(state.entryDigits):0,currency=a?.moneda||'DOP';
+ el.className=`input-amount ${type==='gasto'?'expense-text':type==='ingreso'?'income-text':'warning-text'}`;
+ el.textContent=`${type==='gasto'?'−':type==='ingreso'?'+':''}${moneyText(amt,currency)}`;
+ return true;
+}
+function updateEntryCategoryBadge(){
+ const badge=document.getElementById('entry-category-badge');
+ if(!badge)return;
+ const curCat=cat(state.entryCategory)||cats().find(c=>c.tipo===state.entryType);
+ const L=window.DcarelaCategoryLinker;
+ if(!curCat||!L?.emojiForCategory||!L?.appleEmojiHtml){badge.innerHTML='';return;}
+ badge.innerHTML=L.appleEmojiHtml(L.emojiForCategory(curCat.nombre),14);
+}
+function modalEntry(){if(isLive&&!canRegister())return modalFrame('Registrar movimiento',`<div class="notice warning">El registro no está disponible desde este origen. Usa la PWA oficial o el panel central con una cuenta autorizada.</div><button class="primary-btn full" type="button" data-do="open-finance-panel" style="margin:16px 0">Abrir Finanzas del panel central</button>`);const type=state.entryType;const isTransfer=type==='transferencia';const a=account(state.entryAccount);const amt=state.entryDigits?Number(state.entryDigits):0;const currency=a?.moneda||'DOP';const backSvg='<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="pointer-events:none"><path d="M21 5H9l-6 7 6 7h12a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2Z"/><path d="m16 9-6 6"/><path d="m10 9 6 6"/></svg>';const selCatObj=cat(state.entryCategory)||cats().find(c=>c.tipo===type);const catBadgeHtml=selCatObj&&window.DcarelaCategoryLinker?.appleEmojiHtml?window.DcarelaCategoryLinker.appleEmojiHtml(window.DcarelaCategoryLinker.emojiForCategory(selCatObj.nombre),14):'';
+ return modalFrame(state.entryLink&&type==='gasto'?'Pagar compromiso':'Registrar movimiento',`${state.entryLink&&type==='gasto'?`<div class="notice">Pago vinculado a <b>${esc(state.entryLink.name)}</b>. Revisa el monto y la cuenta antes de guardar.</div>`:''}<div class="sheet-tabs" role="group" aria-label="Tipo de movimiento"><button class="${type==='gasto'?'active':''}" data-do="entry-type" data-type="gasto">Gasto</button><button class="${type==='ingreso'?'active':''}" data-do="entry-type" data-type="ingreso">Ingreso</button><button class="${isTransfer?'active':''}" data-do="entry-type" data-type="transferencia">Transferencia</button></div><div class="input-amount ${type==='gasto'?'expense-text':type==='ingreso'?'income-text':'warning-text'}" aria-label="Importe actual" role="status">${type==='gasto'?'−':type==='ingreso'?'+':''}${moneyText(amt,currency)}</div><div class="keypad" role="group" aria-label="Teclado para introducir el importe">${['1','2','3','4','5','6','7','8','9','00','0','⌫'].map(v=>`<button data-do="digit" data-digit="${v}" aria-label="${v==='⌫'?'Borrar último dígito':`Agregar ${v}`}">${v==='⌫'?backSvg:v}</button>`).join('')}</div><label class="field-label" for="entry-account">${isTransfer?'Cuenta de origen':'Cuenta'}</label><select class="field-select" id="entry-account" name="entry-account">${cashAccountOptions(state.entryAccount,'',type==='gasto')}</select>${isTransfer?`<label class="field-label" for="entry-dest">Cuenta de destino</label><select class="field-select" id="entry-dest" name="entry-dest">${cashAccountOptions(state.entryDest,state.entryAccount,true)}</select>`:`<label class="field-label" for="entry-category" style="display:flex;align-items:center;gap:6px"><span>Categoría</span><span id="entry-category-badge">${catBadgeHtml}</span></label><select class="field-select" id="entry-category" name="entry-category">${cats().filter(c=>c.tipo===type).map(c=>`<option value="${esc(c.id)}" ${state.entryCategory===c.id?'selected':''}>${esc(c.nombre)}</option>`).join('')}</select>`}<div class="filter-grid"><div><label class="field-label" for="entry-date">Fecha</label><input class="field-control" id="entry-date" type="date" name="entry-date" value="${esc(state.entryDate)}"></div><div><label class="field-label" for="entry-note">Concepto</label><input class="field-control" id="entry-note" name="entry-note" value="${esc(state.entryNote)}" placeholder="Descripción" maxlength="180"></div></div><div class="notice">${!canWriteBranch()?'Tu cuenta puede consultar, pero no registrar movimientos en esta sucursal.':isLive?'Se registra en el libro del CRM con tu permiso de sucursal. La Caja física aún no ha confirmado esta integración.':'Previsualización: el registro no alterará saldos, historial ni Firebase.'}</div><button class="primary-btn full" data-do="entry-save" ${state.busy||!canWriteBranch()?'disabled':''}>${isLive?'Guardar movimiento':'Revisar simulación'}</button>`)}
 function renderModal(){if(!state.modal)return '';switch(state.modal){case 'account':return modalAccount();case 'accounts-filter':return modalAccountsFilter();case 'movement':return modalMovement();case 'void':return modalVoid();case 'movement-edit':return modalMovementEdit();case 'account-edit':return modalAccountEdit();case 'reconcile':return modalReconcile();case 'debt':return modalDebt();case 'commitment':return modalCommitment();case 'entry':return modalEntry();default:return ''}}
 let previousModal=null, previousViewKey='', popupSerial=0, navigationDirection=0;
 const reducedMotion=()=>window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -445,18 +532,19 @@ function stagePageExit(direction){
  setTimeout(()=>page.remove(),650);
  return {page,drag};
 }
-function render(){const modalIsNew=!!state.modal&&state.modal!==previousModal;const viewKey=`${state.tab}/${state.route}/${state.financeView}/${state.month}/${state.financeView==='diario'?state.day:''}`;const viewIsNew=viewKey!==previousViewKey;const direction=viewIsNew?navigationDirection:0;const motion=direction?`slide-${direction>0?'forward':'back'}`:'';const exit=viewIsNew&&previousViewKey?stagePageExit(direction):null;navigationDirection=0;previousModal=state.modal;previousViewKey=viewKey;document.documentElement.dataset.theme=state.theme;document.documentElement.dataset.activeView=state.route?`route:${state.route}`:state.tab;document.querySelector('meta[name="theme-color"]')?.setAttribute('content',state.theme==='dark'?'#050607':'#e8e9eb');document.body.classList.toggle('modal-open',Boolean(state.modal));$('app').innerHTML=`<div class="shell ${viewIsNew?'view-enter':''} ${motion}" style="--nav-drag:${exit?.drag||0}px">${renderHeader()}${renderMain()}${renderBottom()}</div>${renderModal()}`;if(exit)$('app').append(exit.page);if(isLive&&!emulatorWritesAllowed()){for(const button of document.querySelectorAll('[data-do="account-transfer"],[data-do="reconcile"],[data-do="void-confirm"],[data-do="entry-save"],[data-do="reconcile-save"],[data-do="void-save"],[data-do="account-edit"],[data-do="movement-edit"]')){if(canWriteBranch()&&['account-transfer','entry-save'].includes(button.dataset.do))continue;button.disabled=true;button.title='Acción bloqueada hasta comprobar Caja y permisos';}}if(state.modal&&!modalIsNew)document.querySelector('.overlay')?.classList.add('no-enter');requestAnimationFrame(()=>{const scroller=document.querySelector('.segment-wrap');const active=scroller?.querySelector('.segment.active');if(scroller&&active)scroller.scrollTo({left:Math.max(0,active.offsetLeft-(scroller.clientWidth-active.clientWidth)/2),behavior:reducedMotion()?'instant':'smooth'})});window.dispatchEvent(new CustomEvent('dcarela:finanzas-rendered',{detail:{tab:state.tab,route:state.route,theme:state.theme,modal:state.modal,business:state.business,financeView:state.financeView}}))}
-function openModal(type){popupSerial++;state.modal=type;render();requestAnimationFrame(()=>document.querySelector('.sheet [data-do="close"]')?.focus({preventScroll:true}))}
+function applyLiveWriteGuards(scope=document){if(!isLive||emulatorWritesAllowed())return;for(const button of scope.querySelectorAll('[data-do="account-transfer"],[data-do="reconcile"],[data-do="void-confirm"],[data-do="entry-save"],[data-do="reconcile-save"],[data-do="void-save"],[data-do="account-edit"],[data-do="movement-edit"]')){if(canWriteBranch()&&['account-transfer','entry-save'].includes(button.dataset.do))continue;button.disabled=true;button.title='Acción bloqueada hasta comprobar Caja y permisos';}}
+function render(opts={}){const modalIsNew=!!state.modal&&state.modal!==previousModal;const subKey=state.financeView==='diario'?state.day:state.financeView==='ano'?state.year:state.financeView==='personalizado'?`${state.customFrom}:${state.customTo}`:'';const viewKey=`${state.tab}/${state.route}/${state.financeView}/${state.month}/${subKey}`;const viewIsNew=viewKey!==previousViewKey;const shellEl=$('app')?.querySelector('.shell');if(opts?.modalOnly&&shellEl&&!viewIsNew){previousModal=state.modal;document.body.classList.toggle('modal-open',Boolean(state.modal));const existingOverlay=$('app').querySelector('.overlay');if(!state.modal){existingOverlay?.remove();return;}const modalHtml=renderModal();if(existingOverlay){existingOverlay.outerHTML=modalHtml;}else if(modalHtml){$('app').insertAdjacentHTML('beforeend',modalHtml);}const newOverlay=$('app').querySelector('.overlay');if(newOverlay){if(!modalIsNew)newOverlay.classList.add('no-enter');applyLiveWriteGuards(newOverlay);}return;}const direction=viewIsNew?navigationDirection:0;const motion=direction?`slide-${direction>0?'forward':'back'}`:'';const exit=viewIsNew&&previousViewKey?stagePageExit(direction):null;navigationDirection=0;previousModal=state.modal;previousViewKey=viewKey;document.documentElement.dataset.theme=state.theme;document.documentElement.dataset.activeView=state.route?`route:${state.route}`:state.tab;document.querySelector('meta[name="theme-color"]')?.setAttribute('content',state.theme==='dark'?'#050607':'#e8e9eb');document.body.classList.toggle('modal-open',Boolean(state.modal));$('app').innerHTML=`<div class="shell ${viewIsNew?'view-enter':''} ${motion}" style="--nav-drag:${exit?.drag||0}px">${renderHeader()}${renderMain()}${renderBottom()}</div>${renderModal()}`;if(exit)$('app').append(exit.page);applyLiveWriteGuards(document);if(state.modal&&!modalIsNew)document.querySelector('.overlay')?.classList.add('no-enter');requestAnimationFrame(()=>{const scroller=document.querySelector('.segment-wrap');const active=scroller?.querySelector('.segment.active');if(scroller&&active)scroller.scrollTo({left:Math.max(0,active.offsetLeft-(scroller.clientWidth-active.clientWidth)/2),behavior:reducedMotion()?'instant':'smooth'})});window.dispatchEvent(new CustomEvent('dcarela:finanzas-rendered',{detail:{tab:state.tab,route:state.route,theme:state.theme,modal:state.modal,business:state.business,financeView:state.financeView}}))}
+function openModal(type){popupSerial++;state.modal=type;render({modalOnly:true});requestAnimationFrame(()=>document.querySelector('.sheet [data-do="close"]')?.focus({preventScroll:true}))}
 function closeModal(){
  const which=state.modal,serial=popupSerial,sheet=document.querySelector('.sheet');
  if(sheet && !sheet.dataset.closing && !window.matchMedia('(prefers-reduced-motion: reduce)').matches && typeof sheet.animate==='function'){
   sheet.dataset.closing='1';document.querySelector('.overlay')?.classList.add('closing');
   const animation=sheet.animate([{opacity:1,transform:'translateY(0)'},{opacity:0,transform:'translateY(32px)'}],{duration:180,easing:'cubic-bezier(.4,0,.9,.55)',fill:'forwards'});
-  const finish=()=>{if(state.modal===which && popupSerial===serial){state.modal=null;state.busy=false;render()}};
+  const finish=()=>{if(state.modal===which && popupSerial===serial){state.modal=null;state.busy=false;render({modalOnly:true})}};
   animation.finished.then(finish).catch(finish);return;
  }
  if(sheet?.dataset.closing)return;
- state.modal=null;state.busy=false;render();
+ state.modal=null;state.busy=false;render({modalOnly:true});
 }
 function openTab(t){const tabs=['home','finance','debts','more'];navigationDirection=Math.sign(tabs.indexOf(t)-tabs.indexOf(state.tab));state.tab=t;state.route='';state.modal=null;render();window.scrollTo({top:0,behavior:'instant'})}
 function changeBusiness(b){if(!Object.hasOwn(branches,b))return;state.business=b;state.modal=null;state.route='';state.tab='home';const p=new URLSearchParams(location.search);p.set('b',b);history.replaceState(null,'',`${location.pathname}?${p.toString()}`);load()}
@@ -478,13 +566,26 @@ async function handleClick(e){if(Date.now()<swipeSuppressClickUntil)return;const
  if(action==='theme'){setTheme(state.theme==='light'?'dark':'light');return}
  if(action==='open-settings'){state.route='settings';state.tab='more';render();return}
  if(action==='tab'){openTab(btn.dataset.tab);return}
- if(action==='route'){state.route=btn.dataset.route;state.tab='more';render();window.scrollTo(0,0);return}
+ if(action==='route'){state.route=btn.dataset.route;state.tab='more';if(state.route==='search')ensureFullHistory();render();window.scrollTo(0,0);return}
  if(action==='back-more'){state.route='';state.tab='more';render();return}
  if(action==='filter-toggle'){state.financeFilterOpen=!state.financeFilterOpen;render();return}
- if(action==='view-step'){const index=FINANCE_VIEWS.findIndex(([id])=>id===state.financeView);navigationDirection=Number(btn.dataset.step);state.financeView=FINANCE_VIEWS[(index+navigationDirection+FINANCE_VIEWS.length)%FINANCE_VIEWS.length][0];state.financeFilterOpen=false;render();return}
- if(action==='view'){navigationDirection=Math.sign(FINANCE_VIEWS.findIndex(([id])=>id===btn.dataset.view)-FINANCE_VIEWS.findIndex(([id])=>id===state.financeView));state.financeView=btn.dataset.view;state.financeFilterOpen=false;render();return}
- if(action==='select-day'){navigationDirection=Math.sign(btn.dataset.day.localeCompare(state.day));state.day=btn.dataset.day;state.month=state.day.slice(0,7);render();return}
- if(action==='prev-month'||action==='next-month'){navigationDirection=action==='prev-month'?-1:1;state.month=nMonth(state.month,navigationDirection);state.day=state.month+'-01';render();return}
+ if(action==='view-step'){const index=FINANCE_VIEWS.findIndex(([id])=>id===state.financeView);navigationDirection=Number(btn.dataset.step);state.financeView=FINANCE_VIEWS[(index+navigationDirection+FINANCE_VIEWS.length)%FINANCE_VIEWS.length][0];state.financeFilterOpen=false;if(['ano','personalizado'].includes(state.financeView))ensureFullHistory();render();return}
+ if(action==='view'){navigationDirection=Math.sign(FINANCE_VIEWS.findIndex(([id])=>id===btn.dataset.view)-FINANCE_VIEWS.findIndex(([id])=>id===state.financeView));state.financeView=btn.dataset.view;state.financeFilterOpen=false;if(['ano','personalizado'].includes(state.financeView))ensureFullHistory();render();return}
+ if(action==='select-day'){navigationDirection=Math.sign(btn.dataset.day.localeCompare(state.day));state.day=btn.dataset.day;state.month=state.day.slice(0,7);if(state.month<initialMonth)ensureFullHistory();render();return}
+ if(action==='prev-month'||action==='next-month'){navigationDirection=action==='prev-month'?-1:1;state.month=nMonth(state.month,navigationDirection);state.day=state.month+'-01';if(state.month<initialMonth)ensureFullHistory();render();return}
+ if(action==='prev-year'||action==='next-year'){navigationDirection=action==='prev-year'?-1:1;state.year=String(Math.max(2015,Math.min(Number(today.slice(0,4))+1,Number(state.year)+navigationDirection)));ensureFullHistory();render();return}
+ if(action==='select-year'){state.year=String(btn.dataset.year||today.slice(0,4));ensureFullHistory();render();return}
+ if(action==='jump-month'){state.month=String(btn.dataset.month||state.month);state.day=`${state.month}-01`;state.financeView='mes';if(state.month<initialMonth)ensureFullHistory();render();return}
+ if(action==='load-full-history'){await ensureFullHistory();return}
+ if(action==='custom-preset'){
+  const p=btn.dataset.preset;
+  if(p==='7d'){state.customFrom=nDay(today,-6);state.customTo=today;}
+  else if(p==='month'){state.customFrom=`${initialMonth}-01`;state.customTo=initialMonthEnd;}
+  else if(p==='90d'){state.customFrom=nDay(today,-89);state.customTo=today;}
+  else if(p==='prev-year'){const py=String(Number(today.slice(0,4))-1);state.customFrom=`${py}-01-01`;state.customTo=`${py}-12-31`;}
+  else if(p==='all'){const earliest=rows().map(r=>String(r.fecha||'')).filter(d=>/^\d{4}-\d{2}-\d{2}$/.test(d)).sort()[0]||`${Number(today.slice(0,4))-2}-01-01`;state.customFrom=earliest;state.customTo=today;}
+  ensureFullHistory();render();return;
+ }
  if(action==='day'){state.day=btn.dataset.day;state.financeView='calendario';state.tab='finance';render();return}
  if(action==='stats-type'){state.statsType=btn.dataset.type;render();return}
  if(action==='account'){state.accountId=btn.dataset.id;openModal('account');return}
@@ -507,7 +608,9 @@ async function handleClick(e){if(Date.now()<swipeSuppressClickUntil)return;const
   if(chip==='this-month'){state.search.from=`${initialMonth}-01`;state.search.to=initialMonthEnd;}
   else if(chip==='last-month'){const pm=nMonth(initialMonth,-1);state.search.from=`${pm}-01`;state.search.to=monthEndOf(pm);}
   else if(chip==='30d'){state.search.from=nDay(today,-29);state.search.to=today;}
+  else if(chip==='all-time'){const earliest=rows().map(r=>String(r.fecha||'')).filter(d=>/^\d{4}-\d{2}-\d{2}$/.test(d)).sort()[0]||'2018-01-01';state.search.from=earliest<'2018-01-01'?earliest:'2018-01-01';state.search.to=today;await ensureFullHistory();}
   else if(['gasto','ingreso','transferencia'].includes(chip)){state.search.type=state.search.type===chip?'':chip;}
+  if(state.search.from<`${initialMonth}-01`)ensureFullHistory();
   if(!state.search.accountIds.length)state.search.accountIds=accounts().map(a=>a.id);
   state.searched=true;render();return;
  }
@@ -541,7 +644,7 @@ async function handleClick(e){if(Date.now()<swipeSuppressClickUntil)return;const
  state.entryLink={name:item.name,source:item.source,obligacionId:item.source==='factura'?String(raw.id||raw.obligacionId||''):'',compromisoId:item.source!=='factura'&&item.source!=='planificado'?String(raw.id||''):'',recurrenteId:String(raw.recurrente_id||raw.recurrenteId||(item.source==='planificado'?raw.id||'':''))};
  state.entryCategory=cats().find(c=>c.tipo==='gasto'&&/pago|servicio|compromis|gasto fijo|fijo/i.test(c.nombre||''))?.id||cats().find(c=>c.tipo==='gasto')?.id||'';openModal('entry');return}
  if(action==='debt-new'){const firstCat=cats().find(c=>c.tipo==='gasto')?.id||'recon-cat-otros';state.commitmentForm=defaultCommitmentForm(firstCat);state.pendingRequestId=null;openModal('commitment');return}
- if(action==='debt-kind'){state.commitmentForm.kind=btn.dataset.kind==='obligacion'?'obligacion':'recurrente';state.pendingRequestId=null;render();return}
+ if(action==='debt-kind'){state.commitmentForm.kind=btn.dataset.kind==='obligacion'?'obligacion':'recurrente';state.pendingRequestId=null;render({modalOnly:true});return}
  if(action==='debt-save'){
   const f=state.commitmentForm;
   const val=n=>document.querySelector(`[name="${n}"]`)?.value;
@@ -586,8 +689,8 @@ async function handleClick(e){if(Date.now()<swipeSuppressClickUntil)return;const
   return;
  }
  if(action==='open-finance-panel'){location.assign(new URL('../panel.html#finanzas',location.href).href);return}
- if(action==='entry-type'){state.entryType=btn.dataset.type;state.entryCategory=cats().find(c=>c.tipo===state.entryType)?.id||'';state.pendingRequestId=null;render();return}
- if(action==='digit'){let d=btn.dataset.digit;if(d==='⌫')state.entryDigits=state.entryDigits.slice(0,-1);else if(state.entryDigits.length+d.length<=12)state.entryDigits=(state.entryDigits+d).replace(/^0+(?=\d)/,'');state.pendingRequestId=null;render();return}
+ if(action==='entry-type'){state.entryType=btn.dataset.type;state.entryCategory=cats().find(c=>c.tipo===state.entryType)?.id||'';state.pendingRequestId=null;render({modalOnly:true});return}
+ if(action==='digit'){let d=btn.dataset.digit;if(d==='⌫')state.entryDigits=state.entryDigits.slice(0,-1);else if(state.entryDigits.length+d.length<=12)state.entryDigits=(state.entryDigits+d).replace(/^0+(?=\d)/,'');state.pendingRequestId=null;if(!updateEntryAmountDOM())render({modalOnly:true});return}
  if(action==='account-transfer'){state.entryType='transferencia';state.entryDigits='';state.entryAccount=state.accountId;state.entryNote='';state.pendingRequestId=null;const a=account(state.entryAccount);state.entryDest=accounts().find(x=>x.id!==a?.id&&x.moneda===a?.moneda)?.id||'';openModal('entry');return}
  if(action==='account-edit'){openModal('account-edit');return}
  if(action==='account-edit-preview'){note('Edición de cuenta no guardada: interfaz de revisión.');return}
@@ -621,16 +724,18 @@ async function handleClick(e){if(Date.now()<swipeSuppressClickUntil)return;const
 }
 function handleChange(e){const target=e.target,name=target.name;switch(name){
  case 'currency':state.currency=target.value;render();break;
- case 'finance-day':if(/^\d{4}-\d{2}-\d{2}$/.test(target.value)){state.day=target.value;state.month=target.value.slice(0,7);render()}break;
+ case 'finance-day':if(/^\d{4}-\d{2}-\d{2}$/.test(target.value)){state.day=target.value;state.month=target.value.slice(0,7);if(state.month<initialMonth)ensureFullHistory();render()}break;
+ case 'finance-custom-from':if(/^\d{4}-\d{2}-\d{2}$/.test(target.value)){state.customFrom=target.value;if(state.customFrom<`${initialMonth}-01`)ensureFullHistory();render()}break;
+ case 'finance-custom-to':if(/^\d{4}-\d{2}-\d{2}$/.test(target.value)){state.customTo=target.value;render()}break;
  case 'theme':setTheme(target.value);break;
  case 'branch':changeBusiness(target.value);break;
  case 'search-type':state.search.type=target.value;break;
  case 'search-category':state.search.category=target.value;break;
  case 'from':state.search.from=target.value;break;case 'to':state.search.to=target.value;break;
  case 'account-toggle':state.search.accountIds=target.checked?[...new Set([...state.search.accountIds,target.value])]:state.search.accountIds.filter(x=>x!==target.value);break;
- case 'entry-account':state.entryAccount=target.value;if(state.entryDest===target.value)state.entryDest=accounts().find(x=>x.id!==target.value&&x.moneda===account(target.value)?.moneda)?.id||'';state.pendingRequestId=null;render();break;
+ case 'entry-account':state.entryAccount=target.value;if(state.entryDest===target.value)state.entryDest=accounts().find(x=>x.id!==target.value&&x.moneda===account(target.value)?.moneda)?.id||'';state.pendingRequestId=null;render({modalOnly:true});break;
  case 'entry-dest':state.entryDest=target.value;state.pendingRequestId=null;break;
- case 'entry-category':state.entryCategory=target.value;state.pendingRequestId=null;break;
+ case 'entry-category':state.entryCategory=target.value;state.pendingRequestId=null;updateEntryCategoryBadge();break;
  case 'entry-note':state.entryNote=target.value;state.pendingRequestId=null;break;
  case 'entry-date':state.entryDate=target.value;state.pendingRequestId=null;break;
  case 'debt-nombre':state.commitmentForm.nombre=target.value;state.pendingRequestId=null;break;
@@ -638,7 +743,7 @@ function handleChange(e){const target=e.target,name=target.name;switch(name){
  case 'debt-monto':state.commitmentForm.monto=target.value;state.pendingRequestId=null;break;
  case 'debt-categoria':state.commitmentForm.categoriaId=target.value;state.pendingRequestId=null;break;
  case 'debt-proxima':state.commitmentForm.proximaFecha=target.value;state.pendingRequestId=null;break;
- case 'debt-frecuencia':state.commitmentForm.frecuencia=target.value;state.pendingRequestId=null;render();break;
+ case 'debt-frecuencia':state.commitmentForm.frecuencia=target.value;state.pendingRequestId=null;render({modalOnly:true});break;
  case 'debt-metodo':state.commitmentForm.metodoPago=target.value;state.pendingRequestId=null;break;
  case 'debt-dia1':state.commitmentForm.diaMes1=target.value;state.pendingRequestId=null;break;
  case 'debt-dia2':state.commitmentForm.diaMes2=target.value;state.pendingRequestId=null;break;
@@ -647,7 +752,7 @@ function handleChange(e){const target=e.target,name=target.name;switch(name){
  case 'debt-factura':state.commitmentForm.numeroFactura=target.value;state.pendingRequestId=null;break;
  case 'debt-nota':state.commitmentForm.nota=target.value;state.pendingRequestId=null;break;
 }}
-function handleInput(e){const n=e.target.name;if(n==='search-query')state.search.query=e.target.value;if(n==='entry-note'){state.entryNote=e.target.value;state.pendingRequestId=null}const debtMap={'debt-nombre':'nombre','debt-acreedor':'acreedor','debt-monto':'monto','debt-factura':'numeroFactura','debt-nota':'nota','debt-dia1':'diaMes1','debt-dia2':'diaMes2'};if(Object.hasOwn(debtMap,n)){state.commitmentForm[debtMap[n]]=e.target.value;state.pendingRequestId=null;}}
+function handleInput(e){const n=e.target.name;if(n==='search-query')state.search.query=e.target.value;if(n==='entry-note'){state.entryNote=e.target.value;state.pendingRequestId=null;if(state.entryType==='gasto'&&window.DcarelaCategoryLinker?.resolveClientExpenseCategory){const sel=document.getElementById('entry-category');const auto=window.DcarelaCategoryLinker.resolveClientExpenseCategory({categoria_id:'',descripcion:e.target.value},cats().filter(c=>c.tipo==='gasto'));if(auto?.matchedBy==='keyword'&&auto.categoria_id&&sel&&sel.value!==auto.categoria_id){state.entryCategory=auto.categoria_id;sel.value=auto.categoria_id;updateEntryCategoryBadge();}}}const debtMap={'debt-nombre':'nombre','debt-acreedor':'acreedor','debt-monto':'monto','debt-factura':'numeroFactura','debt-nota':'nota','debt-dia1':'diaMes1','debt-dia2':'diaMes2'};if(Object.hasOwn(debtMap,n)){state.commitmentForm[debtMap[n]]=e.target.value;state.pendingRequestId=null;}}
 let signingIn=false,seenAuthUid;
 async function handleSubmit(e){if(e.target.id==='login-form'){
  e.preventDefault();if(state.loginBusy)return;
@@ -658,7 +763,7 @@ async function handleSubmit(e){if(e.target.id==='login-form'){
  catch(error){signingIn=false;state.loginBusy=false;state.loginError=String(error?.code||'').startsWith('auth/')?'No se pudo iniciar sesión. Comprueba el correo y la contraseña.':'No se pudo iniciar sesión. Comprueba la conexión e inténtalo de nuevo.';render();}
  return;
  }if(e.target.id!=='search-form')return;e.preventDefault();state.search.query=e.target.querySelector('[name="search-query"]').value;
- if(state.search.from>state.search.to){note('El inicio no puede ser posterior al fin.');return}if(state.search.accountIds.length===0){note('Selecciona al menos una cuenta.');return}state.searched=true;render()}
+ if(state.search.from>state.search.to){note('El inicio no puede ser posterior al fin.');return}if(state.search.accountIds.length===0){note('Selecciona al menos una cuenta.');return}if(state.search.from<`${initialMonth}-01`)await ensureFullHistory();state.searched=true;render()}
 function stepSwipe(kind,step){navigationDirection=step;if(kind==='month'){state.month=nMonth(state.month,step);state.day=`${state.month}-01`;}else if(kind==='view'){const index=Math.max(0,FINANCE_VIEWS.findIndex(([id])=>id===state.financeView));state.financeView=FINANCE_VIEWS[(index+step+FINANCE_VIEWS.length)%FINANCE_VIEWS.length][0];state.financeFilterOpen=false;}else if(kind==='day'){state.day=nDay(state.day,step);state.month=state.day.slice(0,7);}else if(kind==='tab'){const tabs=['home','finance','debts','more'];const next=tabs.indexOf(state.tab)+step;if(next<0||next>=tabs.length){navigationDirection=0;return false}openTab(tabs[next]);return true;}render();return true}
 let swipeStart=null,swipeSuppressClickUntil=0;
 function beginSwipe(target,id,x,y){

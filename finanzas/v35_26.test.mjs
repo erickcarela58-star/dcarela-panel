@@ -52,4 +52,15 @@ test('PALETTES and buildDemoInboxData expose complete Demo Inbox, Mail/Cash-Code
   assert.ok(demo.fiscal.compras.length >= 1);
   assert.ok(demo.fiscal.ventas.length >= 1);
   assert.ok(demo.fiscal.revisar.length >= 1);
+  assert.equal(demo.fx.banks.every((b) => typeof b.bankUrl === 'string' && b.bankUrl.startsWith('https://')), true);
+  assert.equal('selectedBankKey' in demo.fx, false);
+});
+
+test('Comida category exists in demo fixture and links food descriptions automatically', async () => {
+  const { fixture } = await import('./demo-data.js');
+  const d = fixture('sucursal-a');
+  const comida = d.categories.find((c) => c.tipo === 'gasto' && /comida/i.test(c.nombre || ''));
+  assert.ok(comida, 'Demo data must include Comida expense category');
+  const linked = linker.resolveClientExpenseCategory({ categoria_id: '', descripcion: 'Almuerzo producción equipo' }, d.categories.filter((c) => c.tipo === 'gasto'));
+  assert.equal(linked.categoria_id, comida.id);
 });

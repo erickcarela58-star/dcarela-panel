@@ -12,6 +12,9 @@ const categoryDefs=[
   {id:'ventas',nombre:'Sesiones fotográficas',tipo:'ingreso',color:'#3f78b7'},
   {id:'impresiones',nombre:'Impresiones y cuadros',tipo:'ingreso',color:'#6d8fc2'},
   {id:'otrosing',nombre:'Otros ingresos',tipo:'ingreso',color:'#969ab7'},
+  {id:'recon-cat-comida',nombre:'Comida',tipo:'gasto',color:'#e07a5f'},
+  {id:'recon-cat-transporte',nombre:'Transporte',tipo:'gasto',color:'#5c8d89'},
+  {id:'expense-category-suscripciones',nombre:'Suscripciones digitales',tipo:'gasto',color:'#4a6fa5'},
   {id:'materiales',nombre:'Materiales',tipo:'gasto',color:'#d88972'},
   {id:'alquiler',nombre:'Alquiler y servicios',tipo:'gasto',color:'#b8778c'},
   {id:'nomina',nombre:'Personal',tipo:'gasto',color:'#8d7bb7'},
@@ -19,7 +22,7 @@ const categoryDefs=[
   {id:'equipos',nombre:'Equipos',tipo:'gasto',color:'#d1a358'},
 ];
 const incomeNames=['Sesión familiar · demo','Fotos de graduación · demo','Impresión de cuadros · demo','Paquete cumpleaños · demo','Sesión de estudio · demo','Impresiones de laboratorio · demo'];
-const expenseNames=['Papel fotográfico · demo','Suscripción de edición · demo','Publicidad digital · demo','Material de empaque · demo','Mantenimiento · demo','Servicio de mensajería · demo'];
+const expenseNames=['Papel fotográfico · demo','Suscripción de edición · demo','Publicidad digital · demo','Almuerzo equipo estudio · demo','Mantenimiento · demo','Uber entrega material · demo'];
 function fixture(b='sucursal-a') {
   const factor = b==='sucursal-b' ? 2 : 1;
   const accounts=defs.map(a=>({...a,id:`${b}-${a.id}`,business_id:b,saldo_actual_centavos:a.saldo_actual_centavos*factor,estado:'activa'}));
@@ -45,10 +48,26 @@ function fixture(b='sucursal-a') {
       add(date,'gasto',['cash','popular','visa'][rand(3)],['materiales','alquiler','nomina','marketing','equipos'][rand(5)],spent,expenseNames[rand(expenseNames.length)]);
       if(day%3===0) add(date,'ingreso','cash','ventas',(59000+rand(235000))*factor,incomeNames[rand(incomeNames.length)]);
       if(day%4===0) add(date,'gasto','popular','marketing',(25000+rand(145000))*factor,'Campaña de temporada · demo');
+      if(day%5===0) add(date,'gasto','cash','recon-cat-comida',(18500+rand(32000))*factor,'Almuerzo equipo de producción · demo');
       if(day%6===0) add(date,'transferencia','cash',null,(150000+rand(200000))*factor,'Transferencia interna · demo',
         {cuenta_destino_id:`${b}-popular`,afecta_resultado:false});
       if(day%9===0) add(date,'gasto','cash','equipos',95000*factor,'Registro anulado · demo',{estado:'anulado'});
     }
+  }
+  add('2026-11-04','gasto','cash','recon-cat-comida',245000*factor,'Almuerzo equipo estudio · demo');
+  add('2026-11-07','gasto','visa','expense-category-suscripciones',122700*factor,'ChatGPT Plus · OpenAI USD');
+  // Movimientos históricos antiguos (2024-2026) para validar filtros Día, Año y Personalizado sin trabas.
+  for (const hist of [
+    ['2024-11-18', 'ingreso', 'popular', 'ventas', 310000, 'Boda histórica · archivo 2024'],
+    ['2024-11-22', 'gasto', 'cash', 'equipos', 142000, 'Compra de lentes estudio · 2024'],
+    ['2025-03-14', 'ingreso', 'reservas', 'ventas', 485000, 'Cobertura evento corporativo · 2025'],
+    ['2025-05-09', 'gasto', 'popular', 'alquiler', 165000, 'Renta y electricidad · 2025'],
+    ['2025-08-21', 'ingreso', 'popular', 'impresiones', 274000, 'Cuadros gran formato · 2025'],
+    ['2025-11-05', 'gasto', 'visa', 'marketing', 98000, 'Pauta Meta temporada · 2025'],
+    ['2026-02-12', 'ingreso', 'cash', 'ventas', 360000, 'Sesiones San Valentín · 2026'],
+    ['2026-06-19', 'gasto', 'popular', 'materiales', 124000, 'Tintas y papel laboratorio · 2026']
+  ]) {
+    add(hist[0], hist[1], hist[2], hist[3], hist[4] * factor, hist[5]);
   }
   add('2026-11-03','ingreso','usd','otrosing',12450*factor,'Ingreso en dólares · demo');
   add('2026-11-06','gasto','usd','materiales',3600*factor,'Compra en dólares · demo');

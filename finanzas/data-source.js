@@ -52,13 +52,13 @@ function scopedRows(rows, businessId, label) {
   return rows;
 }
 
-export async function loadFinance(requestedBusinessId) {
+export async function loadFinance(requestedBusinessId, options = {}) {
   if (!isLive) {
     const {fixture} = await import('./demo-data.js');
     const businessId = requestedBusinessId || 'sucursal-a';
     return {...fixture(businessId), authorizedBusinesses:[
       {id:'sucursal-a',name:'Sucursal A · Demo'}, {id:'sucursal-b',name:'Sucursal B · Demo'}
-    ], businessId};
+    ], businessId, fullHistoryLoaded: true};
   }
   const api = adapter();
   const {user, allowed} = await sessionBusinesses(api);
@@ -93,8 +93,11 @@ export async function loadFinance(requestedBusinessId) {
   if (preferences && preferences.business_id !== chosen) {
     throw new Error('Las preferencias pertenecen a otra sucursal.');
   }
+  const journalOpts = { accounts, preferences };
+  const historyFrom = options.fullHistory ? (options.historyFrom || '2018-01-01T00:00:00.000Z') : options.historyFrom;
+  if (historyFrom) journalOpts.historyFrom = historyFrom;
   // El diario canónico une archivo, sync_events, ventas y movimientos.
-  const movements = scopedRows(await api.getFinanceJournal(chosen, {accounts, preferences}), chosen, 'diario');
+  const movements = scopedRows(await api.getFinanceJournal(chosen, journalOpts), chosen, 'diario');
   if (api.getCurrentUser()?.uid !== user.uid) {
     throw new Error('La sesión cambió durante la lectura. Vuelve a intentarlo.');
   }
@@ -103,7 +106,27 @@ export async function loadFinance(requestedBusinessId) {
   const sales = scopedRows(movements.sales || [], chosen, 'detalle de ventas');
   return {accounts, categories, movements, sales, budgets, cards, commitments, commitmentPayments,
     costObligations, costPayments, costRecurrents,
-    preferences, authorizedBusinesses:allowed, businessId:chosen, demo:false};
+    preferences, authorizedBusinesses:allowed, businessId:chosen, demo:false, fullHistoryLoaded: Boolean(historyFrom)};
+}
+
+export async function loadFullFinanceHistory(requestedBusinessId, { accounts = [], preferences = null, historyFrom = '2018-01-01T00:00:00.000Z' } = {}) {
+  if (!isLive) {
+    const {fixture} = await import('./demo-data.js');
+    const res = fixture(requestedBusinessId || 'sucursal-a');
+    return { movements: res.movements || [], sales: res.sales || [], fullHistoryLoaded: true };
+  }
+  const api = adapter();
+  const { user, allowed } = await sessionBusinesses(api);
+  const chosen = requestedBusinessId || allowed[0].id;
+  if (!allowed.some(b => b.id === chosen)) {
+    throw new Error('Acceso denegado: esta sucursal no pertenece a tu sesión.');
+  }
+  const movements = scopedRows(await api.getFinanceJournal(chosen, { accounts, preferences, historyFrom }), chosen, 'diario histórico');
+  if (api.getCurrentUser()?.uid !== user.uid) {
+    throw new Error('La sesión cambió durante la lectura. Vuelve a intentarlo.');
+  }
+  const sales = scopedRows(movements.sales || [], chosen, 'detalle de ventas');
+  return { movements, sales, fullHistoryLoaded: true };
 }
 
 export async function commitAction(action, businessId, entityId, data) {
