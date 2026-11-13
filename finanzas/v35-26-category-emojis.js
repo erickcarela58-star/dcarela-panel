@@ -414,7 +414,198 @@
           notes: 'Lectura reciente de comprobantes del Facturador Gratuito DGII'
         },
         summary: { compras: 2, ventas: 2, revisar: 1 }
-      }
+      },
+      ecosystem: (function () {
+        const isPlazaDemo = typeof document !== 'undefined' && document.querySelector?.('meta[name="dcarela-branch-app"]')?.content === 'plaza';
+        const biz = isPlazaDemo ? 'plaza-artesanal' : 'dcarela';
+        const branchName = isPlazaDemo ? 'Plaza Artesanal' : 'Central';
+        const nowIso = new Date().toISOString();
+        return {
+          ok: true,
+          businessId: biz,
+          branchName,
+          checkedAt: nowIso,
+          database: {
+            projectId: 'erikccarela',
+            connected: true,
+            accountsCount: isPlazaDemo ? 3 : 6,
+            movementsCount: isPlazaDemo ? 18 : 64,
+            movementsSampled: false,
+            obligationsCount: isPlazaDemo ? 2 : 5,
+            syncedAt: nowIso
+          },
+          caja: {
+            today,
+            activeShift: {
+              id: `demo-shift-${biz}`,
+              cajaNombre: `Caja ${branchName} POS`,
+              usuarioNombre: isPlazaDemo ? 'caja.plaza@dcarelacompufoto.com' : 'caja.central@dcarelacompufoto.com',
+              status: 'open',
+              openedAt: `${today}T09:05:00-04:00`,
+              montoAperturaCentavos: 500000,
+              saleCount: isPlazaDemo ? 4 : 9,
+              grossSalesCentavos: isPlazaDemo ? 1850000 : 4260000
+            },
+            openShifts: [
+              {
+                id: `demo-shift-${biz}`,
+                cajaNombre: `Caja ${branchName} POS`,
+                usuarioNombre: isPlazaDemo ? 'caja.plaza@dcarelacompufoto.com' : 'caja.central@dcarelacompufoto.com',
+                status: 'open',
+                openedAt: `${today}T09:05:00-04:00`,
+                montoAperturaCentavos: 500000,
+                saleCount: isPlazaDemo ? 4 : 9,
+                grossSalesCentavos: isPlazaDemo ? 1850000 : 4260000
+              }
+            ],
+            recentClosings: [
+              {
+                id: `demo-close-${biz}-prev`,
+                cajaNombre: `Caja ${branchName} POS`,
+                closedAt: new Date(Date.now() - 86400000).toISOString(),
+                saleCount: isPlazaDemo ? 8 : 16,
+                grossSalesCentavos: isPlazaDemo ? 3120000 : 7890000,
+                efectivoAEntregarCentavos: isPlazaDemo ? 1480000 : 3240000
+              }
+            ],
+            devices: [
+              {
+                id: `pos-${biz}-1`,
+                name: `PC Mostrador ${branchName}`,
+                status: 'activa',
+                version: '1.0.77',
+                lastSeenAt: new Date(Date.now() - 90000).toISOString(),
+                online: true
+              }
+            ],
+            onlineDevices: 1,
+            totalDevices: 1,
+            lastDeviceSeenAt: new Date(Date.now() - 90000).toISOString(),
+            lastAppliedEventAt: new Date(Date.now() - 180000).toISOString(),
+            lastPosEventAt: new Date(Date.now() - 120000).toISOString(),
+            salesTodayCount: isPlazaDemo ? 4 : 9,
+            salesTodayCentavos: isPlazaDemo ? 1850000 : 4260000,
+            pendingCutsCount: 2,
+            recentSales: [
+              {
+                id: `demo-sale-${biz}-1`,
+                folio: isPlazaDemo ? 'P-142' : 'C-812',
+                cliente: isPlazaDemo ? 'Visitante Plaza · Taza Foto' : 'Estudio Bodas Caribe',
+                totalCentavos: isPlazaDemo ? 480000 : 1450000,
+                metodo: 'Tarjeta',
+                fecha: today,
+                at: new Date(Date.now() - 420000).toISOString(),
+                origen: 'POS'
+              },
+              {
+                id: `demo-sale-${biz}-2`,
+                folio: isPlazaDemo ? 'P-141' : 'C-811',
+                cliente: 'Consumidor Final · Retrato',
+                totalCentavos: isPlazaDemo ? 220000 : 650000,
+                metodo: 'Efectivo',
+                fecha: today,
+                at: new Date(Date.now() - 1800000).toISOString(),
+                origen: 'POS'
+              }
+            ]
+          },
+          crm: {
+            conversationsTotal: isPlazaDemo ? 18 : 64,
+            unreadConversations: isPlazaDemo ? 2 : 5,
+            handoffPending: isPlazaDemo ? 1 : 2,
+            recentConversations: [
+              {
+                id: `demo-conv-${biz}-1`,
+                name: isPlazaDemo ? 'Laura Gómez · Souvenirs' : 'Mariela Rojas · Boda',
+                phone: isPlazaDemo ? '18095550192' : '18095550144',
+                unreadCount: 2,
+                handoff: true,
+                stage: 'cotizando',
+                preview: isPlazaDemo ? '¿Listo el cuadro personalizado para hoy?' : 'Confirmar hora de sesión en estudio...',
+                lastMessageAt: new Date(Date.now() - 300000).toISOString()
+              },
+              {
+                id: `demo-conv-${biz}-2`,
+                name: isPlazaDemo ? 'Hotel Zona Colonial' : 'Carlos Medina · Graduación',
+                phone: isPlazaDemo ? '18095550881' : '18095550321',
+                unreadCount: 0,
+                handoff: false,
+                stage: 'seguimiento',
+                preview: 'Gracias, paso por allá a las 4 PM.',
+                lastMessageAt: new Date(Date.now() - 2400000).toISOString()
+              }
+            ],
+            quotesTotal: isPlazaDemo ? 5 : 14,
+            quotesPending: isPlazaDemo ? 2 : 4,
+            quotesApproved: isPlazaDemo ? 2 : 6,
+            recentQuotes: [
+              {
+                id: `demo-quote-${biz}-1`,
+                folio: isPlazaDemo ? 'COT-P19' : 'COT-104',
+                cliente: isPlazaDemo ? 'Laura Gómez' : 'Mariela Rojas',
+                telefono: '18095550144',
+                titulo: isPlazaDemo ? 'Combo Impresión + Marco 11x14' : 'Paquete XV Premium Estudio',
+                totalCentavos: isPlazaDemo ? 680000 : 2850000,
+                estado: 'enviada',
+                creada: today
+              },
+              {
+                id: `demo-quote-${biz}-2`,
+                folio: isPlazaDemo ? 'COT-P18' : 'COT-103',
+                cliente: 'Eventos del Este SRL',
+                telefono: '18295550910',
+                titulo: 'Cobertura Corporativa',
+                totalCentavos: isPlazaDemo ? 1150000 : 3400000,
+                estado: 'aprobada',
+                creada: today
+              }
+            ],
+            tasksPending: isPlazaDemo ? 2 : 3,
+            tasksOverdue: 1,
+            pendingTasks: [
+              {
+                id: `demo-task-${biz}-1`,
+                titulo: isPlazaDemo ? `Preparar entrega Marco ${branchName}` : 'Confirmar retoque álbum boda',
+                fechaLimite: today,
+                horaLimite: '16:30',
+                prioridad: 'alta',
+                empleadoNombre: 'Erick',
+                estado: 'pendiente',
+                vencida: false
+              }
+            ],
+            clientsCount: isPlazaDemo ? 42 : 184,
+            clientsWithBalanceCount: isPlazaDemo ? 2 : 6,
+            clientsReceivableCentavos: isPlazaDemo ? 390000 : 1620000,
+            recentClients: [
+              {
+                id: `demo-cli-${biz}-1`,
+                nombre: isPlazaDemo ? 'Galería Zona Colonial' : 'Estudio Eventos RD',
+                telefono: '809-555-2233',
+                saldoCentavos: isPlazaDemo ? 390000 : 920000,
+                diasCredito: 15,
+                limiteCreditoCentavos: 2500000
+              },
+              {
+                id: `demo-cli-${biz}-2`,
+                nombre: isPlazaDemo ? 'Ana Turística' : 'Luis Fotografía',
+                telefono: '829-555-4411',
+                saldoCentavos: 0,
+                diasCredito: 0,
+                limiteCreditoCentavos: 0
+              }
+            ],
+            bridgeStatus: {
+              bridgeId: isPlazaDemo ? 'whatsapp_qr_plaza' : 'whatsapp_qr',
+              status: 'connected',
+              connectedPhone: isPlazaDemo ? '18094440000' : '18495245620',
+              updatedAt: new Date(Date.now() - 45000).toISOString(),
+              botEnabled: !isPlazaDemo,
+              online: true
+            }
+          }
+        };
+      })()
     };
   }
 

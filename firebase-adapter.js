@@ -801,10 +801,12 @@
 
   function financeLedgerPayload(movement, account = {}, category = {}) {
     const type = text(movement.tipo, 40).toLowerCase();
+    const isAdjustment = type === 'ajuste_positivo' || type === 'ajuste_negativo';
     const accountId = movement.cuenta_id || null;
     return {
       ledgerId: movement.id,
-      tipo: type.toUpperCase(),
+      tipo: isAdjustment ? 'AJUSTE' : type.toUpperCase(),
+      ...(isAdjustment ? {tipoCrm: type.toUpperCase()} : {}),
       categoriaId: movement.categoria_id || null,
       categoria: text(category.nombre, 120) || '',
       descripcion: text(movement.descripcion, 500),

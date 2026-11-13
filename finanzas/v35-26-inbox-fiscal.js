@@ -57,6 +57,11 @@ const uiState = {
   data: null,
   loading: false,
   error: '',
+  ecosystem: null,
+  ecosystemLoading: false,
+  ecosystemError: '',
+  cajaCrmTab: 'overview',
+  clientSearch: '',
   mode: new URLSearchParams(location.search).get('mode') === 'demo' ? 'demo' : 'live',
   activeModal: null,
   autoCutPrompted: false,
@@ -484,31 +489,80 @@ async function apiCall(payload) {
 async function loadInbox(forceRefreshRates = false) {
   if (uiState.loading) return;
   uiState.loading = true;
+  uiState.ecosystemLoading = true;
   uiState.error = '';
+  uiState.ecosystemError = '';
   try {
     if (uiState.mode === 'demo') {
       if (!uiState.data) {
         uiState.data = normalizeInbox(linker().buildDemoInboxData());
       }
+      uiState.ecosystem = linker().buildDemoInboxData().ecosystem || null;
     } else {
       const user = window.DcarelaFirebase?.getCurrentUser?.();
       if (!user) {
         uiState.loading = false;
+        uiState.ecosystemLoading = false;
         return;
       }
-      const res = await apiCall({ action: 'pwaFinanceInbox', refresh_rates: forceRefreshRates });
-      uiState.data = normalizeInbox(res);
-      try {
-        const pcfg = await apiCall({ action: 'pwaPushConfig' });
-        uiState.pushConfig = pcfg;
-        uiState.pushSubscribed = Boolean(pcfg?.mySubscriptions?.length);
-      } catch {}
+      const [inboxSettled, ecoSettled, pushSettled] = await Promise.allSettled([
+        apiCall({ action: 'pwaFinanceInbox', refresh_rates: forceRefreshRates }),
+        apiCall({ action: 'pwaEcosystemStatus' }),
+        apiCall({ action: 'pwaPushConfig' }),
+      ]);
+      if (inboxSettled.status === 'fulfilled') {
+        uiState.data = normalizeInbox(inboxSettled.value);
+      } else {
+        uiState.error = inboxSettled.reason?.message || 'No se pudo consultar el buzón.';
+      }
+      if (ecoSettled.status === 'fulfilled' && ecoSettled.value?.ok) {
+        uiState.ecosystem = ecoSettled.value;
+      } else {
+        uiState.ecosystemError = ecoSettled.reason?.message || 'Estado en vivo pendiente de sincronizar.';
+      }
+      if (pushSettled.status === 'fulfilled') {
+        uiState.pushConfig = pushSettled.value;
+        uiState.pushSubscribed = Boolean(pushSettled.value?.mySubscriptions?.length);
+      }
     }
   } catch (err) {
     uiState.error = err?.message || 'No se pudo consultar el buzón.';
   } finally {
     uiState.loading = false;
+    uiState.ecosystemLoading = false;
+    updateLiveRibbonDOM();
     scheduleSync();
+  }
+}
+
+function getEcosystemSummary() {
+  const eco = uiState.ecosystem;
+  const liveConn = appSnapshot().state?.liveConn;
+  const connDevices = (liveConn?.devices || []).filter((d) => d?.status === 'activa' && d?.last_seen_at && (Date.now() - Date.parse(d.last_seen_at)) < 600000);
+  return {
+    connected: Boolean(eco?.database?.connected || liveConn?.connected || uiState.mode === 'demo'),
+    onlineDevices: eco?.caja ? Number(eco.caja.onlineDevices || 0) : connDevices.length,
+    hasOpenShift: Boolean(eco?.caja?.activeShift || liveConn?.openShifts?.length),
+    bridgeOnline: Boolean(eco?.crm?.bridgeStatus?.online),
+    unreadConversations: Number(eco?.crm?.unreadConversations || 0),
+    pendingCutsCount: Number(eco?.caja?.pendingCutsCount || 0)
+  };
+}
+
+function updateLiveRibbonDOM() {
+  const rightEl = document.getElementById('v3526LiveRibbonRight');
+  if (!rightEl || uiState.mode === 'demo') return;
+  const s = getEcosystemSummary();
+  if (s.onlineDevices > 0 && s.bridgeOnline) {
+    rightEl.textContent = `Base + Caja (${s.onlineDevices} PC) + CRM`;
+  } else if (s.onlineDevices > 0) {
+    rightEl.textContent = `Base + Caja POS (${s.onlineDevices} PC)`;
+  } else if (s.hasOpenShift) {
+    rightEl.textContent = 'Base + Turno abierto + CRM';
+  } else if (s.bridgeOnline) {
+    rightEl.textContent = 'Base Firebase + CRM en línea';
+  } else if (s.connected) {
+    rightEl.textContent = 'Base Firebase · Caja y CRM listos';
   }
 }
 
@@ -809,6 +863,491 @@ function renderMailHost() {
     b.onclick = () => {
       const mov = mail.movements.find((x) => x.id === b.dataset.mailReg);
       if (mov) openModal('mail-register', mov);
+    };
+  });
+}
+
+function getEffectiveEcosystem() {
+  if (uiState.mode === 'demo') {
+    return uiState.ecosystem || linker().buildDemoInboxData().ecosystem || null;
+  }
+  if (uiState.ecosystem) return uiState.ecosystem;
+  const snap = appSnapshot();
+  const st = snap.state || {};
+  const conn = st.liveConn || null;
+  const biz = snap.business || 'dcarela';
+  const devices = (conn?.devices || []).map((d) => ({
+    id: d.id,
+    name: d.nombre || d.name || d.id,
+    status: d.status || 'activa',
+    version: d.app_version || d.version || null,
+    lastSeenAt: d.last_seen_at || null,
+    online: Boolean(d.status === 'activa' && d.last_seen_at && (Date.now() - Date.parse(d.last_seen_at)) < 600000)
+  }));
+  return {
+    ok: false,
+    fallbackOnly: true,
+    businessId: biz,
+    branchName: snap.branchDisplayName || biz,
+    checkedAt: null,
+    database: {
+      projectId: window.__DCARELA_FIREBASE_CONFIG?.projectId || 'erikccarela',
+      connected: Boolean(conn?.connected || st.data),
+      accountsCount: (snap.accounts || []).filter((a) => a.estado !== 'eliminada').length,
+      movementsCount: (st.data?.movements || []).length,
+      obligationsCount: (st.data?.costObligations || []).length + (st.data?.commitments || []).length,
+      syncedAt: null
+    },
+    caja: {
+      activeShift: conn?.openShifts?.[0] || null,
+      openShifts: conn?.openShifts || [],
+      recentClosings: [],
+      devices,
+      onlineDevices: devices.filter((d) => d.online).length,
+      totalDevices: devices.length,
+      salesTodayCount: 0,
+      salesTodayCentavos: 0,
+      recentSales: [],
+      pendingCutsCount: Number(uiState.data?.counts?.cuts || 0)
+    },
+    crm: null
+  };
+}
+
+function crmUrlForCurrentBranch() {
+  const snap = appSnapshot();
+  const isPlaza = Boolean(snap.isPlazaBranch);
+  const base = location.hostname.includes('panel.dcarelacompufoto.com') ? 'https://crm.dcarelacompufoto.com/' : '../panel.html';
+  return isPlaza ? `${base}?sucursal=plaza-artesanal` : base;
+}
+
+function renderConnectionHost() {
+  const host = document.getElementById('v3526ConnectionHost');
+  if (!host) return;
+  const snap = appSnapshot();
+  const eco = getEffectiveEcosystem();
+  const userEmail = uiState.mode === 'demo' ? 'demo@dcarelacompufoto.com' : (window.DcarelaFirebase?.getCurrentUser?.()?.email || 'Sesión activa');
+  const dbInfo = eco?.database || {};
+  const cajaInfo = eco?.caja || {};
+  const crmInfo = eco?.crm || {};
+  const bridge = crmInfo.bridgeStatus || {};
+
+  host.innerHTML = `
+    <div class="section-head"><h2>Base de datos · Caja · CRM</h2></div>
+    <div class="v3526-card">
+      <div class="v3526-card-head">
+        <h3>${ae('🔗', 17)} Ecosistema en vivo</h3>
+        <span class="v3526-tag ${uiState.mode === 'demo' ? 'warn' : dbInfo.connected ? 'ok' : 'warn'}">${uiState.mode === 'demo' ? 'Vista Demo' : dbInfo.connected ? 'Conectado' : 'Verificando'}</span>
+      </div>
+      <div class="v3526-list-row">
+        <div>
+          <b>${ae('🗄️', 14)} Base de datos (${esc(dbInfo.projectId || 'erikccarela')})</b>
+          <div style="font-size:11px;opacity:.74">${esc(userEmail)} · ${Number(dbInfo.accountsCount || 0)} cuentas · ${Number(dbInfo.movementsCount || 0)}${dbInfo.movementsSampled ? '+' : ''} mov.</div>
+        </div>
+        <span class="v3526-tag ${dbInfo.connected ? 'ok' : 'warn'}">${dbInfo.syncedAt ? relTime(dbInfo.syncedAt) : (uiState.mode === 'demo' ? 'Demo' : 'Activa')}</span>
+      </div>
+      <div class="v3526-list-row">
+        <div>
+          <b>${ae('🖥️', 14)} Caja POS · Terminales y Turnos</b>
+          <div style="font-size:11px;opacity:.74">${cajaInfo.activeShift ? `Turno abierto: ${esc(cajaInfo.activeShift.cajaNombre || 'Caja')}` : 'Sin turno abierto ahora'} · ${Number(cajaInfo.onlineDevices || 0)}/${Number(cajaInfo.totalDevices || 0)} PC activas</div>
+        </div>
+        <span class="v3526-tag ${cajaInfo.onlineDevices > 0 || cajaInfo.activeShift ? 'ok' : ''}">${cajaInfo.lastAppliedEventAt ? `Acuse ${relTime(cajaInfo.lastAppliedEventAt)}` : (cajaInfo.onlineDevices > 0 ? 'En línea' : 'En espera')}</span>
+      </div>
+      <div class="v3526-list-row">
+        <div>
+          <b>${ae('💬', 14)} CRM · Chats, Cotizaciones y Clientes</b>
+          <div style="font-size:11px;opacity:.74">${eco?.crm ? `${Number(crmInfo.unreadConversations || 0)} sin leer · ${Number(crmInfo.quotesPending || 0)} cotiz. · ${Number(crmInfo.clientsCount || 0)} clientes` : (uiState.ecosystemError || 'Consulta en espera')}</div>
+        </div>
+        <span class="v3526-tag ${bridge.online ? 'ok' : ''}">${bridge.online ? 'WA Online' : (eco?.crm ? 'CRM Activo' : 'Sincronizar')}</span>
+      </div>
+      <div class="v3526-btn-row">
+        <button type="button" class="primary-btn compact" id="v3526EcoSyncBtn" ${uiState.ecosystemLoading ? 'disabled' : ''}>${ae('🔄', 13)} ${uiState.ecosystemLoading ? 'Sincronizando…' : 'Probar y sincronizar'}</button>
+        <button type="button" class="secondary-btn compact" id="v3526OpenCajaCrmBtn">${ae('🖥️', 13)} Abrir Caja y CRM</button>
+      </div>
+    </div>
+  `;
+
+  host.querySelector('#v3526EcoSyncBtn').onclick = async () => {
+    await window.DcarelaFinanzasReload?.();
+    await loadInbox(false);
+    showToast('Base de datos, Caja y CRM actualizados.', false, '✅');
+  };
+  host.querySelector('#v3526OpenCajaCrmBtn').onclick = () => openNativeRoute('caja_crm');
+}
+
+function renderCajaCrmHost() {
+  const host = document.getElementById('v3526CajaCrmHost');
+  if (!host) return;
+  const activeFocusedId = document.activeElement?.id || '';
+  const activeSelStart = document.activeElement?.selectionStart;
+  const activeSelEnd = document.activeElement?.selectionEnd;
+
+  const snap = appSnapshot();
+  const eco = getEffectiveEcosystem();
+  const sub = uiState.cajaCrmTab || 'overview';
+  const dbInfo = eco?.database || {};
+  const caja = eco?.caja || {};
+  const crm = eco?.crm || null;
+  const bridge = crm?.bridgeStatus || {};
+  const crmHref = crmUrlForCurrentBranch();
+  const isPlaza = Boolean(snap.isPlazaBranch);
+
+  const subTabs = [
+    ['overview', '📊', 'Resumen'],
+    ['caja', '🖥️', 'Caja POS'],
+    ['crm', '💬', 'CRM y Chats'],
+    ['clients', '👥', 'Clientes y Tareas']
+  ];
+
+  let sectionHtml = '';
+
+  if (sub === 'overview') {
+    sectionHtml = `
+      <div class="v3526-card">
+        <div class="v3526-card-head">
+          <h3>${ae('🗄️', 17)} Base de datos · Firestore</h3>
+          <span class="v3526-tag ${dbInfo.connected ? 'ok' : 'warn'}">${esc(dbInfo.projectId || 'erikccarela')}</span>
+        </div>
+        <div class="v3526-kpi-row">
+          <div class="v3526-kpi"><small>Sucursal aislada</small><strong>${esc(snap.branchDisplayName || (isPlaza ? 'Plaza Artesanal' : 'Central'))}</strong></div>
+          <div class="v3526-kpi"><small>Cuentas activas</small><strong>${Number(dbInfo.accountsCount || 0)}</strong></div>
+          <div class="v3526-kpi"><small>Obligaciones</small><strong>${Number(dbInfo.obligationsCount || 0)}</strong></div>
+        </div>
+        <div class="v3526-btn-row">
+          <button type="button" class="primary-btn compact" data-eco-action="refresh" ${uiState.ecosystemLoading ? 'disabled' : ''}>${ae('🔄', 13)} ${uiState.ecosystemLoading ? 'Sincronizando…' : 'Sincronizar ahora'}</button>
+          <a class="secondary-btn compact" href="${esc(crmHref)}" target="_blank" rel="noopener noreferrer" style="text-decoration:none;display:inline-flex;align-items:center;gap:5px">${ae('🔗', 13)} Abrir CRM web</a>
+        </div>
+      </div>
+
+      <div class="v3526-card">
+        <div class="v3526-card-head">
+          <h3>${ae('🖥️', 17)} Caja POS en tiempo real</h3>
+          <span class="v3526-tag ${caja.onlineDevices > 0 || caja.activeShift ? 'ok' : ''}">${caja.onlineDevices > 0 ? `${caja.onlineDevices} PC en línea` : caja.activeShift ? 'Turno abierto' : 'En espera'}</span>
+        </div>
+        <div class="v3526-kpi-row">
+          <div class="v3526-kpi"><small>Ventas de hoy</small><strong>${fmtMoney(caja.salesTodayCentavos || 0, 'DOP')}</strong><span>${Number(caja.salesTodayCount || 0)} ticket(s)</span></div>
+          <div class="v3526-kpi"><small>Cortes pendientes</small><strong>${Number(caja.pendingCutsCount || 0)}</strong><span>${caja.lastAppliedEventAt ? `Acuse ${relTime(caja.lastAppliedEventAt)}` : 'POS sincronizado'}</span></div>
+        </div>
+        ${caja.activeShift ? `
+          <div class="v3526-list-row" style="margin-top:6px">
+            <div>
+              <b>${ae('🟢', 13)} ${esc(caja.activeShift.cajaNombre || 'Caja activa')}</b>
+              <div style="font-size:11px;opacity:.75">Abierta ${esc(relTime(caja.activeShift.openedAt))} · Base ${fmtMoney(caja.activeShift.montoAperturaCentavos || 0, 'DOP')}</div>
+            </div>
+            <button type="button" class="secondary-btn compact" data-eco-sub="caja">Ver POS</button>
+          </div>
+        ` : `<p class="soft-note" style="margin:6px 0 0">No hay turno de Caja abierto en este momento.</p>`}
+        ${Number(caja.pendingCutsCount || 0) > 0 ? `<div class="v3526-btn-row"><button type="button" class="primary-btn compact" data-eco-open-cuts="1">${ae('🧾', 13)} Confirmar ${Number(caja.pendingCutsCount)} corte(s)</button></div>` : ''}
+      </div>
+
+      <div class="v3526-card">
+        <div class="v3526-card-head">
+          <h3>${ae('💬', 17)} CRM, Clientes y Tareas</h3>
+          <span class="v3526-tag ${bridge.online ? 'ok' : ''}">${bridge.online ? 'WhatsApp conectado' : 'Canal CRM'}</span>
+        </div>
+        ${crm ? `
+          <div class="v3526-kpi-row">
+            <div class="v3526-kpi"><small>Chats sin leer</small><strong>${Number(crm.unreadConversations || 0)}</strong><span>${Number(crm.handoffPending || 0)} atención humana</span></div>
+            <div class="v3526-kpi"><small>Por cobrar POS</small><strong>${fmtMoney(crm.clientsReceivableCentavos || 0, 'DOP')}</strong><span>${Number(crm.clientsCount || 0)} clientes · ${Number(crm.quotesPending || 0)} cotiz.</span></div>
+          </div>
+          <div class="v3526-btn-row">
+            <button type="button" class="secondary-btn compact" data-eco-sub="crm">Ver chats y cotizaciones</button>
+            <button type="button" class="secondary-btn compact" data-eco-sub="clients">Clientes (${Number(crm.clientsCount || 0)}) y Tareas (${Number(crm.tasksPending || 0)})</button>
+          </div>
+        ` : `<div class="notice warning">${esc(uiState.ecosystemError || 'Pulsa Sincronizar ahora para consultar métricas del CRM.')}</div>`}
+      </div>
+    `;
+  } else if (sub === 'caja') {
+    const devs = caja.devices || [];
+    const closings = caja.recentClosings || [];
+    const sales = caja.recentSales || [];
+    sectionHtml = `
+      <div class="v3526-card">
+        <div class="v3526-card-head">
+          <h3>${ae('🖥️', 17)} Terminales POS conectadas</h3>
+          <span class="v3526-tag ${caja.onlineDevices > 0 ? 'ok' : ''}">${Number(caja.onlineDevices || 0)} activa(s)</span>
+        </div>
+        ${devs.length ? devs.map((d) => `
+          <div class="v3526-list-row">
+            <div>
+              <b>${ae(d.online ? '🟢' : '⚪', 13)} ${esc(d.name)}</b>
+              <div style="font-size:11px;opacity:.75">${d.version ? `v${esc(d.version)} · ` : ''}Último latido: ${d.lastSeenAt ? esc(relTime(d.lastSeenAt)) : 'Sin señal reciente'}</div>
+            </div>
+            <span class="v3526-tag ${d.online ? 'ok' : ''}">${d.online ? 'Online <10m' : esc(d.status || 'Inactiva')}</span>
+          </div>
+        `).join('') : '<p class="soft-note">No hay terminales registradas aún para esta sucursal.</p>'}
+        ${caja.lastAppliedEventAt ? `<div class="soft-note" style="margin-top:8px">Último evento sincronizado hacia Caja POS: <b>${esc(relTime(caja.lastAppliedEventAt))}</b></div>` : ''}
+      </div>
+
+      <div class="v3526-card">
+        <div class="v3526-card-head">
+          <h3>${ae('🧾', 17)} Turno actual y últimos cierres</h3>
+          <span class="v3526-tag">${Number(caja.salesTodayCount || 0)} ventas hoy</span>
+        </div>
+        ${caja.activeShift ? `
+          <div class="v3526-list-row">
+            <div>
+              <b>${ae('🟢', 13)} Turno abierto · ${esc(caja.activeShift.cajaNombre || 'Caja')}</b>
+              <div style="font-size:11px;opacity:.75">Apertura: ${fmtMoney(caja.activeShift.montoAperturaCentavos || 0, 'DOP')} · Ventas turno: ${Number(caja.activeShift.saleCount || 0)}</div>
+            </div>
+            <strong class="income-text">${fmtMoney(caja.activeShift.grossSalesCentavos || 0, 'DOP')}</strong>
+          </div>
+        ` : '<div class="soft-note">Ningún turno abierto ahora.</div>'}
+        ${closings.length ? closings.slice(0, 4).map((cl) => `
+          <div class="v3526-list-row">
+            <div>
+              <b>${esc(cl.cajaNombre || 'Cierre POS')}</b>
+              <div style="font-size:11px;opacity:.72">Cerrado ${esc(relTime(cl.closedAt))} · ${Number(cl.saleCount || 0)} ventas</div>
+            </div>
+            <div style="text-align:right">
+              <strong>${fmtMoney(cl.efectivoAEntregarCentavos || cl.grossSalesCentavos || 0, 'DOP')}</strong>
+              <div style="font-size:10px;opacity:.7">Efectivo cierre</div>
+            </div>
+          </div>
+        `).join('') : ''}
+      </div>
+
+      <div class="v3526-card">
+        <div class="v3526-card-head">
+          <h3>${ae('🛍️', 17)} Ventas recientes de Caja</h3>
+          <strong>${fmtMoney(caja.salesTodayCentavos || 0, 'DOP')} hoy</strong>
+        </div>
+        ${sales.length ? sales.map((s) => `
+          <div class="v3526-list-row">
+            <div style="min-width:0;flex:1">
+              <b>${esc(s.cliente || 'Consumidor Final')}</b>
+              <div style="font-size:11px;opacity:.74">${s.folio ? `#${esc(s.folio)} · ` : ''}${esc(s.origen || 'POS')} · ${esc(s.metodo || 'Pago')} · ${s.at ? esc(relTime(s.at)) : esc(s.fecha || '')}</div>
+            </div>
+            <strong class="income-text">${fmtMoney(s.totalCentavos || 0, 'DOP')}</strong>
+          </div>
+        `).join('') : '<p class="soft-note">Sin ventas recientes registradas en este corte.</p>'}
+      </div>
+    `;
+  } else if (sub === 'crm') {
+    const convs = crm?.recentConversations || [];
+    const quotes = crm?.recentQuotes || [];
+    sectionHtml = `
+      <div class="v3526-card">
+        <div class="v3526-card-head">
+          <h3>${ae('📱', 17)} Línea WhatsApp CRM (${esc(snap.branchDisplayName || 'Sucursal')})</h3>
+          <span class="v3526-tag ${bridge.online ? 'ok' : 'warn'}">${bridge.online ? 'Conectada' : esc(bridge.status || 'En espera')}</span>
+        </div>
+        <div class="info-line"><span>Número vinculado</span><strong>${esc(bridge.connectedPhone || 'No configurado')}</strong></div>
+        <div class="info-line"><span>Asistente automático</span><strong>${bridge.botEnabled ? 'Activo' : 'Manual'}</strong></div>
+        <div class="info-line"><span>Conversaciones activas / sin leer</span><strong>${Number(crm?.conversationsTotal || 0)} · ${Number(crm?.unreadConversations || 0)} sin leer</strong></div>
+        <div class="v3526-btn-row">
+          <a class="primary-btn compact" href="${esc(crmHref)}" target="_blank" rel="noopener noreferrer" style="text-decoration:none;display:inline-flex;align-items:center;gap:6px">${ae('💬', 13)} Responder en CRM completo</a>
+        </div>
+      </div>
+
+      <div class="v3526-card">
+        <div class="v3526-card-head">
+          <h3>${ae('🧾', 17)} Cotizaciones recientes</h3>
+          <span class="v3526-tag">${Number(crm?.quotesPending || 0)} pendientes</span>
+        </div>
+        ${quotes.length ? quotes.map((q) => `
+          <div class="v3526-list-row">
+            <div style="min-width:0;flex:1">
+              <b>${esc(q.cliente || 'Cliente')} · ${esc(q.folio || 'COT')}</b>
+              <div style="font-size:11px;opacity:.74">${esc(q.titulo || 'Cotización')} · ${esc(q.creada ? String(q.creada).slice(0, 10) : '')}</div>
+              <span class="v3526-tag ${q.estado === 'aprobada' || q.estado === 'en_caja' ? 'ok' : ''}" style="margin-top:4px">${esc(q.estado)}</span>
+            </div>
+            <div style="text-align:right;flex-shrink:0">
+              <div style="font-weight:750">${fmtMoney(q.totalCentavos || 0, 'DOP')}</div>
+              ${q.estado === 'enviada' ? `<div class="v3526-btn-row" style="margin-top:5px;justify-content:flex-end"><button type="button" class="primary-btn compact" data-eco-quote-approve="${esc(q.id)}">${ae('✅', 12)} Aprobar</button></div>` : ''}
+            </div>
+          </div>
+        `).join('') : '<p class="soft-note">No hay cotizaciones registradas en esta sucursal.</p>'}
+      </div>
+
+      <div class="v3526-card">
+        <div class="v3526-card-head">
+          <h3>${ae('💬', 17)} Últimos chats del CRM</h3>
+          <span class="v3526-tag ${Number(crm?.handoffPending || 0) > 0 ? 'warn' : ''}">${Number(crm?.handoffPending || 0)} atención</span>
+        </div>
+        ${convs.length ? convs.map((c) => `
+          <div class="v3526-list-row">
+            <div style="min-width:0;flex:1">
+              <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+                <b>${esc(c.name)}</b>
+                ${c.unreadCount > 0 ? `<span class="v3526-tag warn">${c.unreadCount} nuevo(s)</span>` : ''}
+                ${c.handoff ? `<span class="v3526-tag danger">Atender</span>` : ''}
+              </div>
+              <div style="font-size:12px;opacity:.78;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(c.preview || c.phone || 'Conversación')}</div>
+            </div>
+            <div style="font-size:11px;opacity:.7;flex-shrink:0">${esc(relTime(c.lastMessageAt))}</div>
+          </div>
+        `).join('') : '<p class="soft-note">Sin conversaciones recientes para esta sucursal.</p>'}
+      </div>
+    `;
+  } else {
+    const q = String(uiState.clientSearch || '').trim().toLocaleLowerCase('es');
+    const clients = (crm?.recentClients || []).filter((c) => !q || `${c.nombre} ${c.telefono}`.toLocaleLowerCase('es').includes(q));
+    const tasks = crm?.pendingTasks || [];
+    const todayStr = new Date().toISOString().slice(0, 10);
+    sectionHtml = `
+      <div class="v3526-card">
+        <div class="v3526-card-head">
+          <h3>${ae('👥', 17)} Clientes de Caja y Saldos</h3>
+          <span class="v3526-tag">${Number(crm?.clientsCount || 0)} total</span>
+        </div>
+        <input type="search" class="field-control" id="v3526ClientSearchInput" value="${esc(uiState.clientSearch || '')}" placeholder="Buscar cliente o teléfono..." autocomplete="off" style="margin-bottom:8px">
+        ${clients.length ? clients.map((cl) => `
+          <div class="v3526-list-row">
+            <div style="min-width:0;flex:1">
+              <b>${esc(cl.nombre)}</b>
+              <div style="font-size:11px;opacity:.74">${esc(cl.telefono || 'Sin teléfono')}${cl.diasCredito ? ` · Crédito ${cl.diasCredito}d` : ''}</div>
+            </div>
+            <div style="text-align:right;flex-shrink:0">
+              <div class="${cl.saldoCentavos > 0 ? 'expense-text' : ''}" style="font-weight:750">${cl.saldoCentavos > 0 ? `Debe ${fmtMoney(cl.saldoCentavos, 'DOP')}` : 'Al día'}</div>
+              <button type="button" class="secondary-btn compact" style="margin-top:4px" data-eco-client="${esc(cl.id)}" data-eco-client-name="${esc(cl.nombre)}">Ver compras</button>
+            </div>
+          </div>
+        `).join('') : '<p class="soft-note">Sin coincidencias en clientes recientes de esta sucursal.</p>'}
+      </div>
+
+      <div class="v3526-card">
+        <div class="v3526-card-head">
+          <h3>${ae('✅', 17)} Tareas del equipo (${esc(snap.branchDisplayName || 'Sucursal')})</h3>
+          <span class="v3526-tag ${Number(crm?.tasksOverdue || 0) > 0 ? 'warn' : ''}">${Number(crm?.tasksPending || 0)} pend.</span>
+        </div>
+        <form id="v3526NewTaskForm" style="display:grid;gap:8px;margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--border)">
+          <input type="text" class="field-control" name="task-title" placeholder="Nueva tarea rápida para el equipo..." maxlength="140" required>
+          <div class="filter-grid">
+            <input type="date" class="field-control" name="task-date" value="${esc(todayStr)}" aria-label="Fecha límite">
+            <button type="submit" class="primary-btn compact">${ae('➕', 13)} Crear tarea</button>
+          </div>
+        </form>
+        ${tasks.length ? tasks.map((t) => `
+          <div class="v3526-list-row">
+            <div style="min-width:0;flex:1">
+              <b>${esc(t.titulo)}</b>
+              <div style="font-size:11px;opacity:.74">${esc(t.empleadoNombre || 'Equipo')} · ${esc(t.fechaLimite || 'Sin fecha')}${t.horaLimite ? ` ${esc(t.horaLimite)}` : ''}${t.vencida ? ' · Vencida' : ''}</div>
+            </div>
+            <button type="button" class="secondary-btn compact" data-eco-task-done="${esc(t.id)}">${ae('✔️', 12)} Listo</button>
+          </div>
+        `).join('') : '<p class="soft-note">No hay tareas pendientes en esta sucursal.</p>'}
+      </div>
+    `;
+  }
+
+  host.innerHTML = `
+    <div class="v3526-seg-tabs v3526-eco-tabs" role="tablist" aria-label="Vistas de Base de datos, Caja y CRM">
+      ${subTabs.map(([id, em, label]) => `<button type="button" class="chip ${sub === id ? 'is-active' : ''}" data-eco-tab="${id}">${ae(em, 13)} ${label}</button>`).join('')}
+    </div>
+    ${sectionHtml}
+  `;
+
+  if (activeFocusedId === 'v3526ClientSearchInput') {
+    const inp = host.querySelector('#v3526ClientSearchInput');
+    if (inp) {
+      inp.focus();
+      if (typeof activeSelStart === 'number') inp.setSelectionRange(activeSelStart, activeSelEnd ?? activeSelStart);
+    }
+  }
+
+  host.querySelectorAll('[data-eco-tab], [data-eco-sub]').forEach((b) => {
+    b.onclick = () => {
+      uiState.cajaCrmTab = b.dataset.ecoTab || b.dataset.ecoSub || 'overview';
+      renderCajaCrmHost();
+    };
+  });
+  host.querySelectorAll('[data-eco-action="refresh"]').forEach((b) => {
+    b.onclick = async () => {
+      await loadInbox(false);
+      showToast('Base de datos, Caja y CRM actualizados.', false, '🔄');
+    };
+  });
+  host.querySelectorAll('[data-eco-open-cuts]').forEach((b) => {
+    b.onclick = () => openModal('cuts');
+  });
+  host.querySelector('#v3526ClientSearchInput')?.addEventListener('input', (ev) => {
+    uiState.clientSearch = ev.target.value || '';
+    renderCajaCrmHost();
+  });
+  host.querySelectorAll('[data-eco-quote-approve]').forEach((b) => {
+    b.onclick = async () => {
+      const id = b.dataset.ecoQuoteApprove;
+      if (uiState.mode === 'demo') {
+        const qItem = uiState.ecosystem?.crm?.recentQuotes?.find((x) => x.id === id);
+        if (qItem) qItem.estado = 'aprobada';
+        renderCajaCrmHost();
+        showToast('Cotización aprobada en simulación Demo.', false, '✅');
+        return;
+      }
+      try {
+        await apiCall({ action: 'cotizacionEstado', id, estado: 'aprobada' });
+        await loadInbox(false);
+        showToast('Cotización aprobada en CRM.', false, '✅');
+      } catch (err) { showToast(err.message || 'No se pudo aprobar la cotización.', true); }
+    };
+  });
+  host.querySelectorAll('[data-eco-task-done]').forEach((b) => {
+    b.onclick = async () => {
+      const id = b.dataset.ecoTaskDone;
+      if (uiState.mode === 'demo') {
+        if (uiState.ecosystem?.crm?.pendingTasks) {
+          uiState.ecosystem.crm.pendingTasks = uiState.ecosystem.crm.pendingTasks.filter((t) => t.id !== id);
+          uiState.ecosystem.crm.tasksPending = uiState.ecosystem.crm.pendingTasks.length;
+        }
+        renderCajaCrmHost();
+        showToast('Tarea completada en simulación Demo.', false, '✔️');
+        return;
+      }
+      try {
+        await apiCall({ action: 'tareaEstado', id, estado: 'completada' });
+        await loadInbox(false);
+        showToast('Tarea marcada como completada.', false, '✔️');
+      } catch (err) { showToast(err.message || 'No se pudo completar la tarea.', true); }
+    };
+  });
+  host.querySelector('#v3526NewTaskForm')?.addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const fd = new FormData(ev.target);
+    const titulo = String(fd.get('task-title') || '').trim();
+    const fecha = String(fd.get('task-date') || '').trim() || null;
+    if (!titulo) return;
+    if (uiState.mode === 'demo') {
+      uiState.ecosystem?.crm?.pendingTasks?.unshift({
+        id: `demo-task-${Date.now()}`,
+        titulo,
+        fechaLimite: fecha,
+        empleadoNombre: 'Erick',
+        estado: 'pendiente',
+        vencida: false
+      });
+      if (uiState.ecosystem?.crm) uiState.ecosystem.crm.tasksPending = uiState.ecosystem.crm.pendingTasks.length;
+      renderCajaCrmHost();
+      showToast('Tarea creada en simulación Demo.', false, '✅');
+      return;
+    }
+    try {
+      await apiCall({ action: 'tareaCrear', titulo, fecha, prioridad: 'normal' });
+      ev.target.reset();
+      await loadInbox(false);
+      showToast('Tarea guardada en CRM de la sucursal.', false, '✅');
+    } catch (err) { showToast(err.message || 'No se pudo crear la tarea.', true); }
+  });
+  host.querySelectorAll('[data-eco-client]').forEach((b) => {
+    b.onclick = async () => {
+      const cid = b.dataset.ecoClient;
+      const cname = b.dataset.ecoClientName || 'Cliente';
+      if (uiState.mode === 'demo') {
+        const cl = uiState.ecosystem?.crm?.recentClients?.find((x) => x.id === cid) || { nombre: cname, saldoCentavos: 0, diasCredito: 15 };
+        openModal('client-pos-detail', {
+          nombre: cl.nombre,
+          telefono: cl.telefono || '809-555-0000',
+          balance_centavos: cl.saldoCentavos || 0,
+          credit_days: cl.diasCredito || 0,
+          compras: [{ fecha: new Date().toISOString().slice(0, 10), total_centavos: 480000, folio: 'DEMO-41', lineas: [{ nombre: 'Sesión / Impresión Demo', cantidad: 1 }] }]
+        });
+        return;
+      }
+      try {
+        showToast(`Consultando historial POS de ${cname}…`, false, '🔍');
+        const det = await apiCall({ action: 'posClienteDetalle', customer_id: cid });
+        openModal('client-pos-detail', det);
+      } catch (err) { showToast(err.message || 'No se pudo cargar el cliente.', true); }
     };
   });
 }
@@ -1351,6 +1890,27 @@ function renderModalRoot() {
         </div>
       </form>
     `;
+  } else if (type === 'client-pos-detail' && payload) {
+    titleText = `Cliente POS · ${payload.nombre || 'Detalle'}`;
+    titleHtml = `${ae('👥', 18)} <span>${esc(payload.nombre || 'Cliente POS')}</span>`;
+    const compras = Array.isArray(payload.compras) ? payload.compras : [];
+    bodyHtml = `
+      <div class="card" style="padding:12px;margin-bottom:10px">
+        <div class="info-line"><span>Teléfono</span><strong>${esc(payload.telefono || 'Sin teléfono')}</strong></div>
+        <div class="info-line"><span>Saldo por cobrar</span><strong class="${Number(payload.balance_centavos || 0) > 0 ? 'expense-text' : ''}">${fmtMoney(payload.balance_centavos || 0, 'DOP')}</strong></div>
+        <div class="info-line"><span>Días de crédito</span><strong>${Number(payload.credit_days || 0)} días</strong></div>
+      </div>
+      <h4 style="margin:8px 0;font-size:13px">Compras registradas en Caja (${compras.length})</h4>
+      ${compras.length ? compras.map((c) => `
+        <div class="v3526-list-row">
+          <div>
+            <b>${c.folio ? `Ticket #${esc(c.folio)}` : 'Venta POS'}</b>
+            <div style="font-size:11px;opacity:.75">${esc(String(c.fecha || c.at || '').slice(0, 10))}${Array.isArray(c.lineas) && c.lineas.length ? ` · ${esc(c.lineas.map((l) => l.nombre || l.descripcion || '').filter(Boolean).slice(0, 2).join(', '))}` : ''}</div>
+          </div>
+          <strong>${fmtMoney(c.total_centavos || c.totalCentavos || 0, 'DOP')}</strong>
+        </div>
+      `).join('') : '<p class="soft-note">Sin compras POS recientes asociadas.</p>'}
+    `;
   }
 
   const root = document.createElement('div');
@@ -1786,7 +2346,7 @@ function handleDeepLink(rawUrl) {
     const u = new URL(rawUrl, location.href);
     const tab = u.searchParams.get('tab');
     const inbox = u.searchParams.get('inbox');
-    if (tab && ['mail', 'books', 'settings', 'cards', 'budgets', 'search'].includes(tab)) {
+    if (tab && ['caja_crm', 'mail', 'books', 'settings', 'cards', 'budgets', 'search'].includes(tab)) {
       openNativeRoute(tab);
     } else if (tab === 'debts') {
       window.DcarelaFinanzasActions?.openTab?.('debts');
@@ -1799,12 +2359,15 @@ function handleDeepLink(rawUrl) {
 function syncDom() {
   uiState.renderQueued = false;
   applyGlassConfig({}, false);
+  updateLiveRibbonDOM();
   enhanceHeaderAndQuickActions();
   renderInboxStrip();
   simplifyHistoryFilters();
+  renderCajaCrmHost();
   renderFiscalHost();
   renderMailHost();
   renderSettingsHost();
+  renderConnectionHost();
 }
 
 function scheduleSync() {
@@ -1817,7 +2380,7 @@ async function ensureCategoryLinker() {
   if (window.DcarelaCategoryLinker) return;
   await new Promise((resolve) => {
     const sc = document.createElement('script');
-    sc.src = './v35-26-category-emojis.js?v=35.30';
+    sc.src = './v35-26-category-emojis.js?v=35.31';
     sc.onload = resolve;
     sc.onerror = resolve;
     document.head.appendChild(sc);
@@ -1869,6 +2432,7 @@ window.DcarelaInboxFiscal = {
   loadInbox,
   openModal,
   applyPalette,
+  getEcosystemSummary,
   getState: () => uiState
 };
 

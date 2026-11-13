@@ -3,7 +3,13 @@ export const isLive = new URLSearchParams(location.search).get('mode') !== 'demo
 const isIsolatedEmulator = () => ['localhost','127.0.0.1'].includes(location.hostname)
   && String(window.__DCARELA_FIREBASE_CONFIG?.projectId||'').startsWith('demo-')
   && window.__DCARELA_FINANCE_STAGING_WRITE__ === true;
-const isOfficialFinance = () => location.hostname === 'panel.dcarelacompufoto.com'
+const OFFICIAL_FINANCE_HOSTS = new Set([
+  'panel.dcarelacompufoto.com',
+  'crm.dcarelacompufoto.com',
+  'erikccarela.web.app',
+  'erikccarela.firebaseapp.com',
+]);
+const isOfficialFinance = () => OFFICIAL_FINANCE_HOSTS.has(location.hostname)
   && location.protocol === 'https:'
   && window.__DCARELA_FIREBASE_CONFIG?.projectId === 'erikccarela';
 export const canRegister = () => isLive && (isIsolatedEmulator() || isOfficialFinance());
@@ -136,15 +142,37 @@ export async function commitAction(action, businessId, entityId, data) {
     throw new Error('Operación financiera no admitida o sin identificador estable.');
   }
   if (!canRegister()) throw new Error('Registra desde la PWA oficial o usa el panel central.');
-  // 13/11/2026: «fin.books.request» (libros fiscales 606/607), «cost.recurring.upsert» y «cost.obligation.upsert» no alteran saldos directos y Caja recibe los costos via sync_events.
-  if (isOfficialFinance() && !['fin.movement.create','fin.transfer.create','fin.books.request','cost.recurring.upsert','cost.obligation.upsert'].includes(action)) {
-    throw new Error('Esta operación requiere comprobar primero la Caja activa.');
-  }
   const api = adapter();
   const {allowed} = await sessionBusinesses(api);
   const member = allowed.find(b => b.id === businessId);
   if (!member || !['owner','admin'].includes(member.role)) throw new Error('No tienes permiso de escritura en esta sucursal.');
   return api.adminAction(action, businessId, member.role, entityId, data);
+}
+
+export async function loadLiveConnectivity(businessId) {
+  if (!isLive) return { connected: false, mode: 'demo', businessId, devices: [], shifts: [] };
+  const api = adapter();
+  const user = api.getCurrentUser?.();
+  if (!user) return { connected: false, reason: 'AUTH_REQUIRED', businessId, devices: [], shifts: [] };
+  const [devices, shifts] = await Promise.all([
+    typeof api.getCollection === 'function'
+      ? api.getCollection('devices', [['business_id', '==', businessId]]).catch(() => [])
+      : Promise.resolve([]),
+    typeof api.getCashShifts === 'function'
+      ? api.getCashShifts(businessId, 10).catch(() => [])
+      : Promise.resolve([]),
+  ]);
+  const cleanDevices = Array.isArray(devices) ? devices.filter((d) => !d.business_id || d.business_id === businessId) : [];
+  const cleanShifts = Array.isArray(shifts) ? shifts.filter((s) => !s.business_id || s.business_id === businessId) : [];
+  return {
+    connected: true,
+    projectId: window.__DCARELA_FIREBASE_CONFIG?.projectId || 'erikccarela',
+    businessId,
+    userEmail: user.email || '',
+    devices: cleanDevices,
+    shifts: cleanShifts,
+    openShifts: cleanShifts.filter((s) => ['open', 'abierta', 'activo'].includes(String(s.status || s.estado || '').toLowerCase())),
+  };
 }
 
 // Consulta bajo demanda: el asiento en Firebase y su aplicación en una Caja

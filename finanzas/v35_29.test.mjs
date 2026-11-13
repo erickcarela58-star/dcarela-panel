@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const read = (rel) => fs.readFileSync(path.join(__dirname, rel), 'utf8');
 
-test('dual branch PWAs (Central & Plaza) have distinct manifests, icons, SVG symbols and v35.30 cache busting', () => {
+test('dual branch PWAs (Central & Plaza) have distinct manifests, icons, SVG symbols and v35.31 cache busting', () => {
   const indexHtml = read('index.html');
   const plazaHtml = read('plaza.html');
   const manifestCentral = JSON.parse(read('manifest.webmanifest'));
@@ -27,18 +27,19 @@ test('dual branch PWAs (Central & Plaza) have distinct manifests, icons, SVG sym
   const inboxJs = read('v35-26-inbox-fiscal.js');
 
   for (const html of [indexHtml, plazaHtml]) {
-    assert.match(html, /monochrome-glass-v35\.css\?v=35\.30/);
-    assert.match(html, /v35-26-motion\.css\?v=35\.30/);
-    assert.match(html, /app\.js\?v=35\.30/);
-    assert.match(html, /v35-26-inbox-fiscal\.js\?v=35\.30/);
+    assert.match(html, /monochrome-glass-v35\.css\?v=35\.31/);
+    assert.match(html, /v35-26-motion\.css\?v=35\.31/);
+    assert.match(html, /firebase-adapter\.js\?v=35\.31/);
+    assert.match(html, /app\.js\?v=35\.31/);
+    assert.match(html, /v35-26-inbox-fiscal\.js\?v=35\.31/);
     assert.match(html, /<symbol id="ic-inflow"/);
     assert.match(html, /<symbol id="ic-outflow"/);
     assert.match(html, /<symbol id="ic-arrows"/);
     assert.match(html, /<symbol id="ic-receipt"/);
   }
-  assert.match(inboxJs, /v35-26-category-emojis\.js\?v=35\.30/);
+  assert.match(inboxJs, /v35-26-category-emojis\.js\?v=35\.31/);
 
-  assert.match(swJs, /dcarela-finanzas-v35-30/);
+  assert.match(swJs, /dcarela-finanzas-v35-31/);
   assert.match(swJs, /'\.\/plaza\.html'/);
   assert.match(swJs, /'\.\/manifest-plaza\.webmanifest'/);
   assert.match(swJs, /'\.\/icons\/icon-plaza-192\.png'/);

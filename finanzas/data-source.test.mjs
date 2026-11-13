@@ -5,7 +5,7 @@ import {readFile} from 'node:fs/promises';
 globalThis.location = {search:'?mode=live',hostname:'localhost'};
 globalThis.window = {};
 const source = await readFile(new URL('./data-source.js', import.meta.url), 'utf8');
-const {authorizedBusinesses, sessionBusinesses, loadFinance, commitAction, canRegister, getTerminalReceipt} =
+const {authorizedBusinesses, sessionBusinesses, loadFinance, loadLiveConnectivity, commitAction, canRegister, getTerminalReceipt} =
   await import(`data:text/javascript,${encodeURIComponent(source)}`);
 
 function mock(overrides={}) {
@@ -113,19 +113,30 @@ test('un origen no oficial y usuarios sin rol admin no pueden escribir',async()=
   await assert.rejects(commitAction('fin.movement.create','central','op-1',{requestId:'op-1'}),/permiso/);
 });
 
-test('PWA oficial registra ingreso, gasto y transferencia solo con rol admin y requestId estable',async()=>{
+test('PWA oficial registra movimientos, ajustes, anulaciones y obligaciones solo con rol admin/supervisor y requestId estable',async()=>{
   const previous={hostname:location.hostname,protocol:location.protocol};
   location.hostname='panel.dcarelacompufoto.com';location.protocol='https:';
   try{
     const {calls}=mock();
     assert.equal(canRegister(),true);
-    for(const action of ['fin.movement.create','fin.transfer.create','cost.recurring.upsert','cost.obligation.upsert']){
+    const supported=[
+      'fin.movement.create',
+      'fin.transfer.create',
+      'fin.movement.cancel',
+      'fin.account.reconcile',
+      'cost.recurring.upsert',
+      'cost.obligation.upsert',
+    ];
+    for(const action of supported){
       const requestId=`stable-${action}`;
       await commitAction(action,'central',requestId,{requestId,montoCentavos:12500});
       assert.deepEqual(calls.at(-1),['write',action,'central','owner',requestId,{requestId,montoCentavos:12500}]);
     }
-    await assert.rejects(commitAction('fin.movement.cancel','central','m1',{requestId:'cancel-1'}),/Caja activa/);
-    assert.equal(calls.filter(c=>c[0]==='write').length,4);
+    location.hostname='crm.dcarelacompufoto.com';
+    await commitAction('fin.account.reconcile','central','rec-crm-1',{requestId:'rec-crm-1',montoCentavos:5000});
+    location.hostname='erikccarela.web.app';
+    await commitAction('fin.movement.cancel','central','m-web-1',{requestId:'m-web-1'});
+    assert.equal(calls.filter(c=>c[0]==='write').length,8);
     mock({getMembershipsForUser:async()=>[{business_id:'central',role:'viewer',active:true}]});
     await assert.rejects(commitAction('fin.movement.create','central','viewer-1',{requestId:'viewer-1'}),/permiso/);
     assert.equal(canRegister(),true);
@@ -133,6 +144,32 @@ test('PWA oficial registra ingreso, gasto y transferencia solo con rol admin y r
     assert.equal(canRegister(),false);
     await assert.rejects(commitAction('fin.movement.create','central','http-1',{requestId:'http-1'}),/PWA oficial/);
   }finally{location.hostname=previous.hostname;location.protocol=previous.protocol}
+});
+
+test('loadLiveConnectivity consulta dispositivos y turnos filtrados estrictamente por sucursal',async()=>{
+  mock({
+    getCollection:async(name,filters)=>{
+      assert.equal(name,'devices');
+      assert.deepEqual(filters,[['business_id','==','central']]);
+      return [
+        {id:'pos-central-1',business_id:'central',nombre:'Caja 1'},
+        {id:'pos-plaza-1',business_id:'plaza-artesanal',nombre:'Plaza Leak'},
+      ];
+    },
+    getCashShifts:async(biz)=>{
+      assert.equal(biz,'central');
+      return [
+        {id:'shift-1',business_id:'central',estado:'open',caja_nombre:'Caja Principal'},
+        {id:'shift-foreign',business_id:'plaza-artesanal',estado:'open'},
+      ];
+    },
+  });
+  const live=await loadLiveConnectivity('central');
+  assert.equal(live.connected,true);
+  assert.equal(live.devices.length,1);
+  assert.equal(live.devices[0].id,'pos-central-1');
+  assert.equal(live.openShifts.length,1);
+  assert.equal(live.openShifts[0].id,'shift-1');
 });
 
 test('compuerta de emulador reenvía requestId estable al adaptador',async()=>{
