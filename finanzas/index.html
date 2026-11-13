@@ -7,8 +7,9 @@
   <meta name="description" content="Finanzas de D' Carela conectadas al libro del CRM.">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="D' Carela Finanzas">
-  <link rel="manifest" href="./manifest.webmanifest">
+  <meta name="apple-mobile-web-app-title" content="Central Finanzas">
+  <meta name="dcarela-branch-app" content="central">
+ <link rel="manifest" href="./manifest.webmanifest">
   <link rel="icon" type="image/png" href="./icons/dcarela-logo.png">
   <link rel="apple-touch-icon" href="./icons/dcarela-logo.png">
   <script>
@@ -51,9 +52,9 @@
   </script>
   <link rel="stylesheet" href="./app.css">
   <link rel="stylesheet" href="./minimal-v34.css">
-  <link rel="stylesheet" href="./monochrome-glass-v35.css?v=35.28">
-  <link rel="stylesheet" href="./v35-26-motion.css?v=35.28">
-  <title>D' Carela · Finanzas</title>
+  <link rel="stylesheet" href="./monochrome-glass-v35.css?v=35.29">
+  <link rel="stylesheet" href="./v35-26-motion.css?v=35.29">
+  <title>D' Carela · Central Finanzas</title>
   <script src="../firebase-config.js" defer></script>
   <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js" defer></script>
   <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js" defer></script>
@@ -63,7 +64,7 @@
   <script src="../money-manager-core.js?v=35.14" defer></script>
   <script src="../simple-finance-core.js" defer></script>
   <script src="../firebase-adapter.js?v=35.25" defer></script>
-  <script type="module" src="./app.js?v=35.28"></script>
+  <script type="module" src="./app.js?v=35.29"></script>
 </head>
 <body>
 <div id="v3526GlassBackdrop" class="v3526-glass-backdrop" aria-hidden="true">
@@ -86,6 +87,8 @@
     <symbol id="ic-arrow-up" viewBox="0 0 24 24"><path d="M12 20V4m-7 7 7-7 7 7"/></symbol>
     <symbol id="ic-arrow-down" viewBox="0 0 24 24"><path d="M12 4v16m-7-7 7 7 7-7"/></symbol>
     <symbol id="ic-arrows" viewBox="0 0 24 24"><path d="M4 7h16m-5-5 5 5-5 5M20 17H4m5-5-5 5 5 5"/></symbol>
+    <symbol id="ic-inflow" viewBox="0 0 24 24"><path d="M17 7 7 17M15.5 17H7V8.5" stroke-width="2.1"/></symbol>
+    <symbol id="ic-outflow" viewBox="0 0 24 24"><path d="M7 17 17 7M8.5 7H17v8.5" stroke-width="2.1"/></symbol>
     <symbol id="ic-wallet" viewBox="0 0 24 24"><rect style="fill:currentColor;fill-opacity:.18;stroke:none" x="2.5" y="5.5" width="19" height="14.5" rx="3.2"/><rect x="2.5" y="5.5" width="19" height="14.5" rx="3.2"/><path d="M16 12.5h5M4.5 5.5V4h13.5"/></symbol>
     <symbol id="ic-book" viewBox="0 0 24 24"><path style="fill:currentColor;fill-opacity:.2;stroke:none" d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v17H6.5A2.5 2.5 0 0 0 4 21.5z"/><path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v17H6.5A2.5 2.5 0 0 0 4 21.5z"/><path d="M4 21.5A2.5 2.5 0 0 1 6.5 19H20M8.5 7h7M8.5 10.5h5"/></symbol>
     <!-- 35.23 · íconos de categorías y acciones rápidas (trazo 1.8, mismo estilo que el resto). -->
@@ -123,6 +126,6 @@
   </svg>
   <div id="app" aria-live="off"></div>
   <div id="toast-region" aria-live="polite" aria-atomic="true"></div>
-<script type="module" src="./v35-26-inbox-fiscal.js?v=35.28"></script>
+<script type="module" src="./v35-26-inbox-fiscal.js?v=35.29"></script>
 </body>
 </html>

@@ -1,0 +1,18 @@
+{
+  "id": "./plaza.html",
+  "name": "D’ Carela · Plaza Artesanal",
+  "short_name": "Plaza Finanzas",
+  "description": "Control financiero privado, libros fiscales y cuentas para la sucursal Plaza Artesanal de D’ Carela.",
+  "start_url": "./plaza.html?source=pwa",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#090c12",
+  "theme_color": "#172338",
+  "lang": "es-DO",
+  "icons": [
+    {"src": "./icons/icon-plaza-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any"},
+    {"src": "./icons/icon-plaza-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"},
+    {"src": "./icons/icon-plaza.svg", "sizes": "any", "type": "image/svg+xml"}
+  ]
+}

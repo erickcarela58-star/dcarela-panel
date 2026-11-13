@@ -188,6 +188,33 @@ function resolveLinkedAccountBank(item, allAccounts = [], cardLinks = {}) {
   return { matchedAcc, bankKey, bankLabel, bankUrl };
 }
 
+function isCashFinAccount(a) {
+  if (!a) return false;
+  const t = String(a.tipo || '').toLowerCase();
+  return t === 'efectivo' || /\b(caja|efectivo|petty)\b/i.test(String(a.nombre || ''));
+}
+
+function findLinkedBankAccountForMail(m, allAccounts = []) {
+  const nonCash = allAccounts.filter((a) => !isCashFinAccount(a));
+  if (!nonCash.length) return null;
+  if (m?.suggestedAccountId) {
+    const direct = nonCash.find((a) => a.id === m.suggestedAccountId);
+    if (direct) return direct;
+  }
+  const mailCur = String(m?.currency || 'DOP').toUpperCase();
+  const curMatches = nonCash.filter((a) => String(a.moneda || 'DOP').toUpperCase() === mailCur);
+  const pool = curMatches.length ? curMatches : nonCash;
+  const textKey = inferBankKeyFromText(`${m?.bank || ''} ${m?.subject || ''}`);
+  if (textKey) {
+    const byBank = pool.find((a) => (a.bankKey || inferBankKeyFromText(a.nombre)) === textKey);
+    if (byBank) return byBank;
+  }
+  if (m?.kind === 'retiro_codigo_cash') {
+    return pool.find((a) => a.tipo === 'banco') || pool[0] || null;
+  }
+  return pool[0] || null;
+}
+
 function getPalette() {
   try { return localStorage.getItem(PALETTE_KEY) || 'sapphire'; } catch { return 'sapphire'; }
 }
@@ -351,7 +378,10 @@ function normalizeInbox(raw) {
       currency: String(m.currency || m.moneda || 'DOP').toUpperCase(),
       reference: m.reference || m.referencia || '',
       date: String(m.date || m.recibido_en || m.creado_en || m.procesado_en || '').slice(0, 10),
-      registered: Boolean(m.registered ?? m.pwa_registered ?? m.conciliado)
+      registered: Boolean(m.registered ?? m.pwa_registered ?? m.conciliado),
+      suggestedAccountId: String(m.suggested_account_id || m.suggestedAccountId || ''),
+      suggestedAccountName: String(m.suggested_account_name || m.suggestedAccountName || ''),
+      suggestedAccountMoneda: String(m.suggested_account_moneda || m.suggestedAccountMoneda || '')
     };
   }) : [];
 
@@ -444,7 +474,11 @@ async function apiCall(payload) {
   if (typeof fn !== 'function') {
     throw new Error('Adaptador de Firebase no disponible.');
   }
-  return fn(payload);
+  const biz = appSnapshot().business || appSnapshot().state?.business;
+  const body = (payload && typeof payload === 'object' && !payload.sucursal_de_trabajo && biz)
+    ? { ...payload, sucursal_de_trabajo: biz }
+    : payload;
+  return fn(body);
 }
 
 async function loadInbox(forceRefreshRates = false) {
@@ -558,22 +592,9 @@ function enhanceHeaderAndQuickActions() {
     }
   }
 
-  // Authentic Apple 64px PNG icons inside Resumen quick actions (never touch .bottom-nav SVGs)
-  const emojiByType = { gasto: '💸', ingreso: '💰', transferencia: '🔁', debts: '⏰', pagos: '⏰' };
-  document.querySelectorAll('.quick-actions .quick-action').forEach((btn) => {
-    const iconBox = btn.querySelector('.quick-icon');
-    if (!iconBox) return;
-    const key = String(btn.dataset.type || btn.dataset.tab || '').toLowerCase();
-    const labelText = (btn.textContent || '').toLowerCase();
-    const emoji = emojiByType[key]
-      || (labelText.includes('gasto') ? '💸'
-        : labelText.includes('ingreso') ? '💰'
-          : labelText.includes('transfer') ? '🔁'
-            : labelText.includes('pago') ? '⏰' : '');
-    if (emoji && iconBox.dataset.v3526Emoji !== emoji) {
-      iconBox.dataset.v3526Emoji = emoji;
-      iconBox.innerHTML = ae(emoji, 15);
-    }
+  // Preserve crisp SF-style SVG vector medallions in Resumen quick actions
+  document.querySelectorAll('.quick-actions .quick-action .quick-icon').forEach((iconBox) => {
+    delete iconBox.dataset.v3526Emoji;
   });
 
   // Replace category/movement SVGs with Apple PNG icons (circular ring stays ONLY on Resumen)
@@ -751,12 +772,17 @@ function renderMailHost() {
         <button type="button" class="chip ${f === 'transferencia' ? 'is-active' : ''}" data-mfilter="transferencia">${ae('🔁', 13)} Transferencias</button>
         <button type="button" class="chip ${f === 'all' ? 'is-active' : ''}" data-mfilter="all">Todos</button>
       </div>
-      ${filtered.length ? filtered.map((m) => `
+      ${filtered.length ? filtered.map((m) => {
+        const mailAccountsList = appSnapshot().accounts?.length ? appSnapshot().accounts : (uiState.data?.accounts || []);
+        const linkedAcc = findLinkedBankAccountForMail(m, mailAccountsList);
+        const linkedLabel = linkedAcc?.nombre || m.suggestedAccountName || '';
+        return `
         <div class="v3526-list-row">
           <div style="min-width:0;flex:1">
             <div style="font-size:12px;font-weight:700">${kindLabel(m.kind)} · ${esc(m.bank)}</div>
             <div style="font-size:13px;font-weight:600;margin:2px 0">${esc(m.subject)}</div>
             <div style="font-size:11px;opacity:.72">${esc(m.accountEmail)} · ${esc(m.date)}${m.reference ? ` · Ref: ${esc(m.reference)}` : ''}</div>
+            ${linkedLabel ? `<div style="font-size:11px;opacity:.84;margin-top:2px">${ae('🏦', 11)} Cuenta vinculada: <b>${esc(linkedLabel)}</b></div>` : ''}
           </div>
           <div style="text-align:right;flex-shrink:0">
             <div style="font-size:14px;font-weight:700">${fmtMoney(m.amountCentavos, m.currency)}</div>
@@ -765,7 +791,7 @@ function renderMailHost() {
               : `<button type="button" class="primary-btn compact" style="margin-top:5px" data-mail-reg="${esc(m.id)}">${ae('⚡', 13)} Anotar</button>`}
           </div>
         </div>
-      `).join('') : '<p class="soft-note">No hay movimientos en este filtro.</p>'}
+      `; }).join('') : '<p class="soft-note">No hay movimientos en este filtro.</p>'}
     </div>
   `;
 
@@ -785,6 +811,77 @@ function renderMailHost() {
       if (mov) openModal('mail-register', mov);
     };
   });
+}
+
+function renderToolsBridgeHost() {
+  const host = document.querySelector('#main [data-v3526-tools-bridge]');
+  if (!host) return;
+  const snap = appSnapshot();
+  const state = snap.state || {};
+  const bridge = state.branchBridge;
+  const actions = window.DcarelaFinanzasActions;
+  if (uiState.mode === 'live' && !bridge && !state.branchBridgeBusy && typeof actions?.loadBranchBridge === 'function') {
+    actions.loadBranchBridge({ silent: false }).catch(() => {});
+  }
+  const branches = Array.isArray(bridge?.branches) ? bridge.branches : [];
+  const currentId = snap.business || state.business || (uiState.mode === 'live' ? 'dcarela' : 'sucursal-a');
+  const isPlaza = typeof actions?.isPlazaBranch === 'function'
+    ? actions.isPlazaBranch(currentId)
+    : /plaza|sucursal-b/i.test(currentId);
+  const siblingKind = isPlaza ? 'central' : 'plaza';
+  const siblingLabel = isPlaza ? 'Central' : 'Plaza Artesanal';
+  const siblingHref = actions?.branchAppHref?.(siblingKind) || (isPlaza ? './index.html' : './plaza.html');
+  const curBranch = branches.find((b) => b.id === currentId);
+  const otherBranch = branches.find((b) => b.id !== currentId);
+  const renderTotals = (totals = {}) => {
+    const parts = Object.entries(totals).map(([c, v]) => fmtMoney(v, c));
+    return parts.length ? parts.join(' · ') : 'RD$0.00';
+  };
+  const recent = (curBranch?.recentInterbranch || otherBranch?.recentInterbranch || []).slice(0, 3);
+
+  host.innerHTML = `
+    <div class="v3526-card" style="margin-bottom:12px">
+      <div class="v3526-card-head">
+        <h3>${ae('🏢', 17)} Conexión entre sucursales</h3>
+        <span class="v3526-tag ${branches.length >= 2 ? 'ok' : 'warn'}">${branches.length >= 2 ? 'Central ↔ Plaza' : 'Sucursal única'}</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
+        ${[curBranch || { id: currentId, nombre: isPlaza ? 'Plaza Artesanal' : 'Central', totals: {} }, otherBranch || { id: siblingKind, nombre: siblingLabel, totals: {} }].map((b, idx) => `
+          <div style="padding:10px;border-radius:14px;background:var(--surface-2);border:1px solid var(--border)">
+            <div style="font-size:11px;font-weight:700;opacity:.75">${idx === 0 ? 'Esta PWA' : 'Sucursal conectada'}</div>
+            <div style="font-size:13px;font-weight:750;margin:2px 0">${esc(b.nombre)}</div>
+            <div style="font-size:13px;font-weight:700;font-variant-numeric:tabular-nums">${branches.length ? esc(renderTotals(b.totals)) : (state.branchBridgeBusy ? 'Consultando…' : 'Sin conexión')}</div>
+          </div>
+        `).join('')}
+      </div>
+      ${recent.length ? `
+        <div style="margin-top:10px">
+          ${recent.map((m) => `
+            <div class="v3526-list-row" style="padding:6px 0">
+              <div style="min-width:0;flex:1">
+                <div style="font-size:12px;font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(m.descripcion || m.interbranch_counterparty_name || 'Transferencia')}</div>
+                <div style="font-size:11px;opacity:.7">${esc(m.fecha || '')} · ${m.interbranch_direction === 'outgoing' ? 'Envío' : 'Recepción'}</div>
+              </div>
+              <div style="font-size:12px;font-weight:750;font-variant-numeric:tabular-nums">${m.interbranch_direction === 'outgoing' ? '−' : '+'}${fmtMoney(m.monto_centavos || 0, 'DOP')}</div>
+            </div>
+          `).join('')}
+        </div>
+      ` : ''}
+      <div class="v3526-btn-row" style="margin-top:10px">
+        <button type="button" class="primary-btn compact" id="v3526BridgeTransferBtn" ${branches.length < 2 ? 'disabled' : ''}>${ae('🔁', 13)} Transferir entre sucursales</button>
+        <a class="secondary-btn compact" href="${esc(siblingHref)}" style="text-decoration:none;display:inline-flex;align-items:center;gap:5px">Abrir PWA ${esc(siblingLabel)} ↗</a>
+      </div>
+    </div>
+  `;
+
+  const transferBtn = host.querySelector('#v3526BridgeTransferBtn');
+  if (transferBtn) {
+    transferBtn.onclick = () => {
+      if (typeof actions?.openInterbranchTransfer === 'function') {
+        actions.openInterbranchTransfer(otherBranch?.id || '');
+      }
+    };
+  }
 }
 
 function renderSettingsHost() {
@@ -1260,6 +1357,25 @@ function renderModalRoot() {
     const titleEmoji = isCash ? '🏧' : isIn ? '📥' : '🔁';
     titleText = isCash ? 'Anotar Código Cash' : isIn ? 'Anotar Transferencia Recibida' : 'Anotar Transferencia';
     titleHtml = `${ae(titleEmoji, 18)} <span>${esc(titleText)}</span>`;
+    const mailCurrency = String(m.currency || 'DOP').toUpperCase();
+    const nonCashAccounts = allAccounts.filter((a) => !isCashFinAccount(a));
+    const bankPool = isCash
+      ? (nonCashAccounts.filter((a) => a.tipo === 'banco').length ? nonCashAccounts.filter((a) => a.tipo === 'banco') : nonCashAccounts)
+      : nonCashAccounts;
+    const curBankPool = bankPool.filter((a) => String(a.moneda || 'DOP').toUpperCase() === mailCurrency);
+    const accPool = curBankPool.length ? curBankPool : bankPool;
+    const linkedAcc = findLinkedBankAccountForMail(m, accPool.length ? accPool : nonCashAccounts);
+    const mBankKey = inferBankKeyFromText(`${linkedAcc?.nombre || ''} ${m.bank || ''} ${m.subject || ''}`);
+    const strictMatches = mBankKey
+      ? accPool.filter((a) => (a.bankKey || inferBankKeyFromText(a.nombre)) === mBankKey || a.id === linkedAcc?.id)
+      : (linkedAcc ? [linkedAcc] : accPool);
+    const finalBankOptions = strictMatches.length ? strictMatches : accPool;
+    const cashDestPool = (() => {
+      const sameCur = allAccounts.filter((a) => isCashFinAccount(a) && String(a.moneda || 'DOP').toUpperCase() === mailCurrency);
+      return sameCur.length ? sameCur : allAccounts.filter((a) => isCashFinAccount(a));
+    })();
+    const modalCats = (snap.categories || []).filter((c) => c.tipo === (isIn ? 'ingreso' : 'gasto'));
+    const lockedSingleBank = finalBankOptions.length === 1 ? finalBankOptions[0] : null;
     bodyHtml = `
       <div class="card" style="padding:11px;margin-bottom:10px">
         <div style="font-size:13px;font-weight:700">${esc(m.subject)}</div>
@@ -1267,27 +1383,42 @@ function renderModalRoot() {
       </div>
       <form id="v3526MailRegForm">
         <label class="field-label" style="margin-top:0">Tipo de registro</label>
-        <select class="field-select" name="mr-mode">
-          ${isCash ? '<option value="transfer_cash">Transferir Banco a Caja / Efectivo (recomendado)</option>' : ''}
-          <option value="${isIn ? 'ingreso' : 'gasto'}">${isIn ? 'Registrar como Ingreso' : 'Registrar como Gasto'}</option>
+        <select class="field-select" name="mr-mode" id="v3526MrMode">
+          ${isCash ? '<option value="transfer_cash">Retiro Código Cash: Banco → Caja / Efectivo</option>' : ''}
+          ${isCash ? '' : `<option value="${isIn ? 'ingreso' : 'gasto'}">${isIn ? 'Registrar como Ingreso en banco' : 'Registrar como Gasto desde banco'}</option>`}
+          ${isCash ? '<option value="gasto">Registrar retiro como Gasto bancario</option>' : ''}
           <option value="mark_registered">Solo marcar como ya anotado</option>
         </select>
-        <label class="field-label">${isCash ? 'Banco origen' : 'Cuenta del estudio'}</label>
-        <select class="field-select" name="mr-acc">
-          ${allAccounts.map((a) => `<option value="${esc(a.id)}">${esc(a.nombre)} (${esc(a.moneda)})</option>`).join('')}
-        </select>
-        ${isCash ? `
-          <label class="field-label">Caja / Efectivo destino</label>
-          <select class="field-select" name="mr-dest">
-            ${allAccounts.filter((a) => a.tipo === 'efectivo' || /caja|efectivo/i.test(a.nombre || '')).concat(allAccounts).slice(0, 4).map((a) => `<option value="${esc(a.id)}">${esc(a.nombre)}</option>`).join('')}
+        <label class="field-label">${lockedSingleBank ? 'Banco vinculado (bloqueado)' : (isCash ? 'Banco origen (sin efectivo)' : 'Cuenta bancaria vinculada')}</label>
+        ${lockedSingleBank ? `
+          <div class="v3526-locked-field">
+            <span>${ae('🏦', 14)} <b>${esc(lockedSingleBank.nombre)}</b> (${esc(lockedSingleBank.moneda || 'DOP')})</span>
+            <span class="v3526-tag ok">Vinculada</span>
+          </div>
+          <input type="hidden" name="mr-acc" value="${esc(lockedSingleBank.id)}">
+        ` : finalBankOptions.length ? `
+          <select class="field-select" name="mr-acc">
+            ${finalBankOptions.map((a) => `<option value="${esc(a.id)}" ${linkedAcc?.id === a.id ? 'selected' : ''}>${esc(a.nombre)} (${esc(a.moneda || 'DOP')})</option>`).join('')}
           </select>
+        ` : '<div class="notice warning">No se encontró una cuenta bancaria en esta sucursal. Crea o vincula el banco antes de anotar.</div>'}
+        ${isCash ? `
+          <div id="v3526MrDestWrap">
+            <label class="field-label">Caja / Efectivo destino</label>
+            ${cashDestPool.length ? `
+              <select class="field-select" name="mr-dest">
+                ${cashDestPool.map((a) => `<option value="${esc(a.id)}">${esc(a.nombre)} (${esc(a.moneda || 'DOP')})</option>`).join('')}
+              </select>
+            ` : '<div class="notice warning">No hay caja de efectivo activa en esta sucursal.</div>'}
+          </div>
         ` : ''}
-        <label class="field-label">Categoría (para gastos/ingresos)</label>
-        <select class="field-select" name="mr-cat">
-          ${expenseCats.map((c) => `<option value="${esc(c.id)}">${esc(c.nombre)}</option>`).join('')}
-        </select>
+        <div id="v3526MrCatWrap" ${isCash ? 'style="display:none"' : ''}>
+          <label class="field-label">${isIn ? 'Categoría de ingreso' : 'Categoría de gasto'}</label>
+          <select class="field-select" name="mr-cat">
+            ${(modalCats.length ? modalCats : expenseCats).map((c) => `<option value="${esc(c.id)}">${esc(c.nombre)}</option>`).join('')}
+          </select>
+        </div>
         <div class="v3526-btn-row">
-          <button type="submit" class="primary-btn full">Confirmar y anotar (${fmtMoney(m.amountCentavos, m.currency)})</button>
+          <button type="submit" class="primary-btn full" ${!finalBankOptions.length || (isCash && !cashDestPool.length) ? 'disabled' : ''}>Confirmar y anotar (${fmtMoney(m.amountCentavos, m.currency)})</button>
         </div>
       </form>
     `;
@@ -1544,6 +1675,18 @@ function bindModalEvents(root, payload) {
 
   const mailRegForm = root.querySelector('#v3526MailRegForm');
   if (mailRegForm && payload) {
+    const modeSel = mailRegForm.querySelector('#v3526MrMode');
+    const destWrap = mailRegForm.querySelector('#v3526MrDestWrap');
+    const catWrap = mailRegForm.querySelector('#v3526MrCatWrap');
+    const syncMrFields = () => {
+      const mVal = String(modeSel?.value || '');
+      if (destWrap) destWrap.style.display = mVal === 'transfer_cash' ? '' : 'none';
+      if (catWrap) catWrap.style.display = (mVal === 'transfer_cash' || mVal === 'mark_registered') ? 'none' : '';
+    };
+    if (modeSel) {
+      modeSel.addEventListener('change', syncMrFields);
+      syncMrFields();
+    }
     mailRegForm.onsubmit = async (ev) => {
       ev.preventDefault();
       const fd = new FormData(mailRegForm);
@@ -1551,34 +1694,36 @@ function bindModalEvents(root, payload) {
       const accountId = String(fd.get('mr-acc') || '');
       const destId = String(fd.get('mr-dest') || '');
       const catId = String(fd.get('mr-cat') || '');
+      const snapAccounts = (appSnapshot().accounts || []).filter((a) => a.estado !== 'eliminada');
+      const chosenAcc = snapAccounts.find((a) => a.id === accountId);
+      const destAcc = snapAccounts.find((a) => a.id === destId);
 
-      if (mode === 'transfer_cash') {
-        if (uiState.mode === 'demo') {
-          payload.registered = true;
-          uiState.data = normalizeInbox(uiState.data);
-          renderMailHost();
-        }
-        openNativePrefilled({
-          type: 'transferencia',
-          cents: payload.amountCentavos,
-          accountId,
-          destId: destId && destId !== accountId ? destId : undefined,
-          note: `Código Cash ${payload.bank}${payload.reference ? ' · ' + payload.reference : ''}`,
-          date: payload.date
-        });
+      if (mode !== 'mark_registered' && (!chosenAcc || isCashFinAccount(chosenAcc))) {
+        showToast('Este movimiento bancario debe vincularse a un banco real, nunca a efectivo.', true);
+        return;
+      }
+      if (mode === 'transfer_cash' && (!destAcc || !isCashFinAccount(destAcc) || destId === accountId)) {
+        showToast('Elige una cuenta de Caja / Efectivo destino válida.', true);
         return;
       }
 
       const isFx = String(payload.currency || 'DOP').toUpperCase() !== 'DOP';
-      const chosenAcc = (appSnapshot().accounts || []).find((a) => a.id === accountId);
       const resolvedBankKey = inferBankKeyFromText(chosenAcc?.nombre || payload.bank || '') || chosenAcc?.bankKey || '';
 
       if (uiState.mode === 'demo') {
         payload.registered = true;
-        const fxCheck = investigateBankRateForMovement(resolvedBankKey, isFx);
+        const fxCheck = investigateBankRateForMovement(resolvedBankKey, isFx && mode !== 'transfer_cash' && mode !== 'mark_registered');
         uiState.data = normalizeInbox(uiState.data);
         closeModal();
-        showToast(isFx ? `Movimiento registrado (${fxCheck.shortUrl} · RD$${fxCheck.rateSell.toFixed(2)}).` : 'Movimiento de correo registrado.', false, '✅');
+        showToast(
+          mode === 'transfer_cash'
+            ? `Código Cash transferido (${chosenAcc.nombre} → ${destAcc.nombre}).`
+            : isFx
+              ? `Movimiento registrado (${fxCheck.shortUrl} · RD$${fxCheck.rateSell.toFixed(2)}).`
+              : 'Movimiento de correo registrado.',
+          false,
+          '✅'
+        );
         renderMailHost();
         scheduleSync();
         return;
@@ -1588,14 +1733,15 @@ function bindModalEvents(root, payload) {
           action: 'pwaRegisterMailMovement',
           id: payload.id,
           mode,
-          account_id: accountId,
-          category_id: catId,
+          account_id: accountId || null,
+          dest_account_id: mode === 'transfer_cash' ? destId : null,
+          category_id: (mode === 'transfer_cash' || mode === 'mark_registered') ? null : (catId || null),
           bank_key: resolvedBankKey || null,
           investigate_bank_url: isFx
         });
         await loadInbox();
         closeModal();
-        showToast('Movimiento de correo registrado.', false, '✅');
+        showToast(mode === 'transfer_cash' ? 'Código Cash transferido de banco a Caja.' : 'Movimiento de correo registrado.', false, '✅');
         window.DcarelaFinanzasReload?.();
       } catch (err) { showToast(err.message, true); }
     };
@@ -1727,6 +1873,7 @@ function syncDom() {
   enhanceHeaderAndQuickActions();
   renderInboxStrip();
   simplifyHistoryFilters();
+  renderToolsBridgeHost();
   renderFiscalHost();
   renderMailHost();
   renderSettingsHost();
@@ -1742,7 +1889,7 @@ async function ensureCategoryLinker() {
   if (window.DcarelaCategoryLinker) return;
   await new Promise((resolve) => {
     const sc = document.createElement('script');
-    sc.src = './v35-26-category-emojis.js?v=35.28';
+    sc.src = './v35-26-category-emojis.js?v=35.29';
     sc.onload = resolve;
     sc.onerror = resolve;
     document.head.appendChild(sc);
@@ -1755,8 +1902,12 @@ async function init() {
 
   if (!uiState.mountedHooks) {
     uiState.mountedHooks = true;
+    let lastBiz = appSnapshot().business || '';
     window.addEventListener('dcarela:finanzas-rendered', () => {
-      if (uiState.mode === 'live' && !uiState.data && !uiState.loading && window.DcarelaFirebase?.getCurrentUser?.()) {
+      const snapBiz = appSnapshot().business || '';
+      const bizChanged = Boolean(snapBiz && snapBiz !== lastBiz);
+      if (bizChanged) lastBiz = snapBiz;
+      if (uiState.mode === 'live' && (!uiState.data || bizChanged) && !uiState.loading && window.DcarelaFirebase?.getCurrentUser?.()) {
         loadInbox(false);
       }
       scheduleSync();

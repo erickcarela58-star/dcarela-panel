@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="112" fill="#172338"/>
+  <path d="M116 244c0-82 54-136 138-136 66 0 112 33 134 82l-62 26c-12-27-35-42-70-42-43 0-72 28-72 70s29 70 72 70c35 0 59-17 72-46l60 24c-22 54-69 90-134 90-84 0-138-56-138-138Z" fill="#f5efe6"/>
+  <rect x="108" y="388" width="296" height="64" rx="32" fill="#e5b96e"/>
+  <text x="256" y="431" text-anchor="middle" font-family="-apple-system,SF Pro Display,Segoe UI,sans-serif" font-size="38" font-weight="800" letter-spacing="4" fill="#141c2b">PLAZA</text>
+</svg>

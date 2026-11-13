@@ -105,11 +105,11 @@ main.page{touch-action:pan-y}
 .triple-summary>div{padding:12px 5px}
 .triple-summary>div+div{border-left:0;padding-left:10px}
 .triple-summary strong{font-size:.73rem}
-.flow-panel{padding:18px 15px 14px;margin:20px 0 23px;position:relative;overflow:hidden !important;contain:paint}
+.flow-panel{padding:16px 10px 12px;margin:18px 0 22px;position:relative;overflow:hidden !important;contain:paint}
 .flow-head{display:flex;justify-content:space-between;align-items:baseline;gap:7px}
 .flow-head h2{font-size:.83rem;font-weight:650;margin:0}
 .flow-head small{font-size:.62rem;color:var(--muted);text-align:right}
-.flow-svg{width:100%;height:150px;display:block;margin-top:13px;overflow:hidden !important}
+.flow-svg{width:100%;height:auto;aspect-ratio:360 / 138;display:block;margin-top:10px;overflow:hidden !important}
 .flow-svg .flow-grid{fill:none;stroke:var(--border);stroke-width:.8;opacity:.7}
 .flow-svg .flow-income,.flow-svg .flow-expense{fill:none;stroke-linecap:round;stroke-linejoin:round;stroke-width:2.7}
 .flow-svg .flow-income{stroke:var(--ink);filter:drop-shadow(0 0 6px rgba(255,255,255,.28))}
@@ -274,7 +274,7 @@ main.page[data-v3526-page="home"] .cat-bubble.sm{border-radius:50%}
 .account-chart-stat{padding:6px 0;border-radius:0;background:transparent;border:0;border-bottom:1px solid var(--border)}
 .account-chart-stat small{display:block;font-size:.64rem;color:var(--muted)}
 .account-chart-stat strong{display:block;font-size:.82rem;margin-top:2px;font-variant-numeric:tabular-nums}
-.mini-svg{width:100%;height:auto;display:block;overflow:hidden}
+.mini-svg{width:100%;height:auto;aspect-ratio:360 / 88;display:block;overflow:hidden}
 .mini-svg .mini-axis{stroke:var(--border);stroke-width:1}
 .mini-svg .mini-bar-in{fill:var(--income);opacity:.85}
 .mini-svg .mini-bar-out{fill:var(--expense);opacity:.8}

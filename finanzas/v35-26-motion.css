@@ -461,22 +461,22 @@ body::before, body::after {
 }
 
 .quick-action {
-  min-height: 48px !important;
+  min-height: 0 !important;
   height: auto !important;
   max-height: none !important;
-  padding: 6px 4px !important;
-  border-radius: 15px !important;
-  gap: 4px !important;
+  padding: 2px 0 !important;
+  border-radius: 14px !important;
+  gap: 6px !important;
   flex-direction: column !important;
   align-items: center !important;
-  justify-content: center !important;
+  justify-content: flex-start !important;
   overflow: visible !important;
-  background: rgba(255, 255, 255, 0.075) !important;
-  -webkit-backdrop-filter: blur(14px) saturate(1.35);
-  backdrop-filter: blur(14px) saturate(1.35);
+  background: transparent !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
   border: 0 !important;
   box-shadow: none !important;
-  transition: transform 0.22s cubic-bezier(0.22, 1.35, 0.36, 1), background 0.2s ease !important;
+  transition: transform 0.2s cubic-bezier(0.22, 1.35, 0.36, 1) !important;
 }
 
 .shell.view-enter .quick-action {
@@ -484,7 +484,7 @@ body::before, body::after {
 }
 
 :root:not([data-theme="dark"]) .quick-action {
-  background: rgba(255, 255, 255, 0.58) !important;
+  background: transparent !important;
 }
 
 .shell.view-enter .quick-action:nth-child(1) { animation-delay: 0.04s; }
@@ -493,29 +493,86 @@ body::before, body::after {
 .shell.view-enter .quick-action:nth-child(4) { animation-delay: 0.16s; }
 
 .quick-action:active {
-  transform: scale(0.93) !important;
+  transform: scale(0.92) !important;
 }
 
 .quick-action .quick-icon {
-  width: 24px !important;
-  height: 24px !important;
+  width: 46px !important;
+  height: 46px !important;
   border-radius: 50% !important;
-  font-size: 14px !important;
-  line-height: 1 !important;
   display: grid !important;
   place-items: center !important;
   flex-shrink: 0 !important;
-  transition: transform 0.25s cubic-bezier(0.22, 1.35, 0.36, 1);
+  background: rgba(255, 255, 255, 0.09);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  -webkit-backdrop-filter: blur(12px) saturate(1.3);
+  backdrop-filter: blur(12px) saturate(1.3);
+  transition: transform 0.24s cubic-bezier(0.22, 1.35, 0.36, 1), background 0.2s ease, box-shadow 0.2s ease;
+}
+
+:root:not([data-theme="dark"]) .quick-action .quick-icon {
+  background: rgba(255, 255, 255, 0.78);
+  border-color: rgba(15, 23, 42, 0.09);
+  box-shadow: 0 3px 10px rgba(15, 23, 42, 0.05);
+}
+
+.quick-action .quick-icon svg {
+  width: 20px;
+  height: 20px;
+  stroke-width: 2.05;
+}
+
+.quick-action.expense .quick-icon {
+  color: #ff6b72;
+  background: rgba(255, 75, 85, 0.14);
+  border-color: rgba(255, 107, 114, 0.28);
+}
+
+.quick-action.income .quick-icon {
+  color: #34d399;
+  background: rgba(52, 211, 153, 0.14);
+  border-color: rgba(52, 211, 153, 0.28);
+}
+
+.quick-action.transfer .quick-icon {
+  color: var(--accent, #5ea8ff);
+  background: color-mix(in srgb, var(--accent, #5ea8ff) 16%, transparent);
+  border-color: color-mix(in srgb, var(--accent, #5ea8ff) 32%, transparent);
+}
+
+.quick-action.bills .quick-icon {
+  color: #f5b942;
+  background: rgba(245, 185, 66, 0.14);
+  border-color: rgba(245, 185, 66, 0.28);
+}
+
+:root:not([data-theme="dark"]) .quick-action.expense .quick-icon {
+  color: #dc2626;
+  background: rgba(220, 38, 38, 0.1);
+  border-color: rgba(220, 38, 38, 0.22);
+}
+
+:root:not([data-theme="dark"]) .quick-action.income .quick-icon {
+  color: #059669;
+  background: rgba(5, 150, 105, 0.1);
+  border-color: rgba(5, 150, 105, 0.22);
+}
+
+:root:not([data-theme="dark"]) .quick-action.bills .quick-icon {
+  color: #b45309;
+  background: rgba(217, 119, 6, 0.11);
+  border-color: rgba(217, 119, 6, 0.24);
 }
 
 .quick-action:hover .quick-icon {
-  transform: scale(1.08) translateY(-1px);
+  transform: scale(1.06) translateY(-1px);
 }
 
 .quick-action span:last-child,
 .quick-action b,
 .quick-action small {
-  font-size: 11px !important;
+  font-size: 11.5px !important;
   font-weight: 600 !important;
   line-height: 1.15 !important;
   letter-spacing: -0.01em !important;
@@ -810,8 +867,100 @@ main.page .field-select {
 }
 
 :root[data-visual-style="solid"] .quick-action {
-  background: var(--v3526-solid-surface) !important;
-  border: 1px solid var(--v3526-solid-border) !important;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+:root[data-visual-style="solid"] .quick-action .quick-icon {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+  box-shadow: none !important;
+}
+
+/* Branch Login & Cross-Branch Bridge */
+.v3526-branch-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  background: color-mix(in srgb, var(--accent, #5ea8ff) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent, #5ea8ff) 32%, transparent);
+  color: var(--ink);
+}
+
+.v3526-branch-pill.is-plaza {
+  background: rgba(52, 211, 153, 0.14);
+  border-color: rgba(52, 211, 153, 0.34);
+}
+
+.v3526-login-card {
+  border-radius: 22px;
+  padding: 20px 18px 18px;
+  background: rgba(255, 255, 255, 0.06);
+  -webkit-backdrop-filter: blur(20px) saturate(1.3);
+  backdrop-filter: blur(20px) saturate(1.3);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+:root:not([data-theme="dark"]) .v3526-login-card {
+  background: rgba(255, 255, 255, 0.78);
+  border-color: rgba(15, 23, 42, 0.1);
+}
+
+:root[data-visual-style="solid"] .v3526-login-card {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  background: var(--v3526-solid-surface);
+  border-color: var(--v3526-solid-border);
+}
+
+.v3526-login-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.v3526-login-logo {
+  width: 44px;
+  height: 44px;
+  border-radius: 13px;
+  object-fit: cover;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+}
+
+.v3526-branch-switcher {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.09);
+  font-size: 12px;
+}
+
+:root:not([data-theme="dark"]) .v3526-branch-switcher {
+  border-top-color: rgba(15, 23, 42, 0.09);
+}
+
+.v3526-locked-field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 44px;
+  padding: 10px 13px;
+  border-radius: 13px;
+  background: rgba(52, 211, 153, 0.11);
+  border: 1px solid rgba(52, 211, 153, 0.28);
+  font-size: 13px;
+  font-weight: 650;
 }
 
 :root[data-visual-style="solid"] .chip.active,
