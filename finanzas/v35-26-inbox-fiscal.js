@@ -813,77 +813,6 @@ function renderMailHost() {
   });
 }
 
-function renderToolsBridgeHost() {
-  const host = document.querySelector('#main [data-v3526-tools-bridge]');
-  if (!host) return;
-  const snap = appSnapshot();
-  const state = snap.state || {};
-  const bridge = state.branchBridge;
-  const actions = window.DcarelaFinanzasActions;
-  if (uiState.mode === 'live' && !bridge && !state.branchBridgeBusy && typeof actions?.loadBranchBridge === 'function') {
-    actions.loadBranchBridge({ silent: false }).catch(() => {});
-  }
-  const branches = Array.isArray(bridge?.branches) ? bridge.branches : [];
-  const currentId = snap.business || state.business || (uiState.mode === 'live' ? 'dcarela' : 'sucursal-a');
-  const isPlaza = typeof actions?.isPlazaBranch === 'function'
-    ? actions.isPlazaBranch(currentId)
-    : /plaza|sucursal-b/i.test(currentId);
-  const siblingKind = isPlaza ? 'central' : 'plaza';
-  const siblingLabel = isPlaza ? 'Central' : 'Plaza Artesanal';
-  const siblingHref = actions?.branchAppHref?.(siblingKind) || (isPlaza ? './index.html' : './plaza.html');
-  const curBranch = branches.find((b) => b.id === currentId);
-  const otherBranch = branches.find((b) => b.id !== currentId);
-  const renderTotals = (totals = {}) => {
-    const parts = Object.entries(totals).map(([c, v]) => fmtMoney(v, c));
-    return parts.length ? parts.join(' · ') : 'RD$0.00';
-  };
-  const recent = (curBranch?.recentInterbranch || otherBranch?.recentInterbranch || []).slice(0, 3);
-
-  host.innerHTML = `
-    <div class="v3526-card" style="margin-bottom:12px">
-      <div class="v3526-card-head">
-        <h3>${ae('🏢', 17)} Conexión entre sucursales</h3>
-        <span class="v3526-tag ${branches.length >= 2 ? 'ok' : 'warn'}">${branches.length >= 2 ? 'Central ↔ Plaza' : 'Sucursal única'}</span>
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
-        ${[curBranch || { id: currentId, nombre: isPlaza ? 'Plaza Artesanal' : 'Central', totals: {} }, otherBranch || { id: siblingKind, nombre: siblingLabel, totals: {} }].map((b, idx) => `
-          <div style="padding:10px;border-radius:14px;background:var(--surface-2);border:1px solid var(--border)">
-            <div style="font-size:11px;font-weight:700;opacity:.75">${idx === 0 ? 'Esta PWA' : 'Sucursal conectada'}</div>
-            <div style="font-size:13px;font-weight:750;margin:2px 0">${esc(b.nombre)}</div>
-            <div style="font-size:13px;font-weight:700;font-variant-numeric:tabular-nums">${branches.length ? esc(renderTotals(b.totals)) : (state.branchBridgeBusy ? 'Consultando…' : 'Sin conexión')}</div>
-          </div>
-        `).join('')}
-      </div>
-      ${recent.length ? `
-        <div style="margin-top:10px">
-          ${recent.map((m) => `
-            <div class="v3526-list-row" style="padding:6px 0">
-              <div style="min-width:0;flex:1">
-                <div style="font-size:12px;font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(m.descripcion || m.interbranch_counterparty_name || 'Transferencia')}</div>
-                <div style="font-size:11px;opacity:.7">${esc(m.fecha || '')} · ${m.interbranch_direction === 'outgoing' ? 'Envío' : 'Recepción'}</div>
-              </div>
-              <div style="font-size:12px;font-weight:750;font-variant-numeric:tabular-nums">${m.interbranch_direction === 'outgoing' ? '−' : '+'}${fmtMoney(m.monto_centavos || 0, 'DOP')}</div>
-            </div>
-          `).join('')}
-        </div>
-      ` : ''}
-      <div class="v3526-btn-row" style="margin-top:10px">
-        <button type="button" class="primary-btn compact" id="v3526BridgeTransferBtn" ${branches.length < 2 ? 'disabled' : ''}>${ae('🔁', 13)} Transferir entre sucursales</button>
-        <a class="secondary-btn compact" href="${esc(siblingHref)}" style="text-decoration:none;display:inline-flex;align-items:center;gap:5px">Abrir PWA ${esc(siblingLabel)} ↗</a>
-      </div>
-    </div>
-  `;
-
-  const transferBtn = host.querySelector('#v3526BridgeTransferBtn');
-  if (transferBtn) {
-    transferBtn.onclick = () => {
-      if (typeof actions?.openInterbranchTransfer === 'function') {
-        actions.openInterbranchTransfer(otherBranch?.id || '');
-      }
-    };
-  }
-}
-
 function renderSettingsHost() {
   const host = document.getElementById('v3526SettingsTopHost');
   if (!host) return;
@@ -1873,7 +1802,6 @@ function syncDom() {
   enhanceHeaderAndQuickActions();
   renderInboxStrip();
   simplifyHistoryFilters();
-  renderToolsBridgeHost();
   renderFiscalHost();
   renderMailHost();
   renderSettingsHost();
@@ -1889,7 +1817,7 @@ async function ensureCategoryLinker() {
   if (window.DcarelaCategoryLinker) return;
   await new Promise((resolve) => {
     const sc = document.createElement('script');
-    sc.src = './v35-26-category-emojis.js?v=35.29';
+    sc.src = './v35-26-category-emojis.js?v=35.30';
     sc.onload = resolve;
     sc.onerror = resolve;
     document.head.appendChild(sc);

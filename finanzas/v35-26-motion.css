@@ -878,7 +878,7 @@ main.page .field-select {
   box-shadow: none !important;
 }
 
-/* Branch Login & Cross-Branch Bridge */
+/* Branch Login */
 .v3526-branch-pill {
   display: inline-flex;
   align-items: center;
@@ -932,21 +932,6 @@ main.page .field-select {
   border-radius: 13px;
   object-fit: cover;
   border: 1px solid rgba(255, 255, 255, 0.16);
-}
-
-.v3526-branch-switcher {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  margin-top: 16px;
-  padding-top: 14px;
-  border-top: 1px solid rgba(255, 255, 255, 0.09);
-  font-size: 12px;
-}
-
-:root:not([data-theme="dark"]) .v3526-branch-switcher {
-  border-top-color: rgba(15, 23, 42, 0.09);
 }
 
 .v3526-locked-field {
