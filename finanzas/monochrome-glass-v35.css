@@ -216,3 +216,36 @@ button{touch-action:manipulation}
 .switch:disabled{opacity:.5;cursor:not-allowed}
 .switch:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
 @media (prefers-reduced-motion:reduce){.switch,.switch span{transition:none}}
+
+/* 35.23 · PWA reanimada: íconos por categoría, accesos rápidos, próximos pagos y botón flotante visible. */
+.fab,:root[data-theme="dark"] .fab{color:var(--bg)}
+.fab svg{stroke:currentColor}
+.movement-row{display:flex;align-items:center;gap:12px}
+.cat-bubble{flex:none;width:38px;height:38px;border-radius:12px;display:grid;place-items:center;background:var(--surface-2);color:var(--ink);border:1px solid var(--border)}
+.cat-bubble .ico{width:19px;height:19px}
+.cat-bubble.ingreso{color:var(--income);background:color-mix(in srgb,var(--income) 12%,var(--surface))}
+.cat-bubble.gasto{color:var(--expense);background:color-mix(in srgb,var(--expense) 10%,var(--surface))}
+.movement-row.is-void .cat-bubble{opacity:.45}
+.quick-actions{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:16px 0 4px}
+.quick-action{display:grid;justify-items:center;gap:7px;padding:12px 4px 10px;border-radius:18px;border:1px solid var(--border);background:var(--surface);color:var(--ink);font:inherit;font-size:.74rem;font-weight:700;cursor:pointer;
+  transition:transform .15s ease,background .15s ease;-webkit-tap-highlight-color:transparent}
+.quick-action:active{transform:scale(.96)}
+.quick-action:disabled{opacity:.45;cursor:not-allowed}
+.quick-action:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.quick-icon{width:40px;height:40px;border-radius:14px;display:grid;place-items:center;background:var(--surface-2)}
+.quick-icon .ico{width:21px;height:21px}
+.quick-action.expense .quick-icon{color:var(--expense);background:color-mix(in srgb,var(--expense) 12%,var(--surface))}
+.quick-action.income .quick-icon{color:var(--income);background:color-mix(in srgb,var(--income) 13%,var(--surface))}
+.text-link{border:0;background:none;color:var(--ink);font:inherit;font-size:.8rem;font-weight:700;text-decoration:underline;text-underline-offset:3px;cursor:pointer;padding:4px}
+.pay-row{display:flex;align-items:center;gap:10px;padding:11px 14px;border-bottom:1px solid var(--border)}
+.pay-row:last-child{border-bottom:0}
+.pay-copy{flex:1;min-width:0;border:0;background:none;color:inherit;font:inherit;text-align:left;display:grid;gap:2px;cursor:pointer;padding:0}
+.pay-copy b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pay-copy small{color:var(--muted)}
+.pay-row.late .pay-copy small{color:var(--expense);font-weight:700}
+.pay-amount{font-weight:750;font-variant-numeric:tabular-nums;white-space:nowrap}
+.pay-btn{flex:none;border:0;border-radius:999px;padding:8px 14px;background:var(--accent);color:var(--bg);font:inherit;font-size:.78rem;font-weight:780;cursor:pointer}
+.pay-btn:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+@media (max-width:360px){.quick-actions{gap:6px}.quick-action{font-size:.68rem}.pay-amount{font-size:.82rem}}
+@media (prefers-reduced-motion:reduce){.quick-action{transition:none}}
+@media (max-width:430px){.pay-row{gap:8px;padding:10px 12px}.pay-amount{font-size:.86rem}.pay-btn{padding:7px 12px}.pay-copy b{font-size:.92rem}}

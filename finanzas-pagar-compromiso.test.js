@@ -15,7 +15,7 @@ test('la ficha del compromiso ofrece pagarlo y el formulario lo dice', () => {
   assert.match(app, /if\(action==='debt-pay'\)/);
   assert.match(app, /'Pagar compromiso':'Registrar movimiento'/);
   // El registro normal no hereda un enlace viejo.
-  assert.match(app, /if\(action==='entry'\)\{state\.entryType='gasto';state\.entryDigits='';state\.entryNote='';state\.entryLink=null;/);
+  assert.match(app, /if\(action==='entry'\|\|action==='quick'\)\{const type=action==='quick'\?btn\.dataset\.type:'gasto';state\.entryType=type;state\.entryDigits='';state\.entryNote='';state\.entryLink=null;/);
 });
 
 test('el gasto viaja con el enlace al compromiso y el adaptador lo guarda y lo publica', () => {
@@ -25,11 +25,11 @@ test('el gasto viaja con el enlace al compromiso y el adaptador lo guarda y lo p
   assert.match(adapter, /obligacionId: movement\.obligacion_id \|\| null,/);
 });
 
-test('la versión 35.22 se sirve sin caché vieja', () => {
+test('la versión 35.23 se sirve sin caché vieja', () => {
   const html = fs.readFileSync(path.join(__dirname, 'finanzas', 'index.html'), 'utf8');
   const sw = fs.readFileSync(path.join(__dirname, 'finanzas', 'sw.js'), 'utf8');
-  assert.match(html, /app\.js\?v=35\.22/); assert.match(html, /firebase-adapter\.js\?v=35\.22/);
-  assert.match(sw, /dcarela-finanzas-ui-v35-monochrome-22/); assert.match(sw, /'\.\/app\.js\?v=35\.22'/);
+  assert.match(html, /app\.js\?v=35.23/); assert.match(html, /firebase-adapter\.js\?v=35.23/);
+  assert.match(sw, /dcarela-finanzas-ui-v35-monochrome-23/); assert.match(sw, /'\.\/app\.js\?v=35.23'/);
 });
 
 test('Libros fiscales: pantalla en Más, interruptor y «Anotar ahora» con la acción fin.books.request', () => {
@@ -39,4 +39,17 @@ test('Libros fiscales: pantalla en Más, interruptor y «Anotar ahora» con la a
   assert.match(ds, /'fin\.account\.reconcile','fin\.books\.request'\]\.includes\(action\)/);
   assert.match(adapter, /if \(action === 'fin\.books\.request'\) \{/);
   assert.match(fs.readFileSync(path.join(__dirname, 'finanzas', 'index.html'), 'utf8'), /<symbol id="ic-book"/);
+});
+
+test('35.23 reanimada: accesos rápidos, próximos pagos, íconos por categoría, repetir y cuenta recordada', () => {
+  assert.match(app, /function quickActions\(\)/); assert.match(app, /function upcomingPayments\(\)/);
+  assert.match(app, /\$\{summaryCard\(\)\}\$\{quickActions\(\)\}/); assert.match(app, /\$\{upcomingPayments\(\)\}\$\{flowChart/);
+  assert.match(app, /<span class="cat-bubble \$\{esc\(m\.tipo\)\}" aria-hidden="true">\$\{ico\(catIcon\(m\),'sm'\)\}<\/span>/);
+  assert.match(app, /if\(action==='movement-repeat'\)/); assert.match(app, /rememberAccount\(state\.entryType,a\.id\)/);
+  const html = fs.readFileSync(path.join(__dirname, 'finanzas', 'index.html'), 'utf8');
+  for (const id of ['camera', 'printer', 'box', 'users', 'megaphone', 'home', 'bolt', 'tag', 'cart', 'food', 'car', 'receipt', 'gift', 'repeat', 'income', 'expense'])
+    assert.match(html, new RegExp(`<symbol id="ic-${id}"`), id);
+  // Cada ícono que pide catIcon existe en el sprite.
+  const bloque = app.slice(app.indexOf('const CAT_ICONS='), app.indexOf('const sinAcento='));
+  for (const [, id] of [...bloque.matchAll(/,'([a-z-]+)'\]/g)]) assert.match(html, new RegExp(`<symbol id="ic-${id}"`), 'falta ic-' + id);
 });
