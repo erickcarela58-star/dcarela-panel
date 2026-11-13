@@ -108,12 +108,13 @@ export async function loadFinance(requestedBusinessId) {
 
 export async function commitAction(action, businessId, entityId, data) {
   if (!isLive) return {preview:true};
-  if (!['fin.movement.create','fin.transfer.create','fin.movement.cancel','fin.account.reconcile'].includes(action) ||
+  if (!['fin.movement.create','fin.transfer.create','fin.movement.cancel','fin.account.reconcile','fin.books.request'].includes(action) ||
       !data?.requestId || typeof data.requestId !== 'string') {
     throw new Error('Operación financiera no admitida o sin identificador estable.');
   }
   if (!canRegister()) throw new Error('Registra desde la PWA oficial o usa el panel central.');
-  if (isOfficialFinance() && !['fin.movement.create','fin.transfer.create'].includes(action)) {
+  // 13/11/2026: «fin.books.request» (libros fiscales 606/607) no toca saldos: solo pide al agente de la PC que anote el Excel de Drive.
+  if (isOfficialFinance() && !['fin.movement.create','fin.transfer.create','fin.books.request'].includes(action)) {
     throw new Error('Esta operación requiere comprobar primero la Caja activa.');
   }
   const api = adapter();

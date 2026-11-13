@@ -1,5 +1,5 @@
 const CACHE = 'dcarela-finanzas-ui-v35-monochrome-22';
-const SHELL = ['./index.html','./app.css','./minimal-v34.css','./monochrome-glass-v35.css?v=35.21','./assets/bancos/popular.png','./assets/bancos/banreservas.png','./assets/bancos/bhd.png','./assets/bancos/qik.png','./app.js?v=35.22','./data-source.js?v=35.20','./manifest.webmanifest','./icons/dcarela-logo.png'];
+const SHELL = ['./index.html','./app.css','./minimal-v34.css','./monochrome-glass-v35.css?v=35.22','./assets/bancos/popular.png','./assets/bancos/banreservas.png','./assets/bancos/bhd.png','./assets/bancos/qik.png','./app.js?v=35.22','./data-source.js?v=35.22','./manifest.webmanifest','./icons/dcarela-logo.png'];
 self.addEventListener('install', event => event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(SHELL)).then(() => self.skipWaiting())));
 self.addEventListener('activate', event => event.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k=>k.startsWith('dcarela-finanzas-ui-')&&k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
 self.addEventListener('fetch', event => {

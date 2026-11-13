@@ -1601,6 +1601,16 @@
       return { ok: true, id, message: 'Divisa guardada.' };
     }
 
+    // 13/11/2026: libros fiscales 606/607. Solo deja el pedido (y el interruptor diario); el agente de la PC anota el Excel de Drive.
+    if (action === 'fin.books.request') {
+      const libros = { solicitud_at: createdAt, solicitud_por: 'pwa' };
+      if (typeof data.auto === 'boolean') libros.auto = data.auto;
+      await d.collection('fin_preferences').doc(ctx.businessId).set({ business_id: ctx.businessId, libros_fiscales: libros, updated_at: createdAt }, { merge: true });
+      return { ok: true, id: ctx.businessId, message: typeof data.auto === 'boolean'
+        ? (data.auto ? 'Libros automáticos encendidos. La PC los anota en 15 minutos.' : 'Libros automáticos apagados.')
+        : 'Pedido enviado: la PC anota los libros en los próximos 15 minutos.' };
+    }
+
     if (action === 'fin.preferences.upsert') {
       const id = ctx.businessId;
       await d.collection('fin_preferences').doc(id).set({

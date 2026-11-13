@@ -31,3 +31,12 @@ test('la versión 35.22 se sirve sin caché vieja', () => {
   assert.match(html, /app\.js\?v=35\.22/); assert.match(html, /firebase-adapter\.js\?v=35\.22/);
   assert.match(sw, /dcarela-finanzas-ui-v35-monochrome-22/); assert.match(sw, /'\.\/app\.js\?v=35\.22'/);
 });
+
+test('Libros fiscales: pantalla en Más, interruptor y «Anotar ahora» con la acción fin.books.request', () => {
+  const ds = fs.readFileSync(path.join(__dirname, 'finanzas', 'data-source.js'), 'utf8');
+  assert.match(app, /\['books','book','Libros fiscales'/); assert.match(app, /if\(state\.route==='books'\)return renderBooks\(\)/);
+  assert.match(app, /await commit\('fin\.books\.request',state\.business,\{requestId:state\.pendingRequestId,\.\.\.\(action==='books-toggle'\?\{auto:!cfg\.auto\}:\{\}\)\}\)/);
+  assert.match(ds, /'fin\.account\.reconcile','fin\.books\.request'\]\.includes\(action\)/);
+  assert.match(adapter, /if \(action === 'fin\.books\.request'\) \{/);
+  assert.match(fs.readFileSync(path.join(__dirname, 'finanzas', 'index.html'), 'utf8'), /<symbol id="ic-book"/);
+});
