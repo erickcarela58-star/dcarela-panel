@@ -833,6 +833,8 @@
       abonoId: movement.abono_id || null,
       compromisoId: movement.compromiso_id || null,
       pagoCompromisoId: movement.pago_compromiso_id || null,
+      obligacionId: movement.obligacion_id || null,
+      recurrenteId: movement.recurrente_id || null,
       afectaResultado: movement.afecta_resultado !== false,
     };
   }
@@ -1365,6 +1367,10 @@
           categoria_id: categoryId, payee: text(data.payee, 180) || null,
           descripcion: text(data.descripcion, 500) || type, nota: text(data.nota, 1200) || null,
           referencia: text(data.referencia, 180) || null, origen: 'panel', estado: 'registrado',
+          // 13/11/2026: «Pagar este compromiso» de la PWA. El servidor (posObligaciones) enlaza el pago y baja el saldo.
+          ...(type === 'gasto' && text(data.obligacionId, 160) ? { obligacion_id: text(data.obligacionId, 160) } : {}),
+          ...(type === 'gasto' && text(data.compromisoId, 160) ? { compromiso_id: text(data.compromisoId, 160) } : {}),
+          ...(type === 'gasto' && text(data.recurrenteId, 160) ? { recurrente_id: text(data.recurrenteId, 160) } : {}),
           conciliado: data.conciliado === true, afecta_resultado: data.afectaResultado !== false,
           saldo_anterior_centavos: current, saldo_resultante_centavos: current + signed,
           sync_event_id: eventId, created_at: createdAt, updated_at: createdAt, ...actor
