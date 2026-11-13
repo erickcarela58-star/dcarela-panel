@@ -1,4 +1,4 @@
-import {loadFinance,commitAction,getTerminalReceipt,isLive,canRegister} from './data-source.js?v=35.23';
+import {loadFinance,commitAction,getTerminalReceipt,isLive,canRegister} from './data-source.js?v=35.25';
 const emulatorWritesAllowed=()=>isLive && ['localhost','127.0.0.1'].includes(location.hostname)
  && String(window.__DCARELA_FIREBASE_CONFIG?.projectId||'').startsWith('demo-')
  && window.__DCARELA_FINANCE_STAGING_WRITE__===true;
@@ -9,7 +9,9 @@ const esc=x=>String(x??'').replace(/[&<>"']/g,s=>({'&':'&amp;','<':'&lt;','>':'&
 const ico=(id,cls='')=>`<svg class="ico ${cls}" aria-hidden="true"><use href="#ic-${id}"></use></svg>`;
 const today=core.businessDay(new Date());
 const initialMonth=today.slice(0,7);
-const initialMonthEnd=new Date(Date.UTC(Number(initialMonth.slice(0,4)),Number(initialMonth.slice(5,7)),0)).toISOString().slice(0,10);
+const monthEndOf=m=>new Date(Date.UTC(Number(m.slice(0,4)),Number(m.slice(5,7)),0)).toISOString().slice(0,10);
+const initialMonthEnd=monthEndOf(initialMonth);
+const defaultCommitmentForm=(catId='')=>({kind:'recurrente',nombre:'',acreedor:'',monto:'',categoriaId:catId,frecuencia:'mensual',diaMes1:'',diaMes2:'',proximaFecha:today,emitidaEn:today,numeroFactura:'',metodoPago:'transferencia',montoVariable:false,nota:''});
 const params=new URLSearchParams(location.search);
 const branches=isLive?{}:{'sucursal-a':'Sucursal A · Demo','sucursal-b':'Sucursal B · Demo'};
 const FINANCE_VIEWS=[['diario','Diario'],['calendario','Calendario'],['semana','Semana'],['mes','Mes'],['resumen','Resumen'],['estadisticas','Estadísticas']];
@@ -18,6 +20,7 @@ const state={business:params.get('b')||(isLive?'':'sucursal-a'),loading:true,err
  currency:'DOP',statsType:'gasto',modal:null,accountId:null,movementId:null,accountDraft:null,
  search:{query:'',type:'',category:'',from:`${initialMonth}-01`,to:initialMonthEnd,accountIds:[]},searched:false,
  entryType:'gasto',entryDigits:'',entryAccount:'',entryDest:'',entryCategory:'',entryNote:'',entryDate:today,
+ commitmentForm:defaultCommitmentForm(),
  reconcileDigits:'',reconcileReason:'',editingNote:'',pendingRequestId:null,busy:false,financeFilterOpen:false,
  receiptMovementId:null,receiptStatus:null,receiptBusy:false};
 const nMonth=(m,delta)=>{const [y,n]=m.split('-').map(Number);const d=new Date(Date.UTC(y,n-1+delta,1));return d.toISOString().slice(0,7)};
@@ -49,6 +52,8 @@ const CAT_ICONS=[[/sesion|foto|retrato|camara/,'camera'],[/impres|cuadro|laborat
  [/regalo|donac/,'gift'],[/tarjeta|banco|comision/,'card'],[/prestamo|deuda|cuota|financ/,'clock']];
 const sinAcento=s=>String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase();
 function catIcon(m){if(m.tipo==='transferencia')return 'arrows';const n=sinAcento(cat(m.categoria_id)?.nombre||'')+' '+sinAcento(m.descripcion||'');const f=CAT_ICONS.find(([re])=>re.test(n));return f?f[1]:m.tipo==='ingreso'?'income':'expense'}
+const catIconFor=(item,tipo='gasto')=>catIcon({tipo,categoria_id:item?.id||item?.categoria_id||'',descripcion:item?.nombre||item?.descripcion||''});
+const catBadge=(item,tipo='gasto',size='sm')=>`<span class="cat-bubble ${size} ${esc(tipo)}" aria-hidden="true">${ico(catIconFor(item,tipo),size==='sm'?'sm':'')}</span>`;
 // La última cuenta usada para cada tipo: registrar el gasto de siempre es elegir solo el monto.
 const lastAccount=type=>{try{const id=localStorage.getItem('dcarela-mm-cuenta-'+type);return accounts().some(a=>a.id===id&&a.estado!=='eliminada')?id:''}catch{return ''}};
 const rememberAccount=(type,id)=>{try{localStorage.setItem('dcarela-mm-cuenta-'+type,id)}catch{}};
@@ -72,7 +77,7 @@ function movementTitle(m){const sale=saleForMovement(m);if(!sale)return m.origen
 const currencyOption=(value)=>`<option value="${value}" ${state.currency===value?'selected':''}>${value==='DOP'?'DOP · RD$':'USD · US$'}</option>`;
 function note(msg){const el=$('toast-region');el.innerHTML=`<div role="status" class="toast">${esc(msg)}</div>`;clearTimeout(note._timer);note._timer=setTimeout(()=>el.replaceChildren(),3200)}
 function customOptions(items,selected){return items.map(x=>`<option value="${esc(x.id)}" ${x.id===selected?'selected':''}>${esc(x.nombre)}</option>`).join('')}
-const cashAccountOptions=(selected,skip='')=>accounts().filter(a=>a.id!==skip&&a.tipo!=='tarjeta_credito'&&(!isLive||a.moneda==='DOP')).map(a=>`<option value="${esc(a.id)}" ${selected===a.id?'selected':''}>${esc(a.nombre)} · ${a.moneda}</option>`).join('');
+const cashAccountOptions=(selected,skip='',allowCredit=false)=>accounts().filter(a=>a.id!==skip&&(allowCredit||a.tipo!=='tarjeta_credito')&&(!isLive||a.moneda==='DOP')).map(a=>`<option value="${esc(a.id)}" ${selected===a.id?'selected':''}>${esc(a.nombre)} · ${a.moneda}</option>`).join('');
 function setTheme(theme){state.theme=theme;document.documentElement.dataset.theme=theme;localStorage.setItem('dcarela-mm-theme',theme);render()}
 let loadSerial=0,lastLoadedAt=0;
 async function load(){const serial=++loadSerial;state.loading=true;state.error='';state.authRequired=false;state.data=null;render();try{
@@ -114,15 +119,15 @@ function bankKey(a){
 }
 function accountBadge(a,large=false){
  const cls=`account-icon glass-icon ${large?'large':''}`;
- const bank= a.tipo==='banco'?bankKey(a):null;
+ const bank=(a?.tipo==='banco'||a?.tipo==='tarjeta_credito')?bankKey(a):null;
  if(bank)return `<span class="${cls} bank-logo" data-bank="${bank}"><img src="./assets/bancos/${bank}.png" alt="" loading="eager" decoding="async"></span>`;
- return `<span class="${cls}" data-kind="${esc(a.tipo)}">${ico(a.tipo==='banco'?'bank':a.tipo==='tarjeta_credito'?'card':'wallet')}</span>`;
+ return `<span class="${cls}" data-kind="${esc(a?.tipo||'efectivo')}">${ico(a?.tipo==='banco'?'bank':a?.tipo==='tarjeta_credito'?'card':'wallet')}</span>`;
 }
 function accountRows(list=accounts()){return list.map(a=>`<button class="account-row" data-do="account" data-id="${esc(a.id)}">${accountBadge(a)}<span class="row-copy"><b>${esc(a.nombre)}</b><small>${a.tipo==='tarjeta_credito'?'Tarjeta de crédito':a.tipo==='banco'?'Cuenta bancaria':'Efectivo'} · ${a.moneda}${a.incluir_en_total===false?' · Excluida del total':''}</small></span><span class="row-amount ${accountBalance(a)<0?'expense-text':'balance-text'}"><span title="${moneyText(accountBalance(a),a.moneda)}">${moneyText(accountBalance(a),a.moneda,Math.abs(accountBalance(a))>=100000000)}</span><span class="tiny">${a.tipo==='tarjeta_credito'?'Deuda / saldo':'Ver historial'}</span></span></button>`).join('')}
 function movementsUI(list,limit=null){const show=limit?list.slice(0,limit):list;if(!show.length)return '<div class="empty">Sin movimientos para este filtro.</div>';
  return show.map(m=>`<button class="movement-row ${m.estado==='anulado'?'is-void':''}" data-do="movement" data-id="${esc(m.id)}"><span class="cat-bubble ${esc(m.tipo)}" aria-hidden="true">${ico(catIcon(m),'sm')}</span><span class="row-copy"><b>${esc(movementTitle(m))}</b><small>${esc(cat(m.categoria_id)?.nombre|| (m.tipo==='transferencia'?'Transferencia':'Sin categoría'))} · ${esc(account(m.cuenta_id)?.nombre||'Cuenta')}${m.estado==='anulado'?' · Anulado':''}</small></span><span class="row-amount ${m.tipo} ${m.tipo==='ingreso'?'income-text':m.tipo==='gasto'?'expense-text':'warning-text'}">${m.tipo==='gasto'?'−':m.tipo==='ingreso'?'+':''}<span title="${moneyText(m.monto_centavos,curr(m))}">${moneyText(m.monto_centavos,curr(m),m.monto_centavos>=100000000)}</span><span class="tiny">${esc(m.fecha?.slice(8,10)||'')}</span></span></button>`).join('')}
-function groupedByDate(list){if(!list.length)return '<div class="card"><div class="empty">No hay movimientos en este periodo.</div></div>';const bucket=new Map();for(const m of list){if(!bucket.has(m.fecha))bucket.set(m.fecha,[]);bucket.get(m.fecha).push(m)}
- return [...bucket.entries()].sort(([a],[b])=>b.localeCompare(a)).map(([day,items])=>{const isoDay=new Date(`${day}T12:00:00Z`).getUTCDay();const byCurrency=[...new Set(items.map(curr))].map(c=>{const sub=core.summarizeMovements(items.filter(m=>curr(m)===c),day,day);return moneyText(sub.ingresos_centavos-sub.gastos_centavos,c)}).join(' · ');return `<div class="date-section"><div class="date-head"><div class="date-box"><b>${day.slice(8)}</b><small>${['dom','lun','mar','mié','jue','vie','sáb'][isoDay]}</small></div><div class="date-heading"><b>${esc(weekDay(day))}</b><small>${esc(niceDay(day))}</small></div><span class="date-net ${items.length&&core.summarizeMovements(items.filter(m=>curr(m)===state.currency),day,day).ingresos_centavos>=core.summarizeMovements(items.filter(m=>curr(m)===state.currency),day,day).gastos_centavos?'income-text':'expense-text'}" title="${esc(byCurrency)}">${esc(byCurrency)}</span></div><div class="card">${movementsUI(items)}</div></div>`}).join('')}
+function groupedByDate(list){if(!list.length)return '<div class="card"><div class="empty">No hay movimientos en este periodo.</div></div>';const bucket=new Map();for(const m of list){const key=String(m.fecha||'');if(!bucket.has(key))bucket.set(key,[]);bucket.get(key).push(m)}
+ return [...bucket.entries()].sort(([a],[b])=>b.localeCompare(a)).map(([day,items])=>{const valid=/^\d{4}-\d{2}-\d{2}$/.test(day);const isoDay=valid?new Date(`${day}T12:00:00Z`).getUTCDay():0;const dayNum=valid?day.slice(8):'—';const dayWk=valid?['dom','lun','mar','mié','jue','vie','sáb'][isoDay]:'—';const dayFull=valid?weekDay(day):'Sin fecha';const dayNice=valid?niceDay(day):'Fecha no verificada';const byCurrency=[...new Set(items.map(curr))].map(c=>{const sub=valid?core.summarizeMovements(items.filter(m=>curr(m)===c),day,day):{ingresos_centavos:0,gastos_centavos:0};return moneyText(sub.ingresos_centavos-sub.gastos_centavos,c)}).join(' · ');const curSub=valid?core.summarizeMovements(items.filter(m=>curr(m)===state.currency),day,day):{ingresos_centavos:0,gastos_centavos:0};return `<div class="date-section"><div class="date-head"><div class="date-box"><b>${dayNum}</b><small>${dayWk}</small></div><div class="date-heading"><b>${esc(dayFull)}</b><small>${esc(dayNice)}</small></div><span class="date-net ${items.length&&curSub.ingresos_centavos>=curSub.gastos_centavos?'income-text':'expense-text'}" title="${esc(byCurrency)}">${esc(byCurrency)}</span></div><div class="card">${movementsUI(items)}</div></div>`}).join('')}
 function flowChart(currency=state.currency){const groups=simple.group(getMonthRows(currency),state.month,'day',accountCurrencies()).reverse();
  if(!groups.length)return '<div class="empty">Sin movimientos para graficar este mes.</div>';
  const entries=groups.map(g=>({day:g.key,income:g.currencies[currency]?.income||0,expense:g.currencies[currency]?.expenses||0}));
@@ -133,7 +138,7 @@ function flowChart(currency=state.currency){const groups=simple.group(getMonthRo
  const marks=[0,Math.floor((entries.length-1)/2),entries.length-1].filter((v,i,a)=>a.indexOf(v)===i);
  return `<section class="flow-panel" aria-label="Tendencia diaria de ${esc(longMonth(state.month))}"><div class="flow-head"><h2>Movimiento del mes</h2><small>${esc(currency)} · ${entries.length} días con actividad</small></div><svg class="flow-svg" viewBox="0 0 340 150" role="img" aria-label="Ingresos y gastos confirmados por día"><path class="flow-grid" d="M12 14H328 M12 64H328 M12 115H328"/><path class="flow-income" pathLength="1" d="${path('income')}"/><path class="flow-expense" pathLength="1" d="${path('expense')}"/>${marks.map(i=>`<text x="${x(i).toFixed(1)}" y="141" text-anchor="${i===0?'start':i===entries.length-1?'end':'middle'}">${entries[i].day.slice(8)}</text>`).join('')}</svg><div class="flow-legend"><span>— Ingresos</span><span>┄ Gastos</span></div></section>`}
 function categoryChart(currency=state.currency){const b=simple.breakdown(rows(),state.month,'gasto',currency,categoryMap(),accountCurrencies());
- return `<section class="category-panel"><div class="section-head"><h2>Gastos por categoría</h2><small>${esc(currency)}</small></div>${b.items.length?b.items.slice(0,5).map(item=>`<div class="category-bar-row"><div><span>${esc(item.nombre)}</span><strong>${moneyText(item.centavos,currency)}</strong></div><div class="category-track"><span style="width:${Math.max(1,item.porcentaje)}%"></span></div></div>`).join(''):'<div class="empty">Sin gastos en este periodo.</div>'}</section>`}
+ return `<section class="category-panel"><div class="section-head"><h2>Gastos por categoría</h2><small>${esc(currency)}</small></div>${b.items.length?b.items.slice(0,5).map(item=>`<div class="category-bar-row"><div class="category-bar-head"><span class="category-bar-label">${catBadge(item,'gasto')}<span>${esc(item.nombre)}</span><small class="cat-pct">${item.porcentaje}%</small></span><strong>${moneyText(item.centavos,currency)}</strong></div><div class="category-track"><span style="width:${Math.max(1,item.porcentaje)}%"></span></div></div>`).join(''):'<div class="empty">Sin gastos en este periodo.</div>'}</section>`}
 function dashboardSignals(){const t=monthTotals('DOP'),income=t.ingresos_centavos,expense=t.gastos_centavos;
  const budgets=state.data?.budgets||[];const healthy=budgets.filter(b=>{const spent=core.summarizeMovements(rows().filter(m=>m.categoria_id===b.categoria_id),`${state.month}-01`,`${state.month}-31`).gastos_centavos;return b.monto_centavos>0&&spent*100/b.monto_centavos<Number(b.alerta_porcentaje||85)}).length;
  const signals=[['Margen disponible',income?`${Math.round((income-expense)*100/income)}%`:'—',income?Math.max(0,Math.min(100,Math.round((income-expense)*100/income))):0],['Cobertura de gastos',expense?`${Math.round(income*100/expense)}%`:'—',expense?Math.max(0,Math.min(100,Math.round(income*100/expense))):0],['Presupuestos sanos',budgets.length?`${healthy} de ${budgets.length}`:'Sin presupuestos',budgets.length?healthy*100/budgets.length:0]];
@@ -171,7 +176,7 @@ function periodGroups(which){const list=simple.group(getMonthRows(),state.month,
 function renderFinSummary(){const t=monthTotals();
  return `${flowChart()}<div class="section-head"><h2>Detalle del periodo</h2><small>${t.movements.length} movimientos</small></div><div class="card"><div class="info-line"><span>Ingresos</span><strong class="income-text">${moneyText(t.ingresos_centavos,state.currency,t.ingresos_centavos>=100000000)}</strong></div><div class="info-line"><span>Gastos</span><strong class="expense-text">${moneyText(t.gastos_centavos,state.currency,t.gastos_centavos>=100000000)}</strong></div><div class="info-line"><span>Resultado</span><strong>${moneyText(t.ingresos_centavos-t.gastos_centavos,state.currency,Math.abs(t.ingresos_centavos-t.gastos_centavos)>=100000000)}</strong></div></div>${categoryChart()}<div class="section-head"><h2>Movimientos del mes</h2></div>${groupedByDate(active().filter(r=>matchingMonth(r)&&curr(r)===state.currency))}<p class="soft-note">Los resultados no incluyen transferencias entre cuentas.</p>`}
 function getStat(){return simple.breakdown(rows(),state.month,state.statsType,state.currency,categoryMap(),accountCurrencies())}
-function statList(short=false){const b=getStat();const tones=['var(--tone-1)','var(--tone-2)','var(--tone-3)','var(--tone-4)','var(--tone-5)'];return `<div class="card" style="padding:5px 15px">${b.items.slice(0,short?4:undefined).map((x,i)=>`<div class="stat-row"><span class="stat-dot" style="background:${tones[i%tones.length]}"></span><span class="cat">${esc(x.nombre)}<small>${x.porcentaje}% · ${x.movimientos} mov.</small></span><strong class="${state.statsType==='ingreso'?'income-text':'expense-text'}">${moneyText(x.centavos,state.currency)}</strong></div>`).join('')||'<div class="empty">No hay categorías para el filtro.</div>'}</div>`}
+function statList(short=false){const b=getStat();const tones=['var(--tone-1)','var(--tone-2)','var(--tone-3)','var(--tone-4)','var(--tone-5)'];return `<div class="card" style="padding:5px 15px">${b.items.slice(0,short?4:undefined).map((x,i)=>`<div class="stat-row">${catBadge(x,state.statsType)}<span class="cat">${esc(x.nombre)}<small><span class="stat-dot" style="background:${tones[i%tones.length]}"></span>${x.porcentaje}% · ${x.movimientos} mov.</small></span><strong class="${state.statsType==='ingreso'?'income-text':'expense-text'}">${moneyText(x.centavos,state.currency)}</strong></div>`).join('')||'<div class="empty">No hay categorías para el filtro.</div>'}</div>`}
 function renderStats(){const b=getStat();let total=0;const tones=['var(--tone-1)','var(--tone-2)','var(--tone-3)','var(--tone-4)','var(--tone-5)'];const parts=b.items.map((x,i)=>{const start=total;const size=b.total?x.centavos*100/b.total:0;total+=size;return `${tones[i%tones.length]} ${start.toFixed(3)}% ${total.toFixed(3)}%`}).join(',');return `<div class="mini-switch" role="group" aria-label="Estadística de ingresos o gastos"><button data-do="stats-type" data-type="gasto" class="${state.statsType==='gasto'?'active':''}">Gastos</button><button data-do="stats-type" data-type="ingreso" class="${state.statsType==='ingreso'?'active':''}">Ingresos</button></div><div class="card donut-panel" style="margin-top:12px"><div class="eyebrow" style="text-align:center">DISTRIBUCIÓN POR CATEGORÍA</div><div class="donut" style="background:${b.total?`conic-gradient(${parts})`:'var(--surface-2)'}"><div class="donut-center"><small>Total ${state.statsType==='gasto'?'gastos':'ingresos'}</small><strong>${moneyText(b.total,state.currency)}</strong></div></div><div class="soft-note" style="text-align:center;margin-bottom:0">${longMonth(state.month)} · ${state.currency} · sin conversión de divisas</div></div><div class="section-head"><h2>Categorías</h2><small>${b.items.length} categorías</small></div>${statList()}`}
 function renderFinance(){let content='';switch(state.financeView){case 'calendario':content=renderCalendar();break;case 'semana':content=`${flowChart()}<div class="section-head"><h2>Semanas del mes</h2></div>${periodGroups('week')}`;break;case 'mes':content=`${flowChart()}${categoryChart()}<div class="section-head"><h2>Día por día</h2></div>${groupedByDate(active().filter(r=>matchingMonth(r)&&curr(r)===state.currency))}`;break;case 'resumen':content=renderFinSummary();break;case 'estadisticas':content=renderStats();break;default:content=renderDay()}
  return `<main id="main" class="page"><section class="screen-intro finance-intro"><h1 class="page-title">Finanzas</h1><span class="screen-kicker">${state.currency}</span></section>${periodPicker()}${financeNavigation()}${totalsUI()}<section class="finance-view-body" data-swipe="view" aria-label="${FINANCE_VIEWS.find(([id])=>id===state.financeView)?.[1]||'Diario'}. Desliza para cambiar de vista">${content}</section></main>`}
@@ -182,33 +187,101 @@ function searchResults(){if(!state.searched)return `<div class="card"><div class
   if(state.search.category&&m.categoria_id!==state.search.category)return false;
   if(state.search.accountIds.length===0||(!state.search.accountIds.includes(m.cuenta_id)&&!state.search.accountIds.includes(m.cuenta_destino_id)))return false;
   return [m.descripcion,m.nota,cat(m.categoria_id)?.nombre,account(m.cuenta_id)?.nombre].some(v=>String(v||'').toLocaleLowerCase('es').includes(q));
- }).sort((a,b)=>b.fecha.localeCompare(a.fecha));
+ }).sort((a,b)=>String(b.fecha||'').localeCompare(String(a.fecha||'')));
  return `<div class="section-head"><h2>Resultados</h2><small>${found.length} movimientos</small></div>${found.length?groupedByDate(found):'<div class="card"><div class="empty">No se encontraron movimientos con esos filtros.</div></div>'}`}
-function renderSearch(){return `<main id="main" class="page"><section class="screen-intro"><div class="eyebrow">ENCUENTRA CUALQUIER OPERACIÓN</div><h1 class="page-title">Búsqueda</h1><div class="subline">Filtra el historial de tu sucursal</div></section><form id="search-form" class="card" style="padding:15px"><label class="field-label" for="query" style="margin-top:0">Concepto, nota o categoría</label><div class="search-input-wrapper">${ico('search')}<input class="field-control" id="query" name="search-query" value="${esc(state.search.query)}" placeholder="Buscar movimientos..." autocomplete="off"></div>
+function searchChips(){
+ const prevMonth=nMonth(initialMonth,-1),prevEnd=monthEndOf(prevMonth),d30=nDay(today,-29);
+ const chips=[
+  ['this-month','Este mes',state.search.from===`${initialMonth}-01`&&state.search.to===initialMonthEnd],
+  ['last-month','Mes pasado',state.search.from===`${prevMonth}-01`&&state.search.to===prevEnd],
+  ['30d','Últimos 30 días',state.search.from===d30&&state.search.to===today],
+  ['gasto','Solo gastos',state.search.type==='gasto'],
+  ['ingreso','Solo ingresos',state.search.type==='ingreso'],
+  ['transferencia','Transferencias',state.search.type==='transferencia'],
+  ['reset','Limpiar',false]
+ ];
+ return `<div class="search-chips" role="group" aria-label="Filtros rápidos">${chips.map(([id,label,active])=>`<button type="button" class="chip ${active?'is-active':''}" data-do="search-chip" data-chip="${id}" aria-pressed="${active?'true':'false'}">${label}</button>`).join('')}</div>`;
+}
+function renderSearch(){return `<main id="main" class="page"><section class="screen-intro"><div class="eyebrow">ENCUENTRA CUALQUIER OPERACIÓN</div><h1 class="page-title">Búsqueda</h1><div class="subline">Filtra el historial de tu sucursal</div></section>${searchChips()}<form id="search-form" class="card" style="padding:15px"><label class="field-label" for="query" style="margin-top:0">Concepto, nota o categoría</label><div class="search-input-wrapper">${ico('search')}<input class="field-control" id="query" name="search-query" value="${esc(state.search.query)}" placeholder="Buscar movimientos..." autocomplete="off"></div>
  <div class="filter-grid"><div><label class="field-label" for="date-from">Desde</label><input class="field-control" type="date" name="from" id="date-from" value="${state.search.from}"></div><div><label class="field-label" for="date-to">Hasta</label><input class="field-control" type="date" name="to" id="date-to" value="${state.search.to}"></div></div>
  <label class="field-label">Cuentas</label><button type="button" class="filter-trigger" data-do="accounts-filter"><span>${state.search.accountIds.length===accounts().length?'Todas las cuentas':`${state.search.accountIds.length} cuentas seleccionadas`}</span>${ico('chevron','sm')}</button>
  <div class="filter-grid"><div><label class="field-label" for="search-type">Tipo</label><select class="field-select" id="search-type" name="search-type"><option value="">Todos</option><option value="ingreso" ${state.search.type==='ingreso'?'selected':''}>Ingreso</option><option value="gasto" ${state.search.type==='gasto'?'selected':''}>Gasto</option><option value="transferencia" ${state.search.type==='transferencia'?'selected':''}>Transferencia</option></select></div><div><label class="field-label" for="search-cat">Categoría</label><select class="field-select" id="search-cat" name="search-category"><option value="">Todas</option>${cats().map(c=>`<option value="${esc(c.id)}" ${state.search.category===c.id?'selected':''}>${esc(c.nombre)}</option>`).join('')}</select></div></div><button type="submit" class="primary-btn full" style="margin-top:17px">${ico('search','sm')} Buscar movimientos</button></form><p class="search-summary">Incluye registros anulados en los resultados para conservar la trazabilidad.</p>${searchResults()}</main>`}
 const moreItems=[['debts','clock','Compromisos y deudas','Cuotas y próximos vencimientos'],['books','book','Libros fiscales','Compras 606 y ventas 607 en Drive'],['budgets','target','Presupuestos','Control por categoría'],['cards','card','Tarjetas','Límites, corte y pagos'],['settings','settings','Ajustes','Moneda, apariencia y sucursal']];
-function renderMore(){return `<main id="main" class="page"><section class="screen-intro"><h1 class="page-title">Más opciones</h1><div class="subline">Configura y consulta tus finanzas</div></section><div class="card settings-list">${moreItems.map(([route,ic,title,caption])=>`<button class="setting-row" data-do="route" data-route="${route}"><span class="row-copy"><b>${title}</b><small>${caption}</small></span>${ico('chevron','sm chev')}</button>`).join('')}</div>${isLive?'<button class="secondary-btn full finance-signout" data-do="sign-out">Cerrar sesión</button>':''}</main>`}
-function routeHead(title,desc){return `<section class="screen-intro"><button class="round-button" data-do="back-more" aria-label="Regresar a Más">${ico('back')}</button><div class="eyebrow">HERRAMIENTAS</div><h1 class="page-title">${title}</h1><div class="subline">${desc}</div></section>`}
+function renderMore(){return `<main id="main" class="page"><section class="screen-intro"><h1 class="page-title">Más opciones</h1><div class="subline">Configura y consulta tus finanzas</div></section><div class="card settings-list">${moreItems.map(([route,ic,title,caption])=>`<button class="setting-row" data-do="route" data-route="${route}"><span class="setting-icon" aria-hidden="true">${ico(ic,'sm')}</span><span class="row-copy"><b>${title}</b><small>${caption}</small></span>${ico('chevron','sm chev')}</button>`).join('')}</div>${isLive?'<button class="secondary-btn full finance-signout" data-do="sign-out">Cerrar sesión</button>':''}</main>`}
+function routeHead(title,desc,actionHtml=''){const intro=`<section class="screen-intro"><button class="round-button" data-do="back-more" aria-label="Regresar a Más">${ico('back')}</button><div class="eyebrow">HERRAMIENTAS</div><h1 class="page-title">${title}</h1><div class="subline">${desc}</div></section>`;return actionHtml?`<div class="route-head-row">${intro}${actionHtml}</div>`:intro}
 function obligationRows(){return money.obligationSummary({commitments:state.data.commitments||[],costObligations:state.data.costObligations||[],costRecurrents:state.data.costRecurrents||[],month:state.month})}
+function debtCatalog(){
+ const summary=obligationRows(),monthEnd=`${state.month}-31`;
+ const seenIds=new Set(summary.rows.map(x=>x.id));
+ const seenRecurring=new Set(summary.rows.map(x=>x.recurringId).filter(Boolean));
+ const seenKeys=new Set((state.data?.costObligations||[]).map(o=>`${o.recurrenteId||o.recurrente_id||''}:${core.businessDay(o.venceEn||o.vence_en||'')}`).filter(k=>!k.startsWith(':')));
+ const futurePlans=(state.data?.costRecurrents||[]).filter(p=>p&&p.activo!==false&&p.activo!==0).map(p=>{
+  const id=`plan:${p.id||p.recurrenteId||p.nombre}`;
+  const recurringId=p.id||p.recurrenteId||null;
+  const due=core.businessDay(p.proximaFecha||p.proxima_fecha||'');
+  const amt=Number(p.montoEstimadoCentavos??p.monto_estimado_centavos);
+  return {id,recurringId,source:'planificado',name:p.nombre||p.descripcion||'Pago recurrente',type:String(p.categoria||p.frecuencia||'recurrente').toLowerCase(),due,periodAmount:Number.isSafeInteger(amt)?amt:null,outstanding:Number.isSafeInteger(amt)?amt:null,active:true,state:`previsto · ${p.frecuencia||'mensual'}`,raw:p};
+ }).filter(item=>!seenIds.has(item.id)&&(!item.recurringId||(!seenRecurring.has(item.recurringId)&&!seenKeys.has(`${item.recurringId}:${item.due}`)))&&(!item.due||item.due>monthEnd));
+ return {summary,allRows:[...summary.rows,...futurePlans],futurePlans};
+}
 function paymentRowsFor(item){const raw=item.raw||{};const id=String(item.source==='factura'?(raw.id||raw.obligacionId):raw.id||'');const list=item.source==='factura'?state.data.costPayments||[]:state.data.commitmentPayments||[];return list.filter(p=>String(item.source==='factura'?(p.obligacionId||p.obligacion_id):(p.compromiso_id||p.compromisoId))===id).sort((a,b)=>String(b.fecha||b.pagadoEn||b.created_at||'').localeCompare(String(a.fecha||a.pagadoEn||a.created_at||'')))}
 function renderDebts(){
- const summary=obligationRows();
- const overdue=summary.rows.filter(x=>x.due&&x.due<today);
- const current=summary.rows.filter(x=>x.due>=today&&x.due.startsWith(state.month));
- const upcoming=summary.rows.filter(x=>!overdue.includes(x)&&!current.includes(x));
- const row=item=>`<button class="movement-row" data-do="debt" data-id="${esc(item.id)}"><span class="row-copy"><b>${esc(item.name)}</b><small>${esc(item.type||'Obligación')} · ${esc(item.due||'Sin fecha verificada')} · ${esc(item.source==='planificado'?'Previsto':item.state)}</small></span><span class="row-amount warning-text">${item.outstanding==null?'Saldo no verificado':moneyText(item.outstanding,'DOP')}<span class="tiny">Ver detalle</span></span></button>`;
- return `<main class="page" id="main">${routeHead('Compromisos','Libro financiero y obligaciones de Caja')}
- <p class="soft-note">Saldos y estados leídos del CRM y Caja. Los pagos se muestran como historial; no se descuentan otra vez aquí.</p>
+ const {summary,allRows}=debtCatalog();
+ const overdue=allRows.filter(x=>x.due&&x.due<today);
+ const current=allRows.filter(x=>x.due>=today&&x.due.startsWith(state.month));
+ const upcoming=allRows.filter(x=>!overdue.includes(x)&&!current.includes(x)).sort((a,b)=>String(a.due||'9999').localeCompare(String(b.due||'9999')));
+ const row=item=>{const raw=item.raw||{};return `<button class="movement-row" data-do="debt" data-id="${esc(item.id)}">${catBadge({id:raw.categoriaId||raw.categoria_id||'',nombre:`${item.name} ${item.type||''} ${raw.acreedor||''}`},'gasto')}<span class="row-copy"><b>${esc(item.name)}</b><small>${esc(item.type||'Obligación')} · ${esc(item.due||'Sin fecha verificada')} · ${esc(item.state)}</small></span><span class="row-amount warning-text">${item.outstanding==null?'Saldo no verificado':moneyText(item.outstanding,'DOP')}<span class="tiny">Ver detalle</span></span></button>`};
+ const can=canWriteBranch();
+ return `<main class="page" id="main">${routeHead('Compromisos','Libro financiero y obligaciones de Caja',`<button class="route-add-btn" type="button" data-do="debt-new" ${!can?'disabled':''}>${ico('plus','sm')} Nuevo</button>`)}
+ <p class="soft-note">Los pagos recurrentes y facturas creados aquí viajan sincronizados hacia Caja y el libro del CRM.</p>
  <div class="section-head"><h2>Vencidos</h2><small>${overdue.length}</small></div><div class="card">${overdue.map(row).join('')||'<div class="empty">No hay compromisos vencidos activos.</div>'}</div>
  <div class="section-head"><h2>Este mes</h2><small>${current.length}</small></div><div class="card">${current.map(row).join('')||'<div class="empty">No hay compromisos activos para este mes.</div>'}</div>
- <div class="section-head"><h2>Próximos o sin fecha</h2></div><div class="card">${upcoming.map(row).join('')||'<div class="empty">No hay otros compromisos activos.</div>'}</div>
+ <div class="section-head"><h2>Próximos o sin fecha</h2><small>${upcoming.length}</small></div><div class="card">${upcoming.map(row).join('')||'<div class="empty">No hay otros compromisos activos.</div>'}</div>
  ${summary.review.length?`<div class="section-head"><h2>Pagos por verificar</h2><small>${summary.review.length}</small></div><p class="soft-note">Estas obligaciones tienen un pago declarado sin conciliación. No se suman como deuda pagadera ni se consideran saldadas.</p><div class="card">${summary.review.map(row).join('')}</div>`:''}
  <p class="soft-note">Los pagos registrados en Caja y Finanzas están vinculados en el detalle de cada obligación. Si no existe saldo verificado se muestra expresamente.</p></main>`;
 }
-function renderBudgets(){return `<main class="page" id="main">${routeHead('Presupuestos','Seguimiento mensual por categoría')}<div class="card">${state.data.budgets.map(b=>{const spent=core.summarizeMovements(rows().filter(m=>m.categoria_id===b.categoria_id),`${state.month}-01`,`${state.month}-31`).gastos_centavos;const pct=b.monto_centavos?Math.floor(spent*100/b.monto_centavos):0;return `<div class="budget-item"><div class="title-row"><b>${esc(cat(b.categoria_id)?.nombre||'Categoría')}</b><span>${pct}% utilizado</span></div><div class="progress-track"><span class="${pct>=85?'warn':''}" style="width:${Math.min(pct,100)}%"></span></div><div class="budget-footer"><span>Gastado: ${moneyText(spent,'DOP')}</span><span>Objetivo: ${moneyText(b.monto_centavos,'DOP')}</span></div></div>`}).join('')||'<div class="empty">No hay presupuestos.</div>'}</div><p class="soft-note">Presupuesto y gasto se muestran en la misma moneda, sin convertir divisas.</p></main>`}
-function renderCards(){return `<main class="page" id="main">${routeHead('Tarjetas','Fechas de corte y límites')}<div class="card">${state.data.cards.map(c=>{const a=account(c.cuenta_id);const debt=Math.abs(Math.min(0,a?accountBalance(a):0));return `<div class="budget-item"><div class="title-row"><b>${esc(c.nombre||a?.nombre||'Tarjeta')}</b><span>Crédito</span></div><div class="account-large" style="margin-top:14px"><small>Deuda actual</small><strong style="font-size:1.55rem">${moneyText(debt,a?.moneda||'DOP')}</strong></div><div class="soft-note">Límite: ${moneyText(c.limite_credito_centavos||0,a?.moneda||'DOP')} · Corte día ${esc(c.dia_corte||'—')} · Pago día ${esc(c.dia_pago||'—')}</div><button class="secondary-btn" data-do="account" data-id="${esc(a?.id||'')}">Abrir cuenta</button></div>`}).join('')||'<div class="empty">No hay tarjetas.</div>'}</div></main>`}
+function renderBudgets(){
+ const list=state.data?.budgets||[];
+ const items=list.map(b=>{
+  const spent=core.summarizeMovements(rows().filter(m=>m.categoria_id===b.categoria_id),`${state.month}-01`,`${state.month}-31`).gastos_centavos;
+  const target=Number(b.monto_centavos||0);
+  const pct=target?Math.floor(spent*100/target):0;
+  const alertPct=Number(b.alerta_porcentaje||85);
+  const name=cat(b.categoria_id)?.nombre||'Categoría';
+  return {b,spent,target,pct,alertPct,name,diff:target-spent};
+ });
+ const totalTarget=items.reduce((s,x)=>s+x.target,0),totalSpent=items.reduce((s,x)=>s+x.spent,0),healthy=items.filter(x=>x.pct<x.alertPct).length;
+ return `<main class="page" id="main">${routeHead('Presupuestos','Seguimiento mensual por categoría')}
+ ${items.length?`<div class="card" style="margin-bottom:14px"><div class="info-line"><span>Presupuestado (${esc(longMonth(state.month))})</span><strong>${moneyText(totalTarget,'DOP')}</strong></div><div class="info-line"><span>Gastado acumulado</span><strong class="${totalSpent>totalTarget?'expense-text':''}">${moneyText(totalSpent,'DOP')}</strong></div><div class="info-line"><span>Salud</span><strong>${healthy} de ${items.length} en orden</strong></div></div>`:''}
+ <div class="card">${items.map(x=>{const over=x.pct>=100,warn=!over&&x.pct>=x.alertPct;const statusLabel=over?'Excedido':warn?'Cerca del límite':'En orden';const statusCls=over||warn?'warn':'ok';
+  return `<div class="budget-item"><div class="budget-head">${catBadge({id:x.b.categoria_id,nombre:x.name},'gasto')}<div class="budget-head-copy"><b>${esc(x.name)}</b><small>${esc(x.b.periodo==='mensual'?'Mensual':x.b.periodo||'Mensual')} · Alerta al ${x.alertPct}%</small></div><div class="budget-badges"><span class="pill ${statusCls}">${statusLabel}</span></div></div>
+  <div class="progress-track"><span class="${over?'over':warn?'warn':''}" style="width:${Math.min(x.pct,100)}%"></span></div>
+  <div class="budget-footer"><span>Gastado: ${moneyText(x.spent,'DOP')} (${x.pct}%)</span><span>Objetivo: ${moneyText(x.target,'DOP')}</span></div>
+  <div class="budget-actions"><small class="soft-note" style="margin:0">${x.diff>=0?`Disponible: ${moneyText(x.diff,'DOP')}`:`Excedido por: ${moneyText(-x.diff,'DOP')}`}</small><button type="button" class="chip" data-do="budget-search" data-id="${esc(x.b.categoria_id)}">Ver gastos</button></div></div>`}).join('')||'<div class="empty">No hay presupuestos configurados.</div>'}</div><p class="soft-note">Presupuesto y gasto se muestran en la misma moneda, sin convertir divisas.</p></main>`;
+}
+function renderCards(){
+ const list=state.data?.cards||[];
+ const cards=list.map(c=>{
+  const a=account(c.cuenta_id);
+  const debt=Math.abs(Math.min(0,a?accountBalance(a):0));
+  const limit=Number(c.limite_credito_centavos||0);
+  const avail=Math.max(0,limit-debt);
+  const pct=limit>0?Math.min(100,Math.round(debt*100/limit)):0;
+  const currency=a?.moneda||'DOP';
+  const badgeAcct={...(a||{}),tipo:'tarjeta_credito',nombre:c.nombre||a?.nombre||'Tarjeta',banco:c.banco||a?.banco};
+  return {c,a,debt,limit,avail,pct,currency,badgeAcct};
+ });
+ const dopCards=cards.filter(x=>x.currency==='DOP');
+ const totalDebt=dopCards.reduce((s,x)=>s+x.debt,0),totalLimit=dopCards.reduce((s,x)=>s+x.limit,0);
+ const can=canWriteBranch();
+ return `<main class="page" id="main">${routeHead('Tarjetas','Fechas de corte, límites y pagos')}
+ ${dopCards.length?`<div class="card" style="margin-bottom:14px"><div class="info-line"><span>Deuda total en tarjetas (DOP)</span><strong class="${totalDebt>0?'expense-text':''}">${moneyText(totalDebt,'DOP')}</strong></div><div class="info-line"><span>Límite combinado</span><strong>${moneyText(totalLimit,'DOP')}</strong></div></div>`:''}
+ <div class="card">${cards.map(x=>`<div class="budget-item"><div class="budget-head">${accountBadge(x.badgeAcct,true)}<div class="budget-head-copy"><b>${esc(x.c.nombre||x.a?.nombre||'Tarjeta')}</b><small>${esc(x.currency)} · ${x.limit>0?`${x.pct}% utilizado`:'Sin límite configurado'}</small></div><span class="pill ${x.pct>=90?'warn':'ok'}">Crédito</span></div>
+  <div class="account-large" style="margin-top:14px"><small>Deuda actual</small><strong class="${x.debt>0?'expense-text':''}" style="font-size:1.55rem">${moneyText(x.debt,x.currency)}</strong></div>
+  ${x.limit>0?`<div class="progress-track"><span class="${x.pct>=70?'warn':''}" style="width:${x.pct}%"></span></div>`:''}
+  <div class="card-meta-pills"><span class="pill">Límite ${moneyText(x.limit,x.currency)}</span>${x.limit>0?`<span class="pill">Disponible ${moneyText(x.avail,x.currency)}</span>`:''}<span class="pill">Corte día ${esc(x.c.dia_corte||'—')}</span><span class="pill">Pago día ${esc(x.c.dia_pago||'—')}</span></div>
+  <div class="btn-pair" style="margin-top:12px"><button class="secondary-btn" type="button" data-do="account" data-id="${esc(x.a?.id||'')}" ${x.a?'':'disabled'}>Abrir cuenta</button><button class="primary-btn" type="button" data-do="card-pay" data-id="${esc(x.a?.id||'')}" ${can&&x.a&&(!isLive||x.currency==='DOP')?'':'disabled'}>Pagar tarjeta</button></div></div>`).join('')||'<div class="empty">No hay tarjetas configuradas.</div>'}</div></main>`;
+}
 // 13/11/2026 (dueño: «un interruptor dentro de el pwa»): libros fiscales 606/607 en el Excel de Drive. El agente de la PC los anota
 // una vez al día con el interruptor encendido, o al pulsar «Anotar ahora» (igual que escribir «libros» por WhatsApp). Nunca dos veces.
 function renderBooks(){
@@ -235,8 +308,40 @@ function renderMain(){if(state.loading)return `<main class="page"><div class="ca
  if(state.route==='debts')return renderDebts();if(state.route==='books')return renderBooks();if(state.route==='budgets')return renderBudgets();if(state.route==='cards')return renderCards();if(state.route==='settings')return renderSettings();
  return state.tab==='finance'?renderFinance():state.tab==='search'?renderSearch():state.tab==='more'?renderMore():renderHome()}
 function modalFrame(title,inner){return `<div class="overlay" data-do="backdrop"><section class="sheet" role="dialog" aria-modal="true" aria-label="${esc(title)}"><div class="sheet-grab"></div><div class="sheet-header"><h2>${esc(title)}</h2><button class="round-button" data-do="close" aria-label="Cerrar ventana">${ico('x')}</button></div>${inner}</section></div>`}
+function accountActivitySeries(a){
+ const unique=core.deduplicateMovements(rows()).filter(m=>core.isActiveMovement(m)&&m.fecha);
+ const monthRows=unique.filter(m=>matchingMonth(m));
+ const pool=monthRows.some(m=>m.cuenta_id===a.id||m.cuenta_destino_id===a.id)?monthRows:unique;
+ const byDay=new Map();
+ let totalIn=0,totalOut=0;
+ const addDay=(day,inAmt,outAmt)=>{const cur=byDay.get(day)||{day,in:0,out:0};cur.in+=inAmt;cur.out+=outAmt;byDay.set(day,cur)};
+ for(const m of pool){
+  const amt=Math.abs(Number(m.monto_centavos)||0),fee=core.transferCommissionCents(m,unique);
+  const src=m.cuenta_origen_id||m.cuentaOrigenId||(['gasto','transferencia','ajuste_negativo'].includes(m.tipo)?m.cuenta_id:null);
+  const dst=m.cuenta_destino_id||m.cuentaDestinoId||(['ingreso','ajuste_positivo'].includes(m.tipo)?m.cuenta_id:null);
+  let inAmt=0,outAmt=0;
+  if(String(dst||'')===String(a.id))inAmt+=amt;
+  if(String(src||'')===String(a.id))outAmt+=amt+fee;
+  if(!inAmt&&!outAmt)continue;
+  totalIn+=inAmt;totalOut+=outAmt;
+  addDay(m.fecha,inAmt,outAmt);
+ }
+ const entries=[...byDay.values()].sort((x,y)=>x.day.localeCompare(y.day)).slice(-14);
+ return {entries,totalIn,totalOut,inCurrentMonth:pool===monthRows};
+}
+function accountMiniChart(a){
+ const {entries,totalIn,totalOut,inCurrentMonth}=accountActivitySeries(a);
+ const periodLabel=inCurrentMonth?longMonth(state.month):'Historial reciente';
+ const max=Math.max(1,...entries.flatMap(e=>[e.in,e.out]));
+ const w=320,h=86,padL=8,padR=8,top=8,baseY=68,usableW=w-padL-padR;
+ const step=entries.length?usableW/entries.length:usableW;
+ const barW=Math.max(3,Math.min(10,step*.32));
+ const barH=v=>v>0?Math.max(3,Math.round((v/max)*(baseY-top))):0;
+ const marks=[0,Math.floor((entries.length-1)/2),entries.length-1].filter((v,i,arr)=>entries.length&&arr.indexOf(v)===i);
+ return `<section class="account-chart-panel" aria-label="Mini gráfica de ${esc(a.nombre)}"><div class="account-chart-head"><h3>Movimiento de la cuenta</h3><small>${esc(periodLabel)} · ${entries.length} día(s)</small></div><div class="account-chart-metrics"><div class="account-chart-stat"><small>Entradas</small><strong class="income-text">+ ${moneyText(totalIn,a.moneda)}</strong></div><div class="account-chart-stat"><small>Salidas</small><strong class="expense-text">− ${moneyText(totalOut,a.moneda)}</strong></div></div>${entries.length>=2?`<svg class="mini-svg" viewBox="0 0 ${w} ${h}" role="img" aria-label="Entradas y salidas por día"><line class="mini-axis" x1="${padL}" y1="${baseY}" x2="${w-padR}" y2="${baseY}"/>${entries.map((e,i)=>{const cx=padL+i*step+step/2;const hIn=barH(e.in),hOut=barH(e.out);return `${hIn?`<rect class="mini-bar-in" x="${(cx-barW-.5).toFixed(1)}" y="${baseY-hIn}" width="${barW.toFixed(1)}" height="${hIn}" rx="2"/>`:''}${hOut?`<rect class="mini-bar-out" x="${(cx+.5).toFixed(1)}" y="${baseY-hOut}" width="${barW.toFixed(1)}" height="${hOut}" rx="2"/>`:''}`}).join('')}${marks.map(i=>{const cx=padL+i*step+step/2;return `<text x="${cx.toFixed(1)}" y="81" text-anchor="${i===0?'start':i===entries.length-1?'end':'middle'}">${esc(entries[i].day.slice(8))}/${esc(entries[i].day.slice(5,7))}</text>`}).join('')}</svg>`:'<p class="soft-note" style="margin:2px 0 0">Aún no hay suficientes días con actividad para graficar la tendencia.</p>'}</section>`;
+}
 function modalAccount(){const a=account(state.accountId);if(!a)return modalFrame('Cuenta','<div class="empty">Cuenta no disponible.</div>');const history=activeByAccount(a);
- return modalFrame('Detalle de cuenta',`<div class="account-sheet-head">${accountBadge(a,true)}<div><div class="pill">${a.moneda} · ${a.tipo==='banco'?'Banco':a.tipo==='tarjeta_credito'?'Tarjeta':'Efectivo'}</div><div class="account-large"><small>${esc(a.nombre)} · Saldo actual</small><strong>${moneyText(accountBalance(a),a.moneda)}</strong></div></div></div><div class="btn-pair"><button class="secondary-btn" data-do="reconcile">${ico('check','sm')} Conciliar</button><button class="primary-btn" data-do="account-transfer">${ico('arrows','sm')} Transferir</button></div><button class="secondary-btn full" data-do="account-edit" style="margin-top:10px">${ico('edit','sm')} Editar cuenta</button><h3>Historial de esta cuenta</h3><div>${movementsUI(history,9)}</div>`)}
+ return modalFrame('Detalle de cuenta',`<div class="account-sheet-head">${accountBadge(a,true)}<div><div class="pill">${a.moneda} · ${a.tipo==='banco'?'Banco':a.tipo==='tarjeta_credito'?'Tarjeta':'Efectivo'}</div><div class="account-large"><small>${esc(a.nombre)} · Saldo actual</small><strong>${moneyText(accountBalance(a),a.moneda)}</strong></div></div></div><div class="btn-pair"><button class="secondary-btn" data-do="reconcile">${ico('check','sm')} Conciliar</button><button class="primary-btn" data-do="account-transfer">${ico('arrows','sm')} Transferir</button></div><button class="secondary-btn full" data-do="account-edit" style="margin-top:10px">${ico('edit','sm')} Editar cuenta</button>${accountMiniChart(a)}<h3>Historial de esta cuenta</h3><div>${movementsUI(history,9)}</div>`)}
 function modalAccountsFilter(){return modalFrame('Elegir cuentas',`<p class="soft-note">Puedes seleccionar varias cuentas para la búsqueda. No se combinan monedas.</p><div>${accounts().map(a=>`<label class="option-line option-account"><input type="checkbox" name="account-toggle" value="${esc(a.id)}" ${state.search.accountIds.includes(a.id)?'checked':''}>${accountBadge(a)}<span>${esc(a.nombre)} <small style="color:var(--muted)">${a.moneda}</small></span></label>`).join('')}</div><button class="primary-btn full" data-do="close" style="margin-top:15px">Aplicar selección</button>`)}
 function saleDetailHtml(m){
  const event=saleForMovement(m);
@@ -270,17 +375,57 @@ function modalAccountEdit(){const a=account(state.accountId);if(!a)return '';
 function modalReconcile(){const a=account(state.accountId);if(!a)return '';
  return modalFrame('Conciliar cuenta',`<div class="account-large"><small>${esc(a.nombre)} · Saldo en el libro</small><strong>${moneyText(accountBalance(a),a.moneda)}</strong></div><div class="notice warning">Conciliar solo contra saldo contado o estado bancario comprobado. No sirve para corregir sincronizaciones pendientes.</div><label class="field-label" for="reconcile-amount">Saldo físico / bancario verificado (${a.moneda})</label><input class="field-control" id="reconcile-amount" name="reconcile-amount" placeholder="Ej. 12500.00 o -550.00" inputmode="decimal" autocomplete="off"><label class="field-label" for="reconcile-reason">Evidencia y motivo</label><textarea class="field-area" id="reconcile-reason" name="reconcile-reason" placeholder="Conteo físico / estado bancario y fecha" rows="3"></textarea><button class="primary-btn full" data-do="reconcile-save" style="margin-top:15px">Verificar conciliación</button>`)}
 function modalDebt(){
- const summary=obligationRows();
- const item=[...summary.rows,...summary.review].find(x=>x.id===state.accountId);
+ const {summary,allRows}=debtCatalog();
+ const item=[...allRows,...summary.review].find(x=>x.id===state.accountId);
  if(!item)return modalFrame('Compromiso','<div class="empty">Este compromiso ya no está activo en el periodo. Actualiza el libro.</div>');
  const payments=paymentRowsFor(item),raw=item.raw||{};
  const line=(label,value)=>value==null||value===''?'':`<div class="info-line"><span>${label}</span><strong>${esc(value)}</strong></div>`;
  const amount=(label,value)=>value!=null&&value!==''&&Number.isSafeInteger(Number(value))?line(label,moneyText(Number(value),'DOP')):'';
- return modalFrame('Detalle de compromiso',`<div class="account-large"><small>${esc(item.name)}</small><strong>${item.outstanding==null?'Saldo no verificado':moneyText(item.outstanding,'DOP')}</strong></div><div class="card">${line('Origen',item.source==='factura'?'Obligación de Caja':item.source==='planificado'?'Plan recurrente':'Compromiso financiero')}${line('Estado',item.state)}${line('Vencimiento',item.due||'No verificado')}${amount('Cuota',item.periodAmount)}${amount('Capital pendiente',item.capital)}${raw.cuotas_totales?line('Cuotas',`${raw.cuotas_pagadas||0} de ${raw.cuotas_totales}`):''}${line('Referencia',raw.referencia)}${line('Nota',raw.nota)}</div><h3>Pagos vinculados</h3><div class="card">${payments.length?payments.map(p=>`<div class="budget-item"><div class="title-row"><b>${esc(p.fecha||p.pagadoEn||p.created_at||'Fecha no verificada')}</b><strong>${moneyText(Number(p.monto_centavos??p.montoCentavos),'DOP')}</strong></div><div class="soft-note">${esc(p.estado||'Registrado')}${p.referencia?' · '+esc(p.referencia):''}${p.metodoPago||p.metodo_pago?' · '+esc(p.metodoPago||p.metodo_pago):''}</div></div>`).join(''):'<div class="empty">No hay pagos vinculados en el libro.</div>'}</div><p class="soft-note">El saldo pendiente proviene del registro original. El historial no genera un nuevo débito.</p>${canWriteBranch()&&(item.outstanding==null||item.outstanding>0)?`<button class="primary-btn full" type="button" data-do="debt-pay" data-id="${esc(item.id)}" style="margin-top:14px">${ico('card','sm')} Pagar este compromiso</button><p class="soft-note">Abre el gasto con el saldo ya puesto. Al guardarlo, el pago se enlaza a este compromiso y el saldo baja solo.</p>`:''}`);
+ return modalFrame('Detalle de compromiso',`<div class="account-large"><small>${esc(item.name)}</small><strong>${item.outstanding==null?'Saldo no verificado':moneyText(item.outstanding,'DOP')}</strong></div><div class="card">${line('Origen',item.source==='factura'?'Obligación de Caja':item.source==='planificado'?'Plan recurrente':'Compromiso financiero')}${line('Estado',item.state)}${line('Vencimiento',item.due||'No verificado')}${line('Acreedor',raw.acreedor)}${line('Frecuencia',raw.frecuencia)}${amount('Cuota',item.periodAmount)}${amount('Capital pendiente',item.capital)}${raw.cuotas_totales?line('Cuotas',`${raw.cuotas_pagadas||0} de ${raw.cuotas_totales}`):''}${line('Referencia',raw.referencia||raw.numeroFactura)}${line('Nota',raw.nota)}</div><h3>Pagos vinculados</h3><div class="card">${payments.length?payments.map(p=>`<div class="budget-item"><div class="title-row"><b>${esc(p.fecha||p.pagadoEn||p.created_at||'Fecha no verificada')}</b><strong>${moneyText(Number(p.monto_centavos??p.montoCentavos),'DOP')}</strong></div><div class="soft-note">${esc(p.estado||'Registrado')}${p.referencia?' · '+esc(p.referencia):''}${p.metodoPago||p.metodo_pago?' · '+esc(p.metodoPago||p.metodo_pago):''}</div></div>`).join(''):'<div class="empty">No hay pagos vinculados en el libro.</div>'}</div><p class="soft-note">El saldo pendiente proviene del registro original. El historial no genera un nuevo débito.</p>${canWriteBranch()&&(item.outstanding==null||item.outstanding>0)?`<button class="primary-btn full" type="button" data-do="debt-pay" data-id="${esc(item.id)}" style="margin-top:14px">${ico('card','sm')} Pagar este compromiso</button><p class="soft-note">Abre el gasto con el saldo ya puesto. Al guardarlo, el pago se enlaza a este compromiso y el saldo baja solo.</p>`:''}`);
+}
+function expenseCategoryOptions(selected){
+ const list=cats().filter(c=>c.tipo==='gasto');
+ if(!list.length)return '<option value="recon-cat-otros">Costos generales</option>';
+ return list.map(c=>`<option value="${esc(c.id)}" ${selected===c.id?'selected':''}>${esc(c.nombre)}</option>`).join('');
+}
+function modalCommitment(){
+ if(isLive&&!canRegister())return modalFrame('Nuevo compromiso',`<div class="notice warning">El registro no está disponible desde este origen. Usa la PWA oficial o el panel central con una cuenta autorizada.</div>`);
+ const f=state.commitmentForm,isRec=f.kind==='recurrente',can=canWriteBranch();
+ const freqs=[['mensual','Mensual'],['quincenal','Quincenal'],['semanal','Semanal'],['bimestral','Bimestral'],['trimestral','Trimestral'],['semestral','Semestral'],['anual','Anual']];
+ const methods=[['transferencia','Transferencia'],['efectivo','Efectivo'],['tarjeta','Tarjeta'],['cheque','Cheque']];
+ return modalFrame(isRec?'Nuevo pago recurrente':'Nueva factura o deuda',`
+ <div class="sheet-tabs two" role="group" aria-label="Tipo de compromiso">
+  <button type="button" class="${isRec?'active':''}" data-do="debt-kind" data-kind="recurrente">Pago recurrente</button>
+  <button type="button" class="${!isRec?'active':''}" data-do="debt-kind" data-kind="obligacion">Factura / deuda</button>
+ </div>
+ <label class="field-label" for="debt-nombre" style="margin-top:0">${isRec?'Nombre del pago fijo':'Concepto o motivo'}</label>
+ <input class="field-control" id="debt-nombre" name="debt-nombre" value="${esc(f.nombre)}" placeholder="${isRec?'Ej. Internet Claro, Alquiler...':'Ej. Cuota equipo, Factura proveedor...'}" maxlength="180">
+ <div class="filter-grid">
+  <div><label class="field-label" for="debt-monto">${isRec?'Monto estimado (RD$)':'Monto (RD$)'}</label><input class="field-control" id="debt-monto" name="debt-monto" value="${esc(f.monto)}" placeholder="0.00" inputmode="decimal" autocomplete="off"></div>
+  <div><label class="field-label" for="debt-acreedor">Acreedor / proveedor</label><input class="field-control" id="debt-acreedor" name="debt-acreedor" value="${esc(f.acreedor)}" placeholder="Opcional" maxlength="160"></div>
+ </div>
+ <div class="filter-grid">
+  <div><label class="field-label" for="debt-categoria">Categoría</label><select class="field-select" id="debt-categoria" name="debt-categoria">${expenseCategoryOptions(f.categoriaId)}</select></div>
+  <div><label class="field-label" for="debt-proxima">${isRec?'Próximo vencimiento':'Fecha límite de pago'}</label><input class="field-control" id="debt-proxima" type="date" name="debt-proxima" value="${esc(f.proximaFecha)}"></div>
+ </div>
+ ${isRec?`<div class="filter-grid">
+  <div><label class="field-label" for="debt-frecuencia">Frecuencia</label><select class="field-select" id="debt-frecuencia" name="debt-frecuencia">${freqs.map(([v,l])=>`<option value="${v}" ${f.frecuencia===v?'selected':''}>${l}</option>`).join('')}</select></div>
+  <div><label class="field-label" for="debt-metodo">Método habitual</label><select class="field-select" id="debt-metodo" name="debt-metodo">${methods.map(([v,l])=>`<option value="${v}" ${f.metodoPago===v?'selected':''}>${l}</option>`).join('')}</select></div>
+ </div>
+ ${['quincenal','mensual'].includes(f.frecuencia)?`<div class="filter-grid"><div><label class="field-label" for="debt-dia1">Día del mes 1</label><input class="field-control" id="debt-dia1" name="debt-dia1" type="number" min="1" max="31" value="${esc(f.diaMes1)}" placeholder="Ej. 15"></div>${f.frecuencia==='quincenal'?`<div><label class="field-label" for="debt-dia2">Día del mes 2</label><input class="field-control" id="debt-dia2" name="debt-dia2" type="number" min="1" max="31" value="${esc(f.diaMes2)}" placeholder="Ej. 30"></div>`:'<div></div>'}</div>`:''}
+ <label class="check-line"><input type="checkbox" name="debt-variable" ${f.montoVariable?'checked':''}><span>El monto puede variar en cada recibo</span></label>`
+ :`<div class="filter-grid">
+  <div><label class="field-label" for="debt-emitida">Fecha de factura</label><input class="field-control" id="debt-emitida" type="date" name="debt-emitida" value="${esc(f.emitidaEn)}"></div>
+  <div><label class="field-label" for="debt-factura">Núm. factura / ref.</label><input class="field-control" id="debt-factura" name="debt-factura" value="${esc(f.numeroFactura)}" placeholder="Opcional" maxlength="100"></div>
+ </div>`}
+ <label class="field-label" for="debt-nota">Nota</label>
+ <textarea class="field-area" id="debt-nota" name="debt-nota" rows="2" maxlength="600" placeholder="Detalle adicional opcional">${esc(f.nota)}</textarea>
+ <div class="notice">${!can?'Tu cuenta puede consultar, pero no crear compromisos en esta sucursal.':isLive?'Se guarda en el libro del CRM y se sincroniza con la Caja del estudio.':'Previsualización: el formulario valida el envío sin guardar cambios reales.'}</div>
+ <button class="primary-btn full" type="button" data-do="debt-save" style="margin-top:10px" ${state.busy||!can?'disabled':''}>${isLive?'Guardar compromiso':'Revisar simulación'}</button>`);
 }
 function modalEntry(){if(isLive&&!canRegister())return modalFrame('Registrar movimiento',`<div class="notice warning">El registro no está disponible desde este origen. Usa la PWA oficial o el panel central con una cuenta autorizada.</div><button class="primary-btn full" type="button" data-do="open-finance-panel" style="margin:16px 0">Abrir Finanzas del panel central</button>`);const type=state.entryType;const isTransfer=type==='transferencia';const a=account(state.entryAccount);const amt=state.entryDigits?Number(state.entryDigits):0;const currency=a?.moneda||'DOP';
- return modalFrame(state.entryLink&&type==='gasto'?'Pagar compromiso':'Registrar movimiento',`${state.entryLink&&type==='gasto'?`<div class="notice">Pago vinculado a <b>${esc(state.entryLink.name)}</b>. Revisa el monto y la cuenta antes de guardar.</div>`:''}<div class="sheet-tabs" role="group" aria-label="Tipo de movimiento"><button class="${type==='gasto'?'active':''}" data-do="entry-type" data-type="gasto">Gasto</button><button class="${type==='ingreso'?'active':''}" data-do="entry-type" data-type="ingreso">Ingreso</button><button class="${isTransfer?'active':''}" data-do="entry-type" data-type="transferencia">Transferencia</button></div><div class="input-amount ${type==='gasto'?'expense-text':type==='ingreso'?'income-text':'warning-text'}" aria-label="Importe actual" role="status">${type==='gasto'?'−':type==='ingreso'?'+':''}${moneyText(amt,currency)}</div><div class="keypad" role="group" aria-label="Teclado para introducir el importe">${['1','2','3','4','5','6','7','8','9','00','0','⌫'].map(v=>`<button data-do="digit" data-digit="${v}" aria-label="${v==='⌫'?'Borrar último dígito':`Agregar ${v}`}">${v}</button>`).join('')}</div><label class="field-label" for="entry-account">${isTransfer?'Cuenta de origen':'Cuenta'}</label><select class="field-select" id="entry-account" name="entry-account">${cashAccountOptions(state.entryAccount)}</select>${isTransfer?`<label class="field-label" for="entry-dest">Cuenta de destino</label><select class="field-select" id="entry-dest" name="entry-dest">${cashAccountOptions(state.entryDest)}</select>`:`<label class="field-label" for="entry-category">Categoría</label><select class="field-select" id="entry-category" name="entry-category">${cats().filter(c=>c.tipo===type).map(c=>`<option value="${esc(c.id)}" ${state.entryCategory===c.id?'selected':''}>${esc(c.nombre)}</option>`).join('')}</select>`}<div class="filter-grid"><div><label class="field-label" for="entry-date">Fecha</label><input class="field-control" id="entry-date" type="date" name="entry-date" value="${esc(state.entryDate)}"></div><div><label class="field-label" for="entry-note">Concepto</label><input class="field-control" id="entry-note" name="entry-note" value="${esc(state.entryNote)}" placeholder="Descripción" maxlength="180"></div></div><div class="notice">${!canWriteBranch()?'Tu cuenta puede consultar, pero no registrar movimientos en esta sucursal.':isLive?'Se registra en el libro del CRM con tu permiso de sucursal. La Caja física aún no ha confirmado esta integración.':'Previsualización: el registro no alterará saldos, historial ni Firebase.'}</div><button class="primary-btn full" data-do="entry-save" ${state.busy||!canWriteBranch()?'disabled':''}>${isLive?'Guardar movimiento':'Revisar simulación'}</button>`)}
-function renderModal(){if(!state.modal)return '';switch(state.modal){case 'account':return modalAccount();case 'accounts-filter':return modalAccountsFilter();case 'movement':return modalMovement();case 'void':return modalVoid();case 'movement-edit':return modalMovementEdit();case 'account-edit':return modalAccountEdit();case 'reconcile':return modalReconcile();case 'debt':return modalDebt();case 'entry':return modalEntry();default:return ''}}
+ return modalFrame(state.entryLink&&type==='gasto'?'Pagar compromiso':'Registrar movimiento',`${state.entryLink&&type==='gasto'?`<div class="notice">Pago vinculado a <b>${esc(state.entryLink.name)}</b>. Revisa el monto y la cuenta antes de guardar.</div>`:''}<div class="sheet-tabs" role="group" aria-label="Tipo de movimiento"><button class="${type==='gasto'?'active':''}" data-do="entry-type" data-type="gasto">Gasto</button><button class="${type==='ingreso'?'active':''}" data-do="entry-type" data-type="ingreso">Ingreso</button><button class="${isTransfer?'active':''}" data-do="entry-type" data-type="transferencia">Transferencia</button></div><div class="input-amount ${type==='gasto'?'expense-text':type==='ingreso'?'income-text':'warning-text'}" aria-label="Importe actual" role="status">${type==='gasto'?'−':type==='ingreso'?'+':''}${moneyText(amt,currency)}</div><div class="keypad" role="group" aria-label="Teclado para introducir el importe">${['1','2','3','4','5','6','7','8','9','00','0','⌫'].map(v=>`<button data-do="digit" data-digit="${v}" aria-label="${v==='⌫'?'Borrar último dígito':`Agregar ${v}`}">${v}</button>`).join('')}</div><label class="field-label" for="entry-account">${isTransfer?'Cuenta de origen':'Cuenta'}</label><select class="field-select" id="entry-account" name="entry-account">${cashAccountOptions(state.entryAccount,'',type==='gasto')}</select>${isTransfer?`<label class="field-label" for="entry-dest">Cuenta de destino</label><select class="field-select" id="entry-dest" name="entry-dest">${cashAccountOptions(state.entryDest,state.entryAccount,true)}</select>`:`<label class="field-label" for="entry-category">Categoría</label><select class="field-select" id="entry-category" name="entry-category">${cats().filter(c=>c.tipo===type).map(c=>`<option value="${esc(c.id)}" ${state.entryCategory===c.id?'selected':''}>${esc(c.nombre)}</option>`).join('')}</select>`}<div class="filter-grid"><div><label class="field-label" for="entry-date">Fecha</label><input class="field-control" id="entry-date" type="date" name="entry-date" value="${esc(state.entryDate)}"></div><div><label class="field-label" for="entry-note">Concepto</label><input class="field-control" id="entry-note" name="entry-note" value="${esc(state.entryNote)}" placeholder="Descripción" maxlength="180"></div></div><div class="notice">${!canWriteBranch()?'Tu cuenta puede consultar, pero no registrar movimientos en esta sucursal.':isLive?'Se registra en el libro del CRM con tu permiso de sucursal. La Caja física aún no ha confirmado esta integración.':'Previsualización: el registro no alterará saldos, historial ni Firebase.'}</div><button class="primary-btn full" data-do="entry-save" ${state.busy||!canWriteBranch()?'disabled':''}>${isLive?'Guardar movimiento':'Revisar simulación'}</button>`)}
+function renderModal(){if(!state.modal)return '';switch(state.modal){case 'account':return modalAccount();case 'accounts-filter':return modalAccountsFilter();case 'movement':return modalMovement();case 'void':return modalVoid();case 'movement-edit':return modalMovementEdit();case 'account-edit':return modalAccountEdit();case 'reconcile':return modalReconcile();case 'debt':return modalDebt();case 'commitment':return modalCommitment();case 'entry':return modalEntry();default:return ''}}
 let previousModal=null, previousViewKey='', popupSerial=0, navigationDirection=0;
 const reducedMotion=()=>window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 function stagePageExit(direction){
@@ -355,6 +500,31 @@ async function handleClick(e){if(Date.now()<swipeSuppressClickUntil)return;const
   return;
  }
  if(action==='accounts-filter'){openModal('accounts-filter');return}
+ if(action==='search-chip'){
+  const chip=btn.dataset.chip;
+  if(chip==='reset'){state.search={query:'',type:'',category:'',from:`${initialMonth}-01`,to:initialMonthEnd,accountIds:accounts().map(a=>a.id)};state.searched=false;render();return}
+  if(chip==='this-month'){state.search.from=`${initialMonth}-01`;state.search.to=initialMonthEnd;}
+  else if(chip==='last-month'){const pm=nMonth(initialMonth,-1);state.search.from=`${pm}-01`;state.search.to=monthEndOf(pm);}
+  else if(chip==='30d'){state.search.from=nDay(today,-29);state.search.to=today;}
+  else if(['gasto','ingreso','transferencia'].includes(chip)){state.search.type=state.search.type===chip?'':chip;}
+  if(!state.search.accountIds.length)state.search.accountIds=accounts().map(a=>a.id);
+  state.searched=true;render();return;
+ }
+ if(action==='budget-search'){
+  state.tab='search';state.route='';state.modal=null;
+  state.search={query:'',type:'gasto',category:btn.dataset.id||'',from:`${state.month}-01`,to:monthEndOf(state.month),accountIds:accounts().map(a=>a.id)};
+  state.searched=true;render();window.scrollTo({top:0,behavior:'instant'});return;
+ }
+ if(action==='card-pay'){
+  const target=account(btn.dataset.id);if(!target)return;
+  const debt=Math.abs(Math.min(0,accountBalance(target)));
+  const origin=accounts().find(a=>a.id!==target.id&&a.tipo!=='tarjeta_credito'&&a.moneda===target.moneda&&a.estado!=='eliminada');
+  if(!origin){note('No hay otra cuenta en la misma moneda para pagar esta tarjeta.');return}
+  state.entryType='transferencia';state.entryDigits=debt>0?String(debt):'';state.entryAccount=lastAccount('transferencia')||origin.id;
+  if(state.entryAccount===target.id)state.entryAccount=origin.id;
+  state.entryDest=target.id;state.entryNote=`Pago ${target.nombre}`.slice(0,180);state.entryDate=core.businessDay(new Date());state.entryLink=null;state.pendingRequestId=null;
+  openModal('entry');return;
+ }
  if(action==='entry'||action==='quick'){const type=action==='quick'?btn.dataset.type:'gasto';state.entryType=type;state.entryDigits='';state.entryNote='';state.entryLink=null;state.entryDate=core.businessDay(new Date());state.pendingRequestId=null;
   state.entryAccount=lastAccount(type)||state.entryAccount;state.entryCategory=cats().find(c=>c.tipo===type)?.id||'';
   if(type==='transferencia'){const a=account(state.entryAccount);state.entryDest=accounts().find(x=>x.id!==a?.id&&x.moneda===a?.moneda)?.id||''}openModal('entry');return}
@@ -365,10 +535,55 @@ async function handleClick(e){if(Date.now()<swipeSuppressClickUntil)return;const
  // 13/11/2026 (dueño: «arreglar los compromisos y pagos recurrentes para usar más seguido en la PWA»): pagar desde la ficha.
  // Abre el gasto con el saldo y el concepto; el pago viaja con el id del compromiso y el servidor (posObligaciones →
  // finance-payment-projection) lo enlaza y baja el saldo. Aquí no se descuenta nada a mano.
- if(action==='debt-pay'){const item=[...obligationRows().rows,...obligationRows().review].find(x=>x.id===btn.dataset.id);if(!item){note('Ese compromiso ya no está activo. Actualiza el libro.');return}const raw=item.raw||{};const cents=Number.isSafeInteger(item.outstanding)&&item.outstanding>0?item.outstanding:Number.isSafeInteger(Number(item.periodAmount))?Number(item.periodAmount):0;
+ if(action==='debt-pay'){const {summary,allRows}=debtCatalog();const item=[...allRows,...summary.review].find(x=>x.id===btn.dataset.id);if(!item){note('Ese compromiso ya no está activo. Actualiza el libro.');return}const raw=item.raw||{};const cents=Number.isSafeInteger(item.outstanding)&&item.outstanding>0?item.outstanding:Number.isSafeInteger(Number(item.periodAmount))?Number(item.periodAmount):0;
  state.entryType='gasto';state.entryDigits=cents>0?String(cents):'';state.entryNote=`Pago ${item.name}`.slice(0,180);state.entryDate=core.businessDay(new Date());state.pendingRequestId=null;
  state.entryLink={name:item.name,source:item.source,obligacionId:item.source==='factura'?String(raw.id||raw.obligacionId||''):'',compromisoId:item.source!=='factura'&&item.source!=='planificado'?String(raw.id||''):'',recurrenteId:String(raw.recurrente_id||raw.recurrenteId||(item.source==='planificado'?raw.id||'':''))};
  state.entryCategory=cats().find(c=>c.tipo==='gasto'&&/pago|servicio|compromis|gasto fijo|fijo/i.test(c.nombre||''))?.id||cats().find(c=>c.tipo==='gasto')?.id||'';openModal('entry');return}
+ if(action==='debt-new'){const firstCat=cats().find(c=>c.tipo==='gasto')?.id||'recon-cat-otros';state.commitmentForm=defaultCommitmentForm(firstCat);state.pendingRequestId=null;openModal('commitment');return}
+ if(action==='debt-kind'){state.commitmentForm.kind=btn.dataset.kind==='obligacion'?'obligacion':'recurrente';state.pendingRequestId=null;render();return}
+ if(action==='debt-save'){
+  const f=state.commitmentForm;
+  const val=n=>document.querySelector(`[name="${n}"]`)?.value;
+  const nombre=String(val('debt-nombre')??f.nombre??'').trim();
+  const acreedor=String(val('debt-acreedor')??f.acreedor??'').trim();
+  const categoriaId=String(val('debt-categoria')??f.categoriaId??'recon-cat-otros').trim()||'recon-cat-otros';
+  const categoriaNombre=cat(categoriaId)?.nombre||'Costos';
+  const proximaFecha=String(val('debt-proxima')??f.proximaFecha??today).trim();
+  const nota=String(val('debt-nota')??f.nota??'').trim();
+  if(!nombre){note('Escribe el nombre del pago o compromiso.');return}
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(proximaFecha)){note('Elige una fecha válida.');return}
+  let cents=0;
+  const rawMonto=String(val('debt-monto')??f.monto??'').trim();
+  const isVariable=Boolean(document.querySelector('[name="debt-variable"]')?.checked ?? f.montoVariable);
+  if(rawMonto||f.kind==='obligacion'||!isVariable){
+   try{cents=numericCents(rawMonto)}catch(err){note(err.message);return}
+   if(cents<=0&&(!isVariable||f.kind==='obligacion')){note('Introduce un monto mayor que cero.');return}
+  }
+  state.pendingRequestId ||= requestId();
+  const id=state.pendingRequestId;
+  if(f.kind==='recurrente'){
+   const frecuencia=String(val('debt-frecuencia')??f.frecuencia??'mensual');
+   const metodoPago=String(val('debt-metodo')??f.metodoPago??'transferencia');
+   const d1=Number(val('debt-dia1')??f.diaMes1),d2=Number(val('debt-dia2')??f.diaMes2);
+   await commit('cost.recurring.upsert',id,{
+    requestId:id,recurrenteId:id,categoriaId,categoria:categoriaNombre,nombre,descripcion:nombre,
+    acreedor:acreedor||null,montoEstimadoCentavos:cents,montoVariable:isVariable,
+    frecuencia,intervaloDias:null,diaMes1:Number.isInteger(d1)&&d1>=1&&d1<=31?d1:null,
+    diaMes2:Number.isInteger(d2)&&d2>=1&&d2<=31?d2:null,proximaFecha,metodoPago,activo:true,nota:nota||null
+   });
+  }else{
+   const emitidaEn=String(val('debt-emitida')??f.emitidaEn??today).trim()||today;
+   const numeroFactura=String(val('debt-factura')??f.numeroFactura??'').trim();
+   if(!/^\d{4}-\d{2}-\d{2}$/.test(emitidaEn)){note('Elige una fecha de factura válida.');return}
+   await commit('cost.obligation.upsert',id,{
+    requestId:id,obligacionId:id,recurrenteId:null,categoriaId,categoria:categoriaNombre,
+    acreedor:acreedor||null,concepto:nombre,numeroFactura:numeroFactura||null,
+    montoCentavos:cents,saldoCentavos:cents,emitidaEn,venceEn:proximaFecha,estado:'pendiente',
+    nota:nota||null,periodoClave:null
+   });
+  }
+  return;
+ }
  if(action==='open-finance-panel'){location.assign(new URL('../panel.html#finanzas',location.href).href);return}
  if(action==='entry-type'){state.entryType=btn.dataset.type;state.entryCategory=cats().find(c=>c.tipo===state.entryType)?.id||'';state.pendingRequestId=null;render();return}
  if(action==='digit'){let d=btn.dataset.digit;if(d==='⌫')state.entryDigits=state.entryDigits.slice(0,-1);else if(state.entryDigits.length+d.length<=12)state.entryDigits=(state.entryDigits+d).replace(/^0+(?=\d)/,'');state.pendingRequestId=null;render();return}
@@ -408,8 +623,21 @@ function handleChange(e){const target=e.target,name=target.name;switch(name){
  case 'entry-category':state.entryCategory=target.value;state.pendingRequestId=null;break;
  case 'entry-note':state.entryNote=target.value;state.pendingRequestId=null;break;
  case 'entry-date':state.entryDate=target.value;state.pendingRequestId=null;break;
+ case 'debt-nombre':state.commitmentForm.nombre=target.value;state.pendingRequestId=null;break;
+ case 'debt-acreedor':state.commitmentForm.acreedor=target.value;state.pendingRequestId=null;break;
+ case 'debt-monto':state.commitmentForm.monto=target.value;state.pendingRequestId=null;break;
+ case 'debt-categoria':state.commitmentForm.categoriaId=target.value;state.pendingRequestId=null;break;
+ case 'debt-proxima':state.commitmentForm.proximaFecha=target.value;state.pendingRequestId=null;break;
+ case 'debt-frecuencia':state.commitmentForm.frecuencia=target.value;state.pendingRequestId=null;render();break;
+ case 'debt-metodo':state.commitmentForm.metodoPago=target.value;state.pendingRequestId=null;break;
+ case 'debt-dia1':state.commitmentForm.diaMes1=target.value;state.pendingRequestId=null;break;
+ case 'debt-dia2':state.commitmentForm.diaMes2=target.value;state.pendingRequestId=null;break;
+ case 'debt-variable':state.commitmentForm.montoVariable=target.checked;state.pendingRequestId=null;break;
+ case 'debt-emitida':state.commitmentForm.emitidaEn=target.value;state.pendingRequestId=null;break;
+ case 'debt-factura':state.commitmentForm.numeroFactura=target.value;state.pendingRequestId=null;break;
+ case 'debt-nota':state.commitmentForm.nota=target.value;state.pendingRequestId=null;break;
 }}
-function handleInput(e){if(e.target.name==='search-query')state.search.query=e.target.value;if(e.target.name==='entry-note'){state.entryNote=e.target.value;state.pendingRequestId=null}}
+function handleInput(e){const n=e.target.name;if(n==='search-query')state.search.query=e.target.value;if(n==='entry-note'){state.entryNote=e.target.value;state.pendingRequestId=null}const debtMap={'debt-nombre':'nombre','debt-acreedor':'acreedor','debt-monto':'monto','debt-factura':'numeroFactura','debt-nota':'nota','debt-dia1':'diaMes1','debt-dia2':'diaMes2'};if(Object.hasOwn(debtMap,n)){state.commitmentForm[debtMap[n]]=e.target.value;state.pendingRequestId=null;}}
 let signingIn=false,seenAuthUid;
 async function handleSubmit(e){if(e.target.id==='login-form'){
  e.preventDefault();if(state.loginBusy)return;

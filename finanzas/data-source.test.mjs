@@ -119,13 +119,13 @@ test('PWA oficial registra ingreso, gasto y transferencia solo con rol admin y r
   try{
     const {calls}=mock();
     assert.equal(canRegister(),true);
-    for(const action of ['fin.movement.create','fin.transfer.create']){
+    for(const action of ['fin.movement.create','fin.transfer.create','cost.recurring.upsert','cost.obligation.upsert']){
       const requestId=`stable-${action}`;
       await commitAction(action,'central',requestId,{requestId,montoCentavos:12500});
       assert.deepEqual(calls.at(-1),['write',action,'central','owner',requestId,{requestId,montoCentavos:12500}]);
     }
     await assert.rejects(commitAction('fin.movement.cancel','central','m1',{requestId:'cancel-1'}),/Caja activa/);
-    assert.equal(calls.filter(c=>c[0]==='write').length,2);
+    assert.equal(calls.filter(c=>c[0]==='write').length,4);
     mock({getMembershipsForUser:async()=>[{business_id:'central',role:'viewer',active:true}]});
     await assert.rejects(commitAction('fin.movement.create','central','viewer-1',{requestId:'viewer-1'}),/permiso/);
     assert.equal(canRegister(),true);

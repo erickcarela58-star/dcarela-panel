@@ -25,18 +25,22 @@ test('el gasto viaja con el enlace al compromiso y el adaptador lo guarda y lo p
   assert.match(adapter, /obligacionId: movement\.obligacion_id \|\| null,/);
 });
 
-test('la versión 35.23 se sirve sin caché vieja', () => {
+test('la versión 35.25 se sirve sin caché vieja y activa vidrio translúcido para iPhone 15', () => {
   const html = fs.readFileSync(path.join(__dirname, 'finanzas', 'index.html'), 'utf8');
   const sw = fs.readFileSync(path.join(__dirname, 'finanzas', 'sw.js'), 'utf8');
-  assert.match(html, /app\.js\?v=35.23/); assert.match(html, /firebase-adapter\.js\?v=35.23/);
-  assert.match(sw, /dcarela-finanzas-ui-v35-monochrome-23/); assert.match(sw, /'\.\/app\.js\?v=35.23'/);
+  const css = fs.readFileSync(path.join(__dirname, 'finanzas', 'monochrome-glass-v35.css'), 'utf8');
+  assert.match(html, /app\.js\?v=35.25/); assert.match(html, /firebase-adapter\.js\?v=35.25/);
+  assert.match(html, /monochrome-glass-v35\.css\?v=35.25/);
+  assert.match(sw, /dcarela-finanzas-ui-v35-monochrome-25/); assert.match(sw, /'\.\/app\.js\?v=35.25'/);
+  assert.match(css, /backdrop-filter:blur\(32px\)/); assert.match(css, /\.keypad button/);
+  assert.match(app, /cashAccountOptions\(state\.entryAccount,'',type==='gasto'\)/);
 });
 
 test('Libros fiscales: pantalla en Más, interruptor y «Anotar ahora» con la acción fin.books.request', () => {
   const ds = fs.readFileSync(path.join(__dirname, 'finanzas', 'data-source.js'), 'utf8');
   assert.match(app, /\['books','book','Libros fiscales'/); assert.match(app, /if\(state\.route==='books'\)return renderBooks\(\)/);
   assert.match(app, /await commit\('fin\.books\.request',state\.business,\{requestId:state\.pendingRequestId,\.\.\.\(action==='books-toggle'\?\{auto:!cfg\.auto\}:\{\}\)\}\)/);
-  assert.match(ds, /'fin\.account\.reconcile','fin\.books\.request'\]\.includes\(action\)/);
+  assert.match(ds, /'fin\.books\.request','cost\.recurring\.upsert','cost\.obligation\.upsert'\]\.includes\(action\)/);
   assert.match(adapter, /if \(action === 'fin\.books\.request'\) \{/);
   assert.match(fs.readFileSync(path.join(__dirname, 'finanzas', 'index.html'), 'utf8'), /<symbol id="ic-book"/);
 });
@@ -52,4 +56,25 @@ test('35.23 reanimada: accesos rápidos, próximos pagos, íconos por categoría
   // Cada ícono que pide catIcon existe en el sprite.
   const bloque = app.slice(app.indexOf('const CAT_ICONS='), app.indexOf('const sinAcento='));
   for (const [, id] of [...bloque.matchAll(/,'([a-z-]+)'\]/g)]) assert.match(html, new RegExp(`<symbol id="ic-${id}"`), 'falta ic-' + id);
+});
+
+test('35.24 segunda ola: íconos en barras y estadísticas, chips de búsqueda, gráfica de cuenta, tarjetas/presupuestos y nuevo compromiso para Caja', () => {
+  const ds = fs.readFileSync(path.join(__dirname, 'finanzas', 'data-source.js'), 'utf8');
+  assert.match(app, /const catBadge=/);
+  assert.match(app, /categoryChart[\s\S]*catBadge\(item,'gasto'\)/);
+  assert.match(app, /statList[\s\S]*catBadge\(x,state\.statsType\)/);
+  assert.match(app, /function searchChips\(\)/);
+  assert.match(app, /data-do="search-chip"/);
+  assert.match(app, /function accountMiniChart\(/);
+  assert.match(app, /modalAccount[\s\S]*accountMiniChart\(a\)/);
+  assert.match(app, /function modalCommitment\(\)/);
+  assert.match(app, /data-do="debt-new"/);
+  assert.match(app, /function renderBudgets\(\)[\s\S]*budget-search/);
+  assert.match(app, /function renderCards\(\)[\s\S]*card-pay/);
+  assert.match(app, /cost\.recurring\.upsert/);
+  assert.match(app, /cost\.obligation\.upsert/);
+  assert.match(adapter, /'CostoRecurrenteGuardado'/);
+  assert.match(adapter, /'CostoObligacionGuardada'/);
+  assert.match(ds, /cost\.recurring\.upsert/);
+  assert.match(ds, /cost\.obligation\.upsert/);
 });
