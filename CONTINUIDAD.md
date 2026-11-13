@@ -1,5 +1,18 @@
 # Continuidad del panel web
 
+## Finanzas PWA v35.29 — Gráficas completas, Códigos Cash vinculados al banco y 2 PWAs por sucursal (13/11/2026)
+
+- **Commit código PWA (`main`)**: `c480e0d` — GitHub Pages run **`43480404622`** (`completed success`, `30s`). Verificación `HTTP 200` y paridad **SHA-256 `16/16`** en `https://panel.dcarelacompufoto.com/finanzas/`:
+  - **Central**: `index.html` + `manifest.webmanifest`
+  - **Plaza Artesanal**: `plaza.html` + `manifest-plaza.webmanifest` + `icons/icon-plaza*.{svg,png}` + `icons/apple-touch-icon-plaza.png`
+  - **Caché Service Worker**: `sw.js` (`dcarela-finanzas-v35-29`)
+- **Novedades**:
+  1. Gráficas `Movimiento del mes` (`flow-svg`, `360x138`) y mini-gráficas (`mini-svg`, `360x88`) expandidas al ancho completo sin márgenes laterales vacíos.
+  2. `Resumen`: acciones rápidas (`Gasto`, `Ingreso`, `Transferir`, `Pagos`) sin marcos rectangulares y con íconos vectoriales SF dentro de medallones circulares translúcidos.
+  3. Correos (`Códigos Cash y Transferencias`): origen bloqueado a bancos vinculados (p. ej. `Banreservas`), sin `Efectivo` en origen y con destino `Caja / Efectivo` solo en `transfer_cash`.
+  4. Conexión Central ↔ Plaza Artesanal (`Herramientas → Conexión entre sucursales`, transferencia inter-sucursal en `modalEntry` y puente `pwaBranchBridge` en `crmApi`) más pantalla de inicio de sesión independiente por PWA (`?login=1`).
+- **Pruebas locales PWA**: `node --test finanzas/*.test.mjs` → `20/21` pasaron (`0` fallidas, `1` omitida por requerir emuladores locales). Verificación visual en `393x852` completada en modo Demo (`?mode=demo`), sin ejecutar movimientos reales contra Firestore de producción para proteger saldos vivos.
+
 ## Continuación del 03/11/2026 — panel web 1.0.119
 
 Rama vigente de esta revisión: `codex/panel-web-errores-20261103`, `C:\tmp\dcarela-panel-web-20261103`, desde `f7a9948` (último código publicado `085d7d8`, 1.0.118). No usar la copia antigua `dcarela-panel-publish/main` como fuente nueva.
