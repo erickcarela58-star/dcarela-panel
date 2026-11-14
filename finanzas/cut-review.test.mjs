@@ -15,6 +15,7 @@ test('cut review permits only a complete, current and balanced cut', () => {
   assert.equal(assessCut({ ...base, updatedAt: '' }).canConfirm, false);
   assert.equal(assessCut({ ...base, amountsComplete: false }).canConfirm, false);
   assert.equal(assessCut(base, 'plaza-artesanal').canConfirm, false);
+  assert.equal(assessCut(base, 'plaza-artesanal').transferSupported, false);
 });
 
 test('POS cut is a review without a transfer', () => {

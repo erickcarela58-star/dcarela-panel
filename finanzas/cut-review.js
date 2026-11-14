@@ -9,11 +9,11 @@ export function assessCut(cut = {}, businessId = 'dcarela') {
   const consistent = complete && difference === declared;
   const status = String(cut.status || '');
   const reviewable = cut.kind === 'cash_cut' ? status === 'awaiting_confirmation' : status === 'pending_review';
+  const transferSupported = cut.kind !== 'cash_cut' || businessId === 'dcarela' || businessId === 'sucursal-a';
   return {
     expected, counted, difference, transfer,
-    complete, consistent,
-    canConfirm: consistent && difference === 0 && reviewable && Boolean(cut.updatedAt)
-      && (cut.kind !== 'cash_cut' || businessId === 'dcarela' || businessId === 'sucursal-a'),
+    complete, consistent, transferSupported,
+    canConfirm: consistent && difference === 0 && reviewable && Boolean(cut.updatedAt) && transferSupported,
     canReport: reviewable && Boolean(cut.updatedAt),
     needsReview: !consistent || difference !== 0 || !reviewable,
   };

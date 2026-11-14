@@ -1,4 +1,4 @@
-import { assessCut } from './cut-review.js?v=35.34';
+import { assessCut } from './cut-review.js?v=35.35';
 
 /* ==========================================================================
    v35.26 Unified Inbox, Mail/Cash-Codes, Theme Palettes, Web Push & Fiscal UI
@@ -1725,12 +1725,12 @@ function renderModalRoot() {
           <div class="info-line"><span>Abonos en efectivo</span><strong>${fmtMoney(cut.depositsCashCentavos, cut.currency)}</strong></div>
           <div class="info-line"><span>Entradas / Salidas</span><strong>${fmtMoney(cut.entriesCentavos, cut.currency)} / ${fmtMoney(cut.exitsCentavos, cut.currency)}</strong></div>
           <div class="info-line"><span>Fondo que queda en Caja Chica</span><strong>${fmtMoney(cut.pettyCashRemainingCentavos, cut.currency)}</strong></div>` : ''}
-        ${cut.kind === 'cash_cut' ? `<div class="info-line"><span>Transferencia interna al confirmar</span><strong>${fmtMoney(review.transfer, cut.currency)}</strong></div>` : ''}
+        ${cut.kind === 'cash_cut' ? `<div class="info-line"><span>${review.transferSupported ? 'Transferencia interna al confirmar' : 'Transferencia interna'}</span><strong>${review.transferSupported ? fmtMoney(review.transfer, cut.currency) : 'No configurada en esta sucursal'}</strong></div>` : ''}
         ${review.canConfirm ? (cut.kind === 'cash_cut'
           ? '<p class="soft-note">Al confirmar, se transferirá el importe indicado de Caja Chica a Efectivo una sola vez.</p>'
           : '<p class="soft-note">Al confirmar, se validará el reporte de la terminal. No se moverá dinero.</p>')
-          : `<p class="soft-note expense-text">${review.canReport ? 'Este corte requiere revisión. Reportar la diferencia no moverá dinero.' : 'Este corte ya está enviado a revisión. Actualiza la bandeja para ver su estado.'}</p>`}
-        <label class="v3526-cut-check"><input type="checkbox" id="v3526CutReviewed"> Revisé la fecha, el importe reportado, la diferencia${cut.kind === 'cash_cut' ? ' y la transferencia interna' : ''}.</label>
+          : `<p class="soft-note expense-text">${!review.transferSupported ? 'La transferencia de esta sucursal requiere configuración propia. Solo puedes reportar el corte para revisión.' : review.canReport ? 'Este corte requiere revisión. Reportar la diferencia no moverá dinero.' : 'Este corte ya está enviado a revisión. Actualiza la bandeja para ver su estado.'}</p>`}
+        <label class="v3526-cut-check"><input type="checkbox" id="v3526CutReviewed"> Revisé la fecha, el importe reportado, la diferencia${cut.kind === 'cash_cut' && review.transferSupported ? ' y la transferencia interna' : ''}.</label>
         <label class="v3526-cut-note-label" for="v3526CutNote">Si reportas una diferencia, explica el motivo</label>
         <textarea id="v3526CutNote" class="field-control" rows="2" maxlength="300" placeholder="Explica lo que falta verificar"></textarea>
         <div class="v3526-btn-row">
@@ -2447,7 +2447,7 @@ async function ensureCategoryLinker() {
   if (window.DcarelaCategoryLinker) return;
   await new Promise((resolve) => {
     const sc = document.createElement('script');
-    sc.src = './v35-26-category-emojis.js?v=35.34';
+    sc.src = './v35-26-category-emojis.js?v=35.35';
     sc.onload = resolve;
     sc.onerror = resolve;
     document.head.appendChild(sc);
