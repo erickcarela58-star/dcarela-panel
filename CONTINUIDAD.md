@@ -1,5 +1,11 @@
 # Continuidad del panel web
 
+## 14/11/2026 — Cotejo real de e-CF `facturador_ventas` con PWA Central y Plaza
+
+- **Paridad de lectura en `finanzas/data-source.js` (`v35.37`)**: ejecutado `loadFacturadorSales` contra los 4 documentos reales presentes en Firestore `facturador_ventas` (`E32********01`..`04`, `revision: 1`, `fuente_original: dgii_xml_portal`, `forma_pago: Por confirmar`): Central (`dcarela`) devolvió `4` comprobantes verificados por `739,681` centavos neto (`RD$7,396.81`, ITBIS `112,833` centavos) aprobando la invariante `subtotal_centavos + itbis_centavos === total_centavos`; Plaza (`plaza-artesanal`) devolvió `0`, sin cruce entre sucursales ni incorporación al diario de Caja.
+- **Entrega HTTP y vista móvil (`393x852`)**: `https://panel.dcarelacompufoto.com/finanzas/` (`branch=central`) y `https://panel.dcarelacompufoto.com/finanzas/plaza.html` (`branch=plaza`) respondieron HTTP 200. En inspección de navegador móvil (`393x852`): ambas URLs en vivo presentan su pantalla de login independiente por sucursal (sin sesión autenticada en el navegador automatizado), y en `?mode=demo` muestran `0` errores de consola y `0px` de desborde horizontal (`378px <= 393px`), con acceso por sucursal a `Herramientas -> Libros fiscales · Hermes`.
+- **Pruebas unitarias de Finanzas**: `node --test finanzas/data-source.test.mjs finanzas/v35_26.test.mjs finanzas/v35_29.test.mjs finanzas/v35_31.test.mjs finanzas/cut-review.test.mjs` → **29/29** en verde (`0` fallos). *(No se corrió sesión web autenticada en producción ni emulador local en esta corrida).*
+
 ## 13/11/2026 — Finanzas PWA v35.35, revisión de cortes publicada y cotejada
 
 Central y Plaza conservan PWAs independientes fijadas por business_id. Una lectura en producción de getEcosystemStatus respondió con Firebase conectado, pero a las 21:07 RD marcó **0 dispositivos de Caja en línea en ambas sucursales** por no tener pulso reciente; un turno guardado como abierto no demuestra conexión física actual. Tampoco equivale a sesión autenticada en Safari ni a paridad de saldos. Evidencia `C:/tmp/dcarela-cortes-audit-20261113/cloud-cuts-post-deploy.jsonl`. Informe de cortes con las diferencias reales del 12 y 13/11: C:/Users/Erick/Documents/Codex/2026-11-02/files-mentioned-by-the-user-relevo/outputs/REPORTE_CORTES_2026-11-12_13.md.
