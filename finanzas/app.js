@@ -1,5 +1,5 @@
-import {loadFinance,loadFullFinanceHistory,commitAction,getTerminalReceipt,loadLiveConnectivity,isLive,canRegister,canCancelMovement} from './data-source.js?v=35.36';
-import {fixture as demoFixture} from './demo-data.js?v=35.36';
+import {loadFinance,loadFullFinanceHistory,commitAction,getTerminalReceipt,loadLiveConnectivity,isLive,canRegister,canCancelMovement} from './data-source.js?v=35.37';
+import {fixture as demoFixture} from './demo-data.js?v=35.37';
 const emulatorWritesAllowed=()=>isLive && ['localhost','127.0.0.1'].includes(location.hostname)
  && String(window.__DCARELA_FIREBASE_CONFIG?.projectId||'').startsWith('demo-')
  && window.__DCARELA_FINANCE_STAGING_WRITE__===true;
@@ -388,7 +388,7 @@ function renderBooks(){
  const pref=state.data?.preferences||{},cfg=pref.libros_fiscales||{},st=pref.libros_fiscales_estado||{};
  const cuando=v=>{const t=Date.parse(v||'');return Number.isFinite(t)?new Intl.DateTimeFormat('es-DO',{dateStyle:'medium',timeStyle:'short',timeZone:'America/Santo_Domingo'}).format(new Date(t)):'Nunca'};
  const pendiente=Date.parse(cfg.solicitud_at||'')>Date.parse(st.ultima_corrida_at||'')||(cfg.solicitud_at&&!st.ultima_corrida_at);
- return `<main class="page" id="main">${routeHead('Libros fiscales','Compras 606 y ventas 607 en tu Google Drive')}
+ return `<main class="page" id="main">${routeHead('Libros fiscales','Propuestas 606/607 y comprobantes del Facturador')}
  <div class="card books-card"><div class="books-head">${ico('book','lg')}<div><b>Registro automático</b><small>${cfg.auto?'Encendido: se anota una vez al día':'Apagado: solo cuando lo pidas'}</small></div>
  <button class="switch ${cfg.auto?'on':''}" type="button" role="switch" aria-checked="${cfg.auto?'true':'false'}" aria-label="Registro automático de libros" data-do="books-toggle" ${state.busy||!canWriteBranch()?'disabled':''}><span></span></button></div>
  <button class="primary-btn full" type="button" data-do="books-now" ${state.busy||!canWriteBranch()?'disabled':''}>${ico('refresh','sm')} Anotar ahora</button>

@@ -1,5 +1,5 @@
-import { assessCut } from './cut-review.js?v=35.36';
-import { loadFacturadorSales } from './data-source.js?v=35.36';
+import { assessCut } from './cut-review.js?v=35.37';
+import { loadFacturadorSales } from './data-source.js?v=35.37';
 
 /* ==========================================================================
    v35.26 Unified Inbox, Mail/Cash-Codes, Theme Palettes, Web Push & Fiscal UI
@@ -788,11 +788,11 @@ function renderFiscalHost() {
         <h3>${ae('🖥️', 17)} Hermes Facturador DGII</h3>
         <span class="v3526-tag ${uiState.mode === 'live' && uiState.facturadorLoadedAt && !uiState.facturadorError ? 'ok' : 'warn'}">${uiState.mode === 'demo' ? 'Vista previa' : uiState.facturadorLoading ? 'Consultando' : uiState.facturadorError ? 'Lectura fallida' : uiState.facturadorLoadedAt ? 'Lectura confirmada' : 'Sin comprobar'}</span>
       </div>
-      <p class="soft-note" style="margin:0 0 8px">Ventas 607 del Excel y constancia separada de los e-CF capturados por Hermes. La constancia no suma cobros ni inventario de Caja.</p>
+      <p class="soft-note" style="margin:0 0 8px">Las propuestas 607 pueden incluir ventas del POS pendientes de validar. Solo «Última corrida» confirma lo anotado en Excel. Los e-CF capturados por Hermes aparecen aparte en «Facturador» y no suman cobros ni inventario de Caja.</p>
       <div class="search-chips" style="margin:6px 0 10px">
         <button type="button" class="chip ${tab === 'revisar' ? 'is-active' : ''}" data-ftab="revisar">${ae('⚠️', 13)} Por revisar (${fiscal.revisar.length})</button>
         <button type="button" class="chip ${tab === 'compras' ? 'is-active' : ''}" data-ftab="compras">${ae('🛒', 13)} Compras 606 (${fiscal.compras.length})</button>
-        <button type="button" class="chip ${tab === 'ventas' ? 'is-active' : ''}" data-ftab="ventas">${ae('🧾', 13)} Ventas 607 (${fiscal.ventas.length})</button>
+        <button type="button" class="chip ${tab === 'ventas' ? 'is-active' : ''}" data-ftab="ventas">${ae('🧾', 13)} Propuestas 607 (${fiscal.ventas.length})</button>
         <button type="button" class="chip ${tab === 'facturador' ? 'is-active' : ''}" data-ftab="facturador">${ae('📄', 13)} Facturador (${uiState.facturadorSales.length})</button>
       </div>
       ${tab === 'facturador' && uiState.facturadorLoading ? '<p class="soft-note">Consultando comprobantes de esta sucursal…</p>' : ''}
@@ -2504,7 +2504,7 @@ async function ensureCategoryLinker() {
   if (window.DcarelaCategoryLinker) return;
   await new Promise((resolve) => {
     const sc = document.createElement('script');
-    sc.src = './v35-26-category-emojis.js?v=35.36';
+    sc.src = './v35-26-category-emojis.js?v=35.37';
     sc.onload = resolve;
     sc.onerror = resolve;
     document.head.appendChild(sc);
