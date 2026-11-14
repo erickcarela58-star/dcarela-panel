@@ -799,13 +799,14 @@ function renderFiscalHost() {
       ${tab === 'facturador' && uiState.facturadorError ? `<p class="notice warning" role="alert">${esc(uiState.facturadorError)}</p>` : ''}
       ${tab === 'facturador' ? (rows.length ? rows.map((row) => {
         const items = facturadorItems(row);
-        return `<details class="v3526-list-row" style="display:block"><summary style="cursor:pointer;display:flex;justify-content:space-between;gap:12px"><span><b>${esc(row.encf || 'e-CF sin número')}</b><br><small>${esc(row.fecha || 'Sin fecha')} · ${esc(row.cliente || 'Consumidor final')}</small></span><b>${fmtMoney(row.total_centavos, 'DOP')}</b></summary>
+        return `<details class="v3526-list-row v3526-fiscal-detail"><summary><span><b>${esc(row.encf || 'e-CF sin número')}</b><br><small>${esc(row.fecha || 'Sin fecha')} · ${esc(row.cliente || 'Consumidor final')}</small></span><b class="v3526-fiscal-total">${fmtMoney(row.total_centavos, 'DOP')}</b></summary>
+          <div class="v3526-fiscal-body">
           <div class="info-line"><span>RNC</span><strong>${esc(row.rnc || 'No indicado')}</strong></div>
           <div class="info-line"><span>Subtotal</span><strong>${fmtMoney(row.subtotal_centavos, 'DOP')}</strong></div>
           <div class="info-line"><span>ITBIS</span><strong>${fmtMoney(row.itbis_centavos, 'DOP')}</strong></div>
           <div class="info-line"><span>Forma de pago</span><strong>${esc(row.forma_pago || 'No indicada')}</strong></div>
           <div class="info-line"><span>Estado</span><strong>${esc(row.estado || 'No indicado')}</strong></div>
-          <p class="soft-note">${items.length ? items.map(item => `${esc(item.nombre || 'Artículo')} × ${esc(item.cantidad || '1')} · ${fmtMoney(item.monto_centavos || 0, 'DOP')}`).join('<br>') : 'El origen no incluyó desglose de artículos.'}</p>
+          <p class="soft-note">${items.length ? items.map(item => `${esc(item.nombre || 'Artículo')} × ${esc(item.cantidad || '1')} · ${fmtMoney(item.monto_centavos || 0, 'DOP')}`).join('<br>') : 'El origen no incluyó desglose de artículos.'}</p></div>
         </details>`;
       }).join('') : uiState.facturadorLoading || uiState.facturadorError ? '' : '<p class="soft-note">Hermes todavía no ha registrado e-CF para esta sucursal.</p>') : rows.length ? rows.map((row) => {
         const isSale = tab === 'ventas';

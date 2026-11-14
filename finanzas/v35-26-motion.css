@@ -1216,6 +1216,63 @@ main.page .field-select {
 }
 .v3526-list-row:last-child { border-bottom: 0; }
 
+/* Facturador: fila plana y acordeón propio, sin marcador ni botón nativo. */
+details.v3526-fiscal-detail { display: block; padding: 0; }
+.v3526-fiscal-detail > summary {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 64px;
+  padding: 11px 28px 11px 2px;
+  list-style: none;
+  cursor: pointer;
+  border-radius: 12px;
+  transition: background .22s ease, color .22s ease;
+}
+.v3526-fiscal-detail > summary::-webkit-details-marker { display: none; }
+.v3526-fiscal-detail > summary::marker { content: ''; }
+.v3526-fiscal-detail > summary:hover { background: var(--v3526-accent-tint); }
+.v3526-fiscal-detail > summary:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.v3526-fiscal-detail > summary > span { min-width: 0; }
+.v3526-fiscal-detail > summary small { color: var(--muted); font-weight: 500; }
+.v3526-fiscal-detail > summary::after {
+  content: '';
+  position: absolute;
+  right: 8px;
+  top: calc(50% - 5px);
+  width: 8px;
+  height: 8px;
+  border-right: 1.7px solid currentColor;
+  border-bottom: 1.7px solid currentColor;
+  transform: rotate(45deg);
+  opacity: .62;
+  transition: transform .24s cubic-bezier(.2,.8,.2,1), opacity .24s ease;
+}
+.v3526-fiscal-detail[open] > summary::after { transform: rotate(225deg); opacity: 1; }
+.v3526-fiscal-total { flex: 0 0 auto; font-variant-numeric: tabular-nums; }
+.v3526-fiscal-body { padding: 2px 2px 14px; animation: v3526FiscalEnter .28s ease both; }
+@keyframes v3526FiscalEnter { from { opacity: .4; transform: translateY(-5px); } to { opacity: 1; transform: none; } }
+.v3526-card .secondary-btn.compact[data-fval] {
+  border: 0;
+  border-radius: 999px;
+  background: var(--v3526-accent-tint);
+  color: var(--v3526-accent);
+  min-height: 32px;
+  padding: 5px 14px;
+  font-weight: 700;
+  box-shadow: none;
+  transition: background .2s ease, transform .2s ease;
+}
+.v3526-card .secondary-btn.compact[data-fval]:hover { background: var(--v3526-chip-active-bg); color: var(--v3526-chip-active-ink); }
+.v3526-card .secondary-btn.compact[data-fval]:active { transform: scale(.96); }
+@media (prefers-reduced-motion: reduce) {
+  .v3526-fiscal-detail > summary, .v3526-fiscal-detail > summary::after,
+  .v3526-card .secondary-btn.compact[data-fval] { transition: none; }
+  .v3526-fiscal-body { animation: none; }
+}
+
 .v3526-tag {
   display: inline-flex;
   align-items: center;
