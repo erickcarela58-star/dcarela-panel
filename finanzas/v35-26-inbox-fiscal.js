@@ -1,4 +1,5 @@
-import { assessCut } from './cut-review.js?v=35.35';
+import { assessCut } from './cut-review.js?v=35.36';
+import { loadFacturadorSales } from './data-source.js?v=35.36';
 
 /* ==========================================================================
    v35.26 Unified Inbox, Mail/Cash-Codes, Theme Palettes, Web Push & Fiscal UI
@@ -69,6 +70,11 @@ const uiState = {
   autoCutPrompted: false,
   mailFilter: 'pending',
   fiscalTab: 'revisar',
+  facturadorSales: [],
+  facturadorBusiness: '',
+  facturadorLoadedAt: 0,
+  facturadorLoading: false,
+  facturadorError: '',
   searchMoreFilters: false,
   pushConfig: null,
   pushSubscribed: false,
@@ -729,28 +735,79 @@ function simplifyHistoryFilters() {
   btn.innerHTML = labelHtml;
 }
 
+async function loadFacturadorForBooks(businessId) {
+  if (uiState.facturadorLoading) return;
+  uiState.facturadorLoading = true;
+  uiState.facturadorBusiness = businessId;
+  uiState.facturadorError = '';
+  try {
+    const result = await loadFacturadorSales(businessId);
+    if (uiState.facturadorBusiness !== businessId) return;
+    uiState.facturadorSales = result.sales;
+  } catch (err) {
+    if (uiState.facturadorBusiness !== businessId) return;
+    uiState.facturadorSales = [];
+    uiState.facturadorError = err?.message || 'No se pudo leer el Facturador.';
+  } finally {
+    if (uiState.facturadorBusiness === businessId) uiState.facturadorLoadedAt = Date.now();
+    uiState.facturadorLoading = false;
+    renderFiscalHost();
+  }
+}
+
+function facturadorItems(row) {
+  try {
+    const items = JSON.parse(row.items_json || '[]');
+    return Array.isArray(items) ? items.slice(0, 60) : [];
+  } catch { return []; }
+}
+
 function renderFiscalHost() {
   document.getElementById('v3526FinanceFiscalShortcut')?.remove();
   const host = document.getElementById('v3526FiscalHost');
   if (!host) return;
+  const snap = appSnapshot();
+  const businessId = snap.business || '';
+  if (businessId && businessId !== uiState.facturadorBusiness) {
+    uiState.facturadorBusiness = businessId;
+    uiState.facturadorSales = [];
+    uiState.facturadorLoadedAt = 0;
+    uiState.facturadorError = '';
+  }
+  if (uiState.mode === 'live' && businessId && !snap.state?.authRequired &&
+      !uiState.facturadorLoading && Date.now() - uiState.facturadorLoadedAt > 120000) {
+    void loadFacturadorForBooks(businessId);
+  }
   const fiscal = uiState.data?.fiscal || { compras: [], revisar: [], ventas: [], hermes: {}, summary: {} };
-  const hermes = fiscal.hermes || {};
   const tab = uiState.fiscalTab;
-  const rows = tab === 'revisar' ? fiscal.revisar : tab === 'compras' ? fiscal.compras : fiscal.ventas;
+  const rows = tab === 'revisar' ? fiscal.revisar : tab === 'compras' ? fiscal.compras : tab === 'facturador' ? uiState.facturadorSales : fiscal.ventas;
 
   host.innerHTML = `
     <div class="v3526-card">
       <div class="v3526-card-head">
         <h3>${ae('🖥️', 17)} Hermes Facturador DGII</h3>
-        <span class="v3526-tag ${hermes.keepaliveActive ? 'ok' : 'warn'}">${hermes.keepaliveActive ? 'Sincronizado' : 'En espera de sesión'}</span>
+        <span class="v3526-tag ${uiState.mode === 'live' && uiState.facturadorLoadedAt && !uiState.facturadorError ? 'ok' : 'warn'}">${uiState.mode === 'demo' ? 'Vista previa' : uiState.facturadorLoading ? 'Consultando' : uiState.facturadorError ? 'Lectura fallida' : uiState.facturadorLoadedAt ? 'Lectura confirmada' : 'Sin comprobar'}</span>
       </div>
-      <p class="soft-note" style="margin:0 0 8px">${esc(hermes.notes || 'Copia 1:1 del historial de ventas del Facturador al Libro 607 tal y como está.')}</p>
+      <p class="soft-note" style="margin:0 0 8px">Ventas 607 del Excel y constancia separada de los e-CF capturados por Hermes. La constancia no suma cobros ni inventario de Caja.</p>
       <div class="search-chips" style="margin:6px 0 10px">
         <button type="button" class="chip ${tab === 'revisar' ? 'is-active' : ''}" data-ftab="revisar">${ae('⚠️', 13)} Por revisar (${fiscal.revisar.length})</button>
         <button type="button" class="chip ${tab === 'compras' ? 'is-active' : ''}" data-ftab="compras">${ae('🛒', 13)} Compras 606 (${fiscal.compras.length})</button>
         <button type="button" class="chip ${tab === 'ventas' ? 'is-active' : ''}" data-ftab="ventas">${ae('🧾', 13)} Ventas 607 (${fiscal.ventas.length})</button>
+        <button type="button" class="chip ${tab === 'facturador' ? 'is-active' : ''}" data-ftab="facturador">${ae('📄', 13)} Facturador (${uiState.facturadorSales.length})</button>
       </div>
-      ${rows.length ? rows.map((row) => {
+      ${tab === 'facturador' && uiState.facturadorLoading ? '<p class="soft-note">Consultando comprobantes de esta sucursal…</p>' : ''}
+      ${tab === 'facturador' && uiState.facturadorError ? `<p class="notice warning" role="alert">${esc(uiState.facturadorError)}</p>` : ''}
+      ${tab === 'facturador' ? (rows.length ? rows.map((row) => {
+        const items = facturadorItems(row);
+        return `<details class="v3526-list-row" style="display:block"><summary style="cursor:pointer;display:flex;justify-content:space-between;gap:12px"><span><b>${esc(row.encf || 'e-CF sin número')}</b><br><small>${esc(row.fecha || 'Sin fecha')} · ${esc(row.cliente || 'Consumidor final')}</small></span><b>${fmtMoney(row.total_centavos, 'DOP')}</b></summary>
+          <div class="info-line"><span>RNC</span><strong>${esc(row.rnc || 'No indicado')}</strong></div>
+          <div class="info-line"><span>Subtotal</span><strong>${fmtMoney(row.subtotal_centavos, 'DOP')}</strong></div>
+          <div class="info-line"><span>ITBIS</span><strong>${fmtMoney(row.itbis_centavos, 'DOP')}</strong></div>
+          <div class="info-line"><span>Forma de pago</span><strong>${esc(row.forma_pago || 'No indicada')}</strong></div>
+          <div class="info-line"><span>Estado</span><strong>${esc(row.estado || 'No indicado')}</strong></div>
+          <p class="soft-note">${items.length ? items.map(item => `${esc(item.nombre || 'Artículo')} × ${esc(item.cantidad || '1')} · ${fmtMoney(item.monto_centavos || 0, 'DOP')}`).join('<br>') : 'El origen no incluyó desglose de artículos.'}</p>
+        </details>`;
+      }).join('') : uiState.facturadorLoading || uiState.facturadorError ? '' : '<p class="soft-note">Hermes todavía no ha registrado e-CF para esta sucursal.</p>') : rows.length ? rows.map((row) => {
         const isSale = tab === 'ventas';
         const statusOk = row.estado === 'validado';
         return `
@@ -2447,7 +2504,7 @@ async function ensureCategoryLinker() {
   if (window.DcarelaCategoryLinker) return;
   await new Promise((resolve) => {
     const sc = document.createElement('script');
-    sc.src = './v35-26-category-emojis.js?v=35.35';
+    sc.src = './v35-26-category-emojis.js?v=35.36';
     sc.onload = resolve;
     sc.onerror = resolve;
     document.head.appendChild(sc);

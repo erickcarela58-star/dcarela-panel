@@ -5,7 +5,7 @@ import {readFile} from 'node:fs/promises';
 globalThis.location = {search:'?mode=live',hostname:'localhost'};
 globalThis.window = {};
 const source = await readFile(new URL('./data-source.js', import.meta.url), 'utf8');
-const {authorizedBusinesses, sessionBusinesses, loadFinance, loadLiveConnectivity, commitAction, canRegister, canCancelMovement, getTerminalReceipt} =
+const {authorizedBusinesses, sessionBusinesses, loadFinance, loadFacturadorSales, loadLiveConnectivity, commitAction, canRegister, canCancelMovement, getTerminalReceipt} =
   await import(`data:text/javascript,${encodeURIComponent(source)}`);
 
 function mock(overrides={}) {
@@ -54,6 +54,32 @@ test('usa el diario canónico una vez y conserva centavos y sucursal',async()=>{
   assert.equal(data.movements[0].monto_centavos,12500);
   assert.equal(calls.filter(c=>c[0]==='journal').length,1);
   assert.equal(calls[0][2].accounts[0].id,'cash');
+});
+
+test('Facturador lee únicamente e-CF de la sucursal y no los agrega al diario de Caja',async()=>{
+  const collections=[];
+  const {calls}=mock({getCollection:async(name,filters)=>{
+    collections.push([name,filters]);
+    return [{id:'central_E320000000001',business_id:'central',encf:'E320000000001',fecha:'2026-11-13',
+      total_centavos:11800,itbis_centavos:1800,subtotal_centavos:10000,items_json:'[]'}];
+  }});
+  const facturador=await loadFacturadorSales('central');
+  assert.equal(facturador.sales.length,1);
+  assert.equal(facturador.sales[0].total_centavos,11800);
+  assert.deepEqual(collections,[['facturador_ventas',[['business_id','==','central']]]]);
+  assert.equal(calls.filter(c=>c[0]==='journal').length,0);
+});
+
+test('Facturador falla cerrado ante otra sucursal, cifra inconsistente o sesión cambiada',async()=>{
+  mock();
+  await assert.rejects(loadFacturadorSales('ajena'),/Acceso denegado/);
+  mock({getCollection:async()=>[{business_id:'ajena',total_centavos:11800,itbis_centavos:1800,subtotal_centavos:10000}]});
+  await assert.rejects(loadFacturadorSales('central'),/fuera de la sucursal/);
+  mock({getCollection:async()=>[{business_id:'central',total_centavos:11800,itbis_centavos:1800,subtotal_centavos:9999}]});
+  await assert.rejects(loadFacturadorSales('central'),/no verificables/);
+  let n=0;
+  mock({getCurrentUser:()=>({uid:++n===1?'owner-1':'intruso'}),getCollection:async()=>[]});
+  await assert.rejects(loadFacturadorSales('central'),/sesión cambió/);
 });
 
 test('lee pagos y obligaciones de Caja por sucursal sin agregarlos al diario',async()=>{

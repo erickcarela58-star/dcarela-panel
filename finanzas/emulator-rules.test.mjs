@@ -52,6 +52,14 @@ test('reglas reales: membresía, sucursal y escritura financiera aislada',{
   assert.equal((await document('fin_accounts/plaza-cash','GET',owner.idToken)).status,403);
   assert.equal((await document('fin_accounts/central-cash','GET',outsider.idToken)).status,403);
 
+  const ecf={business_id:'central',encf:'E320000000001',fecha:'2026-11-13',
+    total_centavos:11800,itbis_centavos:1800,subtotal_centavos:10000};
+  assert.equal((await document('facturador_ventas/central_E320000000001','PATCH','owner',ecf)).status,200);
+  assert.equal((await document('facturador_ventas/central_E320000000001','GET',owner.idToken)).status,200);
+  assert.equal((await document('facturador_ventas/central_E320000000001','GET',viewer.idToken)).status,200);
+  assert.equal((await document('facturador_ventas/central_E320000000001','GET',outsider.idToken)).status,403);
+  assert.equal((await document('facturador_ventas/central_E320000000001','PATCH',owner.idToken,ecf)).status,403);
+
   const movement={business_id:'central',tipo:'gasto',monto_centavos:4500,
     fecha:'2026-11-10',created_by_uid:owner.localId};
   assert.equal((await document('fin_movements/expense-1','PATCH',owner.idToken,movement)).status,200);

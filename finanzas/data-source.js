@@ -139,6 +139,31 @@ export async function loadFullFinanceHistory(requestedBusinessId, { accounts = [
   return { movements, sales, fullHistoryLoaded: true };
 }
 
+// El perfil Facturador conserva un libro separado. Esta lectura no incorpora
+// sus e-CF al diario de Caja ni a los saldos financieros de la PWA.
+export async function loadFacturadorSales(requestedBusinessId, api = adapter()) {
+  if (!isLive) return { businessId: requestedBusinessId || '', sales: [], demo: true };
+  const { user, allowed } = await sessionBusinesses(api);
+  const chosen = requestedBusinessId || allowed[0].id;
+  if (!allowed.some(b => b.id === chosen)) {
+    throw new Error('Acceso denegado: esta sucursal no pertenece a tu sesión.');
+  }
+  const rows = scopedRows(await api.getCollection('facturador_ventas', [['business_id', '==', chosen]]), chosen, 'ventas del Facturador');
+  if (api.getCurrentUser()?.uid !== user.uid) {
+    throw new Error('La sesión cambió durante la lectura. Vuelve a intentarlo.');
+  }
+  const sales = rows.map(row => {
+    const total = Number(row.total_centavos);
+    const itbis = Number(row.itbis_centavos);
+    const subtotal = Number(row.subtotal_centavos);
+    if (![total, itbis, subtotal].every(Number.isSafeInteger) || total < 0 || itbis < 0 || subtotal < 0 || subtotal + itbis !== total) {
+      throw new Error('Un e-CF tiene importes no verificables; no se mostrarán cifras.');
+    }
+    return { ...row, total_centavos: total, itbis_centavos: itbis, subtotal_centavos: subtotal };
+  }).sort((a, b) => String(b.fecha || '').localeCompare(String(a.fecha || '')) || String(b.encf || '').localeCompare(String(a.encf || '')));
+  return { businessId: chosen, sales, demo: false };
+}
+
 export async function commitAction(action, businessId, entityId, data) {
   if (!isLive) return {preview:true};
   if (action === 'fin.movement.cancel' && !canCancelMovement()) {
