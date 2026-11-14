@@ -1,5 +1,12 @@
 # Continuidad del panel web
 
+## 14/11/2026 — Finanzas PWA v35.38: conciliación con gasto no documentado, validación Facturador/Hermes y logo limpio
+
+- **Logo sin marco en encabezado y login (`finanzas/app.js`, `finanzas/v35-26-motion.css`)**: ambas sucursales (`index.html` Central y `plaza.html` Plaza Artesanal) usan `./icons/dcarela-logo.png` con clase `.brand-logo` transparente y sin recorte ni recuadro.
+- **Conciliación con gasto no documentado (`finance-core.js`, `firebase-adapter.js`, `finanzas/app.js`)**: el modal de conciliación incluye la casilla marcada de gasto no documentado (`gastoNoDocumentado`); `planAccountReconciliation` y `fin.account.reconcile` registran el ajuste como movimiento de `gasto` con `afecta_resultado: true`, `es_ajuste_conciliacion: true` y categoría `Otros gastos` (`efaa1d8d-1ad2-4815-95e1-755b99a8c241`).
+- **Facturador / Hermes en Libros fiscales (`finanzas/v35-26-inbox-fiscal.js`)**: muestra estado `"Por verificar con Hermes"`, `"Verificado"` o `"Dato irreal descartado"`, junto con acciones `Verificar / Editar`, `Pedir verificación a Hermes` y descarte desde el modal `facturador`.
+- **Caché `35.38` y verificación**: actualizado a `35.38` / `v35-38` en `finanzas/sw.js`, `index.html`, `plaza.html`, `app.js` y `v35-26-inbox-fiscal.js`. Pruebas unitarias (`node --test finance-reconciliation.test.js finanzas-pagar-compromiso.test.js finanzas/v35_29.test.mjs finanzas/v35_31.test.mjs finanzas/data-source.test.mjs finanzas/cut-review.test.mjs finanzas/v35_26.test.mjs`): **39/39** superadas (`0` fallos, `0` omisiones). Desplegado en Firebase Hosting (`https://erikccarela.web.app/finanzas/` y `https://erikccarela.web.app/finanzas/plaza.html`, HTTP 200 en `35.38`).
+
 ## 13/11/2026 — Finanzas PWA v35.35, revisión de cortes publicada y cotejada
 
 Central y Plaza conservan PWAs independientes fijadas por business_id. Una lectura en producción de getEcosystemStatus respondió con Firebase conectado, pero a las 21:07 RD marcó **0 dispositivos de Caja en línea en ambas sucursales** por no tener pulso reciente; un turno guardado como abierto no demuestra conexión física actual. Tampoco equivale a sesión autenticada en Safari ni a paridad de saldos. Evidencia `C:/tmp/dcarela-cortes-audit-20261113/cloud-cuts-post-deploy.jsonl`. Informe de cortes con las diferencias reales del 12 y 13/11: C:/Users/Erick/Documents/Codex/2026-11-02/files-mentioned-by-the-user-relevo/outputs/REPORTE_CORTES_2026-11-12_13.md.

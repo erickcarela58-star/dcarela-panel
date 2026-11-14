@@ -1323,12 +1323,15 @@
         if (['saldo_actual_centavos', 'saldo_inicial_centavos', 'reconciled_at', 'reconciled_balance_centavos', 'updated_at', 'moneda']
           .some(key => accountDoc.data()[key] !== snapshot[key])) throw new Error('La cuenta cambio durante la verificacion. Actualiza y reintenta.');
         const plan = window.DcarelaFinanceCore.planAccountReconciliation({ ...accountDoc.data(), id: accountId }, journal,
-          { target, cutoff: createdAt, createdAt, id: movementId, reason });
+          { target, cutoff: createdAt, createdAt, id: movementId, reason,
+            unrecordedExpense: data.gastoNoDocumentado === true,
+            categoryId: text(data.categoriaId, 160) || 'efaa1d8d-1ad2-4815-95e1-755b99a8c241',
+            categoryName: text(data.categoriaNombre, 120) || 'Otros gastos' });
         difference = plan.difference;
         const movement = { ...plan.movement, ...actor };
         transaction.set(movementRef, movement);
         transaction.set(d.collection('sync_events').doc(eventId), eventDocument(ctx, eventId, 'LedgerMovimientoRegistrado',
-          'fin_movements', movementId, { ...financeLedgerPayload(movement, accountDoc.data()),
+          'fin_movements', movementId, { ...financeLedgerPayload(movement, accountDoc.data(), movement.categoria ? { nombre: movement.categoria } : {}),
             metadata: { reconciliation_target: target, reconciliation_before: plan.before } }, createdAt));
         transaction.update(accountRef, plan.patch);
       });
