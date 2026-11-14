@@ -13,7 +13,7 @@ export function assessCut(cut = {}, businessId = 'dcarela') {
     expected, counted, difference, transfer,
     complete, consistent,
     canConfirm: consistent && difference === 0 && reviewable && Boolean(cut.updatedAt)
-      && (cut.kind !== 'cash_cut' || businessId === 'dcarela'),
+      && (cut.kind !== 'cash_cut' || businessId === 'dcarela' || businessId === 'sucursal-a'),
     canReport: reviewable && Boolean(cut.updatedAt),
     needsReview: !consistent || difference !== 0 || !reviewable,
   };

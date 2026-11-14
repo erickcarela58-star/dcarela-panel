@@ -1,4 +1,4 @@
-import { assessCut } from './cut-review.js';
+import { assessCut } from './cut-review.js?v=35.34';
 
 /* ==========================================================================
    v35.26 Unified Inbox, Mail/Cash-Codes, Theme Palettes, Web Push & Fiscal UI
@@ -2447,7 +2447,7 @@ async function ensureCategoryLinker() {
   if (window.DcarelaCategoryLinker) return;
   await new Promise((resolve) => {
     const sc = document.createElement('script');
-    sc.src = './v35-26-category-emojis.js?v=35.33';
+    sc.src = './v35-26-category-emojis.js?v=35.34';
     sc.onload = resolve;
     sc.onerror = resolve;
     document.head.appendChild(sc);

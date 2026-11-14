@@ -7,6 +7,7 @@ const base = { kind: 'cash_cut', systemCentavos: 231000, reportedCentavos: 23100
 
 test('cut review permits only a complete, current and balanced cut', () => {
   assert.equal(assessCut(base).canConfirm, true);
+  assert.equal(assessCut(base, 'sucursal-a').canConfirm, true);
   assert.equal(assessCut({ ...base, reportedCentavos: 232000, differenceCentavos: 1000 }).canConfirm, false);
   assert.equal(assessCut({ ...base, reportedCentavos: 232000, differenceCentavos: 0 }).consistent, false);
   assert.equal(assessCut({ ...base, status: 'mismatch_reported' }).canConfirm, false);

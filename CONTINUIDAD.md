@@ -1,6 +1,6 @@
 # Continuidad del panel web
 
-## 13/11/2026 — Finanzas PWA v35.33, revisión de cortes preparada
+## 13/11/2026 — Finanzas PWA v35.34, revisión de cortes preparada
 
 Central y Plaza conservan PWAs independientes fijadas por business_id. Una lectura en producción de getEcosystemStatus respondió con Firebase conectado y una Caja en línea por sucursal; no equivale a sesión autenticada en Safari ni a paridad de saldos. Informe de cortes con las diferencias reales del 12 y 13/11: C:/Users/Erick/Documents/Codex/2026-11-02/files-mentioned-by-the-user-relevo/outputs/REPORTE_CORTES_2026-11-12_13.md.
 
