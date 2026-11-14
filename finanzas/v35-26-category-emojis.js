@@ -193,7 +193,7 @@
   }
 
   function buildDemoInboxData() {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Santo_Domingo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
     return {
       ok: true,
       mode: 'demo',
@@ -215,7 +215,8 @@
           reportedCentavos: 1845000,
           differenceCentavos: 0,
           currency: 'DOP',
-          status: 'pendiente_confirmacion',
+          status: 'pending_review',
+          updatedAt: `${today}T12:00:00Z`,
           summary: '11 ventas con tarjeta · Sin descuadre vs cierre POS'
         },
         {
@@ -227,7 +228,12 @@
           reportedCentavos: 2410000,
           differenceCentavos: 0,
           currency: 'DOP',
-          status: 'pendiente_confirmacion',
+          status: 'awaiting_confirmation',
+          transferCentavos: 2190000,
+          ventas_efectivo_centavos: 2000000,
+          abonos_efectivo_centavos: 190000,
+          petty_cash_remaining_centavos: 220000,
+          updatedAt: `${today}T12:00:00Z`,
           summary: 'Efectivo contado RD$24,100 · Coincide con libro'
         }
       ],

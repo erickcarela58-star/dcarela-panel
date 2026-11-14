@@ -1267,6 +1267,38 @@ main.page .field-select {
   margin-top: 10px;
 }
 
+.v3526-cut-review {
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+}
+.v3526-cut-review .info-line {
+  margin: 0;
+}
+.v3526-cut-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  font-size: 13px;
+  line-height: 1.4;
+  padding: 10px 0;
+}
+.v3526-cut-check input {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  accent-color: var(--accent, #4f8cff);
+}
+.v3526-cut-note-label {
+  font-size: 12px;
+  font-weight: 700;
+}
+.v3526-cut-review textarea {
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+}
+
 .v3526-code-box {
   width: 100%;
   min-height: 150px;

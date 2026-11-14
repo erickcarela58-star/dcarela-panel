@@ -1,3 +1,5 @@
+import { assessCut } from './cut-review.js';
+
 /* ==========================================================================
    v35.26 Unified Inbox, Mail/Cash-Codes, Theme Palettes, Web Push & Fiscal UI
    D' Carela Studio & Events · Finanzas PWA (iPhone 15 393x852)
@@ -302,10 +304,21 @@ function normalizeInbox(raw) {
     id: String(c.id || ''),
     kind: c.kind || 'pos_cut',
     title: c.title || (c.kind === 'cash_cut' ? 'Cierre de Caja' : `Corte TPV POS ${c.report_code || ''}`),
-    date: String(c.date || c.created_at || '').slice(0, 10),
+    date: String(c.date || c.day || c.created_at || '').slice(0, 10),
     systemCentavos: Number(c.systemCentavos ?? c.expected_centavos ?? 0),
     reportedCentavos: Number(c.reportedCentavos ?? c.counted_centavos ?? c.expected_centavos ?? 0),
-    differenceCentavos: Number(c.differenceCentavos ?? c.difference_centavos ?? 0),
+    differenceCentavos: Number(c.differenceCentavos ?? c.difference_centavos ?? ((c.counted_centavos ?? 0) - (c.expected_centavos ?? 0))),
+    transferCentavos: Number(c.transferCentavos ?? c.transfer_centavos ?? 0),
+    amountsComplete: (c.systemCentavos ?? c.expected_centavos) != null && (c.reportedCentavos ?? c.counted_centavos) != null,
+    updatedAt: String(c.updatedAt || c.updated_at || ''),
+    turnoId: String(c.turno_id || ''),
+    cashier: String(c.cashier || ''),
+    shift: String(c.shift || ''),
+    salesCashCentavos: Number(c.salesCashCentavos ?? c.ventas_efectivo_centavos ?? c.sales_centavos ?? 0),
+    depositsCashCentavos: Number(c.depositsCashCentavos ?? c.abonos_efectivo_centavos ?? 0),
+    entriesCentavos: Number(c.entriesCentavos ?? c.entradas_centavos ?? c.entries_centavos ?? 0),
+    exitsCentavos: Number(c.exitsCentavos ?? c.salidas_centavos ?? c.exits_centavos ?? 0),
+    pettyCashRemainingCentavos: Number(c.pettyCashRemainingCentavos ?? c.petty_cash_remaining_centavos ?? 0),
     currency: c.currency || 'DOP',
     status: c.status || 'pending_review',
     summary: c.summary || `${c.cashier ? `Cajero: ${c.cashier} · ` : ''}${c.branch_name || 'Estudio'}`
@@ -1680,18 +1693,52 @@ function renderModalRoot() {
     titleText = 'Confirmación de Cortes';
     titleHtml = `${ae('🧾', 18)} <span>Confirmación de Cortes</span>`;
     const pendingCuts = data.cuts.filter((x) => x.status !== 'validated' && x.status !== 'confirmed');
-    bodyHtml = pendingCuts.length ? pendingCuts.map((cut) => `
+    bodyHtml = pendingCuts.length ? pendingCuts.map((cut) => {
+      const review = assessCut(cut, snap.business);
+      return `
       <div class="card" style="padding:12px;margin-bottom:10px">
         <div style="font-size:14px;font-weight:700;display:flex;align-items:center;gap:6px">${ae(cut.kind === 'cash_cut' ? '💵' : '🖥️', 16)} ${esc(cut.title)}</div>
-        <div style="font-size:12px;opacity:.78;margin:4px 0">${esc(cut.summary)} · ${esc(cut.date)}</div>
+        <div style="font-size:12px;opacity:.78;margin:4px 0">${esc(cut.summary)} · ${esc(cut.date)}${cut.shift ? ` · ${esc(cut.shift)}` : ''}</div>
         <div class="info-line"><span>Esperado</span><strong>${fmtMoney(cut.systemCentavos, cut.currency)}</strong></div>
         <div class="info-line"><span>Contado / Reportado</span><strong>${fmtMoney(cut.reportedCentavos, cut.currency)}</strong></div>
+        <div class="info-line"><span>Diferencia</span><strong class="${review.difference ? 'expense-text' : ''}">${review.consistent ? fmtMoney(review.difference, cut.currency) : 'Requiere revisión'}</strong></div>
         <div class="v3526-btn-row">
-          <button type="button" class="primary-btn" data-confirm-cut="${esc(cut.id)}" data-cut-kind="${esc(cut.kind)}">${ae('✅', 14)} Confirmar corte</button>
-          <button type="button" class="secondary-btn" data-mismatch-cut="${esc(cut.id)}" data-cut-kind="${esc(cut.kind)}">${ae('⚠️', 14)} Descuadre</button>
+          <button type="button" class="secondary-btn" data-review-cut="${esc(cut.id)}">Revisar corte</button>
         </div>
       </div>
-    `).join('') : `<div class="notice">${ae('✅', 14)} Todos los cortes TPV y Caja están confirmados.</div>`;
+    `; }).join('') : `<div class="notice">No hay cortes pendientes de revisión en esta sucursal.</div>`;
+  } else if (type === 'cut-review') {
+    const cut = data.cuts.find((x) => x.id === payload?.id);
+    if (!cut) { closeModal(); return; }
+    const review = assessCut(cut, snap.business);
+    titleText = 'Revisar corte antes de confirmar';
+    titleHtml = '<span>Revisar corte</span>';
+    bodyHtml = `
+      <div class="card v3526-cut-review">
+        <b>${esc(cut.title)} · ${esc(cut.date)}${cut.shift ? ` · ${esc(cut.shift)}` : ''}</b>
+        <p class="soft-note">${esc(cut.summary)}${cut.cashier ? ` · ${esc(cut.cashier)}` : ''}</p>
+        <div class="info-line"><span>Esperado por Caja</span><strong>${fmtMoney(cut.systemCentavos, cut.currency)}</strong></div>
+        <div class="info-line"><span>${cut.kind === 'cash_cut' ? 'Efectivo contado' : 'Reportado por terminal'}</span><strong>${fmtMoney(cut.reportedCentavos, cut.currency)}</strong></div>
+        <div class="info-line"><span>Diferencia</span><strong class="${review.difference ? 'expense-text' : ''}">${review.consistent ? fmtMoney(review.difference, cut.currency) : 'Datos inconsistentes'}</strong></div>
+        ${cut.kind === 'cash_cut' ? `
+          <div class="info-line"><span>Ventas en efectivo</span><strong>${fmtMoney(cut.salesCashCentavos, cut.currency)}</strong></div>
+          <div class="info-line"><span>Abonos en efectivo</span><strong>${fmtMoney(cut.depositsCashCentavos, cut.currency)}</strong></div>
+          <div class="info-line"><span>Entradas / Salidas</span><strong>${fmtMoney(cut.entriesCentavos, cut.currency)} / ${fmtMoney(cut.exitsCentavos, cut.currency)}</strong></div>
+          <div class="info-line"><span>Fondo que queda en Caja Chica</span><strong>${fmtMoney(cut.pettyCashRemainingCentavos, cut.currency)}</strong></div>` : ''}
+        ${cut.kind === 'cash_cut' ? `<div class="info-line"><span>Transferencia interna al confirmar</span><strong>${fmtMoney(review.transfer, cut.currency)}</strong></div>` : ''}
+        ${review.canConfirm ? (cut.kind === 'cash_cut'
+          ? '<p class="soft-note">Al confirmar, se transferirá el importe indicado de Caja Chica a Efectivo una sola vez.</p>'
+          : '<p class="soft-note">Al confirmar, se validará el reporte de la terminal. No se moverá dinero.</p>')
+          : `<p class="soft-note expense-text">${review.canReport ? 'Este corte requiere revisión. Reportar la diferencia no moverá dinero.' : 'Este corte ya está enviado a revisión. Actualiza la bandeja para ver su estado.'}</p>`}
+        <label class="v3526-cut-check"><input type="checkbox" id="v3526CutReviewed"> Revisé la fecha, el importe reportado, la diferencia${cut.kind === 'cash_cut' ? ' y la transferencia interna' : ''}.</label>
+        <label class="v3526-cut-note-label" for="v3526CutNote">Si reportas una diferencia, explica el motivo</label>
+        <textarea id="v3526CutNote" class="field-control" rows="2" maxlength="300" placeholder="Explica lo que falta verificar"></textarea>
+        <div class="v3526-btn-row">
+          ${review.canConfirm ? `<button type="button" class="primary-btn" data-submit-cut="confirm" data-cut-id="${esc(cut.id)}">Confirmar corte</button>` : ''}
+          ${review.canReport ? `<button type="button" class="secondary-btn" data-submit-cut="mismatch" data-cut-id="${esc(cut.id)}">Reportar diferencia</button>` : ''}
+          <button type="button" class="secondary-btn" data-back-cuts="1">Volver</button>
+        </div>
+      </div>`;
   } else if (type === 'consumptions') {
     titleText = 'Confirmar consumos bancarios';
     titleHtml = `${ae('💳', 18)} <span>Confirmar consumos bancarios</span>`;
@@ -1943,11 +1990,27 @@ function bindModalEvents(root, payload) {
     b.onclick = () => { closeModal(); openNativeRoute(b.dataset.jumpRoute); };
   });
 
-  root.querySelectorAll('[data-confirm-cut], [data-mismatch-cut]').forEach((btn) => {
+  root.querySelectorAll('[data-review-cut]').forEach((btn) => {
+    btn.onclick = () => openModal('cut-review', { id: btn.dataset.reviewCut });
+  });
+  root.querySelectorAll('[data-back-cuts]').forEach((btn) => {
+    btn.onclick = () => openModal('cuts');
+  });
+  root.querySelectorAll('[data-submit-cut]').forEach((btn) => {
     btn.onclick = async () => {
-      const id = btn.dataset.confirmCut || btn.dataset.mismatchCut;
-      const decision = btn.dataset.mismatchCut ? 'mismatch' : 'confirm';
-      const kind = btn.dataset.cutKind || 'pos_cut';
+      const id = btn.dataset.cutId;
+      const decision = btn.dataset.submitCut;
+      const cut = uiState.data?.cuts?.find((x) => x.id === id);
+      if (!cut || !root.querySelector('#v3526CutReviewed')?.checked) {
+        showToast('Revisa los importes y marca la casilla antes de continuar.', true);
+        return;
+      }
+      const review = assessCut(cut, appSnapshot().business);
+      const note = root.querySelector('#v3526CutNote')?.value?.trim() || '';
+      if (decision === 'confirm' && !review.canConfirm) { showToast('Hay una diferencia: no se puede confirmar este corte.', true); return; }
+      if (decision === 'mismatch' && !note) { showToast('Indica el motivo de la diferencia.', true); return; }
+      if (!review.complete || !review.consistent || !cut.updatedAt) { showToast('Los datos del corte están incompletos. Actualiza la bandeja.', true); return; }
+      btn.disabled = true;
       if (uiState.mode === 'demo') {
         const target = uiState.data.cuts.find((x) => x.id === id);
         if (target) target.status = decision === 'confirm' ? 'validated' : 'mismatch';
@@ -1958,12 +2021,16 @@ function bindModalEvents(root, payload) {
         return;
       }
       try {
-        await apiCall({ action: 'pwaConfirmCut', kind, id, decision });
+        await apiCall({ action: 'pwaConfirmCut', kind: cut.kind, id, decision, note,
+          observed_updated_at: cut.updatedAt,
+          observed_expected_centavos: cut.systemCentavos,
+          observed_counted_centavos: cut.reportedCentavos,
+          observed_transfer_centavos: review.transfer });
         await loadInbox();
-        showToast('Corte actualizado.', false, '✅');
+        showToast(decision === 'confirm' ? 'Corte confirmado.' : 'Diferencia enviada a revisión. No se movió dinero.', false, '✅');
         openModal('cuts');
         window.DcarelaFinanzasReload?.();
-      } catch (err) { showToast(err.message, true); }
+      } catch (err) { btn.disabled = false; showToast(err.message, true); }
     };
   });
 
@@ -2380,7 +2447,7 @@ async function ensureCategoryLinker() {
   if (window.DcarelaCategoryLinker) return;
   await new Promise((resolve) => {
     const sc = document.createElement('script');
-    sc.src = './v35-26-category-emojis.js?v=35.32';
+    sc.src = './v35-26-category-emojis.js?v=35.33';
     sc.onload = resolve;
     sc.onerror = resolve;
     document.head.appendChild(sc);
