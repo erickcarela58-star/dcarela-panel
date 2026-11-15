@@ -445,7 +445,7 @@ body::before, body::after {
 }
 
 /* ==========================================================================
-   v35.44 Coreografía Fluida con Rebotes Elásticos Escalonados, Lupa Fija y UI Estática
+   v35.45 Coreografía Fluida, Cortes Post-Conciliación, Otra Cantidad, Lupa Fija y UI Estática
    - Rebotes notables por elemento con desfase claro (--dc-stagger-step: 58ms) y
      opacidad inicial >= 0.58 (sin destellos negros en iOS/Safari).
    - Al cambiar de día o interactuar con botones dentro de la página, el marco
@@ -793,6 +793,63 @@ body::before, body::after {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+.v3526-cut-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.v3526-cut-badges {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.v3526-cut-time-pill,
+.v3526-cut-diff-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  border: 1px solid var(--v3526-glass-border, var(--border));
+  background: rgba(120, 120, 128, 0.12);
+}
+.v3526-cut-diff-pill.is-diff {
+  color: var(--expense);
+  background: rgba(255, 59, 48, 0.12);
+  border-color: rgba(255, 59, 48, 0.28);
+}
+.v3526-cut-custom-box {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid var(--v3526-glass-border, var(--border));
+  background: rgba(120, 120, 128, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.v3526-cut-custom-box label {
+  font-size: 11.5px;
+  font-weight: 600;
+  opacity: 0.85;
+}
+.v3526-cut-custom-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.v3526-cut-custom-prefix {
+  font-size: 13px;
+  font-weight: 700;
+  opacity: 0.85;
+}
+.v3526-cut-custom-box[hidden] {
+  display: none !important;
 }
 
 @keyframes v3526HeroReveal {

@@ -1,5 +1,5 @@
-import { assessCut } from './cut-review.js?v=35.44';
-import { loadFacturadorSales } from './data-source.js?v=35.44';
+import { assessCut, effectiveCutTransferCentavos } from './cut-review.js?v=35.45';
+import { loadFacturadorSales } from './data-source.js?v=35.45';
 
 /* ==========================================================================
    v35.26 Unified Inbox, Mail/Cash-Codes, Theme Palettes, Web Push & Fiscal UI
@@ -68,6 +68,7 @@ const uiState = {
   mode: new URLSearchParams(location.search).get('mode') === 'demo' ? 'demo' : 'live',
   activeModal: null,
   autoCutPrompted: false,
+  cutCustomAmounts: {},
   mailFilter: 'pending',
   fiscalTab: 'revisar',
   facturadorSales: [],
@@ -89,6 +90,83 @@ function esc(value) {
   return String(value ?? '').replace(/[&<>"']/g, (ch) => (
     { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]
   ));
+}
+
+function parseIsoMsClient(val) {
+  if (!val) return 0;
+  const ms = Date.parse(String(val));
+  return Number.isFinite(ms) ? ms : 0;
+}
+
+function resolveCashReconciledMs(src = {}, srcAccounts = []) {
+  const topMs = parseIsoMsClient(src.cash_reconciled_at || src.cashReconciledAt);
+  if (topMs > 0) return topMs;
+  const list = [...(Array.isArray(srcAccounts) ? srcAccounts : []), ...((typeof appSnapshot === 'function' ? appSnapshot()?.accounts : null) || [])];
+  const dopCash = list.find((a) =>
+    String(a?.tipo || '').toLowerCase() === 'efectivo'
+    && String(a?.moneda || 'DOP').toUpperCase() === 'DOP'
+    && !/caja\s*chica|plaza|d[oó]lar|usd/i.test(String(a?.nombre || ''))
+    && parseIsoMsClient(a?.reconciled_at || a?.reconciledAt) > 0
+  );
+  return parseIsoMsClient(dopCash?.reconciled_at || dopCash?.reconciledAt);
+}
+
+function isCutSupersededClient(cut = {}, cashReconciledMs = 0) {
+  if (!cashReconciledMs || !Number.isFinite(cashReconciledMs)) return false;
+  let cutMs = parseIsoMsClient(cut.closedAt || cut.closed_at || cut.createdAt || cut.created_at);
+  if (!cutMs) {
+    const d = String(cut.date || cut.day || cut.business_date || '').slice(0, 10);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(d)) {
+      cutMs = parseIsoMsClient(`${d}T23:59:59.999-04:00`);
+    }
+  }
+  return cutMs > 0 && cutMs <= cashReconciledMs;
+}
+
+function formatCutTime12h(iso) {
+  const ms = parseIsoMsClient(iso);
+  if (!ms) return '';
+  try {
+    return new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/Santo_Domingo',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    }).format(new Date(ms));
+  } catch {
+    return '';
+  }
+}
+
+function parsePesosToCentavos(raw) {
+  const cleaned = String(raw ?? '').replace(/[RD$,\s]/gi, '').trim();
+  if (!cleaned) return null;
+  const val = Number(cleaned);
+  if (!Number.isFinite(val) || val < 0) return null;
+  return Math.round(val * 100);
+}
+
+function getEffectiveCutEntry(cut = {}) {
+  const st = uiState.cutCustomAmounts?.[cut.id];
+  const baseTransfer = effectiveCutTransferCentavos(cut, null);
+  if (!st || !st.enabled || cut.kind !== 'cash_cut') {
+    return { enabled: false, rawPesos: '', note: '', validCustom: false, customCentavos: null, effectiveCentavos: baseTransfer };
+  }
+  const parsed = parsePesosToCentavos(st.rawPesos);
+  return {
+    enabled: true,
+    rawPesos: String(st.rawPesos ?? ''),
+    note: String(st.note ?? ''),
+    validCustom: parsed !== null,
+    customCentavos: parsed,
+    effectiveCentavos: parsed !== null ? parsed : baseTransfer,
+  };
+}
+
+function canConfirmCutInUi(cut = {}, review = {}) {
+  const custom = getEffectiveCutEntry(cut);
+  if (custom.enabled) return Boolean(review.canConfirmCustom);
+  return Boolean(review.canConfirm || review.canConfirmWithReview);
 }
 
 function linker() {
@@ -306,35 +384,46 @@ function normalizeInbox(raw) {
   }
   if (!banksList.length) banksList = DEFAULT_BANKS.map((b) => ({ ...b }));
 
-  const cuts = Array.isArray(src.cuts) ? src.cuts.map((c) => ({
-    id: String(c.id || ''),
-    kind: c.kind || 'pos_cut',
-    title: c.title || (c.kind === 'cash_cut' ? 'Cierre de Caja' : `Corte TPV POS ${c.report_code || ''}`),
-    date: String(c.date || c.day || c.created_at || '').slice(0, 10),
-    systemCentavos: Number(c.systemCentavos ?? c.expected_centavos ?? 0),
-    reportedCentavos: Number(c.reportedCentavos ?? c.counted_centavos ?? c.expected_centavos ?? 0),
-    differenceCentavos: Number(c.differenceCentavos ?? c.difference_centavos ?? ((c.counted_centavos ?? 0) - (c.expected_centavos ?? 0))),
-    transferCentavos: Number(c.transferCentavos ?? c.transfer_centavos ?? 0),
-    amountsComplete: (c.systemCentavos ?? c.expected_centavos) != null && (c.reportedCentavos ?? c.counted_centavos) != null,
-    updatedAt: String(c.updatedAt || c.updated_at || ''),
-    turnoId: String(c.turno_id || ''),
-    cashier: String(c.cashier || ''),
-    shift: String(c.shift || ''),
-    salesCashCentavos: Number(c.salesCashCentavos ?? c.ventas_efectivo_centavos ?? c.sales_centavos ?? 0),
-    depositsCashCentavos: Number(c.depositsCashCentavos ?? c.abonos_efectivo_centavos ?? 0),
-    entriesCentavos: Number(c.entriesCentavos ?? c.entradas_centavos ?? c.entries_centavos ?? 0),
-    exitsCentavos: Number(c.exitsCentavos ?? c.salidas_centavos ?? c.exits_centavos ?? 0),
-    pettyCashRemainingCentavos: Number(c.pettyCashRemainingCentavos ?? c.petty_cash_remaining_centavos ?? 0),
-    currency: c.currency || 'DOP',
-    status: c.status || 'pending_review',
-    summary: c.summary || `${c.cashier ? `Cajero: ${c.cashier} · ` : ''}${c.branch_name || 'Estudio'}`
-  })) : [];
-
   const rawCardLinks = src.cardLinks || src.card_links || {};
   const cardLinks = Array.isArray(rawCardLinks)
     ? Object.fromEntries(rawCardLinks.map((cl) => [cl.last4 || cl.id, cl]))
     : rawCardLinks;
   const srcAccounts = Array.isArray(src.accounts) ? src.accounts : [];
+  const cashReconciledMs = resolveCashReconciledMs(src, srcAccounts);
+
+  const cuts = Array.isArray(src.cuts) ? src.cuts
+    .filter((c) => !isCutSupersededClient(c, cashReconciledMs))
+    .map((c) => {
+      const closedAt = String(c.closedAt || c.closed_at || '');
+      const createdAt = String(c.createdAt || c.created_at || '');
+      const cutTime = String(c.cutTime || c.cut_time || formatCutTime12h(closedAt || createdAt) || '');
+      return {
+        id: String(c.id || ''),
+        kind: c.kind || 'pos_cut',
+        title: c.title || (c.kind === 'cash_cut' ? 'Cierre de Caja' : `Corte TPV POS ${c.report_code || ''}`),
+        date: String(c.date || c.day || c.created_at || '').slice(0, 10),
+        cutTime,
+        closedAt,
+        createdAt,
+        systemCentavos: Number(c.systemCentavos ?? c.expected_centavos ?? 0),
+        reportedCentavos: Number(c.reportedCentavos ?? c.counted_centavos ?? c.expected_centavos ?? 0),
+        differenceCentavos: Number(c.differenceCentavos ?? c.difference_centavos ?? ((c.counted_centavos ?? 0) - (c.expected_centavos ?? 0))),
+        transferCentavos: Number(c.transferCentavos ?? c.transfer_centavos ?? 0),
+        amountsComplete: (c.systemCentavos ?? c.expected_centavos) != null && (c.reportedCentavos ?? c.counted_centavos) != null,
+        updatedAt: String(c.updatedAt || c.updated_at || ''),
+        turnoId: String(c.turno_id || ''),
+        cashier: String(c.cashier || ''),
+        shift: String(c.shift || ''),
+        salesCashCentavos: Number(c.salesCashCentavos ?? c.ventas_efectivo_centavos ?? c.sales_centavos ?? 0),
+        depositsCashCentavos: Number(c.depositsCashCentavos ?? c.abonos_efectivo_centavos ?? 0),
+        entriesCentavos: Number(c.entriesCentavos ?? c.entradas_centavos ?? c.entries_centavos ?? 0),
+        exitsCentavos: Number(c.exitsCentavos ?? c.salidas_centavos ?? c.exits_centavos ?? 0),
+        pettyCashRemainingCentavos: Number(c.pettyCashRemainingCentavos ?? c.petty_cash_remaining_centavos ?? 0),
+        currency: c.currency || 'DOP',
+        status: c.status || 'pending_review',
+        summary: c.summary || `${c.cashier ? `Cajero: ${c.cashier} · ` : ''}${c.branch_name || 'Estudio'}`
+      };
+    }) : [];
 
   const consumptions = Array.isArray(src.consumptions) ? src.consumptions.map((c) => {
     const merchant = c.merchant || c.comercio || 'Consumo tarjeta';
@@ -457,6 +546,7 @@ function normalizeInbox(raw) {
 
   return {
     ok: true,
+    cash_reconciled_at: cashReconciledMs > 0 ? new Date(cashReconciledMs).toISOString() : null,
     counts,
     cuts,
     consumptions,
@@ -699,8 +789,8 @@ function renderInboxStrip() {
   if (!pendingCuts.length || (view !== 'home' && view !== 'finance')) {
     existingCard?.remove();
   } else {
-    const confirmable = pendingCuts.filter((c) => assessCut(c, snap.business).canConfirm);
-    const totalTransfer = confirmable.reduce((s, c) => s + (c.kind === 'cash_cut' ? Number(c.transferCentavos || 0) : 0), 0);
+    const confirmable = pendingCuts.filter((c) => canConfirmCutInUi(c, assessCut(c, snap.business)));
+    const totalTransfer = confirmable.reduce((s, c) => s + getEffectiveCutEntry(c).effectiveCentavos, 0);
     const totalReported = pendingCuts.reduce((s, c) => s + Number(c.reportedCentavos || c.systemCentavos || 0), 0);
     const sig = `${view}:${pendingCuts.map((c) => `${c.id}:${c.status}`).join(',')}:${totalTransfer}:${totalReported}`;
 
@@ -1840,31 +1930,55 @@ function renderModalRoot() {
     titleText = 'Confirmación de Cortes';
     titleHtml = `${ae('🧾', 18)} <span>Confirmación de Cortes</span>`;
     const pendingCuts = data.cuts.filter((x) => x.status !== 'validated' && x.status !== 'confirmed');
-    const confirmableCuts = pendingCuts.filter((cut) => assessCut(cut, snap.business).canConfirm);
+    const confirmableCuts = pendingCuts.filter((cut) => canConfirmCutInUi(cut, assessCut(cut, snap.business)));
     const totalReported = pendingCuts.reduce((sum, cut) => sum + Number(cut.reportedCentavos || cut.systemCentavos || 0), 0);
-    const totalTransfer = confirmableCuts.reduce((sum, cut) => sum + (cut.kind === 'cash_cut' ? Number(cut.transferCentavos || 0) : 0), 0);
+    const totalTransfer = confirmableCuts.reduce((sum, cut) => sum + getEffectiveCutEntry(cut).effectiveCentavos, 0);
 
     const summaryBanner = pendingCuts.length ? `
-      <div class="v3526-cut-sum-banner">
+      <div class="v3526-cut-sum-banner" id="v3526CutSumBanner">
         <div class="info-line" style="margin:0"><span>Cortes acumulados (${pendingCuts.length})</span><strong>${fmtMoney(totalReported, 'DOP')}</strong></div>
-        ${totalTransfer > 0 ? `<div class="info-line" style="margin:0"><span>Total a sumar a Efectivo disponible</span><strong class="income-text">+${fmtMoney(totalTransfer, 'DOP')}</strong></div>` : ''}
-        ${confirmableCuts.length > 1 ? `<button type="button" class="primary-btn full" data-confirm-all-cuts="1">Confirmar ${confirmableCuts.length} cortes${totalTransfer > 0 ? ` (+${fmtMoney(totalTransfer, 'DOP')})` : ''}</button>` : ''}
+        <div class="info-line" style="margin:0"><span>Total a sumar a Efectivo disponible</span><strong class="${totalTransfer > 0 ? 'income-text' : ''}" id="v3526CutTotalTransfer">${totalTransfer > 0 ? `+${fmtMoney(totalTransfer, 'DOP')}` : fmtMoney(0, 'DOP')}</strong></div>
+        ${confirmableCuts.length > 1 ? `<button type="button" class="primary-btn full" id="v3526ConfirmAllCutsBtn" data-confirm-all-cuts="1">Confirmar ${confirmableCuts.length} cortes${totalTransfer > 0 ? ` (+${fmtMoney(totalTransfer, 'DOP')})` : ''}</button>` : ''}
       </div>
     ` : '';
 
     bodyHtml = pendingCuts.length ? `${summaryBanner}${pendingCuts.map((cut) => {
       const review = assessCut(cut, snap.business);
+      const custom = getEffectiveCutEntry(cut);
+      const canConfirmCard = canConfirmCutInUi(cut, review);
+      const effective = custom.effectiveCentavos;
+      const suggestedPesos = (review.transfer / 100).toFixed(review.transfer % 100 === 0 ? 0 : 2);
+      const confirmLabel = custom.enabled && !custom.validCustom
+        ? 'Confirmar otra cantidad'
+        : (effective > 0 ? `Confirmar (+${fmtMoney(effective, cut.currency)})` : (cut.kind === 'cash_cut' ? 'Confirmar en RD$0.00' : 'Confirmar corte'));
       return `
-      <div class="card" style="padding:12px;margin-bottom:10px">
-        <div style="font-size:14px;font-weight:700;display:flex;align-items:center;gap:6px">${ae(cut.kind === 'cash_cut' ? '💵' : '🖥️', 16)} ${esc(cut.title)}</div>
+      <div class="card" data-cut-card="${esc(cut.id)}" style="padding:12px;margin-bottom:10px">
+        <div class="v3526-cut-card-head">
+          <div style="font-size:14px;font-weight:700;display:flex;align-items:center;gap:6px">${ae(cut.kind === 'cash_cut' ? '💵' : '🖥️', 16)} ${esc(cut.title)}</div>
+          <div class="v3526-cut-badges">
+            ${cut.cutTime ? `<span class="v3526-cut-time-pill">🕒 ${esc(cut.cutTime)}</span>` : ''}
+            ${review.difference ? `<span class="v3526-cut-diff-pill is-diff">Dif. ${fmtMoney(review.difference, cut.currency)}</span>` : ''}
+          </div>
+        </div>
         <div style="font-size:12px;opacity:.78;margin:4px 0">${esc(cut.summary)} · ${esc(cut.date)}${cut.shift ? ` · ${esc(cut.shift)}` : ''}</div>
         <div class="info-line"><span>Esperado</span><strong>${fmtMoney(cut.systemCentavos, cut.currency)}</strong></div>
         <div class="info-line"><span>Contado / Reportado</span><strong>${fmtMoney(cut.reportedCentavos, cut.currency)}</strong></div>
         <div class="info-line"><span>Diferencia</span><strong class="${review.difference ? 'expense-text' : ''}">${review.consistent ? fmtMoney(review.difference, cut.currency) : 'Requiere revisión'}</strong></div>
-        ${cut.kind === 'cash_cut' ? `<div class="info-line"><span>Se suma a Efectivo</span><strong class="${review.transferSupported && review.transfer > 0 ? 'income-text' : ''}">${review.transferSupported ? (review.transfer > 0 ? `+${fmtMoney(review.transfer, cut.currency)}` : fmtMoney(0, cut.currency)) : 'Requiere config. sucursal'}</strong></div>` : ''}
+        ${cut.kind === 'cash_cut' ? `<div class="info-line"><span>Se suma a Efectivo</span><strong data-cut-effective="${esc(cut.id)}" class="${review.transferSupported && effective > 0 ? 'income-text' : ''}">${review.transferSupported ? (custom.enabled && !custom.validCustom ? 'Ingresa RD$' : (effective > 0 ? `+${fmtMoney(effective, cut.currency)}${custom.enabled ? ' (otra)' : ''}` : `${fmtMoney(0, cut.currency)}${custom.enabled ? ' (sin mov.)' : ''}`)) : 'Requiere config. sucursal'}</strong></div>` : ''}
+        ${review.canConfirmCustom ? `
+          <div class="v3526-cut-custom-box" data-custom-box="${esc(cut.id)}" ${custom.enabled ? '' : 'hidden'}>
+            <label for="v3526CutCustom_${esc(cut.id)}">Otra cantidad recibida para sumar a Efectivo (RD$)</label>
+            <div class="v3526-cut-custom-row">
+              <span class="v3526-cut-custom-prefix">RD$</span>
+              <input id="v3526CutCustom_${esc(cut.id)}" type="number" inputmode="decimal" min="0" step="0.01" class="field-control" data-custom-cut-input="${esc(cut.id)}" value="${esc(custom.rawPesos)}" placeholder="Ej: ${suggestedPesos} (o 0 si no entró efectivo)">
+            </div>
+            <input type="text" class="field-control" data-custom-cut-note="${esc(cut.id)}" value="${esc(custom.note)}" maxlength="200" placeholder="Nota opcional (por qué entra otra cantidad)">
+          </div>
+        ` : ''}
         <div class="v3526-btn-row">
-          ${review.canConfirm ? `<button type="button" class="primary-btn" data-quick-confirm-cut="${esc(cut.id)}">Confirmar corte${review.transfer > 0 ? ` (+${fmtMoney(review.transfer, cut.currency)})` : ''}</button>` : ''}
-          <button type="button" class="secondary-btn" data-review-cut="${esc(cut.id)}">${review.canConfirm ? 'Ver detalle' : 'Revisar corte'}</button>
+          ${canConfirmCard ? `<button type="button" class="primary-btn" data-quick-confirm-cut="${esc(cut.id)}" data-cut-confirm-btn="${esc(cut.id)}">${esc(confirmLabel)}</button>` : ''}
+          ${review.canConfirmCustom ? `<button type="button" class="secondary-btn" data-toggle-custom-cut="${esc(cut.id)}">${custom.enabled ? 'Usar monto caja' : 'Otra cantidad'}</button>` : ''}
+          <button type="button" class="secondary-btn" data-review-cut="${esc(cut.id)}">${canConfirmCard ? 'Ver detalle' : 'Revisar corte'}</button>
         </div>
       </div>
     `; }).join('')}` : `<div class="notice">No hay cortes pendientes de revisión en esta sucursal.</div>`;
@@ -1872,11 +1986,15 @@ function renderModalRoot() {
     const cut = data.cuts.find((x) => x.id === payload?.id);
     if (!cut) { closeModal(); return; }
     const review = assessCut(cut, snap.business);
+    const custom = getEffectiveCutEntry(cut);
+    const canConfirmModal = canConfirmCutInUi(cut, review);
+    const effective = custom.effectiveCentavos;
+    const suggestedPesos = (review.transfer / 100).toFixed(review.transfer % 100 === 0 ? 0 : 2);
     titleText = 'Revisar corte antes de confirmar';
     titleHtml = '<span>Revisar corte</span>';
     bodyHtml = `
-      <div class="card v3526-cut-review">
-        <b>${esc(cut.title)} · ${esc(cut.date)}${cut.shift ? ` · ${esc(cut.shift)}` : ''}</b>
+      <div class="card v3526-cut-review" data-review-cut-id="${esc(cut.id)}">
+        <b>${esc(cut.title)} · ${esc(cut.date)}${cut.cutTime ? ` · ${esc(cut.cutTime)}` : ''}${cut.shift ? ` · ${esc(cut.shift)}` : ''}</b>
         <p class="soft-note">${esc(cut.summary)}${cut.cashier ? ` · ${esc(cut.cashier)}` : ''}</p>
         <div class="info-line"><span>Esperado por Caja</span><strong>${fmtMoney(cut.systemCentavos, cut.currency)}</strong></div>
         <div class="info-line"><span>${cut.kind === 'cash_cut' ? 'Efectivo contado' : 'Reportado por terminal'}</span><strong>${fmtMoney(cut.reportedCentavos, cut.currency)}</strong></div>
@@ -1886,16 +2004,28 @@ function renderModalRoot() {
           <div class="info-line"><span>Abonos en efectivo</span><strong>${fmtMoney(cut.depositsCashCentavos, cut.currency)}</strong></div>
           <div class="info-line"><span>Entradas / Salidas</span><strong>${fmtMoney(cut.entriesCentavos, cut.currency)} / ${fmtMoney(cut.exitsCentavos, cut.currency)}</strong></div>
           <div class="info-line"><span>Fondo que queda en Caja Chica</span><strong>${fmtMoney(cut.pettyCashRemainingCentavos, cut.currency)}</strong></div>` : ''}
-        ${cut.kind === 'cash_cut' ? `<div class="info-line"><span>${review.transferSupported ? 'Transferencia interna al confirmar' : 'Transferencia interna'}</span><strong>${review.transferSupported ? fmtMoney(review.transfer, cut.currency) : 'No configurada en esta sucursal'}</strong></div>` : ''}
-        ${review.canConfirm ? (cut.kind === 'cash_cut'
-          ? '<p class="soft-note">Al confirmar, se transferirá el importe indicado de Caja Chica a Efectivo una sola vez.</p>'
+        ${cut.kind === 'cash_cut' ? `<div class="info-line"><span>${review.transferSupported ? 'Se suma a Efectivo al confirmar' : 'Transferencia interna'}</span><strong data-review-effective="${esc(cut.id)}" class="${review.transferSupported && effective > 0 ? 'income-text' : ''}">${review.transferSupported ? (custom.enabled && !custom.validCustom ? 'Ingresa RD$' : `${effective > 0 ? '+' : ''}${fmtMoney(effective, cut.currency)}${custom.enabled ? ' (otra cantidad)' : ''}`) : 'No configurada en esta sucursal'}</strong></div>` : ''}
+        ${review.canConfirmCustom ? `
+          <div class="v3526-cut-custom-box" data-review-custom-box="${esc(cut.id)}" ${custom.enabled ? '' : 'hidden'}>
+            <label for="v3526CutCustomReview">Otra cantidad recibida para sumar a Efectivo (RD$)</label>
+            <div class="v3526-cut-custom-row">
+              <span class="v3526-cut-custom-prefix">RD$</span>
+              <input id="v3526CutCustomReview" type="number" inputmode="decimal" min="0" step="0.01" class="field-control" data-custom-cut-input="${esc(cut.id)}" value="${esc(custom.rawPesos)}" placeholder="Ej: ${suggestedPesos} (o 0 si no entró efectivo)">
+            </div>
+          </div>
+        ` : ''}
+        ${canConfirmModal ? (cut.kind === 'cash_cut'
+          ? (review.difference !== 0
+            ? `<p class="soft-note">Diferencia de ${fmtMoney(review.difference, cut.currency)} vs esperado. Puedes confirmar con los ${fmtMoney(review.transfer, cut.currency)} del cierre o pulsar <b>Otra cantidad</b> si recibiste distinto.</p>`
+            : '<p class="soft-note">Al confirmar, se transferirá el importe indicado de Caja Chica a Efectivo una sola vez (o usa <b>Otra cantidad</b> si recibiste un monto diferente).</p>')
           : '<p class="soft-note">Al confirmar, se validará el reporte de la terminal. No se moverá dinero.</p>')
           : `<p class="soft-note expense-text">${!review.transferSupported ? 'La transferencia de esta sucursal requiere configuración propia. Solo puedes reportar el corte para revisión.' : review.canReport ? 'Este corte requiere revisión. Reportar la diferencia no moverá dinero.' : 'Este corte ya está enviado a revisión. Actualiza la bandeja para ver su estado.'}</p>`}
-        <label class="v3526-cut-check"><input type="checkbox" id="v3526CutReviewed"> Revisé la fecha, el importe reportado, la diferencia${cut.kind === 'cash_cut' && review.transferSupported ? ' y la transferencia interna' : ''}.</label>
-        <label class="v3526-cut-note-label" for="v3526CutNote">Si reportas una diferencia, explica el motivo</label>
-        <textarea id="v3526CutNote" class="field-control" rows="2" maxlength="300" placeholder="Explica lo que falta verificar"></textarea>
+        <label class="v3526-cut-check"><input type="checkbox" id="v3526CutReviewed"> Revisé la fecha, el importe reportado, la diferencia${cut.kind === 'cash_cut' && review.transferSupported ? ' y la cantidad a sumar a Efectivo' : ''}.</label>
+        <label class="v3526-cut-note-label" for="v3526CutNote">Nota / motivo (obligatorio si reportas diferencia)</label>
+        <textarea id="v3526CutNote" class="field-control" rows="2" maxlength="300" placeholder="Explica lo que falta verificar o por qué entra otra cantidad">${esc(custom.note)}</textarea>
         <div class="v3526-btn-row">
-          ${review.canConfirm ? `<button type="button" class="primary-btn" data-submit-cut="confirm" data-cut-id="${esc(cut.id)}">Confirmar corte</button>` : ''}
+          ${canConfirmModal ? `<button type="button" class="primary-btn" data-submit-cut="confirm" data-cut-id="${esc(cut.id)}" data-review-confirm-btn="${esc(cut.id)}">Confirmar corte</button>` : ''}
+          ${review.canConfirmCustom ? `<button type="button" class="secondary-btn" data-toggle-custom-cut="${esc(cut.id)}">${custom.enabled ? 'Usar monto caja' : 'Otra cantidad'}</button>` : ''}
           ${review.canReport ? `<button type="button" class="secondary-btn" data-submit-cut="mismatch" data-cut-id="${esc(cut.id)}">Reportar diferencia</button>` : ''}
           <button type="button" class="secondary-btn" data-back-cuts="1">Volver</button>
         </div>
@@ -2154,10 +2284,18 @@ function bindModalEvents(root, payload) {
     b.onclick = () => { closeModal(); openNativeRoute(b.dataset.jumpRoute); };
   });
 
-  async function submitCutDecision(cut, decision, note = '', btn = null, { stayOpenIfRemaining = true } = {}) {
+  async function submitCutDecision(cut, decision, note = '', btn = null, { stayOpenIfRemaining = true, manualAmountCentavos = null, acceptDiscrepancy = false } = {}) {
     if (!cut) return false;
     const review = assessCut(cut, appSnapshot().business);
-    if (decision === 'confirm' && !review.canConfirm) {
+    const hasManualAmount = manualAmountCentavos !== null && manualAmountCentavos !== undefined;
+    if (hasManualAmount && (!Number.isSafeInteger(manualAmountCentavos) || manualAmountCentavos < 0)) {
+      showToast('Indica una cantidad válida en RD$ (puede ser 0).', true);
+      return false;
+    }
+    const allowOwnerConfirm = review.canConfirm
+      || (hasManualAmount && review.canConfirmCustom)
+      || (acceptDiscrepancy && review.canConfirmWithReview);
+    if (decision === 'confirm' && !allowOwnerConfirm) {
       showToast('Hay una diferencia o falta configuración: no se puede confirmar este corte.', true);
       return false;
     }
@@ -2170,49 +2308,65 @@ function bindModalEvents(root, payload) {
       return false;
     }
     if (btn) btn.disabled = true;
+    const finalTransfer = hasManualAmount ? manualAmountCentavos : review.transfer;
     if (uiState.mode === 'demo') {
       const target = uiState.data.cuts.find((x) => x.id === cut.id);
       if (target) target.status = decision === 'confirm' ? 'validated' : 'mismatch';
       let demoRes = null;
       if (decision === 'confirm') {
-        demoRes = window.DcarelaFinanzasActions?.applyDemoCut?.(target || cut) || null;
+        demoRes = window.DcarelaFinanzasActions?.applyDemoCut?.(target || cut, {
+          manualAmountCentavos: hasManualAmount ? manualAmountCentavos : null,
+        }) || null;
+        if (uiState.cutCustomAmounts) delete uiState.cutCustomAmounts[cut.id];
       }
       uiState.data = normalizeInbox(uiState.data);
       const addedText = decision === 'confirm'
-        ? (review.transfer > 0
-          ? `Corte confirmado · +${fmtMoney(review.transfer, cut.currency)} sumado a Efectivo`
-          : `Corte validado · ${fmtMoney(cut.reportedCentavos, cut.currency)} conciliado`)
+        ? (cut.kind === 'cash_cut' && finalTransfer > 0
+          ? `Corte confirmado · +${fmtMoney(finalTransfer, cut.currency)} sumado a Efectivo${hasManualAmount ? ' (otra cantidad)' : ''}`
+          : (cut.kind === 'cash_cut'
+            ? 'Corte confirmado en RD$0.00 (sin movimiento en Efectivo)'
+            : `Corte validado · ${fmtMoney(cut.reportedCentavos, cut.currency)} conciliado`))
         : 'Descuadre reportado.';
       showToast(addedText, decision !== 'confirm', decision === 'confirm' ? '✅' : '⚠️');
       const remaining = (uiState.data?.cuts || []).filter((x) => x.status !== 'validated' && x.status !== 'confirmed');
       if (stayOpenIfRemaining && remaining.length) openModal('cuts');
       else if (stayOpenIfRemaining) closeModal();
       scheduleSync();
-      return { ok: true, demoRes };
+      return { ok: true, transfer_centavos: finalTransfer, demoRes };
     }
     try {
-      const res = await apiCall({
+      const payload = {
         action: 'pwaConfirmCut',
         kind: cut.kind,
         id: cut.id,
         decision,
         note,
+        accept_discrepancy: decision === 'confirm' && (acceptDiscrepancy || review.difference !== 0),
         observed_updated_at: cut.updatedAt,
         observed_expected_centavos: cut.systemCentavos,
         observed_counted_centavos: cut.reportedCentavos,
         observed_transfer_centavos: review.transfer
-      });
+      };
+      if (decision === 'confirm' && hasManualAmount) {
+        payload.manual_amount_centavos = manualAmountCentavos;
+      }
+      const res = await apiCall(payload);
+      if (decision === 'confirm' && uiState.cutCustomAmounts) {
+        delete uiState.cutCustomAmounts[cut.id];
+      }
       await Promise.all([
         loadInbox(false),
         Promise.resolve(window.DcarelaFinanzasReload?.()).catch(() => null)
       ]);
       let msg = 'Diferencia enviada a revisión. No se movió dinero.';
       if (decision === 'confirm') {
-        const moved = Number(res?.transfer_centavos || review.transfer || 0);
+        const moved = Number(res?.transfer_centavos ?? finalTransfer ?? 0);
         if (cut.kind === 'cash_cut' && moved > 0 && !res?.sin_movimiento) {
           msg = res?.new_dest_balance != null
             ? `Corte confirmado · +${fmtMoney(moved, cut.currency)} sumado a Efectivo (${fmtMoney(res.new_dest_balance, cut.currency)})`
             : `Corte confirmado · +${fmtMoney(moved, cut.currency)} sumado a Efectivo`;
+        } else if (cut.kind === 'cash_cut' && res?.sin_movimiento) {
+          msg = 'Corte confirmado en RD$0.00 (sin movimiento en Efectivo).';
         } else if (cut.kind === 'pos_cut') {
           msg = `Corte validado · ${fmtMoney(cut.reportedCentavos, cut.currency)} confirmado en libro`;
         } else {
@@ -2232,6 +2386,94 @@ function bindModalEvents(root, payload) {
     }
   }
 
+  function refreshCutCustomLiveDom() {
+    const biz = appSnapshot().business;
+    const pendingCuts = (uiState.data?.cuts || []).filter((x) => x.status !== 'validated' && x.status !== 'confirmed');
+    for (const cut of pendingCuts) {
+      const rv = assessCut(cut, biz);
+      const custom = getEffectiveCutEntry(cut);
+      const eff = custom.effectiveCentavos;
+      const effEl = root.querySelector(`[data-cut-effective="${cut.id}"]`);
+      if (effEl && cut.kind === 'cash_cut') {
+        effEl.className = rv.transferSupported && eff > 0 ? 'income-text' : '';
+        effEl.textContent = !rv.transferSupported
+          ? 'Requiere config. sucursal'
+          : (custom.enabled && !custom.validCustom
+            ? 'Ingresa RD$'
+            : (eff > 0 ? `+${fmtMoney(eff, cut.currency)}${custom.enabled ? ' (otra)' : ''}` : `${fmtMoney(0, cut.currency)}${custom.enabled ? ' (sin mov.)' : ''}`));
+      }
+      const btnEl = root.querySelector(`[data-cut-confirm-btn="${cut.id}"]`);
+      if (btnEl) {
+        btnEl.textContent = custom.enabled && !custom.validCustom
+          ? 'Confirmar otra cantidad'
+          : (eff > 0 ? `Confirmar (+${fmtMoney(eff, cut.currency)})` : (cut.kind === 'cash_cut' ? 'Confirmar en RD$0.00' : 'Confirmar corte'));
+      }
+      const revEffEl = root.querySelector(`[data-review-effective="${cut.id}"]`);
+      if (revEffEl && cut.kind === 'cash_cut') {
+        revEffEl.className = rv.transferSupported && eff > 0 ? 'income-text' : '';
+        revEffEl.textContent = !rv.transferSupported
+          ? 'No configurada en esta sucursal'
+          : (custom.enabled && !custom.validCustom ? 'Ingresa RD$' : `${eff > 0 ? '+' : ''}${fmtMoney(eff, cut.currency)}${custom.enabled ? ' (otra cantidad)' : ''}`);
+      }
+    }
+    const confirmable = pendingCuts.filter((c) => canConfirmCutInUi(c, assessCut(c, biz)));
+    const totalTransfer = confirmable.reduce((s, c) => s + getEffectiveCutEntry(c).effectiveCentavos, 0);
+    const totalEl = root.querySelector('#v3526CutTotalTransfer');
+    if (totalEl) {
+      totalEl.className = totalTransfer > 0 ? 'income-text' : '';
+      totalEl.textContent = totalTransfer > 0 ? `+${fmtMoney(totalTransfer, 'DOP')}` : fmtMoney(0, 'DOP');
+    }
+    const allBtn = root.querySelector('#v3526ConfirmAllCutsBtn');
+    if (allBtn) {
+      allBtn.textContent = `Confirmar ${confirmable.length} cortes${totalTransfer > 0 ? ` (+${fmtMoney(totalTransfer, 'DOP')})` : ''}`;
+    }
+    renderInboxStrip();
+  }
+
+  root.querySelectorAll('[data-toggle-custom-cut]').forEach((btn) => {
+    btn.onclick = () => {
+      const id = btn.dataset.toggleCustomCut;
+      const cut = uiState.data?.cuts?.find((x) => x.id === id);
+      if (!cut) return;
+      if (!uiState.cutCustomAmounts) uiState.cutCustomAmounts = {};
+      const prev = uiState.cutCustomAmounts[id];
+      const nextEnabled = !(prev && prev.enabled);
+      uiState.cutCustomAmounts[id] = {
+        enabled: nextEnabled,
+        rawPesos: prev?.rawPesos || '',
+        note: prev?.note || '',
+      };
+      const inReview = Boolean(root.querySelector(`[data-review-cut-id="${id}"]`));
+      const box = root.querySelector(inReview ? `[data-review-custom-box="${id}"]` : `[data-custom-box="${id}"]`);
+      if (box) box.hidden = !nextEnabled;
+      btn.textContent = nextEnabled ? 'Usar monto caja' : 'Otra cantidad';
+      refreshCutCustomLiveDom();
+      if (nextEnabled) {
+        const input = box?.querySelector(`[data-custom-cut-input="${id}"]`);
+        if (input) setTimeout(() => input.focus(), 30);
+      }
+    };
+  });
+
+  root.querySelectorAll('[data-custom-cut-input]').forEach((input) => {
+    input.oninput = () => {
+      const id = input.dataset.customCutInput;
+      if (!uiState.cutCustomAmounts) uiState.cutCustomAmounts = {};
+      const prev = uiState.cutCustomAmounts[id] || { enabled: true, rawPesos: '', note: '' };
+      uiState.cutCustomAmounts[id] = { ...prev, enabled: true, rawPesos: input.value };
+      refreshCutCustomLiveDom();
+    };
+  });
+
+  root.querySelectorAll('[data-custom-cut-note]').forEach((input) => {
+    input.oninput = () => {
+      const id = input.dataset.customCutNote;
+      if (!uiState.cutCustomAmounts) uiState.cutCustomAmounts = {};
+      const prev = uiState.cutCustomAmounts[id] || { enabled: true, rawPesos: '', note: '' };
+      uiState.cutCustomAmounts[id] = { ...prev, note: input.value };
+    };
+  });
+
   root.querySelectorAll('[data-review-cut]').forEach((btn) => {
     btn.onclick = () => openModal('cut-review', { id: btn.dataset.reviewCut });
   });
@@ -2241,23 +2483,48 @@ function bindModalEvents(root, payload) {
   root.querySelectorAll('[data-quick-confirm-cut]').forEach((btn) => {
     btn.onclick = () => {
       const cut = uiState.data?.cuts?.find((x) => x.id === btn.dataset.quickConfirmCut);
-      submitCutDecision(cut, 'confirm', '', btn);
+      if (!cut) return;
+      const custom = getEffectiveCutEntry(cut);
+      if (custom.enabled && !custom.validCustom) {
+        showToast('Escribe la cantidad en RD$ (o 0 si no entró efectivo).', true);
+        root.querySelector(`[data-custom-cut-input="${cut.id}"]`)?.focus();
+        return;
+      }
+      const rv = assessCut(cut, appSnapshot().business);
+      submitCutDecision(cut, 'confirm', custom.note || '', btn, {
+        manualAmountCentavos: custom.enabled ? custom.customCentavos : null,
+        acceptDiscrepancy: rv.difference !== 0,
+      });
     };
   });
   root.querySelectorAll('[data-confirm-all-cuts]').forEach((btn) => {
     btn.onclick = async () => {
       const biz = appSnapshot().business;
-      const pendingList = (uiState.data?.cuts || []).filter((x) => x.status !== 'validated' && x.status !== 'confirmed' && assessCut(x, biz).canConfirm);
+      const pendingList = (uiState.data?.cuts || []).filter((x) => x.status !== 'validated' && x.status !== 'confirmed' && canConfirmCutInUi(x, assessCut(x, biz)));
       if (!pendingList.length) return;
+      for (const cut of pendingList) {
+        const c = getEffectiveCutEntry(cut);
+        if (c.enabled && !c.validCustom) {
+          showToast(`Completa la otra cantidad en ${cut.title} o desactívala.`, true);
+          root.querySelector(`[data-custom-cut-input="${cut.id}"]`)?.focus();
+          return;
+        }
+      }
       btn.disabled = true;
       let confirmedCount = 0;
       let totalMoved = 0;
       for (const cut of pendingList) {
-        const res = await submitCutDecision(cut, 'confirm', '', null, { stayOpenIfRemaining: false });
+        const rv = assessCut(cut, biz);
+        const custom = getEffectiveCutEntry(cut);
+        const res = await submitCutDecision(cut, 'confirm', custom.note || '', null, {
+          stayOpenIfRemaining: false,
+          manualAmountCentavos: custom.enabled ? custom.customCentavos : null,
+          acceptDiscrepancy: rv.difference !== 0,
+        });
         if (!res) break;
         confirmedCount++;
-        const rv = assessCut(cut, biz);
-        totalMoved += Number(res.transfer_centavos || (cut.kind === 'cash_cut' ? rv.transfer : 0) || 0);
+        const fallbackEff = custom.enabled && custom.validCustom ? custom.customCentavos : (cut.kind === 'cash_cut' ? rv.transfer : 0);
+        totalMoved += Number(res.transfer_centavos ?? fallbackEff ?? 0);
       }
       if (confirmedCount > 0) {
         if (uiState.mode === 'live') {
@@ -2287,8 +2554,18 @@ function bindModalEvents(root, payload) {
         showToast('Revisa los importes y marca la casilla antes de continuar.', true);
         return;
       }
+      const custom = getEffectiveCutEntry(cut);
+      if (decision === 'confirm' && custom.enabled && !custom.validCustom) {
+        showToast('Escribe la cantidad en RD$ (o 0 si no entró efectivo).', true);
+        root.querySelector('#v3526CutCustomReview')?.focus();
+        return;
+      }
+      const rv = assessCut(cut, appSnapshot().business);
       const note = root.querySelector('#v3526CutNote')?.value?.trim() || '';
-      await submitCutDecision(cut, decision, note, btn);
+      await submitCutDecision(cut, decision, note, btn, {
+        manualAmountCentavos: decision === 'confirm' && custom.enabled ? custom.customCentavos : null,
+        acceptDiscrepancy: decision === 'confirm' && rv.difference !== 0,
+      });
     };
   });
 
@@ -2748,7 +3025,7 @@ async function ensureCategoryLinker() {
   if (window.DcarelaCategoryLinker) return;
   await new Promise((resolve) => {
     const sc = document.createElement('script');
-    sc.src = './v35-26-category-emojis.js?v=35.44';
+    sc.src = './v35-26-category-emojis.js?v=35.45';
     sc.onload = resolve;
     sc.onerror = resolve;
     document.head.appendChild(sc);

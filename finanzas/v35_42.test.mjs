@@ -9,7 +9,7 @@ const read = (file) => fs.readFileSync(path.join(DIR, file), 'utf8');
 
 test('v35.42 service worker avoids mid-session skipWaiting when active worker already exists', async () => {
   const swCode = read('sw.js');
-  assert.match(swCode, /const CACHE = 'dcarela-finanzas-v35-44'/);
+  assert.match(swCode, /const CACHE = 'dcarela-finanzas-v35-45'/);
 
   function bootSw(hasActiveWorker) {
     const handlers = {};
@@ -78,9 +78,9 @@ test('v35.42 HTML pre-paint theme script reads dcarela-mm-theme correctly for Ce
   }
 });
 
-test('v35.44 eliminates unsolicited reloads and scopes button updates cleanly in app.js', () => {
+test('v35.45 eliminates unsolicited reloads and scopes button updates cleanly in app.js', () => {
   const appJs = read('app.js');
-  assert.match(appJs, /const APP_VERSION='35\.44';/);
+  assert.match(appJs, /const APP_VERSION='35\.45';/);
 
   // 1) No automatic visibilitychange background reload
   assert.doesNotMatch(appJs, /addEventListener\('visibilitychange'/);
@@ -182,4 +182,21 @@ test('v35.44 enforces noticeable elastic bounces and clear per-element stagger w
   assert.match(appJs, /staggerList\(triple\.children,'dc-anim-card'/);
   assert.match(appJs, /choreographElements\(body\)/);
   assert.match(appJs, /const delay=Math\.min\(720,idx\*62\);/);
+});
+
+test('v35.45 excludes pre-reconciliation cuts and supports Otra cantidad live sum + submission', () => {
+  const inboxJs = read('v35-26-inbox-fiscal.js');
+  const appJs = read('app.js');
+  const css = read('v35-26-motion.css');
+
+  assert.match(inboxJs, /function resolveCashReconciledMs\(/);
+  assert.match(inboxJs, /function isCutSupersededClient\(/);
+  assert.match(inboxJs, /isCutSupersededClient\(c, cashReconciledMs\)/);
+  assert.match(inboxJs, /data-toggle-custom-cut=/);
+  assert.match(inboxJs, /data-custom-cut-input=/);
+  assert.match(inboxJs, /manual_amount_centavos = manualAmountCentavos/);
+  assert.match(inboxJs, /accept_discrepancy:/);
+  assert.match(appJs, /function applyDemoCut\(cut=\{\},opts=\{\}\)/);
+  assert.match(appJs, /opts\.manualAmountCentavos!==null/);
+  assert.match(css, /\.v3526-cut-custom-box\s*\{/);
 });

@@ -1,6 +1,6 @@
-import {loadFinance,loadFullFinanceHistory,commitAction,getTerminalReceipt,loadLiveConnectivity,isLive,canRegister,canCancelMovement} from './data-source.js?v=35.44';
-import {fixture as demoFixture} from './demo-data.js?v=35.44';
-const APP_VERSION='35.44';
+import {loadFinance,loadFullFinanceHistory,commitAction,getTerminalReceipt,loadLiveConnectivity,isLive,canRegister,canCancelMovement} from './data-source.js?v=35.45';
+import {fixture as demoFixture} from './demo-data.js?v=35.45';
+const APP_VERSION='35.45';
 const emulatorWritesAllowed=()=>isLive && ['localhost','127.0.0.1'].includes(location.hostname)
  && String(window.__DCARELA_FIREBASE_CONFIG?.projectId||'').startsWith('demo-')
  && window.__DCARELA_FINANCE_STAGING_WRITE__===true;
@@ -1710,22 +1710,24 @@ if (isLive && window.DcarelaFirebase?.onAuthStateChanged) {
 }
 function openRoute(route){navigationDirection=1;state.route=String(route||'');state.tab='more';state.modal=null;render();window.scrollTo(0,0)}
 function openPrefilledEntry(opts={}){state.entryType=opts.type==='ingreso'||opts.type==='transferencia'?opts.type:'gasto';state.entryDigits=opts.cents?String(Math.max(0,Math.round(Number(opts.cents)))):'';state.entryNote=String(opts.note||'').slice(0,180);state.entryDate=/^\d{4}-\d{2}-\d{2}$/.test(String(opts.date||''))?opts.date:core.businessDay(new Date());state.entryLink=opts.link||null;state.pendingRequestId=null;const type=state.entryType;state.entryAccount=opts.accountId||lastAccount(type)||state.entryAccount;if(type==='transferencia'){const a=account(state.entryAccount);state.entryDest=opts.destId||accounts().find(x=>x.id!==a?.id&&x.moneda===a?.moneda)?.id||'';}else{state.entryCategory=opts.categoryId||cats().find(c=>c.tipo===type)?.id||'';}openModal('entry')}
-function applyDemoCut(cut={}){
+function applyDemoCut(cut={},opts={}){
  if(isLive||!state.data)return {ok:false};
- const transfer=cut.kind==='cash_cut'?Math.max(0,Math.round(Number(cut.transferCentavos||0))):0;
+ const hasManual=opts.manualAmountCentavos!==null&&opts.manualAmountCentavos!==undefined&&Number.isFinite(Number(opts.manualAmountCentavos))&&Number(opts.manualAmountCentavos)>=0;
+ const transfer=cut.kind==='cash_cut'?(hasManual?Math.round(Number(opts.manualAmountCentavos)):Math.max(0,Math.round(Number(cut.transferCentavos||0)))):0;
  const accts=accounts();
- const cash=accts.find(a=>a.tipo==='efectivo'&&a.incluir_en_total!==false)||accts.find(a=>a.tipo==='efectivo');
+ const isDopCash=a=>a.tipo==='efectivo'&&String(a.moneda||'DOP').toUpperCase()==='DOP'&&!/caja\s*chica|d[oó]lar|usd/i.test(String(a.nombre||''));
+ const cash=accts.find(a=>isDopCash(a)&&a.incluir_en_total!==false)||accts.find(isDopCash)||accts.find(a=>a.tipo==='efectivo'&&a.incluir_en_total!==false)||accts.find(a=>a.tipo==='efectivo');
  const petty=accts.find(a=>a.tipo==='efectivo'&&a.incluir_en_total===false);
  if(transfer>0&&cash){
   if(petty)petty.saldo_actual_centavos=Math.max(0,Number(petty.saldo_actual_centavos||0)-transfer);
   cash.saldo_actual_centavos=Number(cash.saldo_actual_centavos||0)+transfer;
   const movId=`demo-cut-${String(cut.id||Date.now())}`;
   if(!(state.data.movements||[]).some(m=>m.id===movId)){
-   state.data.movements=[{id:movId,business_id:state.business,fecha:cut.date||today,tipo:'transferencia',origen:'cash_cut',afecta_resultado:false,estado:'registrado',moneda:'DOP',cuenta_id:petty?.id||cash.id,cuenta_destino_id:cash.id,monto_centavos:transfer,descripcion:`Traspaso corte confirmado · ${cut.title||'Caja'}`},...(state.data.movements||[])];
+   state.data.movements=[{id:movId,business_id:state.business,fecha:cut.date||today,tipo:'transferencia',origen:'cash_cut',afecta_resultado:false,estado:'registrado',moneda:'DOP',cuenta_id:petty?.id||cash.id,cuenta_destino_id:cash.id,monto_centavos:transfer,descripcion:`${hasManual?'Traspaso corte (otra cantidad)':'Traspaso corte confirmado'} · ${cut.title||'Caja'}`},...(state.data.movements||[])];
   }
  }
  render({quiet:true});
- return {ok:true,transferCentavos:transfer,newCashBalance:cash?accountBalance(cash):null};
+ return {ok:true,transferCentavos:transfer,manualAmountUsed:hasManual,sinMovimiento:transfer===0,newCashBalance:cash?accountBalance(cash):null};
 }
 window.DcarelaFinanzasReload=()=>load({silent:Boolean(state.data)});
 window.DcarelaMotionRefresh=scope=>{choreographElements(scope);animateCountUps(scope);};
