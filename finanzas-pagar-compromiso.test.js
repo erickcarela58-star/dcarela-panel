@@ -19,19 +19,21 @@ test('la ficha del compromiso ofrece pagarlo y el formulario lo dice', () => {
 });
 
 test('el gasto viaja con el enlace al compromiso y el adaptador lo guarda y lo publica', () => {
-  assert.match(app, /state\.entryType==='gasto'&&state\.entryLink\?\{obligacionId:/);
+  assert.match(app, /const effectiveLink=state\.entryType==='gasto'\?\(state\.entryLink\|\|resolveAutoCommitmentLink\(\)\):null;/);
+  assert.match(app, /effectiveLink\?\{obligacionId:/);
   assert.match(adapter, /type === 'gasto' && text\(data\.obligacionId, 160\) \? \{ obligacion_id:/);
   assert.match(adapter, /type === 'gasto' && text\(data\.compromisoId, 160\) \? \{ compromiso_id:/);
   assert.match(adapter, /obligacionId: movement\.obligacion_id \|\| null,/);
 });
 
-test('la versión 35.37 renueva caché y conserva el vidrio translúcido para iPhone 15', () => {
+test('la versión 35.43 renueva caché y conserva el vidrio translúcido para iPhone 15', () => {
   const html = fs.readFileSync(path.join(__dirname, 'finanzas', 'index.html'), 'utf8');
   const sw = fs.readFileSync(path.join(__dirname, 'finanzas', 'sw.js'), 'utf8');
   const css = fs.readFileSync(path.join(__dirname, 'finanzas', 'monochrome-glass-v35.css'), 'utf8');
-  assert.match(html, /app\.js\?v=35.37/); assert.match(html, /firebase-adapter\.js\?v=35.37/);
-  assert.match(html, /monochrome-glass-v35\.css\?v=35.37/);
-  assert.match(sw, /dcarela-finanzas-v35-37/); assert.match(sw, /'\.\/app\.js\?v=35.37'/);
+  assert.match(html, /app\.js\?v=35\.43/); assert.match(html, /firebase-adapter\.js\?v=35\.43/);
+  assert.match(html, /monochrome-glass-v35\.css\?v=35\.43/);
+  assert.match(html, /money-manager-core\.js\?v=35\.43/);
+  assert.match(sw, /dcarela-finanzas-v35-43/); assert.match(sw, /'\.\/app\.js\?v=35\.43'/);
   assert.match(css, /backdrop-filter:blur\(32px\)/); assert.match(css, /\.keypad button/);
   assert.match(app, /cashAccountOptions\(state\.entryAccount,'',type==='gasto'\)/);
 });
@@ -77,4 +79,21 @@ test('35.24 segunda ola: íconos en barras y estadísticas, chips de búsqueda, 
   assert.match(adapter, /'CostoObligacionGuardada'/);
   assert.match(ds, /cost\.recurring\.upsert/);
   assert.match(ds, /cost\.obligation\.upsert/);
+});
+
+test('elimina compromisos desde su detalle con confirmación en PWA, adaptador y enlaces por palabras clave', () => {
+  const ds = fs.readFileSync(path.join(__dirname, 'finanzas', 'data-source.js'), 'utf8');
+  const app = fs.readFileSync(path.join(__dirname, 'finanzas', 'app.js'), 'utf8');
+  const adapter = fs.readFileSync(path.join(__dirname, 'firebase-adapter.js'), 'utf8');
+  assert.match(ds, /'fin\.commitment\.deactivate'/);
+  assert.match(ds, /'cost\.obligation\.cancel'/);
+  assert.match(app, /data-do="debt-delete-confirm"/);
+  assert.match(app, /function modalDebtDelete\(\)/);
+  assert.match(app, /data-do="debt-delete-save"/);
+  assert.match(app, /name="debt-keywords"/);
+  assert.match(app, /linkedPaymentsForCommitment/);
+  assert.match(app, /resolveAutoCommitmentLink/);
+  assert.match(adapter, /if \(action === 'fin\.commitment\.deactivate'\)/);
+  assert.match(adapter, /estado: 'eliminado'/);
+  assert.match(adapter, /Compromiso eliminado sin borrar pagos/);
 });

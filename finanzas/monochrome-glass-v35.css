@@ -15,8 +15,9 @@
   --income:#8fe1ba;--expense:#f3999d;--focus:#d5d9dd;
   --tone-1:#f4f4f4;--tone-2:#cccccc;--tone-3:#a4a4a4;--tone-4:#7d7d7d;--tone-5:#555555;
 }
-body,:root[data-theme="dark"] body{background:var(--bg);background-image:radial-gradient(ellipse 95% 40% at 68% -4%,rgba(255,255,255,.075),transparent 75%),linear-gradient(170deg,#0d0f12,#080a0c 62%);background-attachment:fixed}
-:root:not([data-theme="dark"]) body{background-image:radial-gradient(ellipse 90% 36% at 68% -4%,rgba(255,255,255,1),transparent 75%),linear-gradient(170deg,#fcfcfd,#f1f3f5 60%,#f8f9fa)}
+html{background:var(--bg)}
+body,:root[data-theme="dark"] body{background:var(--bg);background-image:radial-gradient(ellipse 95% 40% at 68% -4%,rgba(255,255,255,.075),transparent 75%),linear-gradient(170deg,#0d0f12,#080a0c 62%)}
+:root:not([data-theme="dark"]) body{background:var(--bg);background-image:radial-gradient(ellipse 90% 36% at 68% -4%,rgba(255,255,255,1),transparent 75%),linear-gradient(170deg,#fcfcfd,#f1f3f5 60%,#f8f9fa)}
 .page-title,.hero-main{color:var(--ink);text-shadow:0 0 18px rgba(255,255,255,.12)}
 :root:not([data-theme="dark"]) .page-title,:root:not([data-theme="dark"]) .hero-main{text-shadow:0 0 20px rgba(255,255,255,.75)}
 .brand-sub{color:var(--muted)}
@@ -95,12 +96,19 @@ main.page{touch-action:pan-y}
 .daily-calendar svg{width:20px;height:20px}
 .daily-calendar input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}
 .daily-calendar:focus-within{outline:2px solid var(--ink);outline-offset:2px;border-radius:10px}
+.daily-loupe-shell{position:relative;height:74px;margin:2px -4px 0;overflow:hidden;touch-action:pan-y;user-select:none;-webkit-user-select:none;cursor:grab;-webkit-mask-image:linear-gradient(to right,transparent 0%,#000 10%,#000 90%,transparent 100%);mask-image:linear-gradient(to right,transparent 0%,#000 10%,#000 90%,transparent 100%)}
+.daily-loupe-shell.is-dragging{cursor:grabbing}
+.daily-loupe-lens{position:absolute;left:50%;top:50%;width:58px;height:62px;transform:translate(-50%,-50%);border-radius:18px;background:var(--ink);box-shadow:0 8px 22px rgba(0,0,0,.16),inset 0 1px 0 rgba(255,255,255,.35);pointer-events:none;z-index:1}
+:root[data-theme="dark"] .daily-loupe-lens{box-shadow:0 10px 26px rgba(0,0,0,.46),inset 0 1px 0 rgba(255,255,255,.92)}
+.daily-loupe-track{position:absolute;left:50%;top:50%;display:flex;align-items:center;will-change:transform;z-index:2;pointer-events:auto}
 .daily-days{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px;touch-action:pan-y;user-select:none}
-.daily-day{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-width:0;min-height:56px;border:0;border-radius:16px;background:transparent;color:var(--muted);cursor:pointer}
-.daily-day small{font-size:.58rem;text-transform:capitalize}
-.daily-day strong{font-size:.89rem;font-weight:650}
-.daily-day.active{background:var(--ink);color:var(--bg);box-shadow:0 7px 20px rgba(0,0,0,.13)}
-.daily-hint{margin:9px 2px 0;color:var(--muted);font-size:.6rem;text-align:center}
+.daily-day{flex:0 0 52px;width:52px;height:62px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-width:0;padding:0;border:0;border-radius:16px;background:transparent !important;box-shadow:none !important;color:var(--muted);cursor:pointer;transform:scale(var(--loupe-scale,1));transform-origin:center center;transition:none}
+.daily-day small{font-size:.57rem;text-transform:capitalize;transform:scale(var(--loupe-day,1));transition:none;pointer-events:none}
+.daily-day strong{font-size:.92rem;font-weight:650;line-height:1.1;transform:scale(var(--loupe-num,1));transition:none;pointer-events:none}
+.daily-day.in-lens{color:var(--bg)}
+.daily-day.in-lens strong{font-weight:780}
+.daily-day.active{background:transparent !important;box-shadow:none !important}
+.daily-hint{margin:8px 2px 0;color:var(--muted);font-size:.6rem;text-align:center}
 .triple-summary,:root[data-theme="dark"] .triple-summary{padding:1px 0;margin:12px 0 20px;border:0;border-radius:0;background:transparent;box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none}
 .triple-summary>div{padding:12px 5px}
 .triple-summary>div+div{border-left:0;padding-left:10px}
@@ -147,9 +155,10 @@ main.page{touch-action:pan-y}
 .bottom-nav .tab-button:active .tab-icon,.filter-open:active svg,.round-button:active svg,.daily-calendar:active svg{transform:scale(.88)}
 .filter-open svg,.round-button svg,.daily-calendar svg{transition:transform .25s cubic-bezier(.2,.8,.2,1),filter .25s ease}
 .bottom-nav .tab-button.is-active svg{filter:drop-shadow(0 0 5px currentColor)}
+.view-enter .page{animation:none}
 .view-enter .page>.screen-intro{animation:glassRise .28s ease both}
 .view-enter .page>.hero,.view-enter .page>.month-swipe,.view-enter .page>.finance-filter{animation:glassRise .35s .04s ease both}
-.view-enter .page>.metric-grid,.view-enter .page>.triple-summary,.view-enter .page>.finance-view-body{animation:glassRise .38s .08s ease both}
+.view-enter .page>.metric-grid,.view-enter .page>.triple-summary,.view-enter .page>.finance-view-body{animation:none}
 .view-enter .page .income-text,.view-enter .page .expense-text,.view-enter .page .hero-main{animation:numberReveal .4s .09s ease both}
 .view-enter .page .account-row:nth-child(-n+5),.view-enter .page .movement-row:nth-child(-n+5){animation:glassRise .3s ease both;animation-delay:calc(var(--row-index,0) * 45ms)}
 .view-enter .page .account-row:nth-child(2),.view-enter .page .movement-row:nth-child(2){--row-index:1}
@@ -159,9 +168,8 @@ main.page{touch-action:pan-y}
 @keyframes numberReveal{from{opacity:.55;filter:brightness(.85)}to{opacity:1;filter:brightness(1)}}
 @keyframes glassRise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 @keyframes drawLine{from{stroke-dashoffset:1}to{stroke-dashoffset:0}}
-.view-enter .page{animation:glassRise .32s cubic-bezier(.2,.8,.2,1) both}
-.flow-svg .flow-income{stroke-dasharray:1;stroke-dashoffset:1;animation:drawLine .8s .15s ease forwards}
-.flow-panel{animation:glassRise .4s ease both}
+.shell.view-enter:not(.dc-quiet-update) .flow-svg .flow-income,.finance-view-body.dc-sub-enter .flow-svg .flow-income{stroke-dasharray:1;stroke-dashoffset:1;animation:drawLine .8s .15s ease forwards}
+.shell.view-enter:not(.dc-quiet-update) .flow-panel,.finance-view-body.dc-sub-enter .flow-panel{animation:glassRise .4s ease both}
 .filter-open:active,.tab-button:active{transform:scale(.95)}
 @media(prefers-reduced-motion:reduce){.view-enter .page,.view-enter .page>*,.view-enter .page .income-text,.view-enter .page .expense-text,.view-enter .page .hero-main,.view-enter .page .account-row,.view-enter .page .movement-row,.flow-panel,.finance-filter-menu,.flow-svg .flow-income{animation:none;stroke-dashoffset:0}.bottom-nav .tab-button,.bottom-nav .tab-icon,.bottom-nav .tab-label,.filter-open svg,.round-button svg,.daily-calendar svg{transition:none}.filter-open:active,.tab-button:active,.bottom-nav .tab-button:active .tab-icon,.filter-open:active svg,.round-button:active svg,.daily-calendar:active svg{transform:none}}
 /* iOS amplía automáticamente la página al enfocar controles con texto menor de 16 px. */
@@ -170,22 +178,14 @@ html{-webkit-text-size-adjust:100%}
 @media(max-width:700px){input:not([type="checkbox"]):not([type="radio"]),select,textarea,.filter-currency select{font-size:16px}}
 button{touch-action:manipulation}
 
-/* Movimiento horizontal con dirección visible y brillo medido. */
+/* Coreografía fluida v35.43: lupa fija diaria, rebotes escalonados notables, UI estática y cero recargas intrusivas. */
 .top-actions{display:flex;align-items:center;gap:2px}
 .theme-toggle{color:var(--ink)!important;position:relative}
 .theme-toggle svg{width:19px;height:19px;filter:drop-shadow(0 0 5px rgba(255,255,255,.28))}
 :root:not([data-theme="dark"]) .theme-toggle svg{filter:drop-shadow(0 0 4px rgba(26,35,43,.22))}
 .theme-toggle:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
-.slide-forward.view-enter .page{animation:pageSlideForward .44s cubic-bezier(.16,1,.3,1) both}
-.slide-back.view-enter .page{animation:pageSlideBack .44s cubic-bezier(.16,1,.3,1) both}
-.slide-forward.view-enter .page>*,.slide-back.view-enter .page>*{animation:none}
-@keyframes pageSlideForward{from{transform:translate3d(calc(100% + var(--nav-drag,0px)),0,0)}to{transform:translate3d(0,0,0)}}
-@keyframes pageSlideBack{from{transform:translate3d(calc(-100% + var(--nav-drag,0px)),0,0)}to{transform:translate3d(0,0,0)}}
-.page.page-exit{will-change:transform,opacity;animation-duration:.38s;animation-timing-function:cubic-bezier(.4,0,.2,1);animation-fill-mode:forwards}
-.page.page-exit-forward{animation-name:pageSlideExitForward}
-.page.page-exit-back{animation-name:pageSlideExitBack}
-@keyframes pageSlideExitForward{to{transform:translate3d(calc(-100% - var(--nav-drag,0px)),0,0)}}
-@keyframes pageSlideExitBack{to{transform:translate3d(calc(100% - var(--nav-drag,0px)),0,0)}}
+.slide-forward.view-enter .page,.slide-back.view-enter .page{animation:none}
+.page.page-exit{display:none}
 .page-title,.hero-main,.metric strong,.triple-summary strong,.account-large strong{transition:text-shadow .36s ease,color .36s ease}
 :root[data-theme="dark"] .page-title,:root[data-theme="dark"] .hero-main{ text-shadow:0 0 19px rgba(245,248,255,.27)}
 :root:not([data-theme="dark"]) .page-title,:root:not([data-theme="dark"]) .hero-main{text-shadow:0 0 15px rgba(255,255,255,.94),0 0 25px rgba(28,38,48,.13)}
@@ -194,10 +194,13 @@ button{touch-action:manipulation}
 .flow-panel{box-shadow:0 18px 42px rgba(0,0,0,.14),0 0 24px rgba(255,255,255,.035),inset 0 1px 0 rgba(255,255,255,.11)}
 :root:not([data-theme="dark"]) .flow-panel{box-shadow:0 17px 39px rgba(28,38,49,.08),0 0 22px rgba(255,255,255,.8),inset 0 1px 0 #fff}
 .flow-svg .flow-income{filter:drop-shadow(0 0 3px color-mix(in srgb,var(--income) 45%,transparent))}
-.flow-svg .flow-expense{filter:drop-shadow(0 0 3px color-mix(in srgb,var(--expense) 40%,transparent));stroke-dasharray:1;stroke-dashoffset:1;animation:drawLine .85s .22s ease forwards}
-.category-track span{box-shadow:0 0 9px color-mix(in srgb,var(--ink) 25%,transparent);transform-origin:left center;animation:barReveal .55s cubic-bezier(.2,.8,.2,1) both}
+.flow-svg .flow-expense{filter:drop-shadow(0 0 3px color-mix(in srgb,var(--expense) 40%,transparent))}
+.shell.view-enter:not(.dc-quiet-update) .flow-svg .flow-expense,.finance-view-body.dc-sub-enter .flow-svg .flow-expense{stroke-dasharray:1;stroke-dashoffset:1;animation:drawLine .85s .22s ease forwards}
+.category-track span{box-shadow:0 0 9px color-mix(in srgb,var(--ink) 25%,transparent);transform-origin:left center}
+.shell.view-enter:not(.dc-quiet-update) .category-track span,.finance-view-body.dc-sub-enter .category-track span{animation:barReveal .55s cubic-bezier(.2,.8,.2,1) both}
 @keyframes barReveal{from{transform:scaleX(.05);opacity:.45}to{transform:scaleX(1);opacity:1}}
-.donut{filter:grayscale(1) drop-shadow(0 0 13px rgba(255,255,255,.14));animation:donutReveal .55s cubic-bezier(.2,.8,.2,1) both}
+.donut{filter:grayscale(1) drop-shadow(0 0 13px rgba(255,255,255,.14))}
+.shell.view-enter:not(.dc-quiet-update) .donut,.finance-view-body.dc-sub-enter .donut{animation:donutReveal .55s cubic-bezier(.2,.8,.2,1) both}
 :root:not([data-theme="dark"]) .donut{filter:grayscale(1) drop-shadow(0 0 13px rgba(50,60,70,.12))}
 @keyframes donutReveal{from{opacity:.4;transform:scale(.94) rotate(-8deg)}to{opacity:1;transform:scale(1) rotate(0)}}
 @media(prefers-reduced-motion:reduce){.slide-forward.view-enter .page,.slide-back.view-enter .page,.page.page-exit,.flow-svg .flow-expense,.category-track span,.donut{animation:none;transform:none;filter:none;stroke-dashoffset:0}}
@@ -307,7 +310,6 @@ html,body{overflow-x:clip}
 body,:root[data-theme="dark"] body{
   background-color:var(--bg);
   background-image:radial-gradient(ellipse 92% 42% at 74% -3%,rgba(255,255,255,.09),transparent 68%),radial-gradient(circle at 14% 34%,rgba(120,138,162,.11),transparent 48%),radial-gradient(circle at 86% 74%,rgba(92,110,132,.095),transparent 52%),linear-gradient(172deg,#0b0e12 0%,#050709 60%,#090b0f 100%);
-  background-attachment:fixed;
 }
 :root:not([data-theme="dark"]) body{
   background-image:radial-gradient(ellipse 88% 40% at 78% -4%,rgba(255,255,255,.98),transparent 72%),radial-gradient(circle at 12% 30%,rgba(196,206,220,.42),transparent 46%),radial-gradient(circle at 88% 72%,rgba(206,214,226,.36),transparent 52%),linear-gradient(175deg,#f3f5f8 0%,#e6eaef 56%,#eff2f5 100%);

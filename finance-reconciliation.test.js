@@ -27,3 +27,15 @@ test('cuadre rechaza fechas ambiguas, retroceso de corte e importes no enteros',
   assert.throws(()=>core.planAccountReconciliation(account,[],{...options,cutoff:'2026-08-01T00:00:00Z'}),/invalida/);
   assert.throws(()=>core.planAccountReconciliation(account,[{tipo:'gasto',cuenta_id:'cash'}],options),/fecha/);
 });
+test('cuadre con faltante y gasto no documentado crea movimiento de gasto que afecta resultado',()=>{
+  const plan = core.planAccountReconciliation(account,[sale('prior','2026-09-09T22:00:00Z',5000)],{
+    ...options,
+    unrecordedExpense: true,
+  });
+  assert.equal(plan.difference,-7000);
+  assert.equal(plan.movement.tipo,'gasto');
+  assert.equal(plan.movement.afecta_resultado,true);
+  assert.equal(plan.movement.es_ajuste_conciliacion,true);
+  assert.equal(plan.movement.categoria_id,'efaa1d8d-1ad2-4815-95e1-755b99a8c241');
+  assert.equal(core.summarizeMovements([plan.movement]).gastos_centavos,7000);
+});

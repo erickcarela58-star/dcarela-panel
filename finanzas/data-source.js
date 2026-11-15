@@ -169,7 +169,7 @@ export async function commitAction(action, businessId, entityId, data) {
   if (action === 'fin.movement.cancel' && !canCancelMovement()) {
     throw new Error('La anulación desde la PWA está pausada hasta verificar la actualización de Caja. No se modificó el movimiento.');
   }
-  if (!['fin.movement.create','fin.transfer.create','fin.movement.cancel','fin.account.reconcile','fin.books.request','cost.recurring.upsert','cost.obligation.upsert'].includes(action) ||
+  if (!['fin.movement.create','fin.transfer.create','fin.movement.cancel','fin.account.reconcile','fin.commitment.deactivate','cost.obligation.cancel','fin.books.request','cost.recurring.upsert','cost.obligation.upsert'].includes(action) ||
       !data?.requestId || typeof data.requestId !== 'string') {
     throw new Error('Operación financiera no admitida o sin identificador estable.');
   }

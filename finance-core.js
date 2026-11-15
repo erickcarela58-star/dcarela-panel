@@ -618,7 +618,7 @@
   }
 
   function planAccountReconciliation(account, movements, options) {
-    const { target, cutoff, createdAt, id, reason } = options;
+    const { target, cutoff, createdAt, id, reason, unrecordedExpense = false, categoryId = null, categoryName = null } = options;
     const instant = Date.parse(cutoff);
     if (!account?.id || !id || !reason || !Array.isArray(movements)
       || !Number.isSafeInteger(target) || !Number.isFinite(instant)
@@ -638,13 +638,25 @@
     const before = effectiveAccountBalance(account, movements.filter(row => timestamp(row) <= instant));
     const difference = target - before;
     if (!Number.isSafeInteger(before) || !Number.isSafeInteger(difference)) throw new Error('Saldo de conciliacion fuera de rango.');
+    const asExpense = difference < 0 && unrecordedExpense === true;
+    const resolvedCategoryId = categoryId || 'efaa1d8d-1ad2-4815-95e1-755b99a8c241';
+    const resolvedCategoryName = categoryName || 'Otros gastos';
     return { before, difference,
       patch: { saldo_actual_centavos: target, reconciled_balance_centavos: target,
         reconciled_at: cutoff, reconciliation_id: id, updated_at: createdAt },
-      movement: { id, business_id: account.business_id, tipo: difference < 0 ? 'ajuste_negativo' : 'ajuste_positivo',
+      movement: { id, business_id: account.business_id,
+        tipo: asExpense ? 'gasto' : (difference < 0 ? 'ajuste_negativo' : 'ajuste_positivo'),
         fecha: businessDay(cutoff), source_timestamp: cutoff, monto_centavos: Math.abs(difference),
-        cuenta_id: account.id, descripcion: 'Conciliacion de saldo', nota: reason,
-        origen: 'conciliacion_propietario', estado: 'registrado', conciliado: true, afecta_resultado: false,
+        cuenta_id: account.id,
+        descripcion: asExpense ? 'Gastos no documentados (conciliación)' : 'Conciliacion de saldo',
+        nota: reason,
+        origen: 'conciliacion_propietario', estado: 'registrado', conciliado: true,
+        afecta_resultado: asExpense,
+        ...(asExpense ? {
+          es_ajuste_conciliacion: true,
+          categoria_id: resolvedCategoryId,
+          categoria: resolvedCategoryName,
+        } : {}),
         saldo_anterior_centavos: before, saldo_resultante_centavos: target,
         sync_event_id: `ledger-${id}`, created_at: createdAt, updated_at: createdAt }
     };

@@ -1,4 +1,5 @@
-const CACHE = 'dcarela-finanzas-v35-37';
+// DCARELA_PWA_VERSION: 35.43
+const CACHE = 'dcarela-finanzas-v35-43';
 const SHELL = [
   './',
   './index.html',
@@ -7,14 +8,14 @@ const SHELL = [
   './manifest-plaza.webmanifest',
   './app.css',
   './minimal-v34.css',
-  './monochrome-glass-v35.css?v=35.37',
-  './v35-26-motion.css?v=35.37',
-  './app.js?v=35.37',
-  './data-source.js?v=35.37',
-  './demo-data.js?v=35.37',
-  './v35-26-category-emojis.js?v=35.37',
-  './v35-26-inbox-fiscal.js?v=35.37',
-  './cut-review.js?v=35.37',
+  './monochrome-glass-v35.css?v=35.43',
+  './v35-26-motion.css?v=35.43',
+  './app.js?v=35.43',
+  './data-source.js?v=35.43',
+  './demo-data.js?v=35.43',
+  './v35-26-category-emojis.js?v=35.43',
+  './v35-26-inbox-fiscal.js?v=35.43',
+  './cut-review.js?v=35.43',
   './icons/dcarela-logo.png',
   './icons/apple-touch-icon.png',
   './icons/apple-touch-icon-plaza.png',
@@ -85,7 +86,7 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE)
       .then((cache) => Promise.allSettled(SHELL.map((url) => cache.add(url))))
-      .then(() => self.skipWaiting())
+      .then(() => (!self.registration?.active ? self.skipWaiting() : undefined))
   );
 });
 
@@ -97,6 +98,16 @@ self.addEventListener('activate', (event) => {
   );
 });
 
+self.addEventListener('message', (event) => {
+  if (event.data?.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  } else if (event.data?.type === 'CLEAR_OLD_CACHES') {
+    event.waitUntil(
+      caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
+    );
+  }
+});
+
 self.addEventListener('fetch', (event) => {
   const req = event.request;
   if (req.method !== 'GET') return;
@@ -105,8 +116,10 @@ self.addEventListener('fetch', (event) => {
 
   // Network-first for Finanzas documents/modules so version upgrades land immediately on iPhone,
   // with full offline fallback from cache.
+  const bypassDiskCache = req.mode === 'navigate' || url.pathname.endsWith('/sw.js');
+  const networkReq = bypassDiskCache ? new Request(req.url, { cache: 'no-cache' }) : req;
   event.respondWith(
-    fetch(req)
+    fetch(networkReq)
       .then((res) => {
         if (res && res.ok && res.type === 'basic') {
           const copy = res.clone();

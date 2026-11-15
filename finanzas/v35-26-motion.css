@@ -213,7 +213,7 @@ body::before, body::after {
   z-index: 0;
   pointer-events: none;
   overflow: hidden;
-  contain: strict;
+  contain: layout style;
 }
 
 .v3526-orb-track-x {
@@ -221,22 +221,18 @@ body::before, body::after {
   top: 0;
   left: 0;
   pointer-events: none;
-  will-change: transform;
 }
 
 .v3526-orb-track-y {
   pointer-events: none;
-  will-change: transform;
 }
 
 .v3526-orb {
   width: calc(var(--orb-size, 196px) * var(--v3526-orb-scale, 1));
   height: calc(var(--orb-size, 196px) * var(--v3526-orb-scale, 1));
   border-radius: 50%;
-  filter: blur(calc(var(--v3526-orb-blur, 52px) * var(--orb-blur-mul, 1)));
+  filter: blur(min(calc(var(--v3526-orb-blur, 52px) * var(--orb-blur-mul, 1)), 42px));
   opacity: var(--v3526-orb-alpha, 0.78);
-  will-change: transform, opacity;
-  animation: v3526OrbBreathe 9.5s ease-in-out infinite alternate;
   transition: background 0.35s ease, filter 0.25s ease, opacity 0.25s ease;
 }
 
@@ -359,8 +355,20 @@ body::before, body::after {
   box-shadow: none !important;
 }
 
-.shell.view-enter .topbar {
-  animation: v3526HeaderDrop 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
+.shell.dc-boot-enter .topbar {
+  animation: v3526HeaderDrop 0.36s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Refresh button spin feedback during app update checks */
+.round-button[data-do="refresh"].is-spinning svg {
+  animation: dcRefreshSpin 0.8s linear infinite;
+}
+.round-button[data-do="refresh"]:hover:not(:active) svg {
+  transform: rotate(28deg) scale(1.06);
+}
+@keyframes dcRefreshSpin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
 }
 
 .bottom-nav {
@@ -385,10 +393,20 @@ body::before, body::after {
 }
 
 /* Header & Brand Logo Signature Motion (not generic!) */
-.topbar .brand, .brand-mark, .brand-logo {
+.topbar .brand, .brand-mark {
   position: relative;
   overflow: hidden;
   border-radius: 14px;
+}
+
+.brand-logo {
+  position: relative;
+  overflow: visible;
+  border-radius: 0 !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  object-fit: contain;
 }
 
 .topbar .brand svg, .topbar .brand img, .brand-mark {
@@ -426,20 +444,356 @@ body::before, body::after {
   100% { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
 }
 
-/* Distinct Per-Element Staggered Entrances (scoped to navigation transitions) */
-.shell.view-enter main.page > .screen-intro,
-.shell.view-enter main.page > .hero-card {
-  animation: v3526HeroReveal 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
+/* ==========================================================================
+   v35.43 Coreografía Fluida con Rebotes Elásticos Escalonados, Lupa Fija y UI Estática
+   - Rebotes notables por elemento con desfase claro (--dc-stagger-step: 58ms) y
+     opacidad inicial >= 0.58 (sin destellos negros en iOS/Safari).
+   - Al cambiar de día o interactuar con botones dentro de la página, el marco
+     completo del panel queda fijo sin parpadeos ni recargas.
+   ========================================================================== */
+:root {
+  --dc-spring: cubic-bezier(0.16, 1.26, 0.32, 1);
+  --dc-spring-soft: cubic-bezier(0.18, 1.18, 0.32, 1);
+  --dc-spring-pop: cubic-bezier(0.18, 1.36, 0.34, 1);
+  --dc-stagger-step: 58ms;
 }
 
-.shell.view-enter main.page > .card,
-.shell.view-enter main.page > .settings-list,
-.shell.view-enter main.page > .v3526-card {
-  animation: v3526CardRise 0.48s cubic-bezier(0.16, 1, 0.3, 1) both;
+.shell.dc-quiet-update main.page,
+.shell.dc-quiet-update main.page *,
+.shell.dc-quiet-update .quick-action {
+  animation: none !important;
 }
-.shell.view-enter main.page > .card:nth-of-type(2) { animation-delay: 0.04s; }
-.shell.view-enter main.page > .card:nth-of-type(3) { animation-delay: 0.08s; }
-.shell.view-enter main.page > .card:nth-of-type(4) { animation-delay: 0.12s; }
+
+.shell main.page,
+.shell.view-enter main.page,
+.slide-forward.view-enter .page,
+.slide-back.view-enter .page {
+  animation: none !important;
+  transform: none;
+}
+
+/* Desactivar herencia genérica sin desfase para que mande el stagger individual */
+.shell.view-enter main.page > .screen-intro,
+.shell.view-enter main.page > .metric-grid,
+.shell.view-enter main.page > .triple-summary,
+.shell.view-enter main.page > .finance-view-body {
+  animation: none !important;
+}
+
+.shell.dc-day-shift .topbar,
+.shell.dc-day-shift .screen-intro,
+.shell.dc-day-shift .screen-intro *,
+.shell.dc-day-shift .period-picker,
+.shell.dc-day-shift .period-picker *,
+.shell.dc-day-shift .finance-filter,
+.shell.dc-day-shift .finance-filter *,
+.shell.dc-day-shift .daily-loupe-shell,
+.shell.dc-day-shift .daily-loupe-lens,
+.shell.dc-day-shift .daily-calendar,
+.shell.dc-day-shift .daily-hint,
+.shell.dc-day-shift .triple-summary {
+  animation: none !important;
+}
+
+.dc-date-tick {
+  animation: dcDateTick 0.42s var(--dc-spring) both;
+}
+@keyframes dcDateTick {
+  0%   { opacity: 0.58; transform: translate3d(0, 12px, 0) scale(0.97); }
+  58%  { opacity: 1; transform: translate3d(0, -4px, 0) scale(1.022); }
+  82%  { transform: translate3d(0, 1.5px, 0) scale(0.996); }
+  100% { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+}
+
+.dc-count {
+  font-variant-numeric: tabular-nums;
+  display: inline-block;
+  transform-origin: left center;
+}
+.dc-count.is-counted {
+  animation: dcCountLand 0.38s var(--dc-spring-pop) both;
+}
+
+.shell .dc-anim-card {
+  animation: dcCardSpring 0.52s var(--dc-spring-soft) calc(var(--dc-stagger, 0) * var(--dc-stagger-step)) both !important;
+}
+
+.shell .dc-anim-title {
+  animation: dcTextBounce 0.50s var(--dc-spring) calc(var(--dc-stagger, 0) * var(--dc-stagger-step) + 20ms) both !important;
+}
+
+.shell .dc-anim-kicker {
+  animation: dcKickerRebound 0.44s var(--dc-spring) calc(var(--dc-stagger, 0) * var(--dc-stagger-step) + 46ms) both !important;
+}
+
+.shell .subline.dc-anim-kicker {
+  animation: dcSublineBounce 0.46s var(--dc-spring) calc(var(--dc-stagger, 0) * var(--dc-stagger-step) + 92ms) both !important;
+}
+
+.shell .dc-anim-pill {
+  animation: dcPillElastic 0.48s var(--dc-spring-pop) calc(var(--dc-stagger, 0) * var(--dc-stagger-step)) both !important;
+}
+
+.shell .daily-day:not(.dc-anim-pill),
+.shell .daily-loupe-track .daily-day {
+  animation: none !important;
+}
+.shell .daily-day.dc-anim-pill small,
+.shell .daily-day.dc-anim-pill strong,
+.shell .daily-day.active.dc-anim-pill {
+  animation: none !important;
+}
+
+.shell .dc-anim-row {
+  animation: dcRowCascade 0.50s var(--dc-spring-soft) calc(var(--dc-stagger, 0) * var(--dc-stagger-step)) both !important;
+}
+
+.shell .dc-anim-row .cat-bubble,
+.shell .dc-anim-row .account-icon,
+.shell .dc-anim-row .setting-icon,
+.shell .dc-anim-row .stat-dot {
+  animation: dcIconPop 0.48s var(--dc-spring-pop) calc(var(--dc-stagger, 0) * var(--dc-stagger-step) + 48ms) both;
+}
+
+.shell .dc-anim-row .row-copy b,
+.shell .dc-anim-row .budget-head-copy b,
+.shell .dc-anim-row .pay-copy b,
+.shell .dc-anim-row .category-bar-head > span,
+.shell .stat-row.dc-anim-row > span.cat {
+  display: block;
+  animation: dcTextBounceMicro 0.46s var(--dc-spring) calc(var(--dc-stagger, 0) * var(--dc-stagger-step) + 92ms) both;
+}
+
+.shell .dc-anim-row .row-copy small,
+.shell .dc-anim-row .budget-head-copy small,
+.shell .dc-anim-row .pay-copy small,
+.shell .stat-row.dc-anim-row > span.cat small {
+  display: block;
+  animation: dcSublineBounce 0.46s var(--dc-spring) calc(var(--dc-stagger, 0) * var(--dc-stagger-step) + 180ms) both;
+}
+
+.shell .dc-anim-row .row-amount,
+.shell .dc-anim-row .pay-amount,
+.shell .stat-row.dc-anim-row strong,
+.shell .info-line.dc-anim-row strong,
+.shell .dc-anim-row > strong {
+  animation: dcAmountSpring 0.50s var(--dc-spring) calc(var(--dc-stagger, 0) * var(--dc-stagger-step) + 138ms) both;
+}
+
+/* Desfase notable entre etiqueta, monto y detalle dentro del Hero, triple caja y métricas */
+.shell .hero.dc-anim-card .hero-label {
+  animation: dcKickerRebound 0.44s var(--dc-spring) 46ms both;
+}
+.shell .hero.dc-anim-card .hero-main {
+  animation: dcAmountSpring 0.54s var(--dc-spring) 118ms both !important;
+}
+.shell .hero.dc-anim-card .hero-usd {
+  animation: dcSublineBounce 0.46s var(--dc-spring) 190ms both;
+}
+.shell .hero.dc-anim-card .hero-bottom span {
+  display: inline-block;
+  animation: dcKickerRebound 0.44s var(--dc-spring) 250ms both;
+}
+.shell .hero.dc-anim-card .hero-bottom strong {
+  animation: dcTextBounce 0.50s var(--dc-spring) 310ms both;
+}
+
+.shell .triple-summary > div.dc-anim-card small {
+  display: block;
+  animation: dcKickerRebound 0.42s var(--dc-spring) calc(var(--dc-stagger, 0) * var(--dc-stagger-step) + 42ms) both;
+}
+.shell .triple-summary > div.dc-anim-card strong {
+  display: block;
+  animation: dcAmountSpring 0.50s var(--dc-spring) calc(var(--dc-stagger, 0) * var(--dc-stagger-step) + 104ms) both !important;
+}
+
+.shell .metric.dc-anim-card .metric-name {
+  animation: dcKickerRebound 0.42s var(--dc-spring) calc(var(--dc-stagger, 0) * var(--dc-stagger-step) + 42ms) both;
+}
+.shell .metric.dc-anim-card strong {
+  animation: dcAmountSpring 0.50s var(--dc-spring) calc(var(--dc-stagger, 0) * var(--dc-stagger-step) + 104ms) both !important;
+}
+.shell .metric.dc-anim-card small {
+  display: block;
+  animation: dcSublineBounce 0.46s var(--dc-spring) calc(var(--dc-stagger, 0) * var(--dc-stagger-step) + 156ms) both;
+}
+
+/* Celdas de calendario y mini-barras escalonadas */
+.shell .day-cell.dc-anim-cell {
+  animation: dcCellPop 0.44s var(--dc-spring) calc(var(--dc-stagger, 0) * 16ms) both;
+}
+.mini-svg .mini-bar-in,
+.mini-svg .mini-bar-out,
+.mini-svg rect.dc-anim-bar {
+  transform-box: fill-box;
+  transform-origin: center bottom;
+  animation: dcMiniBarGrow 0.56s var(--dc-spring) calc(var(--dc-stagger, 0) * 28ms + 110ms) both;
+}
+
+.shell .dc-anim-row .category-track span,
+.shell .dc-anim-row .progress-track span,
+.shell .dc-anim-card .horizontal-bar span {
+  animation-delay: calc(var(--dc-stagger, 0) * 58ms + 140ms) !important;
+}
+
+@keyframes dcCardSpring {
+  0%   { opacity: 0.62; transform: translate3d(0, 18px, 0) scale(0.96); }
+  56%  { opacity: 1; transform: translate3d(0, -5px, 0) scale(1.018); }
+  80%  { transform: translate3d(0, 2px, 0) scale(0.996); }
+  100% { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+}
+
+@keyframes dcTextBounce {
+  0%   { opacity: 0.66; transform: translate3d(0, 14px, 0) scale(0.97); }
+  55%  { opacity: 1; transform: translate3d(0, -4.5px, 0) scale(1.022); }
+  80%  { transform: translate3d(0, 1.5px, 0) scale(0.997); }
+  100% { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+}
+
+@keyframes dcKickerRebound {
+  0%   { opacity: 0.68; transform: translate3d(0, 10px, 0); }
+  58%  { opacity: 1; transform: translate3d(0, -3px, 0); }
+  82%  { transform: translate3d(0, 1px, 0); }
+  100% { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+@keyframes dcSublineBounce {
+  0%   { opacity: 0.66; transform: translate3d(0, 11px, 0); }
+  58%  { opacity: 1; transform: translate3d(0, -3.5px, 0); }
+  82%  { transform: translate3d(0, 1px, 0); }
+  100% { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+@keyframes dcTextBounceMicro {
+  0%   { opacity: 0.68; transform: translate3d(0, 10px, 0); }
+  56%  { opacity: 1; transform: translate3d(0, -3.5px, 0); }
+  80%  { transform: translate3d(0, 1px, 0); }
+  100% { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+@keyframes dcPillElastic {
+  0%   { opacity: 0.64; transform: translate3d(0, 12px, 0) scale(0.91); }
+  56%  { opacity: 1; transform: translate3d(0, -4px, 0) scale(1.055); }
+  80%  { transform: translate3d(0, 1.5px, 0) scale(0.988); }
+  100% { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+}
+
+@keyframes dcActiveDayBounce {
+  0%   { opacity: 0.68; transform: scale(0.9); }
+  56%  { opacity: 1; transform: scale(1.06); }
+  80%  { transform: scale(0.985); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+@keyframes dcRowCascade {
+  0%   { opacity: 0.62; transform: translate3d(0, 16px, 0) scale(0.975); }
+  58%  { opacity: 1; transform: translate3d(0, -4.5px, 0) scale(1.014); }
+  82%  { transform: translate3d(0, 1.5px, 0) scale(0.997); }
+  100% { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+}
+
+@keyframes dcIconPop {
+  0%   { opacity: 0.68; transform: scale(0.76) translate3d(0, 6px, 0); }
+  55%  { opacity: 1; transform: scale(1.12) translate3d(0, -2.5px, 0); }
+  80%  { transform: scale(0.97) translate3d(0, 0.5px, 0); }
+  100% { opacity: 1; transform: scale(1) translate3d(0, 0, 0); }
+}
+
+@keyframes dcAmountSpring {
+  0%   { opacity: 0.64; transform: translate3d(0, 12px, 0) scale(0.93); }
+  55%  { opacity: 1; transform: translate3d(0, -4px, 0) scale(1.048); }
+  80%  { transform: translate3d(0, 1.5px, 0) scale(0.992); }
+  100% { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+}
+
+@keyframes dcCountLand {
+  0%   { transform: scale(1) translateY(0); }
+  40%  { transform: scale(1.085) translateY(-2.5px); }
+  72%  { transform: scale(0.985) translateY(1px); }
+  100% { transform: scale(1) translateY(0); }
+}
+
+@keyframes dcCellPop {
+  0%   { opacity: 0.68; transform: scale(0.88) translate3d(0, 8px, 0); }
+  58%  { opacity: 1; transform: scale(1.045) translate3d(0, -2.5px, 0); }
+  82%  { transform: scale(0.99) translate3d(0, 0.5px, 0); }
+  100% { opacity: 1; transform: scale(1) translate3d(0, 0, 0); }
+}
+
+@keyframes dcMiniBarGrow {
+  0%   { opacity: 0.68; transform: scaleY(0.12); }
+  65%  { opacity: 1; transform: scaleY(1.07); }
+  85%  { transform: scaleY(0.98); }
+  100% { opacity: 1; transform: scaleY(1); }
+}
+
+/* Tarjeta inline visible para Confirmar Cortes y Sumatoria en Resumen / Día */
+.v3526-cut-action-card {
+  margin: 12px 0 16px;
+  padding: 13px 14px;
+  border-radius: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: var(--v3526-glass-elevated, var(--surface));
+  border: 1px solid var(--v3526-glass-border, var(--border));
+  box-shadow: var(--v3526-glass-shadow);
+  backdrop-filter: blur(20px) saturate(1.4);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+}
+.shell:not(.dc-quiet-update) .v3526-cut-action-card {
+  animation: dcCardSpring 0.52s var(--dc-spring-soft) 95ms both;
+}
+.shell:not(.dc-quiet-update) .v3526-cut-action-title {
+  animation: dcTextBounceMicro 0.44s var(--dc-spring) 145ms both;
+}
+.shell:not(.dc-quiet-update) .v3526-cut-action-sub {
+  animation: dcSublineBounce 0.44s var(--dc-spring) 185ms both;
+}
+.shell:not(.dc-quiet-update) .v3526-cut-action-btn {
+  animation: dcPillElastic 0.48s var(--dc-spring-pop) 220ms both;
+}
+.v3526-cut-action-copy {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.v3526-cut-action-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 720;
+}
+.v3526-cut-action-sub {
+  font-size: 11.5px;
+  opacity: 0.82;
+  line-height: 1.3;
+}
+.v3526-cut-action-sum {
+  font-weight: 720;
+  color: var(--income);
+}
+.v3526-cut-action-btn {
+  flex: none;
+  white-space: nowrap;
+  padding: 9px 13px !important;
+  font-size: 12.5px !important;
+  border-radius: 13px !important;
+}
+.v3526-cut-sum-banner {
+  padding: 12px 14px;
+  border-radius: 16px;
+  margin-bottom: 12px;
+  background: var(--v3526-accent-tint);
+  border: 1px solid var(--v3526-glass-border, var(--border));
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
 
 @keyframes v3526HeroReveal {
   from { opacity: 0; transform: translate3d(0, 10px, 0) scale(0.988); }
@@ -480,17 +834,17 @@ body::before, body::after {
 }
 
 .shell.view-enter .quick-action {
-  animation: v3526QuickPop 0.42s cubic-bezier(0.22, 1.25, 0.36, 1) both;
+  animation: v3526QuickPop 0.50s var(--dc-spring-pop) both;
 }
 
 :root:not([data-theme="dark"]) .quick-action {
   background: transparent !important;
 }
 
-.shell.view-enter .quick-action:nth-child(1) { animation-delay: 0.04s; }
-.shell.view-enter .quick-action:nth-child(2) { animation-delay: 0.08s; }
-.shell.view-enter .quick-action:nth-child(3) { animation-delay: 0.12s; }
-.shell.view-enter .quick-action:nth-child(4) { animation-delay: 0.16s; }
+.shell.view-enter .quick-action:nth-child(1) { animation-delay: 0.06s; }
+.shell.view-enter .quick-action:nth-child(2) { animation-delay: 0.14s; }
+.shell.view-enter .quick-action:nth-child(3) { animation-delay: 0.22s; }
+.shell.view-enter .quick-action:nth-child(4) { animation-delay: 0.30s; }
 
 .quick-action:active {
   transform: scale(0.92) !important;
@@ -579,8 +933,10 @@ body::before, body::after {
 }
 
 @keyframes v3526QuickPop {
-  from { opacity: 0; transform: translate3d(0, 10px, 0) scale(0.92); }
-  to   { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+  0%   { opacity: 0.64; transform: translate3d(0, 16px, 0) scale(0.88); }
+  56%  { opacity: 1; transform: translate3d(0, -5px, 0) scale(1.06); }
+  80%  { transform: translate3d(0, 1.5px, 0) scale(0.985); }
+  100% { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
 }
 
 /* Bottom Navigation Active Tab Halo & Spring */
@@ -605,28 +961,37 @@ body::before, body::after {
   transform: scale(0.93);
 }
 
-/* Chart Animations: Intense Initial Glow -> Smooth Settled Steady Glow */
-.chart-wrap svg,
-.chart-card svg,
-.donut-wrap svg,
-svg.donut,
-svg.spark,
-.flow-svg,
-.v3526-chart-glow {
-  animation: v3526ChartGlowSettle 1.65s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+/* Chart Animations: Scoped ONLY to view-enter / sub-enter / sheet (no spurious re-flash on button clicks) */
+.shell.view-enter:not(.dc-quiet-update) .chart-wrap svg,
+.shell.view-enter:not(.dc-quiet-update) .chart-card svg,
+.shell.view-enter:not(.dc-quiet-update) .donut-wrap svg,
+.shell.view-enter:not(.dc-quiet-update) svg.donut,
+.shell.view-enter:not(.dc-quiet-update) svg.spark,
+.shell.view-enter:not(.dc-quiet-update) .flow-svg,
+.finance-view-body.dc-sub-enter .chart-wrap svg,
+.finance-view-body.dc-sub-enter .flow-svg,
+.shell.view-enter:not(.dc-quiet-update) .v3526-chart-glow {
+  animation: v3526ChartGlowSettle 1.1s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 .flow-svg .flow-income {
   stroke: var(--v3526-accent) !important;
-  stroke-dasharray: 1;
-  stroke-dashoffset: 1;
-  animation: drawLine 0.85s 0.1s ease forwards, v3526ChartGlowSettle 1.65s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
+  stroke-dasharray: none;
+  stroke-dashoffset: 0;
 }
 
-.flow-svg .flow-expense {
+.shell.view-enter:not(.dc-quiet-update) .flow-svg .flow-income,
+.finance-view-body.dc-sub-enter .flow-svg .flow-income {
   stroke-dasharray: 1;
   stroke-dashoffset: 1;
-  animation: drawLine 0.9s 0.2s ease forwards, v3526ChartGlowSettle 1.65s 0.1s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
+  animation: drawLine 0.72s 0.08s ease forwards, v3526ChartGlowSettle 1.1s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
+}
+
+.shell.view-enter:not(.dc-quiet-update) .flow-svg .flow-expense,
+.finance-view-body.dc-sub-enter .flow-svg .flow-expense {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: drawLine 0.76s 0.14s ease forwards, v3526ChartGlowSettle 1.1s 0.08s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
 }
 
 .bar-fill,
@@ -637,7 +1002,17 @@ svg.spark,
 .horizontal-bar > i {
   transform-origin: left center;
   background: linear-gradient(90deg, var(--v3526-accent), var(--v3526-accent-2)) !important;
-  animation: v3526BarGrow 0.92s cubic-bezier(0.16, 1, 0.3, 1) both, v3526ChartGlowSettle 1.65s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
+}
+
+.shell.view-enter:not(.dc-quiet-update) .bar-fill,
+.shell.view-enter:not(.dc-quiet-update) .progress-fill,
+.shell.view-enter:not(.dc-quiet-update) .budget-fill,
+.shell.view-enter:not(.dc-quiet-update) .category-track span,
+.shell.view-enter:not(.dc-quiet-update) .horizontal-bar span,
+.shell.view-enter:not(.dc-quiet-update) .horizontal-bar > i,
+.finance-view-body.dc-sub-enter .category-track span,
+.finance-view-body.dc-sub-enter .horizontal-bar span {
+  animation: v3526BarGrow 0.68s cubic-bezier(0.16, 1, 0.3, 1) both !important;
 }
 
 html .donut,
@@ -645,22 +1020,21 @@ html .donut,
 :root:not([data-theme="dark"])[data-palette] .donut,
 .donut {
   filter: drop-shadow(0 0 8px var(--v3526-glow-soft));
-  animation: donutReveal 0.65s cubic-bezier(0.2, 0.8, 0.2, 1) both, v3526ChartGlowSettle 1.7s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
 }
 
-.flow-panel {
-  animation: v3526PanelGlowSettle 1.65s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+.shell.view-enter:not(.dc-quiet-update) .donut,
+.finance-view-body.dc-sub-enter .donut {
+  animation: donutReveal 0.48s cubic-bezier(0.2, 0.8, 0.2, 1) both !important;
 }
 
-.donut path,
-.donut circle,
-.chart-wrap path {
-  animation: v3526ChartGlowSettle 1.65s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+.shell.view-enter:not(.dc-quiet-update) .flow-panel,
+.finance-view-body.dc-sub-enter .flow-panel {
+  animation: v3526PanelGlowSettle 1.1s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 @keyframes v3526ChartGlowSettle {
   0% {
-    opacity: 0.52;
+    opacity: 0.92;
     filter: drop-shadow(0 0 2px var(--v3526-glow-soft));
   }
   28% {
@@ -1466,7 +1840,22 @@ details.v3526-fiscal-detail { display: block; padding: 0; }
   .horizontal-bar span,
   .horizontal-bar > i,
   .bar-fill,
-  .progress-fill {
+  .progress-fill,
+  .round-button[data-do="refresh"].is-spinning svg,
+  .shell .dc-anim-card,
+  .shell .dc-anim-title,
+  .shell .dc-anim-kicker,
+  .shell .dc-anim-pill,
+  .shell .dc-anim-pill small,
+  .shell .dc-anim-pill strong,
+  .shell .dc-anim-row,
+  .shell .dc-anim-row *,
+  .shell .dc-anim-cell,
+  .dc-date-tick,
+  .dc-count.is-counted,
+  .v3526-cut-action-card,
+  .v3526-cut-action-card *,
+  .mini-svg rect {
     animation: none !important;
     transition: none !important;
   }

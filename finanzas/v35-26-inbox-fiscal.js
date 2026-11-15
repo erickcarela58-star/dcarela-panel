@@ -1,5 +1,5 @@
-import { assessCut } from './cut-review.js?v=35.37';
-import { loadFacturadorSales } from './data-source.js?v=35.37';
+import { assessCut } from './cut-review.js?v=35.43';
+import { loadFacturadorSales } from './data-source.js?v=35.43';
 
 /* ==========================================================================
    v35.26 Unified Inbox, Mail/Cash-Codes, Theme Palettes, Web Push & Fiscal UI
@@ -688,19 +688,69 @@ function enhanceHeaderAndQuickActions() {
 }
 
 function renderInboxStrip() {
-  // Never render the horizontal pill button strip on Resumen; remove any stale element
+  // Never render the legacy pill strip; mount an unobtrusive Confirmar Corte action card when cuts await confirmation
   document.getElementById('v3526InboxStrip')?.remove();
 
-  // Cuts only appear automatically as a popup modal ("ventana emergente"), never as a home button
+  const view = currentViewKey();
+  const snap = appSnapshot();
+  const pendingCuts = (uiState.data?.cuts || []).filter((x) => x.status !== 'validated' && x.status !== 'confirmed');
+  const existingCard = document.getElementById('v3526CutActionCard');
+
+  if (!pendingCuts.length || (view !== 'home' && view !== 'finance')) {
+    existingCard?.remove();
+  } else {
+    const confirmable = pendingCuts.filter((c) => assessCut(c, snap.business).canConfirm);
+    const totalTransfer = confirmable.reduce((s, c) => s + (c.kind === 'cash_cut' ? Number(c.transferCentavos || 0) : 0), 0);
+    const totalReported = pendingCuts.reduce((s, c) => s + Number(c.reportedCentavos || c.systemCentavos || 0), 0);
+    const sig = `${view}:${pendingCuts.map((c) => `${c.id}:${c.status}`).join(',')}:${totalTransfer}:${totalReported}`;
+
+    const slot = view === 'finance' ? document.getElementById('v3526DayCutSlot') : null;
+    const anchorHome = view === 'home' ? document.querySelector('main.page .metric-grid') : null;
+    const anchorFin = view === 'finance' && !slot ? document.querySelector('main.page .finance-view-body .section-head') : null;
+    const hostReady = Boolean(slot || anchorHome || anchorFin);
+
+    if (hostReady) {
+      let card = existingCard;
+      if (!card) {
+        card = document.createElement('div');
+        card.id = 'v3526CutActionCard';
+        card.className = 'v3526-cut-action-card';
+      }
+      if (slot && card.parentElement !== slot) {
+        slot.appendChild(card);
+      } else if (!slot && anchorHome && (card.parentElement !== anchorHome.parentElement || card.nextElementSibling !== anchorHome)) {
+        anchorHome.parentElement.insertBefore(card, anchorHome);
+      } else if (!slot && anchorFin && (card.parentElement !== anchorFin.parentElement || card.nextElementSibling !== anchorFin)) {
+        anchorFin.parentElement.insertBefore(card, anchorFin);
+      }
+      if (card.dataset.sig !== sig) {
+        card.dataset.sig = sig;
+        const subText = totalTransfer > 0
+          ? `Contado ${fmtMoney(totalReported, 'DOP')} · Suma <span class="v3526-cut-action-sum">+${fmtMoney(totalTransfer, 'DOP')}</span> a Efectivo`
+          : `Reportado ${fmtMoney(totalReported, 'DOP')} · Toca para validar y sumar el cuadre`;
+        card.innerHTML = `
+          <div class="v3526-cut-action-copy">
+            <div class="v3526-cut-action-title">${ae('🧾', 15)} <span>${pendingCuts.length} corte${pendingCuts.length > 1 ? 's' : ''} por confirmar</span></div>
+            <div class="v3526-cut-action-sub">${subText}</div>
+          </div>
+          <button type="button" class="primary-btn v3526-cut-action-btn" id="v3526OpenCutsCta">${confirmable.length ? 'Confirmar corte' : 'Revisar corte'}</button>
+        `;
+        const cta = card.querySelector('#v3526OpenCutsCta');
+        if (cta) cta.onclick = () => openModal('cuts');
+      }
+    }
+  }
+
   if (
-    currentViewKey() === 'home'
+    view === 'home'
     && !uiState.autoCutPrompted
     && !uiState.activeModal
-    && Number(uiState.data?.counts?.cuts || 0) > 0
+    && !appSnapshot().state?.modal
+    && pendingCuts.length > 0
   ) {
     uiState.autoCutPrompted = true;
     setTimeout(() => {
-      if (!uiState.activeModal && currentViewKey() === 'home' && Number(uiState.data?.counts?.cuts || 0) > 0) {
+      if (!uiState.activeModal && !appSnapshot().state?.modal && currentViewKey() === 'home' && Number(uiState.data?.counts?.cuts || 0) > 0) {
         openModal('cuts');
       }
     }, 360);
@@ -781,6 +831,10 @@ function renderFiscalHost() {
   const fiscal = uiState.data?.fiscal || { compras: [], revisar: [], ventas: [], hermes: {}, summary: {} };
   const tab = uiState.fiscalTab;
   const rows = tab === 'revisar' ? fiscal.revisar : tab === 'compras' ? fiscal.compras : tab === 'facturador' ? uiState.facturadorSales : fiscal.ventas;
+  const nextSig = `${businessId}|${tab}|${fiscal.revisar.length}|${fiscal.compras.length}|${fiscal.ventas.length}|${uiState.facturadorSales.length}|${uiState.facturadorLoadedAt}|${uiState.facturadorLoading ? 1 : 0}|${uiState.facturadorError}`;
+  if (host.dataset.renderedSig === nextSig && host.children.length) return;
+  host.dataset.renderedSig = nextSig;
+  delete host.dataset.dcHostAnimated;
 
   host.innerHTML = `
     <div class="v3526-card">
@@ -799,14 +853,26 @@ function renderFiscalHost() {
       ${tab === 'facturador' && uiState.facturadorError ? `<p class="notice warning" role="alert">${esc(uiState.facturadorError)}</p>` : ''}
       ${tab === 'facturador' ? (rows.length ? rows.map((row) => {
         const items = facturadorItems(row);
-        return `<details class="v3526-list-row v3526-fiscal-detail"><summary><span><b>${esc(row.encf || 'e-CF sin número')}</b><br><small>${esc(row.fecha || 'Sin fecha')} · ${esc(row.cliente || 'Consumidor final')}</small></span><b class="v3526-fiscal-total">${fmtMoney(row.total_centavos, 'DOP')}</b></summary>
+        const needsHermes = Boolean(row.requiere_verificacion_hermes || (!row.verificado_hermes && (/por confirmar/i.test(String(row.forma_pago || '')) || /por confirmar/i.test(String(row.cliente || '')))));
+        const statusBadge = row.estado === 'anulado_irreal'
+          ? '<span class="v3526-tag danger">Dato irreal descartado</span>'
+          : row.verificado_hermes
+            ? '<span class="v3526-tag ok">Verificado</span>'
+            : needsHermes
+              ? '<span class="v3526-tag warn">Por verificar con Hermes</span>'
+              : '<span class="v3526-tag ok">Emitido</span>';
+        return `<details class="v3526-list-row v3526-fiscal-detail"><summary><span><b>${esc(row.encf || 'e-CF sin número')}</b> ${statusBadge}<br><small>${esc(row.fecha || 'Sin fecha')} · ${esc(row.cliente || 'Consumidor final')}</small></span><b class="v3526-fiscal-total">${fmtMoney(row.total_centavos, 'DOP')}</b></summary>
           <div class="v3526-fiscal-body">
           <div class="info-line"><span>RNC</span><strong>${esc(row.rnc || 'No indicado')}</strong></div>
           <div class="info-line"><span>Subtotal</span><strong>${fmtMoney(row.subtotal_centavos, 'DOP')}</strong></div>
           <div class="info-line"><span>ITBIS</span><strong>${fmtMoney(row.itbis_centavos, 'DOP')}</strong></div>
           <div class="info-line"><span>Forma de pago</span><strong>${esc(row.forma_pago || 'No indicada')}</strong></div>
           <div class="info-line"><span>Estado</span><strong>${esc(row.estado || 'No indicado')}</strong></div>
-          <p class="soft-note">${items.length ? items.map(item => `${esc(item.nombre || 'Artículo')} × ${esc(item.cantidad || '1')} · ${fmtMoney(item.monto_centavos || 0, 'DOP')}`).join('<br>') : 'El origen no incluyó desglose de artículos.'}</p></div>
+          <p class="soft-note">${items.length ? items.map(item => `${esc(item.nombre || 'Artículo')} × ${esc(item.cantidad || '1')} · ${fmtMoney(item.monto_centavos || 0, 'DOP')}`).join('<br>') : 'El origen no incluyó desglose de artículos.'}</p>
+          <div class="v3526-btn-row" style="margin-top:8px">
+            <button type="button" class="secondary-btn compact" data-fval="${esc(row.id)}" data-fkind="facturador">Verificar / Editar</button>
+            <button type="button" class="secondary-btn compact" data-fhermes="${esc(row.id)}">Pedir verificación a Hermes</button>
+          </div></div>
         </details>`;
       }).join('') : uiState.facturadorLoading || uiState.facturadorError ? '' : '<p class="soft-note">Hermes todavía no ha registrado e-CF para esta sucursal.</p>') : rows.length ? rows.map((row) => {
         const isSale = tab === 'ventas';
@@ -835,9 +901,32 @@ function renderFiscalHost() {
   });
   host.querySelectorAll('[data-fval]').forEach((b) => {
     b.onclick = () => {
-      const list = b.dataset.fkind === '607' ? fiscal.ventas : [...fiscal.revisar, ...fiscal.compras];
+      const list = b.dataset.fkind === 'facturador' ? uiState.facturadorSales : b.dataset.fkind === '607' ? fiscal.ventas : [...fiscal.revisar, ...fiscal.compras];
       const item = list.find((x) => x.id === b.dataset.fval);
       if (item) openModal('fiscal-validate', { kind: b.dataset.fkind, item });
+    };
+  });
+  host.querySelectorAll('[data-fhermes]').forEach((b) => {
+    b.onclick = async () => {
+      const id = b.dataset.fhermes;
+      const item = uiState.facturadorSales.find((x) => x.id === id);
+      if (!item) return;
+      if (uiState.mode === 'demo') {
+        item.requiere_verificacion_hermes = true;
+        item.verificado_hermes = false;
+        showToast('Solicitud de verificación con Hermes marcada.');
+        renderFiscalHost();
+        return;
+      }
+      b.disabled = true;
+      try {
+        await apiCall({ action: 'pwaValidateFiscal', kind: 'facturador', id, decision: 'request_hermes' });
+        await loadFacturadorForBooks(businessId);
+        showToast('Solicitud enviada a Hermes.');
+      } catch (err) {
+        b.disabled = false;
+        showToast(err.message, true);
+      }
     };
   });
 }
@@ -1751,7 +1840,19 @@ function renderModalRoot() {
     titleText = 'Confirmación de Cortes';
     titleHtml = `${ae('🧾', 18)} <span>Confirmación de Cortes</span>`;
     const pendingCuts = data.cuts.filter((x) => x.status !== 'validated' && x.status !== 'confirmed');
-    bodyHtml = pendingCuts.length ? pendingCuts.map((cut) => {
+    const confirmableCuts = pendingCuts.filter((cut) => assessCut(cut, snap.business).canConfirm);
+    const totalReported = pendingCuts.reduce((sum, cut) => sum + Number(cut.reportedCentavos || cut.systemCentavos || 0), 0);
+    const totalTransfer = confirmableCuts.reduce((sum, cut) => sum + (cut.kind === 'cash_cut' ? Number(cut.transferCentavos || 0) : 0), 0);
+
+    const summaryBanner = pendingCuts.length ? `
+      <div class="v3526-cut-sum-banner">
+        <div class="info-line" style="margin:0"><span>Cortes acumulados (${pendingCuts.length})</span><strong>${fmtMoney(totalReported, 'DOP')}</strong></div>
+        ${totalTransfer > 0 ? `<div class="info-line" style="margin:0"><span>Total a sumar a Efectivo disponible</span><strong class="income-text">+${fmtMoney(totalTransfer, 'DOP')}</strong></div>` : ''}
+        ${confirmableCuts.length > 1 ? `<button type="button" class="primary-btn full" data-confirm-all-cuts="1">Confirmar ${confirmableCuts.length} cortes${totalTransfer > 0 ? ` (+${fmtMoney(totalTransfer, 'DOP')})` : ''}</button>` : ''}
+      </div>
+    ` : '';
+
+    bodyHtml = pendingCuts.length ? `${summaryBanner}${pendingCuts.map((cut) => {
       const review = assessCut(cut, snap.business);
       return `
       <div class="card" style="padding:12px;margin-bottom:10px">
@@ -1760,11 +1861,13 @@ function renderModalRoot() {
         <div class="info-line"><span>Esperado</span><strong>${fmtMoney(cut.systemCentavos, cut.currency)}</strong></div>
         <div class="info-line"><span>Contado / Reportado</span><strong>${fmtMoney(cut.reportedCentavos, cut.currency)}</strong></div>
         <div class="info-line"><span>Diferencia</span><strong class="${review.difference ? 'expense-text' : ''}">${review.consistent ? fmtMoney(review.difference, cut.currency) : 'Requiere revisión'}</strong></div>
+        ${cut.kind === 'cash_cut' ? `<div class="info-line"><span>Se suma a Efectivo</span><strong class="${review.transferSupported && review.transfer > 0 ? 'income-text' : ''}">${review.transferSupported ? (review.transfer > 0 ? `+${fmtMoney(review.transfer, cut.currency)}` : fmtMoney(0, cut.currency)) : 'Requiere config. sucursal'}</strong></div>` : ''}
         <div class="v3526-btn-row">
-          <button type="button" class="secondary-btn" data-review-cut="${esc(cut.id)}">Revisar corte</button>
+          ${review.canConfirm ? `<button type="button" class="primary-btn" data-quick-confirm-cut="${esc(cut.id)}">Confirmar corte${review.transfer > 0 ? ` (+${fmtMoney(review.transfer, cut.currency)})` : ''}</button>` : ''}
+          <button type="button" class="secondary-btn" data-review-cut="${esc(cut.id)}">${review.canConfirm ? 'Ver detalle' : 'Revisar corte'}</button>
         </div>
       </div>
-    `; }).join('') : `<div class="notice">No hay cortes pendientes de revisión en esta sucursal.</div>`;
+    `; }).join('')}` : `<div class="notice">No hay cortes pendientes de revisión en esta sucursal.</div>`;
   } else if (type === 'cut-review') {
     const cut = data.cuts.find((x) => x.id === payload?.id);
     if (!cut) { closeModal(); return; }
@@ -1876,24 +1979,27 @@ function renderModalRoot() {
     `).join('') : `<div class="notice">${ae('✅', 14)} No hay pagos urgentes pendientes.</div>`;
   } else if (type === 'fiscal-validate' && payload?.item) {
     const it = payload.item;
+    const isFact = payload.kind === 'facturador';
     const is607 = payload.kind === '607';
-    titleText = is607 ? 'Validar Venta 607 / Hermes' : 'Corregir y Validar Compra 606';
-    titleHtml = `${ae(is607 ? '🧾' : '🛒', 18)} <span>${esc(titleText)}</span>`;
+    const isSale = is607 || isFact;
+    titleText = isFact ? 'Verificar e-CF con Hermes' : is607 ? 'Validar Venta 607 / Hermes' : 'Corregir y Validar Compra 606';
+    titleHtml = `${ae(isFact ? '📄' : is607 ? '🧾' : '🛒', 18)} <span>${esc(titleText)}</span>`;
     bodyHtml = `
       <form id="v3526FiscalForm">
-        <label class="field-label" style="margin-top:0">${is607 ? 'Cliente' : 'Proveedor'}</label>
-        <input class="field-control" name="f-party" required value="${esc(is607 ? it.cliente : it.proveedor)}">
+        <label class="field-label" style="margin-top:0">${isSale ? 'Cliente' : 'Proveedor'}</label>
+        <input class="field-control" name="f-party" required value="${esc(isFact ? (it.cliente || 'Consumidor final') : is607 ? it.cliente : it.proveedor)}">
         <div class="filter-grid">
-          <div><label class="field-label">NCF / e-CF</label><input class="field-control" name="f-ncf" required value="${esc(it.ncf)}"></div>
-          <div><label class="field-label">RNC</label><input class="field-control" name="f-rnc" value="${esc(is607 ? it.rncCliente : it.rnc)}"></div>
+          <div><label class="field-label">NCF / e-CF</label><input class="field-control" name="f-ncf" required value="${esc(isFact ? (it.encf || it.ncf || '') : (it.ncf || ''))}"></div>
+          <div><label class="field-label">RNC</label><input class="field-control" name="f-rnc" value="${esc(isFact ? (it.rnc || '') : is607 ? it.rncCliente : it.rnc)}"></div>
         </div>
         <div class="filter-grid">
-          <div><label class="field-label">Fecha</label><input class="field-control" type="date" name="f-date" value="${esc(it.fecha)}"></div>
-          <div><label class="field-label">Monto RD$</label><input class="field-control" type="number" step="0.01" name="f-amount" value="${(Number(it.montoCentavos || 0) / 100).toFixed(2)}"></div>
+          <div><label class="field-label">Fecha</label><input class="field-control" type="date" name="f-date" value="${esc(it.fecha || '')}"></div>
+          <div><label class="field-label">Monto RD$</label><input class="field-control" type="number" step="0.01" name="f-amount" value="${((Number(isFact ? it.total_centavos : it.montoCentavos) || 0) / 100).toFixed(2)}"></div>
         </div>
+        ${isFact ? `<label class="field-label">Forma de pago</label><input class="field-control" name="f-pay" value="${esc(it.forma_pago || 'Por confirmar')}">` : ''}
         <div class="v3526-btn-row">
-          <button type="submit" class="primary-btn">${ae('✅', 14)} Validar en libro ${is607 ? '607' : '606'}</button>
-          <button type="button" class="secondary-btn" id="v3526FiscalVoidBtn">Descartar</button>
+          <button type="submit" class="primary-btn">${ae('✅', 14)} ${isFact ? 'Validar e-CF' : `Validar en libro ${is607 ? '607' : '606'}`}</button>
+          <button type="button" class="secondary-btn" id="v3526FiscalVoidBtn">${isFact ? 'Descartar dato irreal' : 'Descartar'}</button>
         </div>
       </form>
     `;
@@ -2048,11 +2154,129 @@ function bindModalEvents(root, payload) {
     b.onclick = () => { closeModal(); openNativeRoute(b.dataset.jumpRoute); };
   });
 
+  async function submitCutDecision(cut, decision, note = '', btn = null, { stayOpenIfRemaining = true } = {}) {
+    if (!cut) return false;
+    const review = assessCut(cut, appSnapshot().business);
+    if (decision === 'confirm' && !review.canConfirm) {
+      showToast('Hay una diferencia o falta configuración: no se puede confirmar este corte.', true);
+      return false;
+    }
+    if (decision === 'mismatch' && !note) {
+      showToast('Indica el motivo de la diferencia.', true);
+      return false;
+    }
+    if (!review.complete || !review.consistent || !cut.updatedAt) {
+      showToast('Los datos del corte están incompletos. Actualiza la bandeja.', true);
+      return false;
+    }
+    if (btn) btn.disabled = true;
+    if (uiState.mode === 'demo') {
+      const target = uiState.data.cuts.find((x) => x.id === cut.id);
+      if (target) target.status = decision === 'confirm' ? 'validated' : 'mismatch';
+      let demoRes = null;
+      if (decision === 'confirm') {
+        demoRes = window.DcarelaFinanzasActions?.applyDemoCut?.(target || cut) || null;
+      }
+      uiState.data = normalizeInbox(uiState.data);
+      const addedText = decision === 'confirm'
+        ? (review.transfer > 0
+          ? `Corte confirmado · +${fmtMoney(review.transfer, cut.currency)} sumado a Efectivo`
+          : `Corte validado · ${fmtMoney(cut.reportedCentavos, cut.currency)} conciliado`)
+        : 'Descuadre reportado.';
+      showToast(addedText, decision !== 'confirm', decision === 'confirm' ? '✅' : '⚠️');
+      const remaining = (uiState.data?.cuts || []).filter((x) => x.status !== 'validated' && x.status !== 'confirmed');
+      if (stayOpenIfRemaining && remaining.length) openModal('cuts');
+      else if (stayOpenIfRemaining) closeModal();
+      scheduleSync();
+      return { ok: true, demoRes };
+    }
+    try {
+      const res = await apiCall({
+        action: 'pwaConfirmCut',
+        kind: cut.kind,
+        id: cut.id,
+        decision,
+        note,
+        observed_updated_at: cut.updatedAt,
+        observed_expected_centavos: cut.systemCentavos,
+        observed_counted_centavos: cut.reportedCentavos,
+        observed_transfer_centavos: review.transfer
+      });
+      await Promise.all([
+        loadInbox(false),
+        Promise.resolve(window.DcarelaFinanzasReload?.()).catch(() => null)
+      ]);
+      let msg = 'Diferencia enviada a revisión. No se movió dinero.';
+      if (decision === 'confirm') {
+        const moved = Number(res?.transfer_centavos || review.transfer || 0);
+        if (cut.kind === 'cash_cut' && moved > 0 && !res?.sin_movimiento) {
+          msg = res?.new_dest_balance != null
+            ? `Corte confirmado · +${fmtMoney(moved, cut.currency)} sumado a Efectivo (${fmtMoney(res.new_dest_balance, cut.currency)})`
+            : `Corte confirmado · +${fmtMoney(moved, cut.currency)} sumado a Efectivo`;
+        } else if (cut.kind === 'pos_cut') {
+          msg = `Corte validado · ${fmtMoney(cut.reportedCentavos, cut.currency)} confirmado en libro`;
+        } else {
+          msg = 'Corte confirmado.';
+        }
+      }
+      showToast(msg, false, '✅');
+      const remaining = (uiState.data?.cuts || []).filter((x) => x.status !== 'validated' && x.status !== 'confirmed');
+      if (stayOpenIfRemaining && remaining.length) openModal('cuts');
+      else if (stayOpenIfRemaining) closeModal();
+      scheduleSync();
+      return res;
+    } catch (err) {
+      if (btn) btn.disabled = false;
+      showToast(err.message, true);
+      return null;
+    }
+  }
+
   root.querySelectorAll('[data-review-cut]').forEach((btn) => {
     btn.onclick = () => openModal('cut-review', { id: btn.dataset.reviewCut });
   });
   root.querySelectorAll('[data-back-cuts]').forEach((btn) => {
     btn.onclick = () => openModal('cuts');
+  });
+  root.querySelectorAll('[data-quick-confirm-cut]').forEach((btn) => {
+    btn.onclick = () => {
+      const cut = uiState.data?.cuts?.find((x) => x.id === btn.dataset.quickConfirmCut);
+      submitCutDecision(cut, 'confirm', '', btn);
+    };
+  });
+  root.querySelectorAll('[data-confirm-all-cuts]').forEach((btn) => {
+    btn.onclick = async () => {
+      const biz = appSnapshot().business;
+      const pendingList = (uiState.data?.cuts || []).filter((x) => x.status !== 'validated' && x.status !== 'confirmed' && assessCut(x, biz).canConfirm);
+      if (!pendingList.length) return;
+      btn.disabled = true;
+      let confirmedCount = 0;
+      let totalMoved = 0;
+      for (const cut of pendingList) {
+        const res = await submitCutDecision(cut, 'confirm', '', null, { stayOpenIfRemaining: false });
+        if (!res) break;
+        confirmedCount++;
+        const rv = assessCut(cut, biz);
+        totalMoved += Number(res.transfer_centavos || (cut.kind === 'cash_cut' ? rv.transfer : 0) || 0);
+      }
+      if (confirmedCount > 0) {
+        if (uiState.mode === 'live') {
+          await Promise.all([
+            loadInbox(false),
+            Promise.resolve(window.DcarelaFinanzasReload?.()).catch(() => null)
+          ]);
+        }
+        showToast(totalMoved > 0
+          ? `${confirmedCount} cortes confirmados · +${fmtMoney(totalMoved, 'DOP')} sumado a Efectivo`
+          : `${confirmedCount} cortes validados.`, false, '✅');
+        const remaining = (uiState.data?.cuts || []).filter((x) => x.status !== 'validated' && x.status !== 'confirmed');
+        if (remaining.length) openModal('cuts');
+        else closeModal();
+        scheduleSync();
+      } else {
+        btn.disabled = false;
+      }
+    };
   });
   root.querySelectorAll('[data-submit-cut]').forEach((btn) => {
     btn.onclick = async () => {
@@ -2063,32 +2287,8 @@ function bindModalEvents(root, payload) {
         showToast('Revisa los importes y marca la casilla antes de continuar.', true);
         return;
       }
-      const review = assessCut(cut, appSnapshot().business);
       const note = root.querySelector('#v3526CutNote')?.value?.trim() || '';
-      if (decision === 'confirm' && !review.canConfirm) { showToast('Hay una diferencia: no se puede confirmar este corte.', true); return; }
-      if (decision === 'mismatch' && !note) { showToast('Indica el motivo de la diferencia.', true); return; }
-      if (!review.complete || !review.consistent || !cut.updatedAt) { showToast('Los datos del corte están incompletos. Actualiza la bandeja.', true); return; }
-      btn.disabled = true;
-      if (uiState.mode === 'demo') {
-        const target = uiState.data.cuts.find((x) => x.id === id);
-        if (target) target.status = decision === 'confirm' ? 'validated' : 'mismatch';
-        uiState.data = normalizeInbox(uiState.data);
-        showToast(decision === 'confirm' ? 'Corte confirmado.' : 'Descuadre reportado.', decision !== 'confirm', decision === 'confirm' ? '✅' : '⚠️');
-        openModal('cuts');
-        scheduleSync();
-        return;
-      }
-      try {
-        await apiCall({ action: 'pwaConfirmCut', kind: cut.kind, id, decision, note,
-          observed_updated_at: cut.updatedAt,
-          observed_expected_centavos: cut.systemCentavos,
-          observed_counted_centavos: cut.reportedCentavos,
-          observed_transfer_centavos: review.transfer });
-        await loadInbox();
-        showToast(decision === 'confirm' ? 'Corte confirmado.' : 'Diferencia enviada a revisión. No se movió dinero.', false, '✅');
-        openModal('cuts');
-        window.DcarelaFinanzasReload?.();
-      } catch (err) { btn.disabled = false; showToast(err.message, true); }
+      await submitCutDecision(cut, decision, note, btn);
     };
   });
 
@@ -2197,14 +2397,30 @@ function bindModalEvents(root, payload) {
       ev.preventDefault();
       const fd = new FormData(fiscalForm);
       const amountCentavos = Math.round(Number(fd.get('f-amount') || 0) * 100);
-      const patch = payload.kind === '607'
-        ? { cliente: fd.get('f-party'), ncf: fd.get('f-ncf'), rnc_cliente: fd.get('f-rnc'), fecha: fd.get('f-date'), total_centavos: amountCentavos }
-        : { supplier: fd.get('f-party'), ncf: fd.get('f-ncf'), rnc: fd.get('f-rnc'), invoice_date: fd.get('f-date'), total_centavos: amountCentavos, fecha_confirmada: true };
+      const isFact = payload.kind === 'facturador';
+      const patch = isFact
+        ? { cliente: fd.get('f-party'), encf: fd.get('f-ncf'), rnc: fd.get('f-rnc'), fecha: fd.get('f-date'), forma_pago: fd.get('f-pay'), total_centavos: amountCentavos }
+        : payload.kind === '607'
+          ? { cliente: fd.get('f-party'), ncf: fd.get('f-ncf'), rnc_cliente: fd.get('f-rnc'), fecha: fd.get('f-date'), total_centavos: amountCentavos }
+          : { supplier: fd.get('f-party'), ncf: fd.get('f-ncf'), rnc: fd.get('f-rnc'), invoice_date: fd.get('f-date'), total_centavos: amountCentavos, fecha_confirmada: true };
 
       if (uiState.mode === 'demo') {
         const it = payload.item;
-        it.ncf = String(fd.get('f-ncf') || it.ncf);
         it.fecha = String(fd.get('f-date') || it.fecha);
+        if (isFact) {
+          it.encf = String(fd.get('f-ncf') || it.encf);
+          it.cliente = String(fd.get('f-party') || it.cliente);
+          it.rnc = String(fd.get('f-rnc') || it.rnc);
+          it.forma_pago = String(fd.get('f-pay') || it.forma_pago);
+          it.total_centavos = amountCentavos || it.total_centavos;
+          it.verificado_hermes = true;
+          it.requiere_verificacion_hermes = false;
+          closeModal();
+          showToast('e-CF validado.', false, '✅');
+          renderFiscalHost();
+          return;
+        }
+        it.ncf = String(fd.get('f-ncf') || it.ncf);
         it.montoCentavos = amountCentavos || it.montoCentavos;
         it.estado = 'validado';
         if (payload.kind === '606') {
@@ -2223,6 +2439,12 @@ function bindModalEvents(root, payload) {
       }
       try {
         await apiCall({ action: 'pwaValidateFiscal', kind: payload.kind, id: payload.item.id, decision: 'validate', patch });
+        if (isFact) {
+          await loadFacturadorForBooks(uiState.facturadorBusiness || appSnapshot().business || '');
+          closeModal();
+          showToast('e-CF validado.', false, '✅');
+          return;
+        }
         await loadInbox();
         closeModal();
         showToast('Comprobante fiscal guardado.', false, '✅');
@@ -2230,6 +2452,14 @@ function bindModalEvents(root, payload) {
     };
     root.querySelector('#v3526FiscalVoidBtn').onclick = async () => {
       if (uiState.mode === 'demo') {
+        if (payload.kind === 'facturador') {
+          payload.item.estado = 'anulado_irreal';
+          payload.item.requiere_verificacion_hermes = false;
+          closeModal();
+          showToast('Dato irreal descartado.');
+          renderFiscalHost();
+          return;
+        }
         uiState.data.fiscal.revisar = uiState.data.fiscal.revisar.filter((x) => x.id !== payload.item.id);
         uiState.data = normalizeInbox(uiState.data);
         closeModal();
@@ -2239,6 +2469,12 @@ function bindModalEvents(root, payload) {
       }
       try {
         await apiCall({ action: 'pwaValidateFiscal', kind: payload.kind, id: payload.item.id, decision: 'anular' });
+        if (payload.kind === 'facturador') {
+          await loadFacturadorForBooks(uiState.facturadorBusiness || appSnapshot().business || '');
+          closeModal();
+          showToast('Dato irreal descartado.');
+          return;
+        }
         await loadInbox();
         closeModal();
         showToast('Comprobante anulado.');
@@ -2493,6 +2729,13 @@ function syncDom() {
   renderMailHost();
   renderSettingsHost();
   renderConnectionHost();
+  for (const hostId of ['v3526CajaCrmHost', 'v3526FiscalHost', 'v3526MailHost', 'v3526SettingsTopHost', 'v3526ConnectionHost']) {
+    const h = document.getElementById(hostId);
+    if (h && h.children.length && !h.dataset.dcHostAnimated) {
+      h.dataset.dcHostAnimated = '1';
+      window.DcarelaMotionRefresh?.(h);
+    }
+  }
 }
 
 function scheduleSync() {
@@ -2505,7 +2748,7 @@ async function ensureCategoryLinker() {
   if (window.DcarelaCategoryLinker) return;
   await new Promise((resolve) => {
     const sc = document.createElement('script');
-    sc.src = './v35-26-category-emojis.js?v=35.37';
+    sc.src = './v35-26-category-emojis.js?v=35.43';
     sc.onload = resolve;
     sc.onerror = resolve;
     document.head.appendChild(sc);
@@ -2519,12 +2762,18 @@ async function init() {
   if (!uiState.mountedHooks) {
     uiState.mountedHooks = true;
     let lastBiz = appSnapshot().business || '';
-    window.addEventListener('dcarela:finanzas-rendered', () => {
+    window.addEventListener('dcarela:finanzas-rendered', (ev) => {
+      const d = ev?.detail || {};
+      if (d.modalOnly || d.themeOnly || d.filterOnly || d.statsTypeOnly || d.searchResultsOnly) return;
       const snapBiz = appSnapshot().business || '';
       const bizChanged = Boolean(snapBiz && snapBiz !== lastBiz);
       if (bizChanged) lastBiz = snapBiz;
       if (uiState.mode === 'live' && (!uiState.data || bizChanged) && !uiState.loading && window.DcarelaFirebase?.getCurrentUser?.()) {
         loadInbox(false);
+      }
+      if (d.dayOnly || d.subViewOnly) {
+        renderInboxStrip();
+        return;
       }
       scheduleSync();
     });
@@ -2539,7 +2788,11 @@ async function init() {
     const appNode = document.getElementById('app');
     if (appNode && typeof MutationObserver === 'function') {
       let timer = null;
-      const obs = new MutationObserver(() => {
+      const obs = new MutationObserver((mutations) => {
+        const hasMainOrShell = mutations.some((m) =>
+          [...(m.addedNodes || []), ...(m.removedNodes || [])].some((n) => n?.nodeType === 1 && !n.classList?.contains('overlay'))
+        );
+        if (!hasMainOrShell) return;
         clearTimeout(timer);
         timer = setTimeout(scheduleSync, 40);
       });
