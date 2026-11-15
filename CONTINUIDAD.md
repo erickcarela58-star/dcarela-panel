@@ -1,5 +1,11 @@
 # Continuidad del panel web
 
+## 15/11/2026 — PWA Finanzas 35.39 en dominio principal
+
+- La versión 35.39 que ya servía Firebase Hosting se publicó en `main` mediante un worktree aislado, conservando los cambios sin confirmar de la rama de trabajo. Commit `10f9b4edd16f3c20ce58b83e68ba2c41d2a82f97`; GitHub Pages run [43692313610](https://github.com/erickcarela58-star/dcarela-panel/actions/runs/43692313610) terminó `success`.
+- [Central](https://panel.dcarelacompufoto.com/finanzas/) y [Plaza](https://panel.dcarelacompufoto.com/finanzas/plaza.html) devolvieron HTTP 200 y versión 35.39. Los diez recursos comprobados, incluidas ambas portadas, service worker, lógica financiera, fuente de datos y adaptador Firebase, coincidieron byte por byte con Firebase Hosting y el commit.
+- Suite dirigida de compromisos, cuentas, conciliación, sucursales y fiscal: 66/66 pruebas. En Chrome aislado a 393×852 con `?mode=demo` se abrió Central → Compromisos → detalle → confirmación de eliminación sin ejecutar el guardado; Plaza cargó su identidad separada. Ambas páginas mostraron el prototipo, sin desborde horizontal ni errores de consola. Esta prueba usa datos ficticios y no afirma un borrado en producción ni uso en Safari físico.
+
 ## 14/11/2026 — Finanzas PWA v35.39: eliminar compromisos, deduplicación Fotoquimsa y asociación por palabras clave
 
 - **Deduplicación en vivo + resguardo en `money-manager-core.js`**:
