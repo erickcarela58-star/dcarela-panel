@@ -189,3 +189,78 @@ test("el calendario conserva centavos y agrupa entradas, salidas y transferencia
   assert.deepEqual({ income: day.income, expenses: day.expenses, transfers: day.transfers, count: day.count },
     { income: 10001, expenses: 5001, transfers: 2500, count: 3 });
 });
+
+test("deduplica compromisos registrados dos veces entre colecciones sin colapsar lineas o quincenas distintas", () => {
+  const summary = money.obligationSummary({
+    month: "2026-11",
+    commitments: [
+      { id: "commit-fotoquimsa-20261130", nombre: "Fotoquimsa", tipo: "proveedor", monto_centavos: 1960000, saldo_pendiente_centavos: 1960000, proximo_vencimiento: "2026-11-30", activo: true, estado: "pendiente" },
+    ],
+    costObligations: [
+      { id: "fotoquimsa-2026-11-30", concepto: "Factura Fotoquimsa", categoria: "Inventario", montoCentavos: 1960000, saldoCentavos: 1960000, venceEn: "2026-11-30", estado: "pendiente" },
+      { id: "claro-8651-2026-11-15", concepto: "Claro internet 8651", montoCentavos: 220000, saldoCentavos: 220000, venceEn: "2026-11-15", estado: "pendiente" },
+      { id: "claro-5644-2026-11-15", concepto: "Claro telefono 5644", montoCentavos: 180000, saldoCentavos: 180000, venceEn: "2026-11-15", estado: "pendiente" },
+      { id: "nomina-05", concepto: "Nomina Central", montoCentavos: 1500000, saldoCentavos: 1500000, venceEn: "2026-11-05", estado: "pendiente" },
+      { id: "nomina-20", concepto: "Nomina Central", montoCentavos: 1500000, saldoCentavos: 1500000, venceEn: "2026-11-20", estado: "pendiente" },
+    ],
+  });
+
+  const fotoRows = summary.rows.filter(r => /fotoquimsa/i.test(r.name));
+  assert.equal(fotoRows.length, 1);
+  assert.equal(fotoRows[0].legacyId, "fotoquimsa-2026-11-30");
+  assert.equal(fotoRows[0].duplicateRefs.length, 1);
+  assert.equal(fotoRows[0].duplicateRefs[0].nativeId, "commit-fotoquimsa-20261130");
+  assert.equal(summary.currentDue, 1960000 + 220000 + 180000 + 1500000 + 1500000);
+  assert.equal(summary.rows.filter(r => /claro/i.test(r.name)).length, 2);
+  assert.equal(summary.rows.filter(r => /nomina/i.test(r.name)).length, 2);
+});
+
+test("asocia pagos por palabras clave y sinonimos sin renombrar movimientos y excluye microimpuesto o luz residencial", () => {
+  const summary = money.obligationSummary({
+    month: "2026-11",
+    costObligations: [
+      { id: "foto-1", concepto: "Fotoquimsa", acreedor: "Fotoquimsa", palabras_clave: ["viajante", "ramon martinez"], montoCentavos: 1960000, saldoCentavos: 1960000, venceEn: "2026-11-30", estado: "pendiente" },
+    ],
+    costRecurrents: [
+      { id: "rec-viegas", nombre: "Viegas Academy", montoEstimadoCentavos: 196800, proximaFecha: "2026-11-28", activo: true },
+      { id: "rec-claude", nombre: "Claude Pro", montoEstimadoCentavos: 129600, proximaFecha: "2026-11-22", activo: true },
+      { id: "rec-alq", nombre: "Alquiler", montoEstimadoCentavos: 1150000, proximaFecha: "2026-11-30", activo: true },
+      { id: "rec-ede", nombre: "Edeeste", montoEstimadoCentavos: 500000, proximaFecha: "2026-11-25", activo: true },
+    ],
+  });
+
+  const movements = [
+    { id: "m-ramon", tipo: "gasto", estado: "registrado", fecha: "2026-11-01", monto_centavos: 1960000, descripcion: "Pago a Ramón Martínez, viajante Fotoquimsa" },
+    { id: "m-skool", tipo: "gasto", estado: "registrado", fecha: "2026-10-05", monto_centavos: 196800, descripcion: "Consumo Popular: P.SKOOL.COM/ZLBWW" },
+    { id: "m-anth", tipo: "gasto", estado: "registrado", fecha: "2026-10-22", monto_centavos: 129600, descripcion: "Consumo Banco Popular: ANTHROPIC" },
+    { id: "m-anth-tax", tipo: "gasto", estado: "registrado", fecha: "2026-10-22", monto_centavos: 259, descripcion: "Impuesto DGII 0.20% (Consumo Banco Popular: ANTHROPIC)", subtipo: "impuesto_dgii_020" },
+    { id: "m-local", tipo: "gasto", estado: "registrado", fecha: "2026-10-12", monto_centavos: 1150000, descripcion: "Factura Local" },
+    { id: "m-casa", tipo: "gasto", estado: "registrado", fecha: "2026-11-03", monto_centavos: 320000, descripcion: "Luz de la casa" },
+  ];
+
+  const byName = n => summary.rows.find(r => r.name === n);
+  const fotoLinks = money.linkedPaymentsForCommitment(byName("Fotoquimsa"), { movements });
+  assert.equal(fotoLinks.length, 1);
+  assert.equal(fotoLinks[0].descripcion, "Pago a Ramón Martínez, viajante Fotoquimsa");
+  assert.equal(money.linkedPaymentsForCommitment(byName("Viegas Academy"), { movements }).length, 1);
+  assert.equal(money.linkedPaymentsForCommitment(byName("Claude Pro"), { movements }).length, 1);
+  assert.equal(money.linkedPaymentsForCommitment(byName("Alquiler"), { movements }).length, 1);
+  assert.equal(money.linkedPaymentsForCommitment(byName("Edeeste"), { movements }).length, 0);
+
+  const autoViegas = money.matchFixedCommitmentForMovement({ descripcion: "Consumo P.SKOOL.COM", monto_centavos: 196800 }, summary.rows);
+  assert.equal(autoViegas?.item?.name, "Viegas Academy");
+
+  const pion = { id: "c-pion", source: "compromiso", name: "Prestamo PION (motor)", type: "prestamo", due: "2026-12-12", outstanding: 3863900, active: true, raw: { id: "c-pion", nombre: "Prestamo PION (motor)" } };
+  assert.equal(money.linkedPaymentsForCommitment(pion, { movements: [{ id: "m-gas", tipo: "gasto", estado: "registrado", fecha: "2026-09-05", monto_centavos: 97900, descripcion: "Gasolina motor" }] }).length, 0);
+  assert.equal(money.linkedPaymentsForCommitment(byName("Edeeste"), { movements: [{ id: "m-luz-casa", tipo: "gasto", estado: "registrado", fecha: "2026-08-28", monto_centavos: 205150, descripcion: "Pago de luz de la casa", payee: "Edeeste" }] }).length, 0);
+
+  const plazaSummary = money.obligationSummary({
+    month: "2026-11",
+    commitments: [
+      { id: "p-0", nombre: "Cheque Proveedor", monto_centavos: 2100000, saldo_pendiente_centavos: 2100000, proximo_vencimiento: "2026-09-30", activo: true, estado: "pendiente" },
+      { id: "p-1", nombre: "Cheque Proveedor", monto_centavos: 900000, saldo_pendiente_centavos: 900000, proximo_vencimiento: "2026-09-30", activo: true, estado: "pendiente" },
+    ],
+  });
+  assert.equal(plazaSummary.rows.length, 2);
+  assert.equal(plazaSummary.overdueDue, 3000000);
+});

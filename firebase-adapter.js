@@ -1779,9 +1779,17 @@
     }
 
     if (action === 'fin.commitment.deactivate') {
-      const id = text(entityId, 160);
-      await d.collection('fin_commitments').doc(id).set({ activo: false, motivo_desactivacion: text(data.motivo, 500), updated_at: createdAt, ...actor }, { merge: true });
-      return { ok: true, id, message: 'Compromiso desactivado sin borrar pagos.' };
+      const id = text(entityId || data.compromisoId, 160);
+      if (!id) throw new Error('Selecciona el compromiso que deseas eliminar.');
+      await d.collection('fin_commitments').doc(id).set({
+        activo: false,
+        estado: 'eliminado',
+        eliminado_en: createdAt,
+        motivo_desactivacion: text(data.motivo, 500) || null,
+        updated_at: createdAt,
+        ...actor
+      }, { merge: true });
+      return { ok: true, id, message: 'Compromiso eliminado sin borrar pagos.' };
     }
 
     if (action === 'device.status') {

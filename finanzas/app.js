@@ -1,5 +1,5 @@
-import {loadFinance,loadFullFinanceHistory,commitAction,getTerminalReceipt,loadLiveConnectivity,isLive,canRegister,canCancelMovement} from './data-source.js?v=35.38';
-import {fixture as demoFixture} from './demo-data.js?v=35.38';
+import {loadFinance,loadFullFinanceHistory,commitAction,getTerminalReceipt,loadLiveConnectivity,isLive,canRegister,canCancelMovement} from './data-source.js?v=35.39';
+import {fixture as demoFixture} from './demo-data.js?v=35.39';
 const emulatorWritesAllowed=()=>isLive && ['localhost','127.0.0.1'].includes(location.hostname)
  && String(window.__DCARELA_FIREBASE_CONFIG?.projectId||'').startsWith('demo-')
  && window.__DCARELA_FINANCE_STAGING_WRITE__===true;
@@ -12,7 +12,7 @@ const today=core.businessDay(new Date());
 const initialMonth=today.slice(0,7);
 const monthEndOf=m=>new Date(Date.UTC(Number(m.slice(0,4)),Number(m.slice(5,7)),0)).toISOString().slice(0,10);
 const initialMonthEnd=monthEndOf(initialMonth);
-const defaultCommitmentForm=(catId='')=>({kind:'recurrente',nombre:'',acreedor:'',monto:'',categoriaId:catId,frecuencia:'mensual',diaMes1:'',diaMes2:'',proximaFecha:today,emitidaEn:today,numeroFactura:'',metodoPago:'transferencia',montoVariable:false,nota:''});
+const defaultCommitmentForm=(catId='')=>({kind:'recurrente',nombre:'',acreedor:'',palabrasClave:'',monto:'',categoriaId:catId,frecuencia:'mensual',diaMes1:'',diaMes2:'',proximaFecha:today,emitidaEn:today,numeroFactura:'',metodoPago:'transferencia',montoVariable:false,nota:''});
 const params=new URLSearchParams(location.search);
 const branchAppKind=document.querySelector('meta[name="dcarela-branch-app"]')?.content==='plaza'||/\/plaza(?:\.html)?$/i.test(location.pathname)?'plaza':'central';
 const DEMO_BRANCH_NAMES={'sucursal-a':'Central · Demo','sucursal-b':'Plaza Artesanal · Demo'};
@@ -26,8 +26,8 @@ const state={business:defaultBranchId,loading:true,error:'',authRequired:params.
  month:today.slice(0,7),day:today,year:today.slice(0,4),customFrom:`${initialMonth}-01`,customTo:today,theme:localStorage.getItem('dcarela-mm-theme')==='dark'?'dark':'light',
  currency:'DOP',statsType:'gasto',modal:null,accountId:null,movementId:null,accountDraft:null,historyLoaded:!isLive,historyLoading:false,
  search:{query:'',type:'',category:'',from:`${initialMonth}-01`,to:initialMonthEnd,accountIds:[]},searched:false,
- entryType:'gasto',entryDigits:'',entryAccount:'',entryDest:'',entryCategory:'',entryNote:'',entryDate:today,
- commitmentForm:defaultCommitmentForm(),
+ entryType:'gasto',entryDigits:'',entryAccount:'',entryDest:'',entryCategory:'',entryNote:'',entryDate:today,entryLink:null,entryLinkDismissed:false,
+ commitmentForm:defaultCommitmentForm(),debtDeleteReason:'',
  reconcileDigits:'',reconcileReason:'',editingNote:'',pendingRequestId:null,busy:false,financeFilterOpen:false,
  receiptMovementId:null,receiptStatus:null,receiptBusy:false};
 const nMonth=(m,delta)=>{const [y,n]=m.split('-').map(Number);const d=new Date(Date.UTC(y,n-1+delta,1));return d.toISOString().slice(0,7)};
@@ -324,7 +324,17 @@ function debtCatalog(){
  }).filter(item=>!seenIds.has(item.id)&&(!item.recurringId||(!seenRecurring.has(item.recurringId)&&!seenKeys.has(`${item.recurringId}:${item.due}`)))&&(!item.due||item.due>monthEnd));
  return {summary,allRows:[...summary.rows,...futurePlans],futurePlans};
 }
-function paymentRowsFor(item){const raw=item.raw||{};const id=String(item.source==='factura'?(raw.id||raw.obligacionId):raw.id||'');const list=item.source==='factura'?state.data.costPayments||[]:state.data.commitmentPayments||[];return list.filter(p=>String(item.source==='factura'?(p.obligacionId||p.obligacion_id):(p.compromiso_id||p.compromisoId))===id).sort((a,b)=>String(b.fecha||b.pagadoEn||b.created_at||'').localeCompare(String(a.fecha||a.pagadoEn||a.created_at||'')))}
+function paymentRowsFor(item){
+ if(typeof money.linkedPaymentsForCommitment==='function'){
+  return money.linkedPaymentsForCommitment(item,{
+   commitmentPayments:state.data?.commitmentPayments||[],
+   costPayments:state.data?.costPayments||[],
+   movements:active(),
+   costObligations:state.data?.costObligations||[]
+  });
+ }
+ const raw=item.raw||{};const id=String(item.source==='factura'?(raw.id||raw.obligacionId):raw.id||'');const list=item.source==='factura'?state.data.costPayments||[]:state.data.commitmentPayments||[];return list.filter(p=>String(item.source==='factura'?(p.obligacionId||p.obligacion_id):(p.compromiso_id||p.compromisoId))===id).sort((a,b)=>String(b.fecha||b.pagadoEn||b.created_at||'').localeCompare(String(a.fecha||a.pagadoEn||a.created_at||'')));
+}
 function renderDebts(){
  const {summary,allRows}=debtCatalog();
  const overdue=allRows.filter(x=>x.due&&x.due<today);
@@ -481,9 +491,17 @@ function modalDebt(){
  const item=[...allRows,...summary.review].find(x=>x.id===state.accountId);
  if(!item)return modalFrame('Compromiso','<div class="empty">Este compromiso ya no está activo en el periodo. Actualiza el libro.</div>');
  const payments=paymentRowsFor(item),raw=item.raw||{};
+ const kwInfo=typeof money.extractCommitmentKeywords==='function'?money.extractCommitmentKeywords(item):null;
+ const kwList=kwInfo?[...new Set([...(kwInfo.explicit||[]),...(kwInfo.phrases||[]),...(kwInfo.tokens||[])])].slice(0,8):[];
  const line=(label,value)=>value==null||value===''?'':`<div class="info-line"><span>${label}</span><strong>${esc(value)}</strong></div>`;
  const amount=(label,value)=>value!=null&&value!==''&&Number.isSafeInteger(Number(value))?line(label,moneyText(Number(value),'DOP')):'';
- return modalFrame('Detalle de compromiso',`<div class="account-large"><small>${esc(item.name)}</small><strong>${item.outstanding==null?'Saldo no verificado':moneyText(item.outstanding,'DOP')}</strong></div><div class="card">${line('Origen',item.source==='factura'?'Obligación de Caja':item.source==='planificado'?'Plan recurrente':'Compromiso financiero')}${line('Estado',item.state)}${line('Vencimiento',item.due||'No verificado')}${line('Acreedor',raw.acreedor)}${line('Frecuencia',raw.frecuencia)}${amount('Cuota',item.periodAmount)}${amount('Capital pendiente',item.capital)}${raw.cuotas_totales?line('Cuotas',`${raw.cuotas_pagadas||0} de ${raw.cuotas_totales}`):''}${line('Referencia',raw.referencia||raw.numeroFactura)}${line('Nota',raw.nota)}</div><h3>Pagos vinculados</h3><div class="card">${payments.length?payments.map(p=>`<div class="budget-item"><div class="title-row"><b>${esc(p.fecha||p.pagadoEn||p.created_at||'Fecha no verificada')}</b><strong>${moneyText(Number(p.monto_centavos??p.montoCentavos),'DOP')}</strong></div><div class="soft-note">${esc(p.estado||'Registrado')}${p.referencia?' · '+esc(p.referencia):''}${p.metodoPago||p.metodo_pago?' · '+esc(p.metodoPago||p.metodo_pago):''}</div></div>`).join(''):'<div class="empty">No hay pagos vinculados en el libro.</div>'}</div><p class="soft-note">El saldo pendiente proviene del registro original. El historial no genera un nuevo débito.</p>${canWriteBranch()&&(item.outstanding==null||item.outstanding>0)?`<button class="primary-btn full" type="button" data-do="debt-pay" data-id="${esc(item.id)}" style="margin-top:14px">${ico('card','sm')} Pagar este compromiso</button><p class="soft-note">Abre el gasto con el saldo ya puesto. Al guardarlo, el pago se enlaza a este compromiso y el saldo baja solo.</p>`:''}`);
+ return modalFrame('Detalle de compromiso',`<div class="account-large"><small>${esc(item.name)}</small><strong>${item.outstanding==null?'Saldo no verificado':moneyText(item.outstanding,'DOP')}</strong></div><div class="card">${line('Origen',item.source==='factura'?'Obligación de Caja':item.source==='planificado'?'Plan recurrente':'Compromiso financiero')}${line('Estado',item.state)}${line('Vencimiento',item.due||'No verificado')}${line('Acreedor',raw.acreedor)}${line('Frecuencia',raw.frecuencia)}${amount('Cuota',item.periodAmount)}${amount('Capital pendiente',item.capital)}${raw.cuotas_totales?line('Cuotas',`${raw.cuotas_pagadas||0} de ${raw.cuotas_totales}`):''}${line('Referencia',raw.referencia||raw.numeroFactura)}${kwList.length?line('Palabras clave',kwList.join(', ')):''}${line('Nota',raw.nota)}</div><h3>Pagos vinculados</h3><div class="card">${payments.length?payments.map(p=>`<div class="budget-item"><div class="title-row"><b>${esc(p.descripcion||p.fecha||p.pagadoEn||p.created_at||'Fecha no verificada')}</b><strong>${moneyText(Number(p.monto_centavos??p.montoCentavos),'DOP')}</strong></div><div class="soft-note">${esc(p.fecha||p.pagadoEn||p.created_at||'Fecha no verificada')} · ${esc(p.estado||'Registrado')}${p.linkedBy==='keyword'&&p.matchedTerms?.length?' ('+esc(p.matchedTerms.slice(0,3).join(', '))+')':''}${p.referencia?' · '+esc(p.referencia):''}${p.metodoPago||p.metodo_pago?' · '+esc(p.metodoPago||p.metodo_pago):''}</div></div>`).join(''):'<div class="empty">No hay pagos vinculados en el libro.</div>'}</div><p class="soft-note">El saldo pendiente proviene del registro original. El historial no genera un nuevo débito y las coincidencias por palabras clave conservan intacto el nombre original de cada movimiento.</p>${canWriteBranch()?(item.outstanding==null||item.outstanding>0?`<button class="primary-btn full" type="button" data-do="debt-pay" data-id="${esc(item.id)}" style="margin-top:14px">${ico('card','sm')} Pagar este compromiso</button><p class="soft-note">Abre el gasto con el saldo ya puesto. Al guardarlo, el pago se enlaza a este compromiso y el saldo baja solo.</p>`:'')+`<button class="danger-btn full" type="button" data-do="debt-delete-confirm" data-id="${esc(item.id)}" style="margin-top:10px" ${state.busy?'disabled':''}>Eliminar compromiso</button>`:''}`);
+}
+function modalDebtDelete(){
+ const {summary,allRows}=debtCatalog();
+ const item=[...allRows,...summary.review].find(x=>x.id===state.accountId);
+ if(!item)return modalFrame('Eliminar compromiso','<div class="empty">Este compromiso ya no está activo en el periodo. Actualiza el libro.</div>');
+ return modalFrame('Eliminar compromiso',`<div class="account-large"><small>${esc(item.name)}</small><strong>${item.outstanding==null?'Saldo no verificado':moneyText(item.outstanding,'DOP')}</strong></div><div class="notice warning">Se retirará este compromiso de la lista de pendientes${item.duplicateRefs?.length?` junto con ${item.duplicateRefs.length} registro${item.duplicateRefs.length===1?'':'s'} duplicado${item.duplicateRefs.length===1?'':'s'}`:''}. Los pagos y movimientos históricos ya registrados se conservarán intactos.</div><label class="field-label" for="debt-delete-reason">Motivo (opcional)</label><textarea class="field-area" id="debt-delete-reason" name="debt-delete-reason" rows="2" maxlength="400" placeholder="Ej. Registro duplicado, cancelado, no aplica">${esc(state.debtDeleteReason||'')}</textarea><div class="btn-pair" style="margin-top:14px"><button class="secondary-btn" type="button" data-do="debt" data-id="${esc(item.id)}">Volver</button><button class="danger-btn" type="button" data-do="debt-delete-save" data-id="${esc(item.id)}" ${state.busy||!canWriteBranch()?'disabled':''}>Confirmar eliminación</button></div>`);
 }
 function expenseCategoryOptions(selected){
  const list=cats().filter(c=>c.tipo==='gasto');
@@ -520,10 +538,41 @@ function modalCommitment(){
   <div><label class="field-label" for="debt-emitida">Fecha de factura</label><input class="field-control" id="debt-emitida" type="date" name="debt-emitida" value="${esc(f.emitidaEn)}"></div>
   <div><label class="field-label" for="debt-factura">Núm. factura / ref.</label><input class="field-control" id="debt-factura" name="debt-factura" value="${esc(f.numeroFactura)}" placeholder="Opcional" maxlength="100"></div>
  </div>`}
+ <label class="field-label" for="debt-keywords">Palabras clave relacionadas (opcional)</label>
+ <input class="field-control" id="debt-keywords" name="debt-keywords" value="${esc(f.palabrasClave||'')}" placeholder="Ej. ramon martinez, fotoquimsa, skool, factura local" maxlength="240">
  <label class="field-label" for="debt-nota">Nota</label>
  <textarea class="field-area" id="debt-nota" name="debt-nota" rows="2" maxlength="600" placeholder="Detalle adicional opcional">${esc(f.nota)}</textarea>
  <div class="notice">${!can?'Tu cuenta puede consultar, pero no crear compromisos en esta sucursal.':isLive?'Se guarda en el libro del CRM y se sincroniza con la Caja del estudio.':'Previsualización: el formulario valida el envío sin guardar cambios reales.'}</div>
  <button class="primary-btn full" type="button" data-do="debt-save" style="margin-top:10px" ${state.busy||!can?'disabled':''}>${isLive?'Guardar compromiso':'Revisar simulación'}</button>`);
+}
+function linkPayloadForItem(item){
+ if(!item)return null;
+ const raw=item.raw||{};
+ return {
+  name:item.name,
+  source:item.source,
+  obligacionId:item.source==='factura'?String(raw.id||raw.obligacionId||''):'',
+  compromisoId:item.source==='compromiso'?String(raw.id||item.id||''):'',
+  recurrenteId:String(raw.recurrente_id||raw.recurrenteId||(item.source==='planificado'?raw.id||raw.recurrenteId||'':''))
+ };
+}
+function resolveAutoCommitmentLink(){
+ if(!state.data||state.entryType!=='gasto'||state.entryLink||state.entryLinkDismissed||typeof money.matchFixedCommitmentForMovement!=='function')return null;
+ const desc=String(state.entryNote||'').trim();
+ if(desc.length<3)return null;
+ const {allRows}=debtCatalog();
+ const match=money.matchFixedCommitmentForMovement({descripcion:desc,monto_centavos:Number(state.entryDigits||0)},allRows);
+ if(!match?.item)return null;
+ return {...linkPayloadForItem(match.item),autoMatched:true,matchedTerms:match.matchedTerms||[]};
+}
+function entryCommitmentHintHtml(){
+ const autoLink=resolveAutoCommitmentLink();
+ if(!autoLink)return '';
+ return `<div class="notice" style="display:flex;align-items:center;justify-content:space-between;gap:8px"><span>Asociado a <b>${esc(autoLink.name)}</b> sin cambiar el nombre del movimiento.</span><button type="button" class="secondary-btn" data-do="entry-unlink" style="min-height:28px;padding:4px 10px;font-size:.72rem;white-space:nowrap">No asociar</button></div>`;
+}
+function updateEntryCommitmentHint(){
+ const host=document.getElementById('entry-commitment-hint');
+ if(host)host.innerHTML=entryCommitmentHintHtml();
 }
 function updateEntryAmountDOM(){
  const el=document.querySelector('.sheet .input-amount');
@@ -542,8 +591,8 @@ function updateEntryCategoryBadge(){
  badge.innerHTML=L.appleEmojiHtml(L.emojiForCategory(curCat.nombre),14);
 }
 function modalEntry(){if(isLive&&!canRegister())return modalFrame('Registrar movimiento',`<div class="notice warning">El registro no está disponible desde este origen. Usa la PWA oficial o el panel central con una cuenta autorizada.</div><button class="primary-btn full" type="button" data-do="open-finance-panel" style="margin:16px 0">Abrir Finanzas del panel central</button>`);const type=state.entryType;const isTransfer=type==='transferencia';const a=account(state.entryAccount);const amt=state.entryDigits?Number(state.entryDigits):0;const currency=a?.moneda||'DOP';const backSvg='<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="pointer-events:none"><path d="M21 5H9l-6 7 6 7h12a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2Z"/><path d="m16 9-6 6"/><path d="m10 9 6 6"/></svg>';const selCatObj=cat(state.entryCategory)||cats().find(c=>c.tipo===type);const catBadgeHtml=selCatObj&&window.DcarelaCategoryLinker?.appleEmojiHtml?window.DcarelaCategoryLinker.appleEmojiHtml(window.DcarelaCategoryLinker.emojiForCategory(selCatObj.nombre),14):'';
- return modalFrame(state.entryLink&&type==='gasto'?'Pagar compromiso':'Registrar movimiento',`${state.entryLink&&type==='gasto'?`<div class="notice">Pago vinculado a <b>${esc(state.entryLink.name)}</b>. Revisa el monto y la cuenta antes de guardar.</div>`:''}<div class="sheet-tabs" role="group" aria-label="Tipo de movimiento"><button class="${type==='gasto'?'active':''}" data-do="entry-type" data-type="gasto">Gasto</button><button class="${type==='ingreso'?'active':''}" data-do="entry-type" data-type="ingreso">Ingreso</button><button class="${isTransfer?'active':''}" data-do="entry-type" data-type="transferencia">Transferencia</button></div><div class="input-amount ${type==='gasto'?'expense-text':type==='ingreso'?'income-text':'warning-text'}" aria-label="Importe actual" role="status">${type==='gasto'?'−':type==='ingreso'?'+':''}${moneyText(amt,currency)}</div><div class="keypad" role="group" aria-label="Teclado para introducir el importe">${['1','2','3','4','5','6','7','8','9','00','0','⌫'].map(v=>`<button data-do="digit" data-digit="${v}" aria-label="${v==='⌫'?'Borrar último dígito':`Agregar ${v}`}">${v==='⌫'?backSvg:v}</button>`).join('')}</div><label class="field-label" for="entry-account">${isTransfer?'Cuenta de origen':'Cuenta'}</label><select class="field-select" id="entry-account" name="entry-account">${cashAccountOptions(state.entryAccount,'',type==='gasto')}</select>${isTransfer?`<label class="field-label" for="entry-dest">Cuenta de destino</label><select class="field-select" id="entry-dest" name="entry-dest">${cashAccountOptions(state.entryDest,state.entryAccount,true)}</select>`:`<label class="field-label" for="entry-category" style="display:flex;align-items:center;gap:6px"><span>Categoría</span><span id="entry-category-badge">${catBadgeHtml}</span></label><select class="field-select" id="entry-category" name="entry-category">${cats().filter(c=>c.tipo===type).map(c=>`<option value="${esc(c.id)}" ${state.entryCategory===c.id?'selected':''}>${esc(c.nombre)}</option>`).join('')}</select>`}<div class="filter-grid"><div><label class="field-label" for="entry-date">Fecha</label><input class="field-control" id="entry-date" type="date" name="entry-date" value="${esc(state.entryDate)}"></div><div><label class="field-label" for="entry-note">Concepto</label><input class="field-control" id="entry-note" name="entry-note" value="${esc(state.entryNote)}" placeholder="Descripción" maxlength="180"></div></div><div class="notice">${!canWriteBranch()?'Tu cuenta puede consultar, pero no registrar movimientos en esta sucursal.':isLive?'Se registra en Firebase (base de datos) y viaja sincronizado hacia Caja POS y el CRM.':'Previsualización: el registro no alterará saldos, historial ni Firebase.'}</div><button class="primary-btn full" data-do="entry-save" ${state.busy||!canWriteBranch()?'disabled':''}>${isLive?'Guardar movimiento':'Revisar simulación'}</button>`)}
-function renderModal(){if(!state.modal)return '';switch(state.modal){case 'account':return modalAccount();case 'accounts-filter':return modalAccountsFilter();case 'movement':return modalMovement();case 'void':return modalVoid();case 'movement-edit':return modalMovementEdit();case 'account-edit':return modalAccountEdit();case 'reconcile':return modalReconcile();case 'debt':return modalDebt();case 'commitment':return modalCommitment();case 'entry':return modalEntry();default:return ''}}
+ return modalFrame(state.entryLink&&type==='gasto'?'Pagar compromiso':'Registrar movimiento',`${state.entryLink&&type==='gasto'?`<div class="notice">Pago vinculado a <b>${esc(state.entryLink.name)}</b>. Revisa el monto y la cuenta antes de guardar.</div>`:''}<div class="sheet-tabs" role="group" aria-label="Tipo de movimiento"><button class="${type==='gasto'?'active':''}" data-do="entry-type" data-type="gasto">Gasto</button><button class="${type==='ingreso'?'active':''}" data-do="entry-type" data-type="ingreso">Ingreso</button><button class="${isTransfer?'active':''}" data-do="entry-type" data-type="transferencia">Transferencia</button></div><div class="input-amount ${type==='gasto'?'expense-text':type==='ingreso'?'income-text':'warning-text'}" aria-label="Importe actual" role="status">${type==='gasto'?'−':type==='ingreso'?'+':''}${moneyText(amt,currency)}</div><div class="keypad" role="group" aria-label="Teclado para introducir el importe">${['1','2','3','4','5','6','7','8','9','00','0','⌫'].map(v=>`<button data-do="digit" data-digit="${v}" aria-label="${v==='⌫'?'Borrar último dígito':`Agregar ${v}`}">${v==='⌫'?backSvg:v}</button>`).join('')}</div><label class="field-label" for="entry-account">${isTransfer?'Cuenta de origen':'Cuenta'}</label><select class="field-select" id="entry-account" name="entry-account">${cashAccountOptions(state.entryAccount,'',type==='gasto')}</select>${isTransfer?`<label class="field-label" for="entry-dest">Cuenta de destino</label><select class="field-select" id="entry-dest" name="entry-dest">${cashAccountOptions(state.entryDest,state.entryAccount,true)}</select>`:`<label class="field-label" for="entry-category" style="display:flex;align-items:center;gap:6px"><span>Categoría</span><span id="entry-category-badge">${catBadgeHtml}</span></label><select class="field-select" id="entry-category" name="entry-category">${cats().filter(c=>c.tipo===type).map(c=>`<option value="${esc(c.id)}" ${state.entryCategory===c.id?'selected':''}>${esc(c.nombre)}</option>`).join('')}</select>`}<div class="filter-grid"><div><label class="field-label" for="entry-date">Fecha</label><input class="field-control" id="entry-date" type="date" name="entry-date" value="${esc(state.entryDate)}"></div><div><label class="field-label" for="entry-note">Concepto</label><input class="field-control" id="entry-note" name="entry-note" value="${esc(state.entryNote)}" placeholder="Descripción" maxlength="180"></div></div><div id="entry-commitment-hint">${entryCommitmentHintHtml()}</div><div class="notice">${!canWriteBranch()?'Tu cuenta puede consultar, pero no registrar movimientos en esta sucursal.':isLive?'Se registra en Firebase (base de datos) y viaja sincronizado hacia Caja POS y el CRM.':'Previsualización: el registro no alterará saldos, historial ni Firebase.'}</div><button class="primary-btn full" data-do="entry-save" ${state.busy||!canWriteBranch()?'disabled':''}>${isLive?'Guardar movimiento':'Revisar simulación'}</button>`)}
+function renderModal(){if(!state.modal)return '';switch(state.modal){case 'account':return modalAccount();case 'accounts-filter':return modalAccountsFilter();case 'movement':return modalMovement();case 'void':return modalVoid();case 'movement-edit':return modalMovementEdit();case 'account-edit':return modalAccountEdit();case 'reconcile':return modalReconcile();case 'debt':return modalDebt();case 'debt-delete':return modalDebtDelete();case 'commitment':return modalCommitment();case 'entry':return modalEntry();default:return ''}}
 let previousModal=null, previousViewKey='', popupSerial=0, navigationDirection=0;
 const reducedMotion=()=>window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 function stagePageExit(direction){
@@ -562,9 +611,9 @@ function stagePageExit(direction){
  setTimeout(()=>page.remove(),650);
  return {page,drag};
 }
-function applyLiveWriteGuards(scope=document){if(!isLive||emulatorWritesAllowed())return;for(const button of scope.querySelectorAll('[data-do="account-transfer"],[data-do="reconcile"],[data-do="void-confirm"],[data-do="entry-save"],[data-do="reconcile-save"],[data-do="void-save"],[data-do="account-edit"],[data-do="movement-edit"]')){if(canWriteBranch()&&['account-transfer','reconcile','void-confirm','entry-save','reconcile-save','void-save'].includes(button.dataset.do))continue;button.disabled=true;button.title='Acción disponible solo para administradores (edición directa no soportada)';}}
+function applyLiveWriteGuards(scope=document){if(!isLive||emulatorWritesAllowed())return;for(const button of scope.querySelectorAll('[data-do="account-transfer"],[data-do="reconcile"],[data-do="void-confirm"],[data-do="entry-save"],[data-do="reconcile-save"],[data-do="void-save"],[data-do="debt-delete-confirm"],[data-do="debt-delete-save"],[data-do="account-edit"],[data-do="movement-edit"]')){if(canWriteBranch()&&['account-transfer','reconcile','void-confirm','entry-save','reconcile-save','void-save','debt-delete-confirm','debt-delete-save'].includes(button.dataset.do))continue;button.disabled=true;button.title='Acción disponible solo para administradores (edición directa no soportada)';}}
 function render(opts={}){const modalIsNew=!!state.modal&&state.modal!==previousModal;const subKey=state.financeView==='diario'?state.day:state.financeView==='ano'?state.year:state.financeView==='personalizado'?`${state.customFrom}:${state.customTo}`:'';const viewKey=`${state.tab}/${state.route}/${state.financeView}/${state.month}/${subKey}`;const viewIsNew=viewKey!==previousViewKey;const shellEl=$('app')?.querySelector('.shell');if(opts?.modalOnly&&shellEl&&!viewIsNew){previousModal=state.modal;document.body.classList.toggle('modal-open',Boolean(state.modal));const existingOverlay=$('app').querySelector('.overlay');if(!state.modal){existingOverlay?.remove();return;}const modalHtml=renderModal();if(existingOverlay){existingOverlay.outerHTML=modalHtml;}else if(modalHtml){$('app').insertAdjacentHTML('beforeend',modalHtml);}const newOverlay=$('app').querySelector('.overlay');if(newOverlay){if(!modalIsNew)newOverlay.classList.add('no-enter');applyLiveWriteGuards(newOverlay);}return;}const direction=viewIsNew?navigationDirection:0;const motion=direction?`slide-${direction>0?'forward':'back'}`:'';const exit=viewIsNew&&previousViewKey?stagePageExit(direction):null;navigationDirection=0;previousModal=state.modal;previousViewKey=viewKey;document.documentElement.dataset.theme=state.theme;document.documentElement.dataset.activeView=state.route?`route:${state.route}`:state.tab;document.querySelector('meta[name="theme-color"]')?.setAttribute('content',state.theme==='dark'?'#050607':'#e8e9eb');document.body.classList.toggle('modal-open',Boolean(state.modal));$('app').innerHTML=`<div class="shell ${viewIsNew?'view-enter':''} ${motion}" style="--nav-drag:${exit?.drag||0}px">${renderHeader()}${renderMain()}${renderBottom()}</div>${renderModal()}`;if(exit)$('app').append(exit.page);applyLiveWriteGuards(document);if(state.modal&&!modalIsNew)document.querySelector('.overlay')?.classList.add('no-enter');requestAnimationFrame(()=>{const scroller=document.querySelector('.segment-wrap');const active=scroller?.querySelector('.segment.active');if(scroller&&active)scroller.scrollTo({left:Math.max(0,active.offsetLeft-(scroller.clientWidth-active.clientWidth)/2),behavior:reducedMotion()?'instant':'smooth'})});window.dispatchEvent(new CustomEvent('dcarela:finanzas-rendered',{detail:{tab:state.tab,route:state.route,theme:state.theme,modal:state.modal,business:state.business,financeView:state.financeView}}))}
-function openModal(type){popupSerial++;state.modal=type;render({modalOnly:true});requestAnimationFrame(()=>document.querySelector('.sheet [data-do="close"]')?.focus({preventScroll:true}))}
+function openModal(type){if(type==='entry'&&state.modal!=='entry')state.entryLinkDismissed=false;popupSerial++;state.modal=type;render({modalOnly:true});requestAnimationFrame(()=>document.querySelector('.sheet [data-do="close"]')?.focus({preventScroll:true}))}
 function closeModal(){
  const which=state.modal,serial=popupSerial,sheet=document.querySelector('.sheet');
  if(sheet && !sheet.dataset.closing && !window.matchMedia('(prefers-reduced-motion: reduce)').matches && typeof sheet.animate==='function'){
@@ -580,6 +629,31 @@ function openTab(t){const tabs=['home','finance','debts','more'];navigationDirec
 const numericCents=v=>{const t=String(v??'').trim().replace(/,/g,'');if(!/^-?\d+(?:\.\d{1,2})?$/.test(t))throw new Error('Introduce un importe válido con hasta dos decimales.');const neg=t[0]==='-';const [a,b='']=t.replace(/^-/, '').split('.');const parsed=Number(a)*100+Number((b+'00').slice(0,2));if(!Number.isSafeInteger(parsed))throw new Error('Importe fuera de rango.');return neg?-parsed:parsed};
 function requestId(){return globalThis.crypto?.randomUUID?.()||`ui-${Date.now()}-${Math.random().toString(16).slice(2)}`}
 async function commit(action,entity,payload){if(state.busy)return;state.busy=true;try{const res=await commitAction(action,state.business,entity,payload);if(res.preview){note('Vista previa: ningún dato fue guardado.');closeModal()}else{note(res.message||(isLive&&!emulatorWritesAllowed()?'Guardado en base de datos y sincronizado con Caja.':'Operación confirmada.'));state.pendingRequestId=null;closeModal();await load()}}catch(e){note(e?.message||'No se pudo completar la operación.');}finally{state.busy=false}}
+async function commitCommitmentDeletion(ref,reason,rid){
+ const noteReason=reason||'Eliminado desde Finanzas';
+ if(ref.source==='compromiso'){
+  const id=String(ref.nativeId||ref.raw?.id||ref.id||'');
+  if(!id)throw new Error('Identificador de compromiso no disponible.');
+  return commitAction('fin.commitment.deactivate',state.business,id,{requestId:rid,compromisoId:id,estado:'eliminado',motivo:noteReason});
+ }
+ if(ref.source==='factura'){
+  const id=String(ref.legacyId||ref.raw?.id||ref.raw?.obligacionId||String(ref.id||'').replace(/^legacy:/,''));
+  if(!id)throw new Error('Identificador de obligación no disponible.');
+  return commitAction('cost.obligation.cancel',state.business,id,{requestId:rid,obligacionId:id,motivo:noteReason});
+ }
+ const id=String(ref.recurringId||ref.raw?.id||ref.raw?.recurrenteId||String(ref.id||'').replace(/^plan:/,''));
+ if(!id)throw new Error('Identificador del plan recurrente no disponible.');
+ const raw=ref.raw||(state.data?.costRecurrents||[]).find(r=>String(r.id||r.recurrenteId||'')===id)||{};
+ return commitAction('cost.recurring.upsert',state.business,id,{
+  requestId:rid,recurrenteId:id,nombre:raw.nombre||raw.descripcion||ref.name,descripcion:raw.descripcion||raw.nombre||ref.name,
+  categoriaId:raw.categoriaId||raw.categoria_id||'recon-cat-otros',categoria:raw.categoria||'Costos',
+  acreedor:raw.acreedor||null,montoEstimadoCentavos:Number(raw.montoEstimadoCentavos??raw.monto_estimado_centavos??0),
+  montoVariable:Boolean(raw.montoVariable??raw.monto_variable),frecuencia:raw.frecuencia||'mensual',
+  intervaloDias:raw.intervaloDias??raw.intervalo_dias??null,diaMes1:raw.diaMes1??raw.dia_mes_1??null,
+  diaMes2:raw.diaMes2??raw.dia_mes_2??null,proximaFecha:raw.proximaFecha||raw.proxima_fecha||today,
+  metodoPago:raw.metodoPago||raw.metodo_pago||'transferencia',activo:false,motivo_desactivacion:noteReason,nota:raw.nota||null
+ });
+}
 async function handleClick(e){if(Date.now()<swipeSuppressClickUntil)return;const btn=e.target.closest('[data-do]');if(!btn)return;const action=btn.dataset.do;
  if(action==='backdrop'){if(e.target===btn)closeModal();return}
  if(action==='close'){closeModal();return}
@@ -670,8 +744,34 @@ async function handleClick(e){if(Date.now()<swipeSuppressClickUntil)return;const
  // finance-payment-projection) lo enlaza y baja el saldo. Aquí no se descuenta nada a mano.
  if(action==='debt-pay'){const {summary,allRows}=debtCatalog();const item=[...allRows,...summary.review].find(x=>x.id===btn.dataset.id);if(!item){note('Ese compromiso ya no está activo. Actualiza el libro.');return}const raw=item.raw||{};const cents=Number.isSafeInteger(item.outstanding)&&item.outstanding>0?item.outstanding:Number.isSafeInteger(Number(item.periodAmount))?Number(item.periodAmount):0;
  state.entryType='gasto';state.entryDigits=cents>0?String(cents):'';state.entryNote=`Pago ${item.name}`.slice(0,180);state.entryDate=core.businessDay(new Date());state.pendingRequestId=null;
- state.entryLink={name:item.name,source:item.source,obligacionId:item.source==='factura'?String(raw.id||raw.obligacionId||''):'',compromisoId:item.source!=='factura'&&item.source!=='planificado'?String(raw.id||''):'',recurrenteId:String(raw.recurrente_id||raw.recurrenteId||(item.source==='planificado'?raw.id||'':''))};
+ state.entryLink=linkPayloadForItem(item);state.entryLinkDismissed=false;
  state.entryCategory=cats().find(c=>c.tipo==='gasto'&&/pago|servicio|compromis|gasto fijo|fijo/i.test(c.nombre||''))?.id||cats().find(c=>c.tipo==='gasto')?.id||'';openModal('entry');return}
+ if(action==='debt-delete-confirm'){if(!canWriteBranch()){note('Tu cuenta no tiene permiso para eliminar compromisos en esta sucursal.');return}state.accountId=btn.dataset.id||state.accountId;state.debtDeleteReason='';state.pendingRequestId=null;openModal('debt-delete');return}
+ if(action==='debt-delete-save'){
+  if(!canWriteBranch()){note('Tu cuenta no tiene permiso para eliminar compromisos en esta sucursal.');return}
+  const {summary,allRows}=debtCatalog();
+  const targetId=btn.dataset.id||state.accountId;
+  const item=[...allRows,...summary.review].find(x=>x.id===targetId);
+  if(!item){note('Este compromiso ya no está activo.');closeModal();return}
+  const reason=String(document.querySelector('[name="debt-delete-reason"]')?.value??state.debtDeleteReason??'').trim();
+  if(state.busy)return;
+  state.busy=true;
+  try{
+   const baseRid=state.pendingRequestId||requestId();
+   state.pendingRequestId=baseRid;
+   const targets=[item,...(item.duplicateRefs||[])];
+   let lastRes=null;
+   for(let idx=0;idx<targets.length;idx++){
+    const ref=targets[idx];
+    const rid=idx===0?baseRid:`${baseRid}-dup-${idx}`;
+    lastRes=await commitCommitmentDeletion(ref,reason,rid);
+   }
+   if(lastRes?.preview){note('Vista previa: ningún dato fue guardado.');closeModal();}
+   else{note(targets.length>1?`Compromiso y ${targets.length-1} duplicado${targets.length===2?'':'s'} eliminados sin borrar pagos.`:(lastRes?.message||'Compromiso eliminado sin borrar pagos.'));state.pendingRequestId=null;state.debtDeleteReason='';closeModal();await load();}
+  }catch(err){note(err?.message||'No se pudo eliminar el compromiso.');}
+  finally{state.busy=false;}
+  return;
+ }
  if(action==='debt-new'){const firstCat=cats().find(c=>c.tipo==='gasto')?.id||'recon-cat-otros';state.commitmentForm=defaultCommitmentForm(firstCat);state.pendingRequestId=null;openModal('commitment');return}
  if(action==='debt-kind'){state.commitmentForm.kind=btn.dataset.kind==='obligacion'?'obligacion':'recurrente';state.pendingRequestId=null;render({modalOnly:true});return}
  if(action==='debt-save'){
@@ -679,6 +779,8 @@ async function handleClick(e){if(Date.now()<swipeSuppressClickUntil)return;const
   const val=n=>document.querySelector(`[name="${n}"]`)?.value;
   const nombre=String(val('debt-nombre')??f.nombre??'').trim();
   const acreedor=String(val('debt-acreedor')??f.acreedor??'').trim();
+  const rawKeywords=String(val('debt-keywords')??f.palabrasClave??'').trim();
+  const palabrasClave=typeof money.parseExplicitKeywords==='function'?money.parseExplicitKeywords(rawKeywords):[];
   const categoriaId=String(val('debt-categoria')??f.categoriaId??'recon-cat-otros').trim()||'recon-cat-otros';
   const categoriaNombre=cat(categoriaId)?.nombre||'Costos';
   const proximaFecha=String(val('debt-proxima')??f.proximaFecha??today).trim();
@@ -702,7 +804,8 @@ async function handleClick(e){if(Date.now()<swipeSuppressClickUntil)return;const
     requestId:id,recurrenteId:id,categoriaId,categoria:categoriaNombre,nombre,descripcion:nombre,
     acreedor:acreedor||null,montoEstimadoCentavos:cents,montoVariable:isVariable,
     frecuencia,intervaloDias:null,diaMes1:Number.isInteger(d1)&&d1>=1&&d1<=31?d1:null,
-    diaMes2:Number.isInteger(d2)&&d2>=1&&d2<=31?d2:null,proximaFecha,metodoPago,activo:true,nota:nota||null
+    diaMes2:Number.isInteger(d2)&&d2>=1&&d2<=31?d2:null,proximaFecha,metodoPago,activo:true,nota:nota||null,
+    ...(palabrasClave.length?{palabras_clave:palabrasClave}:{})
    });
   }else{
    const emitidaEn=String(val('debt-emitida')??f.emitidaEn??today).trim()||today;
@@ -712,15 +815,17 @@ async function handleClick(e){if(Date.now()<swipeSuppressClickUntil)return;const
     requestId:id,obligacionId:id,recurrenteId:null,categoriaId,categoria:categoriaNombre,
     acreedor:acreedor||null,concepto:nombre,numeroFactura:numeroFactura||null,
     montoCentavos:cents,saldoCentavos:cents,emitidaEn,venceEn:proximaFecha,estado:'pendiente',
-    nota:nota||null,periodoClave:null
+    nota:nota||null,periodoClave:null,
+    ...(palabrasClave.length?{palabras_clave:palabrasClave}:{})
    });
   }
   return;
  }
  if(action==='demo-login'){if(isLive)return;state.authRequired=true;state.loginError='';state.modal=null;render();return}
  if(action==='open-finance-panel'){location.assign(new URL('../panel.html#finanzas',location.href).href);return}
- if(action==='entry-type'){state.entryType=btn.dataset.type;state.entryCategory=cats().find(c=>c.tipo===state.entryType)?.id||'';state.pendingRequestId=null;render({modalOnly:true});return}
- if(action==='digit'){let d=btn.dataset.digit;if(d==='⌫')state.entryDigits=state.entryDigits.slice(0,-1);else if(state.entryDigits.length+d.length<=12)state.entryDigits=(state.entryDigits+d).replace(/^0+(?=\d)/,'');state.pendingRequestId=null;if(!updateEntryAmountDOM())render({modalOnly:true});return}
+ if(action==='entry-type'){state.entryType=btn.dataset.type;state.entryCategory=cats().find(c=>c.tipo===state.entryType)?.id||'';state.entryLinkDismissed=false;state.pendingRequestId=null;render({modalOnly:true});return}
+ if(action==='entry-unlink'){state.entryLinkDismissed=true;updateEntryCommitmentHint();return}
+ if(action==='digit'){let d=btn.dataset.digit;if(d==='⌫')state.entryDigits=state.entryDigits.slice(0,-1);else if(state.entryDigits.length+d.length<=12)state.entryDigits=(state.entryDigits+d).replace(/^0+(?=\d)/,'');state.pendingRequestId=null;if(!updateEntryAmountDOM())render({modalOnly:true});else updateEntryCommitmentHint();return}
  if(action==='account-transfer'){state.entryType='transferencia';state.entryDigits='';state.entryAccount=state.accountId;state.entryNote='';state.pendingRequestId=null;const a=account(state.entryAccount);state.entryDest=accounts().find(x=>x.id!==a?.id&&x.moneda===a?.moneda)?.id||'';openModal('entry');return}
  if(action==='account-edit'){openModal('account-edit');return}
  if(action==='account-edit-preview'){note('Edición de cuenta no guardada: interfaz de revisión.');return}
@@ -747,10 +852,12 @@ async function handleClick(e){if(Date.now()<swipeSuppressClickUntil)return;const
    if(auto?.categoria_id)chosenCatId=auto.categoria_id;
   }
  }
- state.pendingRequestId ||= requestId();const data=state.entryType==='transferencia'?{
+ state.pendingRequestId ||= requestId();
+ const effectiveLink=state.entryType==='gasto'?(state.entryLink||resolveAutoCommitmentLink()):null;
+ const data=state.entryType==='transferencia'?{
  cuentaOrigenId:a.id,cuentaDestinoId:dest.id,montoCentavos:cents,comisionCentavos:0,descripcion:state.entryNote||'Transferencia interna',fecha:state.entryDate,requestId:state.pendingRequestId
  }:{cuentaId:a.id,tipo:state.entryType,montoCentavos:cents,categoriaId:chosenCatId,descripcion:state.entryNote||state.entryType,fecha:state.entryDate,requestId:state.pendingRequestId,
- ...(state.entryType==='gasto'&&state.entryLink?{obligacionId:state.entryLink.obligacionId||null,compromisoId:state.entryLink.compromisoId||null,recurrenteId:state.entryLink.recurrenteId||null}:{})};
+ ...(effectiveLink?{obligacionId:effectiveLink.obligacionId||null,compromisoId:effectiveLink.compromisoId||null,recurrenteId:effectiveLink.recurrenteId||null}:{})};
  await commit(state.entryType==='transferencia'?'fin.transfer.create':'fin.movement.create',state.pendingRequestId,data);return}
 }
 function handleChange(e){const target=e.target,name=target.name;switch(name){
@@ -766,10 +873,11 @@ function handleChange(e){const target=e.target,name=target.name;switch(name){
  case 'entry-account':state.entryAccount=target.value;if(state.entryDest===target.value)state.entryDest=accounts().find(x=>x.id!==target.value&&x.moneda===account(target.value)?.moneda)?.id||'';state.pendingRequestId=null;render({modalOnly:true});break;
  case 'entry-dest':state.entryDest=target.value;state.pendingRequestId=null;break;
  case 'entry-category':state.entryCategory=target.value;state.pendingRequestId=null;updateEntryCategoryBadge();break;
- case 'entry-note':state.entryNote=target.value;state.pendingRequestId=null;break;
+ case 'entry-note':state.entryNote=target.value;state.pendingRequestId=null;updateEntryCommitmentHint();break;
  case 'entry-date':state.entryDate=target.value;state.pendingRequestId=null;break;
  case 'debt-nombre':state.commitmentForm.nombre=target.value;state.pendingRequestId=null;break;
  case 'debt-acreedor':state.commitmentForm.acreedor=target.value;state.pendingRequestId=null;break;
+ case 'debt-keywords':state.commitmentForm.palabrasClave=target.value;state.pendingRequestId=null;break;
  case 'debt-monto':state.commitmentForm.monto=target.value;state.pendingRequestId=null;break;
  case 'debt-categoria':state.commitmentForm.categoriaId=target.value;state.pendingRequestId=null;break;
  case 'debt-proxima':state.commitmentForm.proximaFecha=target.value;state.pendingRequestId=null;break;
@@ -781,8 +889,9 @@ function handleChange(e){const target=e.target,name=target.name;switch(name){
  case 'debt-emitida':state.commitmentForm.emitidaEn=target.value;state.pendingRequestId=null;break;
  case 'debt-factura':state.commitmentForm.numeroFactura=target.value;state.pendingRequestId=null;break;
  case 'debt-nota':state.commitmentForm.nota=target.value;state.pendingRequestId=null;break;
+ case 'debt-delete-reason':state.debtDeleteReason=target.value;break;
 }}
-function handleInput(e){const n=e.target.name;if(n==='search-query')state.search.query=e.target.value;if(n==='entry-note'){state.entryNote=e.target.value;state.pendingRequestId=null;if(state.entryType==='gasto'&&window.DcarelaCategoryLinker?.resolveClientExpenseCategory){const sel=document.getElementById('entry-category');const auto=window.DcarelaCategoryLinker.resolveClientExpenseCategory({categoria_id:'',descripcion:e.target.value},cats().filter(c=>c.tipo==='gasto'));if(auto?.matchedBy==='keyword'&&auto.categoria_id&&sel&&sel.value!==auto.categoria_id){state.entryCategory=auto.categoria_id;sel.value=auto.categoria_id;updateEntryCategoryBadge();}}}const debtMap={'debt-nombre':'nombre','debt-acreedor':'acreedor','debt-monto':'monto','debt-factura':'numeroFactura','debt-nota':'nota','debt-dia1':'diaMes1','debt-dia2':'diaMes2'};if(Object.hasOwn(debtMap,n)){state.commitmentForm[debtMap[n]]=e.target.value;state.pendingRequestId=null;}}
+function handleInput(e){const n=e.target.name;if(n==='search-query')state.search.query=e.target.value;if(n==='debt-delete-reason')state.debtDeleteReason=e.target.value;if(n==='entry-note'){state.entryNote=e.target.value;state.pendingRequestId=null;if(state.entryType==='gasto'&&window.DcarelaCategoryLinker?.resolveClientExpenseCategory){const sel=document.getElementById('entry-category');const auto=window.DcarelaCategoryLinker.resolveClientExpenseCategory({categoria_id:'',descripcion:e.target.value},cats().filter(c=>c.tipo==='gasto'));if(auto?.matchedBy==='keyword'&&auto.categoria_id&&sel&&sel.value!==auto.categoria_id){state.entryCategory=auto.categoria_id;sel.value=auto.categoria_id;updateEntryCategoryBadge();}}updateEntryCommitmentHint();}const debtMap={'debt-nombre':'nombre','debt-acreedor':'acreedor','debt-keywords':'palabrasClave','debt-monto':'monto','debt-factura':'numeroFactura','debt-nota':'nota','debt-dia1':'diaMes1','debt-dia2':'diaMes2'};if(Object.hasOwn(debtMap,n)){state.commitmentForm[debtMap[n]]=e.target.value;state.pendingRequestId=null;}}
 let signingIn=false,seenAuthUid;
 async function handleSubmit(e){if(e.target.id==='login-form'){
  e.preventDefault();if(state.loginBusy)return;
