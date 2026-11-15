@@ -355,16 +355,12 @@ body::before, body::after {
   box-shadow: none !important;
 }
 
-.shell.dc-boot-enter .topbar {
-  animation: v3526HeaderDrop 0.36s cubic-bezier(0.22, 1, 0.36, 1) both;
-}
-
 /* Refresh button spin feedback during app update checks */
 .round-button[data-do="refresh"].is-spinning svg {
   animation: dcRefreshSpin 0.8s linear infinite;
 }
 .round-button[data-do="refresh"]:hover:not(:active) svg {
-  transform: rotate(28deg) scale(1.06);
+  transform: rotate(24deg) scale(1.04);
 }
 @keyframes dcRefreshSpin {
   from { transform: rotate(0deg); }
@@ -384,7 +380,6 @@ body::before, body::after {
   -webkit-backdrop-filter: blur(30px) saturate(1.6);
   backdrop-filter: blur(30px) saturate(1.6);
   border-top: 1px solid var(--v3526-glass-border) !important;
-  animation: v3526SheetSpring 0.44s cubic-bezier(0.22, 1.15, 0.36, 1) both;
 }
 
 .overlay.no-enter,
@@ -423,11 +418,6 @@ body::before, body::after {
   animation: v3526SheenSweep 7s ease-in-out infinite;
 }
 
-@keyframes v3526HeaderDrop {
-  from { opacity: 0; transform: translate3d(0, -10px, 0); }
-  to   { opacity: 1; transform: translate3d(0, 0, 0); }
-}
-
 @keyframes v3526LogoOrbitGlow {
   0%   { filter: drop-shadow(0 0 2px var(--v3526-glow-soft)); transform: scale(1) rotate(0deg); }
   50%  { filter: drop-shadow(0 0 11px var(--v3526-glow-intense)); transform: scale(1.03) rotate(-1.5deg); }
@@ -439,23 +429,18 @@ body::before, body::after {
   100%    { transform: translateX(160%); }
 }
 
-@keyframes v3526SheetSpring {
-  0%   { opacity: 0; transform: translate3d(0, 44px, 0) scale(0.97); }
-  100% { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
-}
-
 /* ==========================================================================
-   v35.45 Coreografía Fluida, Cortes Post-Conciliación, Otra Cantidad, Lupa Fija y UI Estática
-   - Rebotes notables por elemento con desfase claro (--dc-stagger-step: 58ms) y
-     opacidad inicial >= 0.58 (sin destellos negros en iOS/Safari).
-   - Al cambiar de día o interactuar con botones dentro de la página, el marco
-     completo del panel queda fijo sin parpadeos ni recargas.
+   v35.46 Apple Motion PWA Global Physics, Cortes Post-Conciliación, Otra Cantidad y Lupa Fija
+   Reglas clave:
+   - Cero keyframes CSS de rebote artificial: toda coreografía física corre
+     con Apple Motion PWA (Smooth, Snappy, Bouncy, Liquid Glass) vía WAAPI.
+   - Al cambiar de día, el marco estático y la lupa central quedan firmes.
    ========================================================================== */
 :root {
-  --dc-spring: cubic-bezier(0.16, 1.26, 0.32, 1);
-  --dc-spring-soft: cubic-bezier(0.18, 1.18, 0.32, 1);
-  --dc-spring-pop: cubic-bezier(0.18, 1.36, 0.34, 1);
-  --dc-stagger-step: 58ms;
+  --dc-spring: var(--motion-smooth, cubic-bezier(0.16, 1, 0.3, 1));
+  --dc-spring-soft: var(--motion-smooth, cubic-bezier(0.16, 1, 0.3, 1));
+  --dc-spring-pop: var(--motion-ease, cubic-bezier(0.22, 1, 0.36, 1));
+  --dc-stagger-step: 48ms;
 }
 
 .shell.dc-quiet-update main.page,
@@ -472,7 +457,6 @@ body::before, body::after {
   transform: none;
 }
 
-/* Desactivar herencia genérica sin desfase para que mande el stagger individual */
 .shell.view-enter main.page > .screen-intro,
 .shell.view-enter main.page > .metric-grid,
 .shell.view-enter main.page > .triple-summary,
@@ -495,239 +479,27 @@ body::before, body::after {
   animation: none !important;
 }
 
-.dc-date-tick {
-  animation: dcDateTick 0.42s var(--dc-spring) both;
-}
-@keyframes dcDateTick {
-  0%   { opacity: 0.58; transform: translate3d(0, 12px, 0) scale(0.97); }
-  58%  { opacity: 1; transform: translate3d(0, -4px, 0) scale(1.022); }
-  82%  { transform: translate3d(0, 1.5px, 0) scale(0.996); }
-  100% { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
-}
-
 .dc-count {
   font-variant-numeric: tabular-nums;
   display: inline-block;
   transform-origin: left center;
 }
-.dc-count.is-counted {
-  animation: dcCountLand 0.38s var(--dc-spring-pop) both;
-}
 
-.shell .dc-anim-card {
-  animation: dcCardSpring 0.52s var(--dc-spring-soft) calc(var(--dc-stagger, 0) * var(--dc-stagger-step)) both !important;
-}
-
-.shell .dc-anim-title {
-  animation: dcTextBounce 0.50s var(--dc-spring) calc(var(--dc-stagger, 0) * var(--dc-stagger-step) + 20ms) both !important;
-}
-
-.shell .dc-anim-kicker {
-  animation: dcKickerRebound 0.44s var(--dc-spring) calc(var(--dc-stagger, 0) * var(--dc-stagger-step) + 46ms) both !important;
-}
-
-.shell .subline.dc-anim-kicker {
-  animation: dcSublineBounce 0.46s var(--dc-spring) calc(var(--dc-stagger, 0) * var(--dc-stagger-step) + 92ms) both !important;
-}
-
-.shell .dc-anim-pill {
-  animation: dcPillElastic 0.48s var(--dc-spring-pop) calc(var(--dc-stagger, 0) * var(--dc-stagger-step)) both !important;
-}
-
-.shell .daily-day:not(.dc-anim-pill),
-.shell .daily-loupe-track .daily-day {
-  animation: none !important;
-}
-.shell .daily-day.dc-anim-pill small,
-.shell .daily-day.dc-anim-pill strong,
-.shell .daily-day.active.dc-anim-pill {
+.shell .daily-day,
+.shell .daily-loupe-track .daily-day,
+.shell .daily-day small,
+.shell .daily-day strong {
   animation: none !important;
 }
 
-.shell .dc-anim-row {
-  animation: dcRowCascade 0.50s var(--dc-spring-soft) calc(var(--dc-stagger, 0) * var(--dc-stagger-step)) both !important;
-}
-
-.shell .dc-anim-row .cat-bubble,
-.shell .dc-anim-row .account-icon,
-.shell .dc-anim-row .setting-icon,
-.shell .dc-anim-row .stat-dot {
-  animation: dcIconPop 0.48s var(--dc-spring-pop) calc(var(--dc-stagger, 0) * var(--dc-stagger-step) + 48ms) both;
-}
-
-.shell .dc-anim-row .row-copy b,
-.shell .dc-anim-row .budget-head-copy b,
-.shell .dc-anim-row .pay-copy b,
-.shell .dc-anim-row .category-bar-head > span,
-.shell .stat-row.dc-anim-row > span.cat {
-  display: block;
-  animation: dcTextBounceMicro 0.46s var(--dc-spring) calc(var(--dc-stagger, 0) * var(--dc-stagger-step) + 92ms) both;
-}
-
-.shell .dc-anim-row .row-copy small,
-.shell .dc-anim-row .budget-head-copy small,
-.shell .dc-anim-row .pay-copy small,
-.shell .stat-row.dc-anim-row > span.cat small {
-  display: block;
-  animation: dcSublineBounce 0.46s var(--dc-spring) calc(var(--dc-stagger, 0) * var(--dc-stagger-step) + 180ms) both;
-}
-
-.shell .dc-anim-row .row-amount,
-.shell .dc-anim-row .pay-amount,
-.shell .stat-row.dc-anim-row strong,
-.shell .info-line.dc-anim-row strong,
-.shell .dc-anim-row > strong {
-  animation: dcAmountSpring 0.50s var(--dc-spring) calc(var(--dc-stagger, 0) * var(--dc-stagger-step) + 138ms) both;
-}
-
-/* Desfase notable entre etiqueta, monto y detalle dentro del Hero, triple caja y métricas */
-.shell .hero.dc-anim-card .hero-label {
-  animation: dcKickerRebound 0.44s var(--dc-spring) 46ms both;
-}
-.shell .hero.dc-anim-card .hero-main {
-  animation: dcAmountSpring 0.54s var(--dc-spring) 118ms both !important;
-}
-.shell .hero.dc-anim-card .hero-usd {
-  animation: dcSublineBounce 0.46s var(--dc-spring) 190ms both;
-}
-.shell .hero.dc-anim-card .hero-bottom span {
-  display: inline-block;
-  animation: dcKickerRebound 0.44s var(--dc-spring) 250ms both;
-}
-.shell .hero.dc-anim-card .hero-bottom strong {
-  animation: dcTextBounce 0.50s var(--dc-spring) 310ms both;
-}
-
-.shell .triple-summary > div.dc-anim-card small {
-  display: block;
-  animation: dcKickerRebound 0.42s var(--dc-spring) calc(var(--dc-stagger, 0) * var(--dc-stagger-step) + 42ms) both;
-}
-.shell .triple-summary > div.dc-anim-card strong {
-  display: block;
-  animation: dcAmountSpring 0.50s var(--dc-spring) calc(var(--dc-stagger, 0) * var(--dc-stagger-step) + 104ms) both !important;
-}
-
-.shell .metric.dc-anim-card .metric-name {
-  animation: dcKickerRebound 0.42s var(--dc-spring) calc(var(--dc-stagger, 0) * var(--dc-stagger-step) + 42ms) both;
-}
-.shell .metric.dc-anim-card strong {
-  animation: dcAmountSpring 0.50s var(--dc-spring) calc(var(--dc-stagger, 0) * var(--dc-stagger-step) + 104ms) both !important;
-}
-.shell .metric.dc-anim-card small {
-  display: block;
-  animation: dcSublineBounce 0.46s var(--dc-spring) calc(var(--dc-stagger, 0) * var(--dc-stagger-step) + 156ms) both;
-}
-
-/* Celdas de calendario y mini-barras escalonadas */
-.shell .day-cell.dc-anim-cell {
-  animation: dcCellPop 0.44s var(--dc-spring) calc(var(--dc-stagger, 0) * 16ms) both;
-}
 .mini-svg .mini-bar-in,
 .mini-svg .mini-bar-out,
-.mini-svg rect.dc-anim-bar {
+.mini-svg rect {
   transform-box: fill-box;
   transform-origin: center bottom;
-  animation: dcMiniBarGrow 0.56s var(--dc-spring) calc(var(--dc-stagger, 0) * 28ms + 110ms) both;
 }
 
-.shell .dc-anim-row .category-track span,
-.shell .dc-anim-row .progress-track span,
-.shell .dc-anim-card .horizontal-bar span {
-  animation-delay: calc(var(--dc-stagger, 0) * 58ms + 140ms) !important;
-}
-
-@keyframes dcCardSpring {
-  0%   { opacity: 0.62; transform: translate3d(0, 18px, 0) scale(0.96); }
-  56%  { opacity: 1; transform: translate3d(0, -5px, 0) scale(1.018); }
-  80%  { transform: translate3d(0, 2px, 0) scale(0.996); }
-  100% { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
-}
-
-@keyframes dcTextBounce {
-  0%   { opacity: 0.66; transform: translate3d(0, 14px, 0) scale(0.97); }
-  55%  { opacity: 1; transform: translate3d(0, -4.5px, 0) scale(1.022); }
-  80%  { transform: translate3d(0, 1.5px, 0) scale(0.997); }
-  100% { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
-}
-
-@keyframes dcKickerRebound {
-  0%   { opacity: 0.68; transform: translate3d(0, 10px, 0); }
-  58%  { opacity: 1; transform: translate3d(0, -3px, 0); }
-  82%  { transform: translate3d(0, 1px, 0); }
-  100% { opacity: 1; transform: translate3d(0, 0, 0); }
-}
-
-@keyframes dcSublineBounce {
-  0%   { opacity: 0.66; transform: translate3d(0, 11px, 0); }
-  58%  { opacity: 1; transform: translate3d(0, -3.5px, 0); }
-  82%  { transform: translate3d(0, 1px, 0); }
-  100% { opacity: 1; transform: translate3d(0, 0, 0); }
-}
-
-@keyframes dcTextBounceMicro {
-  0%   { opacity: 0.68; transform: translate3d(0, 10px, 0); }
-  56%  { opacity: 1; transform: translate3d(0, -3.5px, 0); }
-  80%  { transform: translate3d(0, 1px, 0); }
-  100% { opacity: 1; transform: translate3d(0, 0, 0); }
-}
-
-@keyframes dcPillElastic {
-  0%   { opacity: 0.64; transform: translate3d(0, 12px, 0) scale(0.91); }
-  56%  { opacity: 1; transform: translate3d(0, -4px, 0) scale(1.055); }
-  80%  { transform: translate3d(0, 1.5px, 0) scale(0.988); }
-  100% { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
-}
-
-@keyframes dcActiveDayBounce {
-  0%   { opacity: 0.68; transform: scale(0.9); }
-  56%  { opacity: 1; transform: scale(1.06); }
-  80%  { transform: scale(0.985); }
-  100% { opacity: 1; transform: scale(1); }
-}
-
-@keyframes dcRowCascade {
-  0%   { opacity: 0.62; transform: translate3d(0, 16px, 0) scale(0.975); }
-  58%  { opacity: 1; transform: translate3d(0, -4.5px, 0) scale(1.014); }
-  82%  { transform: translate3d(0, 1.5px, 0) scale(0.997); }
-  100% { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
-}
-
-@keyframes dcIconPop {
-  0%   { opacity: 0.68; transform: scale(0.76) translate3d(0, 6px, 0); }
-  55%  { opacity: 1; transform: scale(1.12) translate3d(0, -2.5px, 0); }
-  80%  { transform: scale(0.97) translate3d(0, 0.5px, 0); }
-  100% { opacity: 1; transform: scale(1) translate3d(0, 0, 0); }
-}
-
-@keyframes dcAmountSpring {
-  0%   { opacity: 0.64; transform: translate3d(0, 12px, 0) scale(0.93); }
-  55%  { opacity: 1; transform: translate3d(0, -4px, 0) scale(1.048); }
-  80%  { transform: translate3d(0, 1.5px, 0) scale(0.992); }
-  100% { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
-}
-
-@keyframes dcCountLand {
-  0%   { transform: scale(1) translateY(0); }
-  40%  { transform: scale(1.085) translateY(-2.5px); }
-  72%  { transform: scale(0.985) translateY(1px); }
-  100% { transform: scale(1) translateY(0); }
-}
-
-@keyframes dcCellPop {
-  0%   { opacity: 0.68; transform: scale(0.88) translate3d(0, 8px, 0); }
-  58%  { opacity: 1; transform: scale(1.045) translate3d(0, -2.5px, 0); }
-  82%  { transform: scale(0.99) translate3d(0, 0.5px, 0); }
-  100% { opacity: 1; transform: scale(1) translate3d(0, 0, 0); }
-}
-
-@keyframes dcMiniBarGrow {
-  0%   { opacity: 0.68; transform: scaleY(0.12); }
-  65%  { opacity: 1; transform: scaleY(1.07); }
-  85%  { transform: scaleY(0.98); }
-  100% { opacity: 1; transform: scaleY(1); }
-}
-
-/* Tarjeta inline visible para Confirmar Cortes y Sumatoria en Resumen / Día */
+/* Tarjeta inline visible para Confirmar Cortes y Sumatoria en Resumen / Día (animada con Apple Motion WAAPI) */
 .v3526-cut-action-card {
   margin: 12px 0 16px;
   padding: 13px 14px;
@@ -741,18 +513,6 @@ body::before, body::after {
   box-shadow: var(--v3526-glass-shadow);
   backdrop-filter: blur(20px) saturate(1.4);
   -webkit-backdrop-filter: blur(20px) saturate(1.4);
-}
-.shell:not(.dc-quiet-update) .v3526-cut-action-card {
-  animation: dcCardSpring 0.52s var(--dc-spring-soft) 95ms both;
-}
-.shell:not(.dc-quiet-update) .v3526-cut-action-title {
-  animation: dcTextBounceMicro 0.44s var(--dc-spring) 145ms both;
-}
-.shell:not(.dc-quiet-update) .v3526-cut-action-sub {
-  animation: dcSublineBounce 0.44s var(--dc-spring) 185ms both;
-}
-.shell:not(.dc-quiet-update) .v3526-cut-action-btn {
-  animation: dcPillElastic 0.48s var(--dc-spring-pop) 220ms both;
 }
 .v3526-cut-action-copy {
   min-width: 0;
@@ -887,24 +647,15 @@ body::before, body::after {
   backdrop-filter: none !important;
   border: 0 !important;
   box-shadow: none !important;
-  transition: transform 0.2s cubic-bezier(0.22, 1.35, 0.36, 1) !important;
-}
-
-.shell.view-enter .quick-action {
-  animation: v3526QuickPop 0.50s var(--dc-spring-pop) both;
+  transition: scale var(--motion-fast, 160ms) var(--motion-smooth, cubic-bezier(0.16, 1, 0.3, 1)) !important;
 }
 
 :root:not([data-theme="dark"]) .quick-action {
   background: transparent !important;
 }
 
-.shell.view-enter .quick-action:nth-child(1) { animation-delay: 0.06s; }
-.shell.view-enter .quick-action:nth-child(2) { animation-delay: 0.14s; }
-.shell.view-enter .quick-action:nth-child(3) { animation-delay: 0.22s; }
-.shell.view-enter .quick-action:nth-child(4) { animation-delay: 0.30s; }
-
 .quick-action:active {
-  transform: scale(0.92) !important;
+  scale: 0.94;
 }
 
 .quick-action .quick-icon {
@@ -919,7 +670,7 @@ body::before, body::after {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14);
   -webkit-backdrop-filter: blur(12px) saturate(1.3);
   backdrop-filter: blur(12px) saturate(1.3);
-  transition: transform 0.24s cubic-bezier(0.22, 1.35, 0.36, 1), background 0.2s ease, box-shadow 0.2s ease;
+  transition: transform 0.22s var(--motion-smooth, cubic-bezier(0.16, 1, 0.3, 1)), background 0.2s ease, box-shadow 0.2s ease;
 }
 
 :root:not([data-theme="dark"]) .quick-action .quick-icon {
@@ -989,17 +740,10 @@ body::before, body::after {
   letter-spacing: -0.01em !important;
 }
 
-@keyframes v3526QuickPop {
-  0%   { opacity: 0.64; transform: translate3d(0, 16px, 0) scale(0.88); }
-  56%  { opacity: 1; transform: translate3d(0, -5px, 0) scale(1.06); }
-  80%  { transform: translate3d(0, 1.5px, 0) scale(0.985); }
-  100% { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
-}
-
-/* Bottom Navigation Active Tab Halo & Spring */
+/* Bottom Navigation Active Tab Halo & Apple Tactile Press */
 .bottom-nav .tab-button {
   position: relative;
-  transition: transform 0.24s cubic-bezier(0.22, 1.3, 0.36, 1), color 0.2s ease, background 0.2s ease;
+  transition: scale var(--motion-fast, 160ms) var(--motion-smooth, cubic-bezier(0.16, 1, 0.3, 1)), color 0.2s ease, background 0.2s ease;
 }
 
 .bottom-nav .tab-button.active {
@@ -1009,13 +753,13 @@ body::before, body::after {
 }
 
 .bottom-nav .tab-button.active svg.ico {
-  transform: scale(1.1) translateY(-1px);
+  transform: scale(1.06) translateY(-1px);
   filter: drop-shadow(0 0 8px var(--v3526-glow-soft));
-  transition: transform 0.28s cubic-bezier(0.22, 1.3, 0.36, 1), filter 0.3s ease;
+  transition: transform 0.26s var(--motion-smooth, cubic-bezier(0.16, 1, 0.3, 1)), filter 0.3s ease;
 }
 
 .bottom-nav .tab-button:active {
-  transform: scale(0.93);
+  scale: 0.94;
 }
 
 /* Chart Animations: Scoped ONLY to view-enter / sub-enter / sheet (no spurious re-flash on button clicks) */
@@ -1435,11 +1179,11 @@ main.page .field-select {
   border: 1px solid var(--v3526-glass-border);
   box-shadow: var(--v3526-glass-shadow);
   cursor: pointer;
-  transition: transform 0.2s cubic-bezier(0.22, 1.3, 0.36, 1), border-color 0.2s ease;
+  transition: scale var(--motion-fast, 160ms) var(--motion-smooth, cubic-bezier(0.16, 1, 0.3, 1)), border-color 0.2s ease;
 }
 
 .v3526-pill:active {
-  transform: scale(0.95);
+  scale: 0.95;
 }
 
 .v3526-pill-count {
@@ -1522,11 +1266,11 @@ main.page .field-select {
   font-weight: 600;
   text-align: center;
   cursor: pointer;
-  transition: transform 0.2s cubic-bezier(0.22, 1.3, 0.36, 1), opacity 0.2s ease;
+  transition: scale var(--motion-fast, 160ms) var(--motion-smooth, cubic-bezier(0.16, 1, 0.3, 1)), opacity 0.2s ease;
 }
 
 .v3526-swatch:active {
-  transform: scale(0.94);
+  scale: 0.94;
 }
 
 .v3526-swatch.active .v3526-swatch-dot {
@@ -1745,7 +1489,6 @@ details.v3526-fiscal-detail { display: block; padding: 0; }
   backdrop-filter: blur(32px) saturate(1.65);
   border: 1px solid var(--v3526-glass-border);
   box-shadow: 0 24px 56px -12px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.35);
-  animation: v3526SheetSpring 0.38s cubic-bezier(0.22, 1.15, 0.36, 1) both;
 }
 
 .v3526-btn-row {
@@ -1915,5 +1658,121 @@ details.v3526-fiscal-detail { display: block; padding: 0; }
   .mini-svg rect {
     animation: none !important;
     transition: none !important;
+  }
+}
+
+/* v35.46 Apple Motion Tactile Press & Microinteracciones Globales */
+.round-button,
+.fab,
+.primary-btn,
+.secondary-btn,
+.danger-btn,
+.route-add-btn,
+.chip,
+.movement-row,
+.account-row,
+.pay-row .pay-copy,
+.pay-btn,
+.setting-row,
+.filter-open,
+.filter-trigger,
+.finance-filter-menu button,
+.year-step-btn,
+.mini-switch button,
+.sheet-tabs button,
+.keypad button,
+.text-link,
+.card[data-do],
+.day-cell:not(.outside),
+.v3526-cut-action-btn,
+.v3526-fiscal-detail > summary,
+.month-swipe {
+  touch-action: manipulation;
+  transition: scale var(--motion-fast, 160ms) var(--motion-smooth, cubic-bezier(0.16, 1, 0.3, 1));
+}
+.round-button:active,
+.fab:active,
+.primary-btn:active,
+.secondary-btn:active,
+.danger-btn:active,
+.route-add-btn:active,
+.chip:active,
+.movement-row:active,
+.account-row:active,
+.pay-row .pay-copy:active,
+.pay-btn:active,
+.setting-row:active,
+.filter-open:active,
+.filter-trigger:active,
+.finance-filter-menu button:active,
+.year-step-btn:active,
+.mini-switch button:active,
+.sheet-tabs button:active,
+.keypad button:active,
+.text-link:active,
+.card[data-do]:active,
+.day-cell:not(.outside):active,
+.v3526-cut-action-btn:active,
+.v3526-fiscal-detail > summary:active,
+.month-swipe:active {
+  scale: 0.965;
+}
+.daily-loupe-shell .daily-day:active strong {
+  opacity: 0.72;
+}
+@media (prefers-reduced-motion: reduce) {
+  .round-button,
+  .fab,
+  .primary-btn,
+  .secondary-btn,
+  .danger-btn,
+  .route-add-btn,
+  .chip,
+  .movement-row,
+  .account-row,
+  .pay-row .pay-copy,
+  .pay-btn,
+  .setting-row,
+  .filter-open,
+  .filter-trigger,
+  .finance-filter-menu button,
+  .year-step-btn,
+  .mini-switch button,
+  .sheet-tabs button,
+  .keypad button,
+  .text-link,
+  .card[data-do],
+  .day-cell:not(.outside),
+  .v3526-cut-action-btn,
+  .v3526-fiscal-detail > summary,
+  .month-swipe {
+    transition: none !important;
+  }
+  .round-button:active,
+  .fab:active,
+  .primary-btn:active,
+  .secondary-btn:active,
+  .danger-btn:active,
+  .route-add-btn:active,
+  .chip:active,
+  .movement-row:active,
+  .account-row:active,
+  .pay-row .pay-copy:active,
+  .pay-btn:active,
+  .setting-row:active,
+  .filter-open:active,
+  .filter-trigger:active,
+  .finance-filter-menu button:active,
+  .year-step-btn:active,
+  .mini-switch button:active,
+  .sheet-tabs button:active,
+  .keypad button:active,
+  .text-link:active,
+  .card[data-do]:active,
+  .day-cell:not(.outside):active,
+  .v3526-cut-action-btn:active,
+  .v3526-fiscal-detail > summary:active,
+  .month-swipe:active {
+    scale: 1 !important;
   }
 }

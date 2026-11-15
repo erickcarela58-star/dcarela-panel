@@ -1,6 +1,7 @@
-import {loadFinance,loadFullFinanceHistory,commitAction,getTerminalReceipt,loadLiveConnectivity,isLive,canRegister,canCancelMovement} from './data-source.js?v=35.45';
-import {fixture as demoFixture} from './demo-data.js?v=35.45';
-const APP_VERSION='35.45';
+import {loadFinance,loadFullFinanceHistory,commitAction,getTerminalReceipt,loadLiveConnectivity,isLive,canRegister,canCancelMovement} from './data-source.js?v=35.46';
+import {fixture as demoFixture} from './demo-data.js?v=35.46';
+import {presets as motionPresets,reducedMotion as motionReduced,springProgress as appleSpringProgress,stop as motionStop,motion as appleMotion,reveal as motionReveal,pop as motionPop,glassExpand as motionGlassExpand,revealText as motionRevealText,enterScreen as motionEnterScreen,count as motionCount} from './apple-motion.mjs?v=35.46';
+const APP_VERSION='35.46';
 const emulatorWritesAllowed=()=>isLive && ['localhost','127.0.0.1'].includes(location.hostname)
  && String(window.__DCARELA_FIREBASE_CONFIG?.projectId||'').startsWith('demo-')
  && window.__DCARELA_FINANCE_STAGING_WRITE__===true;
@@ -100,7 +101,20 @@ function saleForMovement(m){
 }
 function movementTitle(m){const sale=saleForMovement(m);if(!sale)return m.origen==='pos_venta'||m.venta_id?`Venta de Caja${m.venta_folio?' #'+m.venta_folio:''}`:m.descripcion||m.categoria||'Movimiento';const p=salePayload(sale);return `Venta ${p.folio?'#'+p.folio:''}${p.clienteNombre||p.cliente_nombre?' · '+(p.clienteNombre||p.cliente_nombre):''}`.trim()}
 const currencyOption=(value)=>`<option value="${value}" ${state.currency===value?'selected':''}>${value==='DOP'?'DOP · RD$':'USD · US$'}</option>`;
-function note(msg){const el=$('toast-region');el.innerHTML=`<div role="status" class="toast">${esc(msg)}</div>`;clearTimeout(note._timer);note._timer=setTimeout(()=>el.replaceChildren(),3200)}
+let toastSerial=0;
+function note(msg){
+ const el=$('toast-region');if(!el)return;
+ const seq=++toastSerial;clearTimeout(note._timer);
+ const oldPanel=el.querySelector('[data-motion-panel]');if(oldPanel)motionStop(oldPanel);
+ el.innerHTML=`<div class="toast-host"><div role="status" class="toast toast-panel" data-motion-panel>${esc(msg)}</div></div>`;
+ const panel=el.querySelector('[data-motion-panel]');
+ if(panel)motionGlassExpand(panel,{duration:420});
+ note._timer=setTimeout(async()=>{
+  if(seq!==toastSerial)return;
+  if(panel&&panel.isConnected&&!reducedMotion())await appleMotion(panel,{y:0,sx:1,sy:1,opacity:1},{y:8,sx:.95,sy:.95,opacity:0},{preset:'smooth',duration:180});
+  if(seq===toastSerial)el.replaceChildren();
+ },3200);
+}
 function customOptions(items,selected){return items.map(x=>`<option value="${esc(x.id)}" ${x.id===selected?'selected':''}>${esc(x.nombre)}</option>`).join('')}
 const cashAccountOptions=(selected,skip='',allowCredit=false)=>accounts().filter(a=>a.id!==skip&&(allowCredit||a.tipo!=='tarjeta_credito')&&(!isLive||a.moneda==='DOP')).map(a=>`<option value="${esc(a.id)}" ${selected===a.id?'selected':''}>${esc(a.nombre)} · ${a.moneda}</option>`).join('');
 function setTheme(theme){
@@ -723,8 +737,43 @@ function updateEntryCategoryBadge(){
 function modalEntry(){if(isLive&&!canRegister())return modalFrame('Registrar movimiento',`<div class="notice warning">El registro no está disponible desde este origen. Usa la PWA oficial o el panel central con una cuenta autorizada.</div><button class="primary-btn full" type="button" data-do="open-finance-panel" style="margin:16px 0">Abrir Finanzas del panel central</button>`);const type=state.entryType;const isTransfer=type==='transferencia';const a=account(state.entryAccount);const amt=state.entryDigits?Number(state.entryDigits):0;const currency=a?.moneda||'DOP';const backSvg='<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="pointer-events:none"><path d="M21 5H9l-6 7 6 7h12a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2Z"/><path d="m16 9-6 6"/><path d="m10 9 6 6"/></svg>';const selCatObj=cat(state.entryCategory)||cats().find(c=>c.tipo===type);const catBadgeHtml=selCatObj&&window.DcarelaCategoryLinker?.appleEmojiHtml?window.DcarelaCategoryLinker.appleEmojiHtml(window.DcarelaCategoryLinker.emojiForCategory(selCatObj.nombre),14):'';
  return modalFrame(state.entryLink&&type==='gasto'?'Pagar compromiso':'Registrar movimiento',`${state.entryLink&&type==='gasto'?`<div class="notice">Pago vinculado a <b>${esc(state.entryLink.name)}</b>. Revisa el monto y la cuenta antes de guardar.</div>`:''}<div class="sheet-tabs" role="group" aria-label="Tipo de movimiento"><button class="${type==='gasto'?'active':''}" data-do="entry-type" data-type="gasto">Gasto</button><button class="${type==='ingreso'?'active':''}" data-do="entry-type" data-type="ingreso">Ingreso</button><button class="${isTransfer?'active':''}" data-do="entry-type" data-type="transferencia">Transferencia</button></div><div class="input-amount ${type==='gasto'?'expense-text':type==='ingreso'?'income-text':'warning-text'}" aria-label="Importe actual" role="status">${type==='gasto'?'−':type==='ingreso'?'+':''}${moneyText(amt,currency)}</div><div class="keypad" role="group" aria-label="Teclado para introducir el importe">${['1','2','3','4','5','6','7','8','9','00','0','⌫'].map(v=>`<button data-do="digit" data-digit="${v}" aria-label="${v==='⌫'?'Borrar último dígito':`Agregar ${v}`}">${v==='⌫'?backSvg:v}</button>`).join('')}</div><label class="field-label" for="entry-account">${isTransfer?'Cuenta de origen':'Cuenta'}</label><select class="field-select" id="entry-account" name="entry-account">${cashAccountOptions(state.entryAccount,'',type==='gasto')}</select>${isTransfer?`<label class="field-label" for="entry-dest">Cuenta de destino</label><select class="field-select" id="entry-dest" name="entry-dest">${cashAccountOptions(state.entryDest,state.entryAccount,true)}</select>`:`<label class="field-label" for="entry-category" style="display:flex;align-items:center;gap:6px"><span>Categoría</span><span id="entry-category-badge">${catBadgeHtml}</span></label><select class="field-select" id="entry-category" name="entry-category">${cats().filter(c=>c.tipo===type).map(c=>`<option value="${esc(c.id)}" ${state.entryCategory===c.id?'selected':''}>${esc(c.nombre)}</option>`).join('')}</select>`}<div class="filter-grid"><div><label class="field-label" for="entry-date">Fecha</label><input class="field-control" id="entry-date" type="date" name="entry-date" value="${esc(state.entryDate)}"></div><div><label class="field-label" for="entry-note">Concepto</label><input class="field-control" id="entry-note" name="entry-note" value="${esc(state.entryNote)}" placeholder="Descripción" maxlength="180"></div></div><div id="entry-commitment-hint">${entryCommitmentHintHtml()}</div><div class="notice">${!canWriteBranch()?'Tu cuenta puede consultar, pero no registrar movimientos en esta sucursal.':isLive?'Se registra en Firebase (base de datos) y viaja sincronizado hacia Caja POS y el CRM.':'Previsualización: el registro no alterará saldos, historial ni Firebase.'}</div><button class="primary-btn full" data-do="entry-save" ${state.busy||!canWriteBranch()?'disabled':''}>${isLive?'Guardar movimiento':'Revisar simulación'}</button>`)}
 function renderModal(){if(!state.modal)return '';switch(state.modal){case 'account':return modalAccount();case 'accounts-filter':return modalAccountsFilter();case 'movement':return modalMovement();case 'void':return modalVoid();case 'movement-edit':return modalMovementEdit();case 'account-edit':return modalAccountEdit();case 'reconcile':return modalReconcile();case 'debt':return modalDebt();case 'debt-delete':return modalDebtDelete();case 'commitment':return modalCommitment();case 'entry':return modalEntry();default:return ''}}
-let previousModal=null, previousViewKey='', previousRootKey='', popupSerial=0, navigationDirection=0, countRafId=0, swRegistration=null, appUpdateReloading=false, appRefreshing=false;
-const reducedMotion=()=>window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+let previousModal=null, previousViewKey='', previousRootKey='', popupSerial=0, navigationDirection=0, countRafId=0, swRegistration=null, appUpdateReloading=false, appRefreshing=false, filterMenuSerial=0;
+const reducedMotion=()=>motionReduced();
+const INTERACTIVE_PRESS_SEL='button:not(.daily-day), .quick-action, .tab-button, .chip, .movement-row, .account-row, .pay-copy, .pay-btn, .setting-row, .filter-open, .filter-trigger, .finance-filter-menu button, .year-step-btn, .mini-switch button, .sheet-tabs button, .keypad button, .text-link, .card[data-do], .day-cell:not(.outside), .route-add-btn, .month-swipe, .v3526-cut-action-btn, .v3526-pill, .v3526-swatch';
+function applyApplePress(scope=document){
+ if(!scope?.querySelectorAll)return;
+ if(scope.matches?.(INTERACTIVE_PRESS_SEL))scope.classList.add('apple-press');
+ for(const el of scope.querySelectorAll(INTERACTIVE_PRESS_SEL))el.classList.add('apple-press');
+}
+function wrapMotionWords(el){
+ if(!el||el.dataset?.motionWords==='1'||reducedMotion())return false;
+ if(el.querySelector('[data-motion-unit]')){if(el.dataset)el.dataset.motionWords='1';return true;}
+ const nodes=[...el.childNodes];
+ if(!nodes.length||!nodes.every(n=>n.nodeType===3))return false;
+ const text=el.textContent||'';
+ const tokens=text.split(/(\s+)/).filter(Boolean);
+ if(!tokens.some(t=>!/^\s+$/.test(t)))return false;
+ const frag=document.createDocumentFragment();
+ for(const tok of tokens){
+  if(/^\s+$/.test(tok))frag.appendChild(document.createTextNode(tok));
+  else{
+   const sp=document.createElement('span');
+   sp.setAttribute('data-motion-unit','word');
+   sp.textContent=tok;
+   frag.appendChild(sp);
+  }
+ }
+ el.replaceChildren(frag);
+ if(el.dataset)el.dataset.motionWords='1';
+ return true;
+}
+function stopScopeAnimations(scope=document){
+ if(!scope)return;
+ motionStop(scope);
+ if(typeof scope.querySelectorAll==='function'){
+  for(const el of scope.querySelectorAll('*'))motionStop(el);
+ }
+}
 function stagePageExit(){
  document.querySelector('.page-exit')?.remove();
  return null;
@@ -734,63 +783,138 @@ function replayTick(el){
  el.classList.remove('dc-date-tick');
  void el.offsetWidth;
  el.classList.add('dc-date-tick');
+ motionStop(el);
+ if(wrapMotionWords(el))motionRevealText(el,{stagger:28,preset:'snappy',duration:360});
+ else motionReveal(el,{preset:'snappy',duration:340});
 }
 function staggerList(nodes,cls='dc-anim-row',max=12,start=0){
  let st=start;
+ const animOk=!reducedMotion();
+ const isCard=cls==='dc-anim-card',isPill=cls==='dc-anim-pill';
  for(const el of nodes||[]){
   if(!el)continue;
   if(el.dataset)el.dataset.dcChoreo='1';
   el.classList.add(cls);
-  el.style?.setProperty?.('--dc-stagger',String(Math.min(st++,max)));
+  const slot=Math.min(st++,max);
+  el.style?.setProperty?.('--dc-stagger',String(slot));
+  if(animOk&&typeof el.animate==='function'){
+   const delay=Math.min(slot*(isPill?26:34),260);
+   motionReveal(el,{preset:isPill||isCard?'snappy':'smooth',duration:isPill?360:420,delay});
+   const iconEl=el.querySelector?.('.cat-bubble,.account-icon,.setting-icon,.quick-icon,.v3526-cut-ico');
+   if(iconEl)motionPop(iconEl,{duration:440,damping:.65,delay:delay+35});
+  }
  }
  return st;
 }
 function choreographElements(scope=document,{dayOnly=false}={}){
  const root=scope?.querySelector?.('main.page')||scope;
  if(!root||typeof root.querySelectorAll!=='function')return;
- let step=0;
- const tag=(el,cls,max=14)=>{
-  if(!el||el.dataset?.dcChoreo==='1')return;
-  if(el.dataset)el.dataset.dcChoreo='1';
-  el.classList.add(cls);
-  el.style?.setProperty?.('--dc-stagger',String(Math.min(step++,max)));
+ applyApplePress(root);
+ if(reducedMotion())return;
+ const animEl=(el,fn,opts)=>{
+  if(!el||typeof el.animate!=='function')return;
+  fn(el,opts);
+ };
+ const revealTitleEl=(el,delayBase=0,wordStagger=34)=>{
+  if(!el||typeof el.animate!=='function')return;
+  if(wrapMotionWords(el)){
+   const units=[...el.querySelectorAll('[data-motion-unit]')];
+   if(units.length){
+    units.forEach((u,i)=>motionReveal(u,{preset:'smooth',duration:400,delay:Math.min(delayBase+i*wordStagger,380)}));
+    return;
+   }
+  }
+  motionReveal(el,{preset:'smooth',duration:420,delay:delayBase});
  };
  if(dayOnly){
   replayTick(root.querySelector('.daily-picker-head strong'));
   replayTick(root.querySelector('.finance-cal-head h2'));
   staggerList(root.querySelectorAll('.triple-summary > div'),'dc-anim-card',12,0);
+  const cutCard=root.querySelector('#v3526CutActionCard');
+  if(cutCard&&cutCard.dataset?.dcChoreo!=='1'){
+   if(cutCard.dataset)cutCard.dataset.dcChoreo='1';
+   animEl(cutCard,motionGlassExpand,{duration:460,damping:.76,delay:40});
+  }
   const dayMovs=root.querySelectorAll('.finance-day-movements .movement-row, .finance-day-movements .empty, .finance-cal-movements .movement-row, .finance-cal-movements .empty, .calendar-card ~ .card .movement-row, .calendar-card ~ .card .empty');
   staggerList(dayMovs,'dc-anim-row',12,2);
   return;
  }
+ let step=0;
+ const nextDelay=(gap=32)=>{const d=Math.min(step*gap,260);step++;return d;};
+ const seen=new Set();
  const blocks=root.querySelectorAll(
   '.screen-intro .eyebrow,.screen-intro .page-title,.screen-intro .subline,'+
   '.daily-picker-head small,.daily-picker-head strong,.daily-calendar,'+
   '.daily-hint,.period-picker .month-swipe,.year-step-btn,'+
   '.finance-filter .filter-current span,.finance-filter .filter-current strong,.finance-filter .filter-open,'+
-  '.hero,.quick-actions .quick-action,.metric-grid .metric,.triple-summary > div,'+
+  '.hero,#v3526CutActionCard,.quick-actions .quick-action,.metric-grid .metric,.triple-summary > div,'+
   '.section-head h2,.section-head h3,.section-head small,.section-head .text-link,.section-head .round-button,'+
   '.search-chips .chip,.mini-switch button,.route-add-btn,'+
   '.flow-panel,.category-panel,.signals-panel,.period-card,.calendar-card,.custom-range-panel,.books-card,.donut-panel,'+
   '.date-head,.movement-row,.account-row,.pay-row,.stat-row,.budget-item,.setting-row,.info-line,.category-bar-row,.signal-row,'+
-  '.v3526-card,.v3526-kpi,.error-screen,.small-card,.soft-note,.empty'
+  '.v3526-card,.v3526-kpi,.v3526-list-row,.error-screen,.small-card,.soft-note,.empty'
  );
  for(const el of blocks){
-  if(el.matches('.eyebrow,.subline,.daily-picker-head small,.filter-current span,.section-head small,.daily-hint,.soft-note'))tag(el,'dc-anim-kicker');
-  else if(el.matches('.page-title,.daily-picker-head strong,.filter-current strong,.section-head h2,.section-head h3'))tag(el,'dc-anim-title');
-  else if(el.matches('.quick-action,.chip,.mini-switch button,.route-add-btn,.year-step-btn,.daily-calendar,.filter-open,.section-head .round-button,.section-head .text-link'))tag(el,'dc-anim-pill');
-  else if(el.matches('.hero,.metric,.triple-summary > div,.flow-panel,.category-panel,.signals-panel,.period-card,.calendar-card,.custom-range-panel,.books-card,.donut-panel,.date-head,.month-swipe,.v3526-card,.v3526-kpi,.error-screen,.small-card'))tag(el,'dc-anim-card');
-  else tag(el,'dc-anim-row');
+  if(!el||seen.has(el)||el.dataset?.dcChoreo==='1')continue;
+  seen.add(el);
+  if(el.dataset)el.dataset.dcChoreo='1';
+  if(el.matches('.eyebrow,.page-title,.subline,.daily-picker-head strong,.filter-current strong,.section-head h2,.section-head h3')){
+   const d=nextDelay(28);
+   el.classList.add(el.matches('.eyebrow,.subline')?'dc-anim-kicker':'dc-anim-title');
+   revealTitleEl(el,d,el.matches('.page-title,.section-head h2')?32:20);
+  }else if(el.matches('.daily-picker-head small,.filter-current span,.section-head small,.daily-hint,.soft-note')){
+   el.classList.add('dc-anim-kicker');
+   animEl(el,motionReveal,{preset:'smooth',duration:380,delay:nextDelay(22)});
+  }else if(el.matches('.quick-action,.chip,.mini-switch button,.route-add-btn,.year-step-btn,.daily-calendar,.filter-open,.section-head .round-button,.section-head .text-link')){
+   const d=nextDelay(26);
+   el.classList.add('dc-anim-pill');
+   animEl(el,motionReveal,{preset:'snappy',duration:380,delay:d});
+   const iconEl=el.querySelector?.('.quick-icon,svg');
+   if(iconEl&&el.matches('.quick-action,.route-add-btn,.daily-calendar'))animEl(iconEl,motionPop,{duration:440,damping:.64,delay:d+36});
+  }else if(el.matches('.hero,#v3526CutActionCard,.donut-panel,.books-card')){
+   const d=nextDelay(34);
+   el.classList.add('dc-anim-card');
+   animEl(el,motionGlassExpand,{duration:500,damping:.76,delay:d});
+   if(el.matches('.hero')){
+    const lbl=el.querySelector('.hero-label'),btm=el.querySelector('.hero-bottom');
+    if(lbl)revealTitleEl(lbl,d+30,22);
+    if(btm)animEl(btm,motionReveal,{preset:'smooth',duration:420,delay:d+90});
+   }else if(el.id==='v3526CutActionCard'){
+    const t=el.querySelector('.v3526-cut-action-title span'),btn=el.querySelector('.v3526-cut-action-btn');
+    if(t)revealTitleEl(t,d+35,24);
+    if(btn)animEl(btn,motionPop,{duration:440,damping:.68,delay:d+85});
+   }
+  }else if(el.matches('.metric,.triple-summary > div,.v3526-kpi,.flow-panel,.category-panel,.signals-panel,.period-card,.calendar-card,.custom-range-panel,.date-head,.month-swipe,.v3526-card,.error-screen,.small-card')){
+   const d=nextDelay(30);
+   el.classList.add('dc-anim-card');
+   animEl(el,motionReveal,{preset:el.matches('.metric,.triple-summary > div,.v3526-kpi')?'snappy':'smooth',duration:420,delay:d});
+  }else{
+   const d=nextDelay(30);
+   el.classList.add('dc-anim-row');
+   animEl(el,motionReveal,{preset:'smooth',duration:410,delay:d});
+   const iconEl=el.querySelector?.('.cat-bubble,.account-icon,.setting-icon,.stat-dot');
+   if(iconEl)animEl(iconEl,motionPop,{duration:440,damping:.66,delay:d+36});
+  }
  }
  let calIdx=0;
  for(const cell of root.querySelectorAll('.day-cell:not(.outside)')){
+  if(cell.dataset?.dcChoreo==='1')continue;
+  if(cell.dataset)cell.dataset.dcChoreo='1';
   cell.classList.add('dc-anim-cell');
-  cell.style?.setProperty?.('--dc-stagger',String(Math.min(calIdx++,18)));
+  appleMotion(cell,{sx:.92,sy:.92,opacity:0},{sx:1,sy:1,opacity:1},{preset:'snappy',duration:300,delay:Math.min(calIdx++*9,200)});
  }
  let barIdx=0;
  for(const rect of root.querySelectorAll('.mini-svg rect')){
+  if(rect.dataset?.dcChoreo==='1')continue;
+  if(rect.dataset)rect.dataset.dcChoreo='1';
   rect.classList.add('dc-anim-bar');
-  rect.style?.setProperty?.('--dc-stagger',String(Math.min(barIdx++,14)));
+  appleMotion(rect,{sy:.12,opacity:.45},{sy:1,opacity:1},{preset:'smooth',duration:440,delay:Math.min(barIdx++*22+90,260)});
+ }
+ for(const fill of root.querySelectorAll('.progress-track > span, .horizontal-bar > span')){
+  if(fill.dataset?.dcChoreo==='1')continue;
+  if(fill.dataset)fill.dataset.dcChoreo='1';
+  fill.style.transformOrigin='left center';
+  appleMotion(fill,{sx:.08,opacity:.5},{sx:1,opacity:1},{preset:'smooth',duration:460,delay:100});
  }
 }
 function animateCountUps(scope=document){
@@ -803,7 +927,9 @@ function animateCountUps(scope=document){
   for(const el of nodes){el.textContent=el.dataset.countFinal||el.textContent;el.removeAttribute('data-count-target');}
   return;
  }
+ const cancels=animateCountUps._cancels||(animateCountUps._cancels=new WeakMap());
  const items=nodes.map((el,idx)=>{
+  cancels.get(el)?.();
   const target=Number(el.dataset.countTarget);
   const kind=el.dataset.countKind||'money';
   const currCode=el.dataset.countCurr||'DOP';
@@ -811,21 +937,24 @@ function animateCountUps(scope=document){
   const prefix=el.dataset.countPrefix||'';
   const suffix=el.dataset.countSuffix||'';
   const finalText=el.dataset.countFinal||el.textContent;
-  const delay=Math.min(720,idx*62);
-  const dur=target===0?180:Math.min(920,580+Math.min(18,idx)*18);
+  const delay=Math.min(360,idx*45);
+  const dur=target===0?160:Math.min(720,560+Math.min(12,idx)*14);
   el.textContent=kind==='int'?`0${suffix}`:`${prefix}${moneyText(0,currCode,compact)}`;
-  return {el,target,kind,currCode,compact,prefix,suffix,finalText,delay,dur,done:false};
+  const item={el,target,kind,currCode,compact,prefix,suffix,finalText,delay,dur,done:false,stopped:false};
+  cancels.set(el,()=>{item.stopped=true;});
+  return item;
  });
  const t0=(typeof performance!=='undefined'&&performance.now)?performance.now():Date.now();
  const step=now=>{
   const elapsed=Math.max(0,now-t0);
   let pending=false;
   for(const it of items){
-   if(it.done)continue;
+   if(it.done||it.stopped)continue;
    if(!it.el.isConnected){it.done=true;continue;}
    if(elapsed<it.delay){pending=true;continue;}
    const rawT=Math.min(1,(elapsed-it.delay)/it.dur);
-   const ease=1-Math.pow(1-rawT,3.4);
+   // Curva Apple Motion cuártica (1 - (1 - t)^4) sin rebotes bruscos al aterrizar
+   const ease=1-Math.pow(1-rawT,4);
    if(rawT<1){
     const cur=Math.round(it.target*ease);
     it.el.textContent=it.kind==='int'?`${cur}${it.suffix}`:`${it.prefix}${moneyText(cur,it.currCode,it.compact)}`;
@@ -834,6 +963,9 @@ function animateCountUps(scope=document){
     it.el.textContent=it.finalText;
     it.el.classList.add('is-counted');
     it.el.removeAttribute('data-count-target');
+    if(typeof appleMotion==='function'&&typeof it.el.animate==='function'){
+     appleMotion(it.el,{sx:.97,sy:.97,y:2},{sx:1,sy:1,y:0},{preset:'snappy',duration:220});
+    }
     it.done=true;
    }
   }
@@ -1014,11 +1146,13 @@ function commitDaySelectionInPlace(nextDay,{recenterLoupe=true}={}){
    triple.setAttribute('aria-label',`Totales ${label}`);
    triple.innerHTML=html;
    staggerList(triple.children,'dc-anim-card',12,0);
+   applyApplePress(triple);
    animateCountUps(triple);
    const selected=active().filter(r=>r.fecha===state.day&&curr(r)===state.currency);
    if(dayCount)dayCount.textContent=String(selected.length);
    dayMovs.innerHTML=movementsUI(selected);
    staggerList(dayMovs.querySelectorAll('.movement-row,.empty'),'dc-anim-row',12,2);
+   applyApplePress(dayMovs);
    animateCountUps(dayMovs);
    if(state.month<initialMonth && !state.historyLoaded){
     ensureFullHistory({silentRender:false}).then(()=>{if(state.tab==='finance'&&state.financeView==='diario')commitDaySelectionInPlace(state.day,{recenterLoupe:false});}).catch(()=>{});
@@ -1143,15 +1277,24 @@ function syncOverlayInPlace(modalIsNew){
  const appEl=$('app');
  if(!appEl)return;
  const existingOverlay=appEl.querySelector('.overlay');
- if(!state.modal){existingOverlay?.remove();return;}
+ if(!state.modal){if(existingOverlay){stopScopeAnimations(existingOverlay);existingOverlay.remove();}return;}
  const modalHtml=renderModal();
- if(existingOverlay)existingOverlay.outerHTML=modalHtml;
+ if(existingOverlay){stopScopeAnimations(existingOverlay);existingOverlay.outerHTML=modalHtml;}
  else if(modalHtml)appEl.insertAdjacentHTML('beforeend',modalHtml);
  const newOverlay=appEl.querySelector('.overlay');
  if(newOverlay){
   if(!modalIsNew)newOverlay.classList.add('no-enter');
   applyLiveWriteGuards(newOverlay);
-  if(modalIsNew)animateCountUps(newOverlay);
+  applyApplePress(newOverlay);
+  if(modalIsNew){
+   const sheet=newOverlay.querySelector('.sheet');
+   if(!reducedMotion()&&typeof newOverlay.animate==='function'){
+    appleMotion(newOverlay,{opacity:0},{opacity:1},{preset:'smooth',duration:220});
+    if(sheet)motionGlassExpand(sheet,{duration:480,damping:.76});
+   }
+   if(sheet)choreographElements(sheet);
+   animateCountUps(newOverlay);
+  }
  }
 }
 function updateFilterMenuInPlace(){
@@ -1162,6 +1305,9 @@ function updateFilterMenuInPlace(){
  const existingMenu=document.querySelector('main.page > .finance-filter-menu');
  if(state.financeFilterOpen){
   if(existingMenu){
+   filterMenuSerial++;
+   motionStop(existingMenu);
+   existingMenu.style.pointerEvents='';
    for(const btn of existingMenu.querySelectorAll('[data-do="view"]')){
     const sel=btn.dataset.view===state.financeView;
     btn.classList.toggle('selected',sel);
@@ -1170,11 +1316,30 @@ function updateFilterMenuInPlace(){
    }
    const curSel=existingMenu.querySelector('select[name="currency"]');
    if(curSel&&curSel.value!==state.currency)curSel.value=state.currency;
+   applyApplePress(existingMenu);
   }else{
+   const seq=++filterMenuSerial;
    filterRow.insertAdjacentHTML('afterend',financeFilterMenuHtml());
+   const menu=document.querySelector('main.page > .finance-filter-menu');
+   if(menu){
+    applyApplePress(menu);
+    if(!reducedMotion()&&seq===filterMenuSerial){
+     motionGlassExpand(menu,{duration:420,damping:.76});
+     menu.querySelectorAll('button').forEach((b,i)=>motionReveal(b,{preset:'snappy',duration:320,delay:i*22}));
+    }
+   }
   }
- }else{
-  existingMenu?.remove();
+ }else if(existingMenu){
+  const seq=++filterMenuSerial;
+  stopScopeAnimations(existingMenu);
+  if(!reducedMotion()&&typeof existingMenu.animate==='function'){
+   existingMenu.style.pointerEvents='none';
+   appleMotion(existingMenu,{sx:1,sy:1,y:0,opacity:1},{sx:.96,sy:.96,y:-8,opacity:0},{preset:'smooth',duration:170}).then(()=>{
+    if(seq===filterMenuSerial&&!state.financeFilterOpen&&existingMenu.isConnected)existingMenu.remove();
+   });
+  }else{
+   existingMenu.remove();
+  }
  }
  window.dispatchEvent(new CustomEvent('dcarela:finanzas-rendered',{detail:{tab:state.tab,route:state.route,theme:state.theme,modal:state.modal,business:state.business,financeView:state.financeView,filterOnly:true}}));
  return true;
@@ -1183,11 +1348,14 @@ function updateStatsTypeInPlace(){
  const body=document.getElementById('stats-dynamic-body');
  const root=body?.closest('.finance-view-body');
  if(!body||!root||state.tab!=='finance'||state.financeView!=='estadisticas'||state.route){render();return false;}
+ const dir=state.statsType==='ingreso'?1:-1;
  syncViewKeys();
  for(const btn of root.querySelectorAll('.mini-switch button[data-do="stats-type"]')){
   btn.classList.toggle('active',btn.dataset.type===state.statsType);
  }
+ stopScopeAnimations(body);
  body.innerHTML=renderStatsBodyHtml();
+ if(!reducedMotion())motionEnterScreen(body,{direction:dir});
  choreographElements(body);
  animateCountUps(body);
  window.dispatchEvent(new CustomEvent('dcarela:finanzas-rendered',{detail:{tab:state.tab,route:state.route,theme:state.theme,modal:state.modal,business:state.business,financeView:state.financeView,statsTypeOnly:true}}));
@@ -1203,14 +1371,19 @@ function updateCalendarDayInPlace(nextDay){
  state.month=nextDay.slice(0,7);
  syncViewKeys();
  for(const cell of calGrid.querySelectorAll('.day-cell[data-day]')){
-  cell.classList.toggle('active',cell.dataset.day===state.day);
+  const isAct=cell.dataset.day===state.day;
+  const wasAct=cell.classList.contains('active');
+  cell.classList.toggle('active',isAct);
+  if(isAct&&!wasAct&&!reducedMotion())motionPop(cell,{duration:360,damping:.72});
  }
  const selected=active().filter(m=>m.fecha===state.day&&curr(m)===state.currency);
  const h2=calHead.querySelector('h2');
  const small=calHead.querySelector('small');
- if(h2){h2.textContent=niceDay(state.day);replayTick(h2);}
+ if(h2){h2.textContent=niceDay(state.day);delete h2.dataset.motionWords;replayTick(h2);}
  if(small)small.textContent=`${selected.length} movimientos`;
+ stopScopeAnimations(calMovs);
  calMovs.innerHTML=movementsUI(selected);
+ applyApplePress(calMovs);
  staggerList(calMovs.querySelectorAll('.movement-row,.empty'),'dc-anim-row',12,0);
  animateCountUps(calMovs);
  window.dispatchEvent(new CustomEvent('dcarela:finanzas-rendered',{detail:{tab:state.tab,route:state.route,theme:state.theme,modal:state.modal,business:state.business,financeView:state.financeView,dayOnly:true}}));
@@ -1223,6 +1396,7 @@ function updateFinancePeriodInPlace({subBodyOnly=false,animateSub=false,yearDyna
   render({quiet:quietCounts,mainOnly:Boolean(state.modal)});
   return false;
  }
+ const enterDir=navigationDirection||1;
  navigationDirection=0;
  syncViewKeys();
  const kicker=main.querySelector('.finance-intro .screen-kicker');
@@ -1257,11 +1431,14 @@ function updateFinancePeriodInPlace({subBodyOnly=false,animateSub=false,yearDyna
    monthBanner.setAttribute('aria-label',`Periodo personalizado ${state.customFrom} a ${state.customTo}`);
   }else{
    monthBanner.outerHTML=periodPicker();
+   const freshBanner=main.querySelector(':scope > .month-swipe');
+   if(freshBanner&&!quietCounts&&!reducedMotion())motionEnterScreen(freshBanner,{direction:enterDir});
   }
  }
  if(refreshTotals){
   const triple=main.querySelector(':scope > .triple-summary');
   if(triple){
+   stopScopeAnimations(triple);
    const {label,html}=totalsInnerHtml();
    triple.setAttribute('aria-label',`Totales ${label}`);
    triple.innerHTML=html;
@@ -1275,8 +1452,12 @@ function updateFinancePeriodInPlace({subBodyOnly=false,animateSub=false,yearDyna
   for(const chip of viewBody.querySelectorAll('.year-chips [data-do="select-year"]')){
    chip.classList.toggle('is-active',chip.dataset.year===state.year);
   }
+  stopScopeAnimations(yearDynamic);
   yearDynamic.innerHTML=renderYearDynamicHtml();
-  if(!quietCounts)choreographElements(yearDynamic);
+  if(!quietCounts){
+   if(!reducedMotion())motionEnterScreen(yearDynamic,{direction:enterDir});
+   choreographElements(yearDynamic);
+  }
   applyLiveWriteGuards(yearDynamic);
   if(quietCounts)finishCountUpsImmediately(yearDynamic);
   else animateCountUps(yearDynamic);
@@ -1285,6 +1466,7 @@ function updateFinancePeriodInPlace({subBodyOnly=false,animateSub=false,yearDyna
   const tIn=document.getElementById('fin-custom-to');
   if(fIn&&fIn.value!==state.customFrom)fIn.value=state.customFrom;
   if(tIn&&tIn.value!==state.customTo)tIn.value=state.customTo;
+  stopScopeAnimations(customRes);
   customRes.innerHTML=renderCustomRangeResultsHtml();
   if(!quietCounts)choreographElements(customRes);
   applyLiveWriteGuards(customRes);
@@ -1293,11 +1475,11 @@ function updateFinancePeriodInPlace({subBodyOnly=false,animateSub=false,yearDyna
  }else{
   const lbl=FINANCE_VIEWS.find(([id])=>id===state.financeView)?.[1]||'Día';
   viewBody.setAttribute('aria-label',`${lbl}. Desliza para cambiar de vista`);
+  stopScopeAnimations(viewBody);
   viewBody.innerHTML=financeContentHtml();
   if(animateSub&&!quietCounts&&!reducedMotion()){
-   viewBody.classList.remove('dc-sub-enter');
-   void viewBody.offsetWidth;
    viewBody.classList.add('dc-sub-enter');
+   motionEnterScreen(viewBody,{direction:enterDir});
   }else{
    viewBody.classList.remove('dc-sub-enter');
   }
@@ -1307,6 +1489,7 @@ function updateFinancePeriodInPlace({subBodyOnly=false,animateSub=false,yearDyna
   if(quietCounts)finishCountUpsImmediately(viewBody);
   else animateCountUps(viewBody);
  }
+ applyApplePress(main);
  window.dispatchEvent(new CustomEvent('dcarela:finanzas-rendered',{detail:{tab:state.tab,route:state.route,theme:state.theme,modal:state.modal,business:state.business,financeView:state.financeView,subViewOnly:Boolean(subBodyOnly),quiet:Boolean(quietCounts)}}));
  return true;
 }
@@ -1315,6 +1498,7 @@ function updateSearchResultsInPlace(){
  const chipsEl=document.querySelector('main.page .search-chips');
  if(!slot){render();return false;}
  if(chipsEl)chipsEl.outerHTML=searchChips();
+ applyApplePress(document.querySelector('main.page .search-chips'));
  const qIn=document.getElementById('query');
  const fIn=document.getElementById('date-from');
  const tIn=document.getElementById('date-to');
@@ -1327,25 +1511,25 @@ function updateSearchResultsInPlace(){
  if(tpSel&&tpSel.value!==state.search.type)tpSel.value=state.search.type;
  if(cSel&&cSel.value!==state.search.category)cSel.value=state.search.category;
  if(accSpan)accSpan.textContent=state.search.accountIds.length===accounts().length?'Todas las cuentas':`${state.search.accountIds.length} cuentas seleccionadas`;
+ stopScopeAnimations(slot);
  slot.innerHTML=searchResults();
- let st=0;
- for(const row of slot.querySelectorAll('.date-head,.movement-row,.empty')){
-  staggerList([row],row.classList.contains('date-head')?'dc-anim-card':'dc-anim-row',12,st++);
- }
+ choreographElements(slot);
  animateCountUps(slot);
  applyLiveWriteGuards(slot);
  window.dispatchEvent(new CustomEvent('dcarela:finanzas-rendered',{detail:{tab:state.tab,route:state.route,theme:state.theme,modal:state.modal,business:state.business,financeView:state.financeView,searchResultsOnly:true}}));
  return true;
 }
-function render(opts={}){const modalIsNew=!!state.modal&&state.modal!==previousModal;const {subKey,rootKey,viewKey}=currentViewKeys();const viewIsNew=viewKey!==previousViewKey;const isDayPeriodView=state.tab==='finance'&&!state.route&&(state.financeView==='diario'||state.financeView==='calendario');const dayChangedOnly=Boolean(viewIsNew && isDayPeriodView && String(previousViewKey||'').endsWith('/ready') && viewKey.endsWith('/ready') && rootKey===previousRootKey);const shellEl=$('app')?.querySelector('.shell');if(opts?.modalOnly&&shellEl){syncOverlayInPlace(modalIsNew);window.dispatchEvent(new CustomEvent('dcarela:finanzas-rendered',{detail:{tab:state.tab,route:state.route,theme:state.theme,modal:state.modal,business:state.business,financeView:state.financeView,modalOnly:true}}));return;}stagePageExit();navigationDirection=0;previousViewKey=viewKey;previousRootKey=rootKey;document.documentElement.dataset.theme=state.theme;document.documentElement.dataset.activeView=state.route?`route:${state.route}`:state.tab;document.querySelector('meta[name="theme-color"]')?.setAttribute('content',state.theme==='dark'?'#050607':'#e8e9eb');const shouldShowBottom=!(state.authRequired||(isLive&&state.loading&&!state.data));const needFullMount=!shellEl||(Boolean(shellEl.querySelector('.bottom-nav'))!==shouldShowBottom)||(state.loading&&!state.data)||state.authRequired||Boolean(state.error);if(!needFullMount){syncHeaderAndNavChrome();shellEl.classList.toggle('dc-quiet-update',Boolean(opts?.quiet));shellEl.classList.toggle('view-enter',Boolean(viewIsNew&&!opts?.quiet));shellEl.classList.toggle('dc-day-shift',Boolean(dayChangedOnly&&!opts?.quiet));shellEl.classList.remove('dc-boot-enter');const oldMain=shellEl.querySelector('main.page');const mainHtml=renderMain();if(oldMain)oldMain.outerHTML=mainHtml;else shellEl.insertAdjacentHTML('beforeend',mainHtml);if(!opts?.mainOnly)syncOverlayInPlace(modalIsNew);else previousModal=state.modal;const newMain=shellEl.querySelector('main.page');applyLiveWriteGuards(newMain);if(viewIsNew&&!opts?.quiet){choreographElements(newMain,{dayOnly:dayChangedOnly});}initDayLoupes(newMain);if(opts?.quiet){finishCountUpsImmediately(newMain);}else if(dayChangedOnly){animateCountUps(newMain?.querySelector('.triple-summary'));animateCountUps(newMain?.querySelector('.finance-day-movements')||newMain?.querySelector('.finance-cal-movements'));}else if(viewIsNew){animateCountUps(newMain);}else{finishCountUpsImmediately(newMain);if(modalIsNew&&!opts?.mainOnly)animateCountUps($('app')?.querySelector('.overlay'));}}else{previousModal=state.modal;document.body.classList.toggle('modal-open',Boolean(state.modal));$('app').innerHTML=`<div class="shell ${viewIsNew?'view-enter':''} ${dayChangedOnly?'dc-day-shift':''}">${renderHeader()}${renderMain()}${renderBottom()}</div>${renderModal()}`;const mountedShell=$('app').querySelector('.shell');if(!bootChromeDone&&!state.loading&&!opts?.quiet&&mountedShell){mountedShell.classList.add('dc-boot-enter');bootChromeDone=true;}else if(!state.loading){bootChromeDone=true;}if(opts?.quiet&&mountedShell){mountedShell.classList.remove('view-enter','dc-boot-enter');mountedShell.classList.add('dc-quiet-update');}applyLiveWriteGuards(document);if(viewIsNew&&!opts?.quiet){choreographElements(document.querySelector('#app .shell main.page')||document.querySelector('#app .shell'),{dayOnly:dayChangedOnly});}initDayLoupes(document);if(state.modal&&!modalIsNew)document.querySelector('.overlay')?.classList.add('no-enter');if(opts?.quiet){finishCountUpsImmediately(document);}else if(dayChangedOnly){animateCountUps(document.querySelector('.triple-summary'));animateCountUps(document.querySelector('.finance-day-movements')||document.querySelector('.calendar-card ~ .card')||document.querySelector('.overlay'));}else{animateCountUps(viewIsNew?document:(document.querySelector('.overlay')||document));}}requestAnimationFrame(()=>{const scroller=document.querySelector('.segment-wrap');const active=scroller?.querySelector('.segment.active');if(scroller&&active)scroller.scrollTo({left:Math.max(0,active.offsetLeft-(scroller.clientWidth-active.clientWidth)/2),behavior:reducedMotion()?'instant':'smooth'})});window.dispatchEvent(new CustomEvent('dcarela:finanzas-rendered',{detail:{tab:state.tab,route:state.route,theme:state.theme,modal:state.modal,business:state.business,financeView:state.financeView,quiet:Boolean(opts?.quiet),mainOnly:Boolean(opts?.mainOnly),dayOnly:Boolean(dayChangedOnly)}}))}
+function render(opts={}){const modalIsNew=!!state.modal&&state.modal!==previousModal;const {subKey,rootKey,viewKey}=currentViewKeys();const viewIsNew=viewKey!==previousViewKey;const prevScreenBase=String(previousRootKey||'').split('/').slice(0,2).join('/');const nextScreenBase=`${state.tab}/${state.route}`;const screenChanged=Boolean(prevScreenBase&&prevScreenBase!==nextScreenBase);const isDayPeriodView=state.tab==='finance'&&!state.route&&(state.financeView==='diario'||state.financeView==='calendario');const dayChangedOnly=Boolean(viewIsNew && isDayPeriodView && String(previousViewKey||'').endsWith('/ready') && viewKey.endsWith('/ready') && rootKey===previousRootKey);const shellEl=$('app')?.querySelector('.shell');if(opts?.modalOnly&&shellEl){syncOverlayInPlace(modalIsNew);window.dispatchEvent(new CustomEvent('dcarela:finanzas-rendered',{detail:{tab:state.tab,route:state.route,theme:state.theme,modal:state.modal,business:state.business,financeView:state.financeView,modalOnly:true}}));return;}const enterDir=navigationDirection||1;stagePageExit();navigationDirection=0;previousViewKey=viewKey;previousRootKey=rootKey;document.documentElement.dataset.theme=state.theme;document.documentElement.dataset.activeView=state.route?`route:${state.route}`:state.tab;document.querySelector('meta[name="theme-color"]')?.setAttribute('content',state.theme==='dark'?'#050607':'#e8e9eb');const shouldShowBottom=!(state.authRequired||(isLive&&state.loading&&!state.data));const needFullMount=!shellEl||(Boolean(shellEl.querySelector('.bottom-nav'))!==shouldShowBottom)||(state.loading&&!state.data)||state.authRequired||Boolean(state.error);if(!needFullMount){syncHeaderAndNavChrome();shellEl.classList.toggle('dc-quiet-update',Boolean(opts?.quiet));shellEl.classList.toggle('view-enter',Boolean(viewIsNew&&!opts?.quiet));shellEl.classList.toggle('dc-day-shift',Boolean(dayChangedOnly&&!opts?.quiet));shellEl.classList.remove('dc-boot-enter');const oldMain=shellEl.querySelector('main.page');if(oldMain)stopScopeAnimations(oldMain);const mainHtml=renderMain();if(oldMain)oldMain.outerHTML=mainHtml;else shellEl.insertAdjacentHTML('beforeend',mainHtml);if(!opts?.mainOnly)syncOverlayInPlace(modalIsNew);else previousModal=state.modal;const newMain=shellEl.querySelector('main.page');applyLiveWriteGuards(newMain);applyApplePress(shellEl);if(viewIsNew&&!opts?.quiet){if(screenChanged&&!dayChangedOnly&&!reducedMotion()){motionEnterScreen(newMain,{direction:enterDir});const activeIcon=shellEl.querySelector('.bottom-nav .tab-button.is-active .tab-icon');if(activeIcon)motionPop(activeIcon,{duration:420,damping:.64});}choreographElements(newMain,{dayOnly:dayChangedOnly});}initDayLoupes(newMain);if(opts?.quiet){finishCountUpsImmediately(newMain);}else if(dayChangedOnly){animateCountUps(newMain?.querySelector('.triple-summary'));animateCountUps(newMain?.querySelector('.finance-day-movements')||newMain?.querySelector('.finance-cal-movements'));}else if(viewIsNew){animateCountUps(newMain);}else{finishCountUpsImmediately(newMain);if(modalIsNew&&!opts?.mainOnly)animateCountUps($('app')?.querySelector('.overlay'));}}else{previousModal=state.modal;document.body.classList.toggle('modal-open',Boolean(state.modal));stopScopeAnimations($('app'));$('app').innerHTML=`<div class="shell ${viewIsNew?'view-enter':''} ${dayChangedOnly?'dc-day-shift':''}">${renderHeader()}${renderMain()}${renderBottom()}</div>${renderModal()}`;const mountedShell=$('app').querySelector('.shell');if(!bootChromeDone&&!state.loading&&!opts?.quiet&&mountedShell){mountedShell.classList.add('dc-boot-enter');bootChromeDone=true;}else if(!state.loading){bootChromeDone=true;}if(opts?.quiet&&mountedShell){mountedShell.classList.remove('view-enter','dc-boot-enter');mountedShell.classList.add('dc-quiet-update');}applyLiveWriteGuards(document);applyApplePress(document);if(viewIsNew&&!opts?.quiet){const mountMain=document.querySelector('#app .shell main.page');if(screenChanged&&!dayChangedOnly&&mountMain&&!reducedMotion())motionEnterScreen(mountMain,{direction:enterDir});choreographElements(mountMain||document.querySelector('#app .shell'),{dayOnly:dayChangedOnly});}initDayLoupes(document);const mountOverlay=document.querySelector('.overlay');if(state.modal&&!modalIsNew)mountOverlay?.classList.add('no-enter');else if(state.modal&&modalIsNew&&!reducedMotion()){const sh=mountOverlay?.querySelector('.sheet');if(mountOverlay)appleMotion(mountOverlay,{opacity:0},{opacity:1},{preset:'smooth',duration:220});if(sh){motionGlassExpand(sh,{duration:480,damping:.76});choreographElements(sh);}}if(opts?.quiet){finishCountUpsImmediately(document);}else if(dayChangedOnly){animateCountUps(document.querySelector('.triple-summary'));animateCountUps(document.querySelector('.finance-day-movements')||document.querySelector('.calendar-card ~ .card')||document.querySelector('.overlay'));}else{animateCountUps(viewIsNew?document:(document.querySelector('.overlay')||document));}}requestAnimationFrame(()=>{const scroller=document.querySelector('.segment-wrap');const active=scroller?.querySelector('.segment.active');if(scroller&&active)scroller.scrollTo({left:Math.max(0,active.offsetLeft-(scroller.clientWidth-active.clientWidth)/2),behavior:reducedMotion()?'instant':'smooth'})});window.dispatchEvent(new CustomEvent('dcarela:finanzas-rendered',{detail:{tab:state.tab,route:state.route,theme:state.theme,modal:state.modal,business:state.business,financeView:state.financeView,quiet:Boolean(opts?.quiet),mainOnly:Boolean(opts?.mainOnly),dayOnly:Boolean(dayChangedOnly)}}))}
 function openModal(type){if(type==='entry'&&state.modal!=='entry')state.entryLinkDismissed=false;popupSerial++;state.modal=type;render({modalOnly:true});requestAnimationFrame(()=>document.querySelector('.sheet [data-do="close"]')?.focus({preventScroll:true}))}
 function closeModal(){
- const which=state.modal,serial=popupSerial,sheet=document.querySelector('.sheet');
- if(sheet && !sheet.dataset.closing && !window.matchMedia('(prefers-reduced-motion: reduce)').matches && typeof sheet.animate==='function'){
-  sheet.dataset.closing='1';document.querySelector('.overlay')?.classList.add('closing');
-  const animation=sheet.animate([{opacity:1,transform:'translateY(0)'},{opacity:0,transform:'translateY(32px)'}],{duration:180,easing:'cubic-bezier(.4,0,.9,.55)',fill:'forwards'});
+ const which=state.modal,serial=popupSerial,overlay=document.querySelector('.overlay'),sheet=document.querySelector('.sheet');
+ if(sheet && !sheet.dataset.closing && !reducedMotion() && typeof sheet.animate==='function'){
+  sheet.dataset.closing='1';overlay?.classList.add('closing');
+  motionStop(sheet);
+  if(overlay)appleMotion(overlay,{opacity:1},{opacity:0},{preset:'smooth',duration:180});
   const finish=()=>{if(state.modal===which && popupSerial===serial){state.modal=null;state.busy=false;render({modalOnly:true})}};
-  animation.finished.then(finish).catch(finish);return;
+  appleMotion(sheet,{y:0,sx:1,sy:1,opacity:1},{y:22,sx:.96,sy:.96,opacity:0},{preset:'smooth',duration:190}).then(finish,finish);
+  return;
  }
  if(sheet?.dataset.closing)return;
  state.modal=null;state.busy=false;render({modalOnly:true});
@@ -1730,6 +1914,7 @@ function applyDemoCut(cut={},opts={}){
  return {ok:true,transferCentavos:transfer,manualAmountUsed:hasManual,sinMovimiento:transfer===0,newCashBalance:cash?accountBalance(cash):null};
 }
 window.DcarelaFinanzasReload=()=>load({silent:Boolean(state.data)});
-window.DcarelaMotionRefresh=scope=>{choreographElements(scope);animateCountUps(scope);};
+window.DcarelaMotionRefresh=(scope,opts)=>{choreographElements(scope,opts);animateCountUps(scope);};
+window.DcarelaAppleMotion={presets:motionPresets,reducedMotion:motionReduced,springProgress:appleSpringProgress,stop:motionStop,motion:appleMotion,reveal:motionReveal,pop:motionPop,glassExpand:motionGlassExpand,revealText:motionRevealText,enterScreen:motionEnterScreen,count:motionCount,wrapMotionWords,applyApplePress,stopScopeAnimations};
 window.DcarelaFinanzasActions={openTab,openRoute,openPrefilledEntry,applyDemoCut,setTheme,render,checkAndApplyAppUpdate,APP_VERSION,branchDisplayName,isPlazaBranch,getSnapshot:()=>({state,isLive,accounts:accounts(),categories:cats(),business:state.business,branchAppKind,branchDisplayName:branchDisplayName(),moreItems})};
 load();

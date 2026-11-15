@@ -22,12 +22,30 @@ test('v35.40 removes whole-page left-sweep on day change and enables per-element
   assert.doesNotMatch(glassCss, /animation:\s*pageSlideForward/);
   assert.doesNotMatch(glassCss, /\.slide-forward\.view-enter \.page>\*/);
 
-  for (const keyframe of ['dcCardSpring', 'dcTextBounce', 'dcKickerRebound', 'dcSublineBounce', 'dcPillElastic', 'dcActiveDayBounce', 'dcRowCascade', 'dcIconPop', 'dcAmountSpring', 'dcCountLand', 'dcMiniBarGrow', 'dcRefreshSpin']) {
-    assert.match(motionCss, new RegExp(`@keyframes\\s+${keyframe}\\b`), `Missing keyframe ${keyframe}`);
+  const appleCss = read('apple-motion.css');
+  const appleMjs = read('apple-motion.mjs');
+
+  assert.match(appJs, /\.\/apple-motion\.mjs\?v=35\.46/);
+  assert.match(appJs, /function wrapMotionWords\(/);
+  assert.match(appJs, /function applyApplePress\(/);
+  assert.match(appJs, /function stopScopeAnimations\(/);
+
+  for (const token of ['--motion-smooth', '--motion-ease', '--motion-fast', '\\[data-motion-unit\\]', '\\.apple-press', '\\.toast-host']) {
+    assert.match(appleCss, new RegExp(token), `apple-motion.css missing ${token}`);
   }
-  assert.match(motionCss, /--dc-stagger-step:\s*\d+ms/);
-  assert.match(motionCss, /\.shell \.dc-anim-row \.row-copy small[\s\S]*dcSublineBounce/);
-  assert.match(motionCss, /@media \(prefers-reduced-motion: reduce\)[\s\S]*\.shell \.dc-anim-row[\s\S]*animation:\s*none\s*!important/);
+  for (const preset of ['smooth:', 'snappy:', 'bouncy:', 'glass:', 'press:']) {
+    assert.match(appleMjs, new RegExp(preset), `apple-motion.mjs missing preset ${preset}`);
+  }
+  for (const fn of ['springProgress', 'presets', 'stop', 'motion', 'reveal', 'pop', 'glassExpand', 'revealText', 'enterScreen', 'openDialog', 'closeDialog', 'count']) {
+    assert.match(appleMjs, new RegExp(`\\b${fn}\\b`), `apple-motion.mjs missing ${fn}`);
+  }
+  for (const legacyKeyframe of ['dcCardSpring', 'dcTextBounce', 'dcKickerRebound', 'dcSublineBounce', 'dcPillElastic', 'dcRowCascade', 'dcAmountSpring', 'dcCountLand']) {
+    assert.doesNotMatch(motionCss, new RegExp(`@keyframes\\s+${legacyKeyframe}\\b`), `Legacy keyframe ${legacyKeyframe} must be replaced by Apple Motion physics`);
+  }
+  assert.doesNotMatch(motionCss, /cubic-bezier\([^)]*1\.(2[0-9]|3[0-9]|5[0-9])/);
+  assert.doesNotMatch(glassCss, /cubic-bezier\([^)]*1\.56/);
+  assert.match(motionCss, /@media \(prefers-reduced-motion: reduce\)[\s\S]*animation:\s*none\s*!important/);
+  assert.match(motionCss, /--motion-smooth/);
 });
 
 test('v35.40 count-up animator starts money values at 0 and lands on exact formatted final string', () => {
@@ -117,7 +135,7 @@ test('v35.40 wires Refresh button next to Sun/Moon to SW/cache update & reload f
   const appJs = read('app.js');
   const swJs = read('sw.js');
 
-  assert.match(appJs, /const APP_VERSION='35\.45'/);
+  assert.match(appJs, /const APP_VERSION='35\.46'/);
   assert.match(appJs, /navigator\.serviceWorker\.register\('\.\/sw\.js',\{updateViaCache:'none'\}\)/);
   assert.match(appJs, /async function checkAndApplyAppUpdate\(\)/);
   assert.match(appJs, /if\(action==='refresh'\)\{await checkAndApplyAppUpdate\(\);return\}/);
@@ -125,7 +143,7 @@ test('v35.40 wires Refresh button next to Sun/Moon to SW/cache update & reload f
   assert.match(appJs, /waitingWorker\.postMessage\(\{type:'SKIP_WAITING'\}\)/);
   assert.match(appJs, /location\.reload\(\)/);
 
-  assert.match(swJs, /const CACHE = 'dcarela-finanzas-v35-45'/);
+  assert.match(swJs, /const CACHE = 'dcarela-finanzas-v35-46'/);
   assert.match(swJs, /event\.data\?\.type === 'SKIP_WAITING'/);
   assert.match(swJs, /url\.pathname\.endsWith\('\/sw\.js'\)/);
 });

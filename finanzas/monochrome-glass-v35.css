@@ -80,7 +80,7 @@ body,:root[data-theme="dark"] body{background:var(--bg);background-image:radial-
 .filter-current{text-align:left;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:2px;padding-left:2px}
 .filter-current span{font-size:.55rem;letter-spacing:.16em;color:var(--muted);font-weight:650}
 .filter-current strong{font-size:.93rem;font-weight:650;letter-spacing:-.01em}
-.finance-filter-menu{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px;padding:9px;margin-bottom:14px;animation:glassRise .25s ease both}
+.finance-filter-menu{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px;padding:9px;margin-bottom:14px}
 .finance-filter-menu button{background:transparent;border:0;color:var(--muted);min-height:39px;text-align:left;padding:7px 10px;border-radius:9px;font-size:.74rem}
 .finance-filter-menu button.selected{background:var(--accent-soft);color:var(--ink);font-weight:700}
 .filter-currency{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;gap:12px;color:var(--muted);font-size:.7rem;padding:7px 10px 3px}
@@ -152,33 +152,21 @@ main.page{touch-action:pan-y}
 :root:not([data-theme="dark"]) .hero-main.balance-text{text-shadow:0 0 18px rgba(255,255,255,.96),0 0 24px rgba(68,79,90,.10)}
 .filter-current strong,.daily-picker-head strong{ text-shadow:0 0 10px rgba(255,255,255,.22)}
 :root:not([data-theme="dark"]) .filter-current strong,:root:not([data-theme="dark"]) .daily-picker-head strong{text-shadow:0 0 12px rgba(255,255,255,.95)}
-.bottom-nav .tab-button:active .tab-icon,.filter-open:active svg,.round-button:active svg,.daily-calendar:active svg{transform:scale(.88)}
-.filter-open svg,.round-button svg,.daily-calendar svg{transition:transform .25s cubic-bezier(.2,.8,.2,1),filter .25s ease}
+.bottom-nav .tab-button:active .tab-icon,.filter-open:active svg,.round-button:active svg,.daily-calendar:active svg{transform:scale(.92)}
+.filter-open svg,.round-button svg,.daily-calendar svg{transition:transform .22s var(--motion-smooth,cubic-bezier(.16,1,.3,1)),filter .25s ease}
 .bottom-nav .tab-button.is-active svg{filter:drop-shadow(0 0 5px currentColor)}
 .view-enter .page{animation:none}
-.view-enter .page>.screen-intro{animation:glassRise .28s ease both}
-.view-enter .page>.hero,.view-enter .page>.month-swipe,.view-enter .page>.finance-filter{animation:glassRise .35s .04s ease both}
-.view-enter .page>.metric-grid,.view-enter .page>.triple-summary,.view-enter .page>.finance-view-body{animation:none}
-.view-enter .page .income-text,.view-enter .page .expense-text,.view-enter .page .hero-main{animation:numberReveal .4s .09s ease both}
-.view-enter .page .account-row:nth-child(-n+5),.view-enter .page .movement-row:nth-child(-n+5){animation:glassRise .3s ease both;animation-delay:calc(var(--row-index,0) * 45ms)}
-.view-enter .page .account-row:nth-child(2),.view-enter .page .movement-row:nth-child(2){--row-index:1}
-.view-enter .page .account-row:nth-child(3),.view-enter .page .movement-row:nth-child(3){--row-index:2}
-.view-enter .page .account-row:nth-child(4),.view-enter .page .movement-row:nth-child(4){--row-index:3}
-.view-enter .page .account-row:nth-child(5),.view-enter .page .movement-row:nth-child(5){--row-index:4}
-@keyframes numberReveal{from{opacity:.55;filter:brightness(.85)}to{opacity:1;filter:brightness(1)}}
-@keyframes glassRise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 @keyframes drawLine{from{stroke-dashoffset:1}to{stroke-dashoffset:0}}
-.shell.view-enter:not(.dc-quiet-update) .flow-svg .flow-income,.finance-view-body.dc-sub-enter .flow-svg .flow-income{stroke-dasharray:1;stroke-dashoffset:1;animation:drawLine .8s .15s ease forwards}
-.shell.view-enter:not(.dc-quiet-update) .flow-panel,.finance-view-body.dc-sub-enter .flow-panel{animation:glassRise .4s ease both}
-.filter-open:active,.tab-button:active{transform:scale(.95)}
-@media(prefers-reduced-motion:reduce){.view-enter .page,.view-enter .page>*,.view-enter .page .income-text,.view-enter .page .expense-text,.view-enter .page .hero-main,.view-enter .page .account-row,.view-enter .page .movement-row,.flow-panel,.finance-filter-menu,.flow-svg .flow-income{animation:none;stroke-dashoffset:0}.bottom-nav .tab-button,.bottom-nav .tab-icon,.bottom-nav .tab-label,.filter-open svg,.round-button svg,.daily-calendar svg{transition:none}.filter-open:active,.tab-button:active,.bottom-nav .tab-button:active .tab-icon,.filter-open:active svg,.round-button:active svg,.daily-calendar:active svg{transform:none}}
+.shell.view-enter:not(.dc-quiet-update) .flow-svg .flow-income,.finance-view-body.dc-sub-enter .flow-svg .flow-income{stroke-dasharray:1;stroke-dashoffset:1;animation:drawLine .75s .12s cubic-bezier(.16,1,.3,1) forwards}
+.filter-open:active,.tab-button:active{transform:scale(.96)}
+@media(prefers-reduced-motion:reduce){.view-enter .page,.view-enter .page>*,.flow-panel,.finance-filter-menu,.flow-svg .flow-income{animation:none;stroke-dashoffset:0}.bottom-nav .tab-button,.bottom-nav .tab-icon,.bottom-nav .tab-label,.filter-open svg,.round-button svg,.daily-calendar svg{transition:none}.filter-open:active,.tab-button:active,.bottom-nav .tab-button:active .tab-icon,.filter-open:active svg,.round-button:active svg,.daily-calendar:active svg{transform:none}}
 /* iOS amplía automáticamente la página al enfocar controles con texto menor de 16 px. */
 html{-webkit-text-size-adjust:100%}
 .brand-logo{width:38px;height:38px;object-fit:contain;flex:none}
 @media(max-width:700px){input:not([type="checkbox"]):not([type="radio"]),select,textarea,.filter-currency select{font-size:16px}}
 button{touch-action:manipulation}
 
-/* Coreografía fluida v35.45: cortes post-conciliación, Otra cantidad, lupa fija diaria, rebotes escalonados y cero recargas intrusivas. */
+/* Coreografía Apple Motion v35.46: animaciones físicas suavizadas, cortes post-conciliación y lupa fija diaria. */
 .top-actions{display:flex;align-items:center;gap:2px}
 .theme-toggle{color:var(--ink)!important;position:relative}
 .theme-toggle svg{width:19px;height:19px;filter:drop-shadow(0 0 5px rgba(255,255,255,.28))}
@@ -233,8 +221,8 @@ main.page[data-v3526-page="home"] .cat-bubble.ingreso{color:var(--income);backgr
 main.page[data-v3526-page="home"] .cat-bubble.gasto{color:var(--expense);background:color-mix(in srgb,var(--expense) 10%,var(--surface))}
 .quick-actions{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:8px 0 4px}
 .quick-action{display:inline-flex;align-items:center;justify-content:center;gap:4px;min-height:35px;max-height:38px;padding:5px 4px;border-radius:14px;border:0;background:var(--surface);color:var(--ink);font:inherit;font-size:.69rem;font-weight:700;cursor:pointer;
-  transition:transform .22s cubic-bezier(.34,1.56,.64,1),background .18s ease,box-shadow .22s ease;-webkit-tap-highlight-color:transparent}
-.quick-action:active{transform:scale(.95)}
+  transition:transform .18s var(--motion-smooth,cubic-bezier(.16,1,.3,1)),background .18s ease,box-shadow .22s ease;-webkit-tap-highlight-color:transparent}
+.quick-action:active{transform:scale(.96)}
 .quick-action:disabled{opacity:.45;cursor:not-allowed}
 .quick-action:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
 .quick-icon{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:var(--surface-2);flex-shrink:0}

@@ -75,18 +75,18 @@ test('v35.41 day loupe shell stays stationary centered, renders 31 sliding slots
   assert.match(glassCss, /\.daily-day\.in-lens\{/);
 });
 
-test('v35.41 switches days in-place without re-animating static page chrome or using cartoonish overshoots', () => {
+test('v35.46 switches days in-place with Apple WAAPI ticks without re-animating static page chrome or using cartoonish overshoots', () => {
   const appJs = read('app.js');
   const motionCss = read('v35-26-motion.css');
 
   assert.match(appJs, /function commitDaySelectionInPlace\(/);
   assert.match(appJs, /commitDaySelectionInPlace\(targetDay,\{recenterLoupe:true\}\)/);
-  assert.match(appJs, /function replayTick\(el\)[\s\S]*dc-date-tick/);
+  assert.match(appJs, /function replayTick\(el\)/);
   assert.match(appJs, /replayTick\(dayHead\)/);
+  assert.match(appJs, /choreographElements\(newMain,\{dayOnly:dayChangedOnly\}\)/);
 
   assert.match(motionCss, /\.shell\.dc-day-shift \.topbar,[\s\S]*\.shell\.dc-day-shift \.finance-filter,[\s\S]*animation:\s*none\s*!important;/);
-  assert.match(motionCss, /@keyframes dcDateTick\b/);
-  assert.match(motionCss, /\.dc-date-tick\s*\{/);
+  assert.doesNotMatch(motionCss, /@keyframes dcDateTick\b/);
   assert.match(motionCss, /\.v3526-cut-action-card\s*\{/);
   assert.match(motionCss, /\.v3526-cut-sum-banner\s*\{/);
   assert.doesNotMatch(motionCss, /scale\(1\.(35|46|58)\)/);
@@ -139,25 +139,27 @@ test('v35.41 surfaces visible cut confirmation card, batch/direct confirm button
   assert.equal(renderCalls, 2);
 });
 
-test('v35.45 updates service worker and asset query strings consistently across Central and Plaza', () => {
+test('v35.46 updates service worker and asset query strings consistently across Central and Plaza including Apple Motion assets', () => {
   const indexHtml = read('index.html');
   const plazaHtml = read('plaza.html');
   const swJs = read('sw.js');
   const appJs = read('app.js');
   const inboxJs = read('v35-26-inbox-fiscal.js');
 
-  assert.match(appJs, /const APP_VERSION='35\.45'/);
-  assert.match(appJs, /\.\/data-source\.js\?v=35\.45/);
-  assert.match(appJs, /\.\/demo-data\.js\?v=35\.45/);
-  assert.match(inboxJs, /\.\/data-source\.js\?v=35\.45/);
-  assert.match(inboxJs, /v35-26-category-emojis\.js\?v=35\.45/);
-  assert.match(swJs, /\/\/ DCARELA_PWA_VERSION: 35\.45/);
-  assert.match(swJs, /const CACHE = 'dcarela-finanzas-v35-45'/);
-  for (const file of ['monochrome-glass-v35.css', 'v35-26-motion.css', 'app.js', 'data-source.js', 'demo-data.js', 'v35-26-category-emojis.js', 'v35-26-inbox-fiscal.js', 'cut-review.js']) {
-    assert.ok(swJs.includes(`'./${file}?v=35.45'`), `sw.js missing cache bust for ${file}`);
+  assert.match(appJs, /const APP_VERSION='35\.46'/);
+  assert.match(appJs, /\.\/apple-motion\.mjs\?v=35\.46/);
+  assert.match(appJs, /\.\/data-source\.js\?v=35\.46/);
+  assert.match(appJs, /\.\/demo-data\.js\?v=35\.46/);
+  assert.match(inboxJs, /\.\/apple-motion\.mjs\?v=35\.46/);
+  assert.match(inboxJs, /\.\/data-source\.js\?v=35\.46/);
+  assert.match(inboxJs, /v35-26-category-emojis\.js\?v=35\.46/);
+  assert.match(swJs, /\/\/ DCARELA_PWA_VERSION: 35\.46/);
+  assert.match(swJs, /const CACHE = 'dcarela-finanzas-v35-46'/);
+  for (const file of ['apple-motion.css', 'apple-motion.mjs', 'monochrome-glass-v35.css', 'v35-26-motion.css', 'app.js', 'data-source.js', 'demo-data.js', 'v35-26-category-emojis.js', 'v35-26-inbox-fiscal.js', 'cut-review.js']) {
+    assert.ok(swJs.includes(`'./${file}?v=35.46'`), `sw.js missing cache bust for ${file}`);
   }
   for (const html of [indexHtml, plazaHtml]) {
-    assert.ok(html.includes('v=35.45'), 'HTML missing v=35.45 query params');
-    assert.doesNotMatch(html, /\?v=35\.44\b/);
+    assert.ok(html.includes('v=35.46'), 'HTML missing v=35.46 query params');
+    assert.doesNotMatch(html, /\?v=35\.45\b/);
   }
 });

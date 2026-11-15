@@ -1,5 +1,14 @@
-import { assessCut, effectiveCutTransferCentavos } from './cut-review.js?v=35.45';
-import { loadFacturadorSales } from './data-source.js?v=35.45';
+import { assessCut, effectiveCutTransferCentavos } from './cut-review.js?v=35.46';
+import { loadFacturadorSales } from './data-source.js?v=35.46';
+import {
+  reducedMotion as motionReduced,
+  stop as motionStop,
+  motion as appleMotion,
+  reveal as motionReveal,
+  pop as motionPop,
+  glassExpand as motionGlassExpand,
+  revealText as motionRevealText
+} from './apple-motion.mjs?v=35.46';
 
 /* ==========================================================================
    v35.26 Unified Inbox, Mail/Cash-Codes, Theme Palettes, Web Push & Fiscal UI
@@ -346,19 +355,54 @@ function relTime(iso) {
 }
 
 function showToast(msg, isWarn = false, iconEmoji = '') {
+  uiState.toastSeq = (uiState.toastSeq || 0) + 1;
+  const seq = uiState.toastSeq;
   let el = document.getElementById('v3526Toast');
   if (!el) {
     el = document.createElement('div');
     el.id = 'v3526Toast';
-    el.style.cssText = 'position:fixed;left:50%;bottom:88px;transform:translateX(-50%);z-index:120;max-width:360px;width:calc(100% - 32px);padding:11px 14px;border-radius:16px;font-size:13px;font-weight:600;text-align:center;backdrop-filter:blur(22px);-webkit-backdrop-filter:blur(22px);box-shadow:0 12px 28px rgba(0,0,0,.32);transition:opacity .25s ease;display:flex;align-items:center;justify-content:center;gap:7px;';
     document.body.appendChild(el);
   }
-  el.innerHTML = `${iconEmoji ? ae(iconEmoji, 16) : ''}<span>${esc(msg)}</span>`;
-  el.style.background = isWarn ? 'rgba(217,119,6,0.92)' : 'rgba(15,23,42,0.90)';
-  el.style.color = '#ffffff';
-  el.style.opacity = '1';
+  el.className = 'v3526-toast-host';
+  el.style.cssText = 'position:fixed;left:50%;bottom:88px;transform:translateX(-50%);z-index:120;max-width:360px;width:calc(100% - 32px);pointer-events:none;display:flex;justify-content:center;';
+  let panel = el.querySelector('[data-motion-panel]');
+  if (!panel) {
+    panel = document.createElement('div');
+    panel.setAttribute('data-motion-panel', '');
+    el.innerHTML = '';
+    el.appendChild(panel);
+  }
+  panel.style.cssText = 'width:100%;padding:11px 14px;border-radius:16px;font-size:13px;font-weight:600;text-align:center;backdrop-filter:blur(22px);-webkit-backdrop-filter:blur(22px);box-shadow:0 12px 28px rgba(0,0,0,.32);display:flex;align-items:center;justify-content:center;gap:7px;pointer-events:auto;color:#ffffff;';
+  panel.innerHTML = `${iconEmoji ? ae(iconEmoji, 16) : ''}<span>${esc(msg)}</span>`;
+  panel.style.background = isWarn ? 'rgba(217,119,6,0.92)' : 'rgba(15,23,42,0.90)';
+  motionStop(panel);
+  panel.style.opacity = '1';
+  panel.style.transform = '';
+  if (!motionReduced() && typeof panel.animate === 'function') {
+    motionGlassExpand(panel, { duration: 420 });
+  }
   clearTimeout(uiState.toastTimer);
-  uiState.toastTimer = setTimeout(() => { if (el) el.style.opacity = '0'; }, 3600);
+  uiState.toastTimer = setTimeout(() => {
+    if (seq !== uiState.toastSeq || !panel) return;
+    if (!motionReduced() && typeof panel.animate === 'function') {
+      const anim = appleMotion(
+        panel,
+        { y: [0, 10], sx: [1, 0.96], sy: [1, 0.96], opacity: [1, 0] },
+        { preset: 'smooth', duration: 240, fill: 'forwards' }
+      );
+      Promise.resolve(anim?.finished)
+        .catch(() => {})
+        .finally(() => {
+          if (seq === uiState.toastSeq && el && panel) {
+            panel.style.opacity = '0';
+            el.style.display = 'none';
+          }
+        });
+    } else {
+      panel.style.opacity = '0';
+      el.style.display = 'none';
+    }
+  }, 3600);
 }
 
 function normalizeInbox(raw) {
@@ -717,7 +761,29 @@ function openNativePrefilled(opts) {
 
 function closeModal() {
   uiState.activeModal = null;
-  document.getElementById('v3526ModalRoot')?.remove();
+  uiState.modalSerial = (uiState.modalSerial || 0) + 1;
+  const serial = uiState.modalSerial;
+  const root = document.getElementById('v3526ModalRoot');
+  if (!root) return;
+  const sheet = root.querySelector('.v3526-modal-sheet');
+  if (motionReduced() || !sheet || typeof sheet.animate !== 'function') {
+    root.remove();
+    return;
+  }
+  motionStop(root);
+  motionStop(sheet);
+  root.style.pointerEvents = 'none';
+  appleMotion(root, { opacity: [1, 0] }, { preset: 'smooth', duration: 200, fill: 'forwards' });
+  const sheetAnim = appleMotion(
+    sheet,
+    { y: [0, 22], sx: [1, 0.96], sy: [1, 0.96], opacity: [1, 0] },
+    { preset: 'smooth', duration: 220, fill: 'forwards' }
+  );
+  Promise.resolve(sheetAnim?.finished)
+    .catch(() => {})
+    .finally(() => {
+      if (serial === uiState.modalSerial) root.remove();
+    });
 }
 
 function openModal(type, payload = null) {
@@ -827,6 +893,19 @@ function renderInboxStrip() {
         `;
         const cta = card.querySelector('#v3526OpenCutsCta');
         if (cta) cta.onclick = () => openModal('cuts');
+        window.DcarelaAppleMotion?.applyApplePress?.(card);
+        window.DcarelaMotionRefresh?.(card);
+        if (!motionReduced() && typeof card.animate === 'function') {
+          motionReveal(card, { y: 10, scale: 0.985, duration: 400 });
+          const ico = card.querySelector('.v3526-cut-action-title img, .v3526-cut-action-title svg');
+          if (ico) motionPop(ico, { delay: 45, duration: 360 });
+          const titleEl = card.querySelector('.v3526-cut-action-title');
+          const titleSpan = titleEl?.querySelector('span') || titleEl;
+          if (titleSpan) {
+            window.DcarelaAppleMotion?.wrapMotionWords?.(titleSpan);
+            motionRevealText(titleSpan, { delay: 30, stagger: 26, duration: 360 });
+          }
+        }
       }
     }
   }
@@ -868,6 +947,14 @@ function simplifyHistoryFilters() {
     btn.onclick = () => {
       uiState.searchMoreFilters = !uiState.searchMoreFilters;
       simplifyHistoryFilters();
+      if (uiState.searchMoreFilters && !motionReduced()) {
+        searchPage.querySelectorAll('.search-advanced-fields, .filter-grid, .search-accounts').forEach((n, idx) => {
+          if (typeof n.animate === 'function') {
+            motionReveal(n, { y: 10, delay: idx * 35, duration: 360 });
+          }
+        });
+      }
+      window.DcarelaAppleMotion?.applyApplePress?.(searchPage);
     };
     chipsRow.appendChild(btn);
   }
@@ -1499,7 +1586,9 @@ function renderCajaCrmHost() {
   host.querySelectorAll('[data-eco-tab], [data-eco-sub]').forEach((b) => {
     b.onclick = () => {
       uiState.cajaCrmTab = b.dataset.ecoTab || b.dataset.ecoSub || 'overview';
+      delete host.dataset.dcHostAnimated;
       renderCajaCrmHost();
+      window.DcarelaMotionRefresh?.(host);
     };
   });
   host.querySelectorAll('[data-eco-action="refresh"]').forEach((b) => {
@@ -1902,8 +1991,13 @@ function investigateBankRateForMovement(bankKey, isFxMovement = true) {
 }
 
 function renderModalRoot() {
-  document.getElementById('v3526ModalRoot')?.remove();
+  const existingRoot = document.getElementById('v3526ModalRoot');
+  const prevModalType = existingRoot?.dataset?.modalType || '';
+  const nextModalType = uiState.activeModal?.type || '';
+  existingRoot?.remove();
   if (!uiState.activeModal) return;
+  uiState.modalSerial = (uiState.modalSerial || 0) + 1;
+  const isFreshOpen = !prevModalType || prevModalType !== nextModalType;
 
   const { type, payload } = uiState.activeModal;
   const data = uiState.data || normalizeInbox(linker().buildDemoInboxData());
@@ -2257,6 +2351,7 @@ function renderModalRoot() {
   const root = document.createElement('div');
   root.id = 'v3526ModalRoot';
   root.className = 'v3526-modal-backdrop';
+  root.dataset.modalType = nextModalType;
   root.innerHTML = `
     <section class="v3526-modal-sheet" role="dialog" aria-modal="true" aria-label="${esc(titleText)}">
       <div class="sheet-grab"></div>
@@ -2274,6 +2369,31 @@ function renderModalRoot() {
   root.querySelector('#v3526CloseModalBtn').onclick = closeModal;
 
   bindModalEvents(root, payload);
+
+  const sheet = root.querySelector('.v3526-modal-sheet');
+  window.DcarelaAppleMotion?.applyApplePress?.(root);
+  if (sheet) {
+    window.DcarelaMotionRefresh?.(sheet);
+    const h2 = sheet.querySelector('.sheet-header h2');
+    const h2Span = h2?.querySelector('span') || h2;
+    window.DcarelaAppleMotion?.wrapMotionWords?.(h2Span);
+    if (isFreshOpen && !motionReduced() && typeof sheet.animate === 'function') {
+      appleMotion(root, { opacity: [0, 1] }, { preset: 'smooth', duration: 220 });
+      motionGlassExpand(sheet, { duration: 480, damping: 0.76 });
+      if (h2Span) motionRevealText(h2Span, { delay: 45, stagger: 28, duration: 380 });
+    }
+    if (!motionReduced() && typeof sheet.animate === 'function') {
+      const modalItems = [...sheet.querySelectorAll('.v3526-cut-sum-banner, .v3526-card, .v3526-kpi, .v3526-list-row')].slice(0, 16);
+      modalItems.forEach((node, idx) => {
+        motionReveal(node, {
+          y: 12,
+          scale: 0.985,
+          delay: (isFreshOpen ? 70 : 0) + Math.min(idx, 10) * 32,
+          duration: 380
+        });
+      });
+    }
+  }
 }
 
 function bindModalEvents(root, payload) {
@@ -3025,7 +3145,7 @@ async function ensureCategoryLinker() {
   if (window.DcarelaCategoryLinker) return;
   await new Promise((resolve) => {
     const sc = document.createElement('script');
-    sc.src = './v35-26-category-emojis.js?v=35.45';
+    sc.src = './v35-26-category-emojis.js?v=35.46';
     sc.onload = resolve;
     sc.onerror = resolve;
     document.head.appendChild(sc);

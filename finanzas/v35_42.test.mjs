@@ -9,7 +9,7 @@ const read = (file) => fs.readFileSync(path.join(DIR, file), 'utf8');
 
 test('v35.42 service worker avoids mid-session skipWaiting when active worker already exists', async () => {
   const swCode = read('sw.js');
-  assert.match(swCode, /const CACHE = 'dcarela-finanzas-v35-45'/);
+  assert.match(swCode, /const CACHE = 'dcarela-finanzas-v35-46'/);
 
   function bootSw(hasActiveWorker) {
     const handlers = {};
@@ -78,9 +78,9 @@ test('v35.42 HTML pre-paint theme script reads dcarela-mm-theme correctly for Ce
   }
 });
 
-test('v35.45 eliminates unsolicited reloads and scopes button updates cleanly in app.js', () => {
+test('v35.46 eliminates unsolicited reloads and scopes button updates cleanly in app.js', () => {
   const appJs = read('app.js');
-  assert.match(appJs, /const APP_VERSION='35\.45';/);
+  assert.match(appJs, /const APP_VERSION='35\.46';/);
 
   // 1) No automatic visibilitychange background reload
   assert.doesNotMatch(appJs, /addEventListener\('visibilitychange'/);
@@ -136,14 +136,14 @@ test('v35.42 CSS removes GPU layer bloat, fixed viewport bugs, and unscoped pane
   assert.doesNotMatch(glassCss, /background-attachment:\s*fixed/);
 
   // Chart animations are gated under .view-enter:not(.dc-quiet-update) or .dc-sub-enter
-  assert.match(glassCss, /\.shell\.view-enter:not\(\.dc-quiet-update\)\s+\.flow-panel,\.finance-view-body\.dc-sub-enter\s+\.flow-panel/);
-  assert.match(glassCss, /\.shell\.view-enter:not\(\.dc-quiet-update\)\s+\.donut,\.finance-view-body\.dc-sub-enter\s+\.donut/);
+  assert.match(motionCss, /\.shell\.view-enter:not\(\.dc-quiet-update\)\s+\.flow-panel,[\s\S]*\.finance-view-body\.dc-sub-enter\s+\.flow-panel/);
+  assert.match(motionCss, /\.shell\.view-enter:not\(\.dc-quiet-update\)\s+\.donut,[\s\S]*\.finance-view-body\.dc-sub-enter\s+\.donut/);
+  assert.doesNotMatch(glassCss, /@keyframes\s+glassRise\b/);
 
   // Compositor fixes: no permanent will-change on list rows/cards or contain:strict backdrop
   assert.doesNotMatch(motionCss, /#v3526GlassBackdrop\s*\{[^}]*contain:\s*strict/);
   assert.doesNotMatch(motionCss, /\.dc-anim-card[\s\S]{0,120}will-change:\s*transform,\s*opacity/);
-  assert.match(motionCss, /\.shell\.dc-boot-enter\s+\.topbar/);
-  assert.match(motionCss, /\.shell\.dc-quiet-update\s+main\.page \*[\s\S]{0,120}animation:\s*none\s*!important/);
+  assert.match(motionCss, /\.shell\.dc-quiet-update\s+main\.page,[\s\S]{0,120}animation:\s*none\s*!important/);
 });
 
 test('v35.44 ensures initial loading->ready transition never triggers dayChangedOnly / dc-day-shift', () => {
@@ -158,30 +158,34 @@ test('v35.44 ensures initial loading->ready transition never triggers dayChanged
   );
 });
 
-test('v35.44 enforces noticeable elastic bounces and clear per-element stagger without full-panel sweeps', () => {
+test('v35.46 enforces Apple Motion WAAPI physics, staggered words/cards, toast panel isolation, and damped modals without full-panel sweeps', () => {
   const appJs = read('app.js');
+  const inboxJs = read('v35-26-inbox-fiscal.js');
   const motionCss = read('v35-26-motion.css');
+  const appleCss = read('apple-motion.css');
+  const appleMjs = read('apple-motion.mjs');
 
-  const stepMatch = motionCss.match(/--dc-stagger-step:\s*(\d+)ms/);
-  assert.ok(stepMatch && Number(stepMatch[1]) >= 50, 'stagger step must be >= 50ms so element delays are clearly visible');
-
-  // Every primary element keyframe must have intermediate bounce overshoot stops and opacity >= 0.55
-  for (const kf of ['dcCardSpring', 'dcTextBounce', 'dcKickerRebound', 'dcSublineBounce', 'dcPillElastic', 'dcRowCascade', 'dcIconPop', 'dcAmountSpring', 'dcCountLand']) {
-    const m = motionCss.match(new RegExp(`@keyframes\\s+${kf}\\s*\\{([\\s\\S]*?)\\n\\}`));
-    assert.ok(m, `Missing keyframe ${kf}`);
-    assert.match(m[1], /\b5[0-9]%|\b4[0-9]%|\b6[0-5]%/, `${kf} must include mid-flight elastic overshoot stop`);
-    const opMatch = m[1].match(/0%\s*\{[^}]*opacity:\s*([0-9.]+)/);
-    if (opMatch) assert.ok(Number(opMatch[1]) >= 0.55, `${kf} starting opacity must stay >= 0.55 to avoid black flash`);
-  }
-
-  // Distinct per-sub-element offsets inside cards/rows and sequential triple-summary stagger in JS
-  assert.match(motionCss, /\.shell \.dc-anim-row \.row-amount[\s\S]*138ms/);
-  assert.match(motionCss, /\.shell \.hero\.dc-anim-card \.hero-main[\s\S]*118ms/);
-  assert.match(motionCss, /\.shell:not\(\.dc-quiet-update\) \.v3526-cut-action-card/);
-  assert.match(appJs, /function staggerList\(/);
-  assert.match(appJs, /staggerList\(triple\.children,'dc-anim-card'/);
+  assert.match(appleMjs, /export function springProgress\(/);
+  assert.match(appleMjs, /export function revealText\(/);
+  assert.match(appleMjs, /export function glassExpand\(/);
+  assert.match(appleMjs, /export function enterScreen\(/);
+  assert.match(appleCss, /\[data-motion-unit\]/);
+  assert.match(appleCss, /\.toast-host,\s*\.v3526-toast-host/);
+  assert.match(appJs, /motionGlassExpand\(/);
+  assert.match(appJs, /motionRevealText\(/);
+  assert.match(appJs, /motionEnterScreen\(/);
+  assert.match(appJs, /stopScopeAnimations\(/);
+  assert.match(appJs, /staggerList\(/);
   assert.match(appJs, /choreographElements\(body\)/);
-  assert.match(appJs, /const delay=Math\.min\(720,idx\*62\);/);
+  assert.match(inboxJs, /motionReveal\(card,/);
+  assert.match(inboxJs, /motionGlassExpand\(/);
+  assert.match(inboxJs, /motionStop\(/);
+  assert.match(inboxJs, /v3526-toast-host/);
+  assert.match(motionCss, /\.v3526-cut-action-card\s*\{/);
+  assert.match(appleCss, /\.apple-press\s*\{/);
+  assert.match(appJs, /applyApplePress\(/);
+  assert.doesNotMatch(motionCss, /@keyframes dcCardSpring\b/);
+  assert.doesNotMatch(motionCss, /@keyframes dcRowCascade\b/);
 });
 
 test('v35.45 excludes pre-reconciliation cuts and supports Otra cantidad live sum + submission', () => {
