@@ -139,25 +139,25 @@ test('v35.41 surfaces visible cut confirmation card, batch/direct confirm button
   assert.equal(renderCalls, 2);
 });
 
-test('v35.43 updates service worker and asset query strings consistently across Central and Plaza', () => {
+test('v35.44 updates service worker and asset query strings consistently across Central and Plaza', () => {
   const indexHtml = read('index.html');
   const plazaHtml = read('plaza.html');
   const swJs = read('sw.js');
   const appJs = read('app.js');
   const inboxJs = read('v35-26-inbox-fiscal.js');
 
-  assert.match(appJs, /const APP_VERSION='35\.43'/);
-  assert.match(appJs, /\.\/data-source\.js\?v=35\.43/);
-  assert.match(appJs, /\.\/demo-data\.js\?v=35\.43/);
-  assert.match(inboxJs, /\.\/data-source\.js\?v=35\.43/);
-  assert.match(inboxJs, /v35-26-category-emojis\.js\?v=35\.43/);
-  assert.match(swJs, /\/\/ DCARELA_PWA_VERSION: 35\.43/);
-  assert.match(swJs, /const CACHE = 'dcarela-finanzas-v35-43'/);
+  assert.match(appJs, /const APP_VERSION='35\.44'/);
+  assert.match(appJs, /\.\/data-source\.js\?v=35\.44/);
+  assert.match(appJs, /\.\/demo-data\.js\?v=35\.44/);
+  assert.match(inboxJs, /\.\/data-source\.js\?v=35\.44/);
+  assert.match(inboxJs, /v35-26-category-emojis\.js\?v=35\.44/);
+  assert.match(swJs, /\/\/ DCARELA_PWA_VERSION: 35\.44/);
+  assert.match(swJs, /const CACHE = 'dcarela-finanzas-v35-44'/);
   for (const file of ['monochrome-glass-v35.css', 'v35-26-motion.css', 'app.js', 'data-source.js', 'demo-data.js', 'v35-26-category-emojis.js', 'v35-26-inbox-fiscal.js', 'cut-review.js']) {
-    assert.ok(swJs.includes(`'./${file}?v=35.43'`), `sw.js missing cache bust for ${file}`);
+    assert.ok(swJs.includes(`'./${file}?v=35.44'`), `sw.js missing cache bust for ${file}`);
   }
   for (const html of [indexHtml, plazaHtml]) {
-    assert.ok(html.includes('v=35.43'), 'HTML missing v=35.43 query params');
-    assert.doesNotMatch(html, /\?v=35\.42\b/);
+    assert.ok(html.includes('v=35.44'), 'HTML missing v=35.44 query params');
+    assert.doesNotMatch(html, /\?v=35\.43\b/);
   }
 });

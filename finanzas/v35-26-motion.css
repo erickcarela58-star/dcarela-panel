@@ -445,7 +445,7 @@ body::before, body::after {
 }
 
 /* ==========================================================================
-   v35.43 Coreografía Fluida con Rebotes Elásticos Escalonados, Lupa Fija y UI Estática
+   v35.44 Coreografía Fluida con Rebotes Elásticos Escalonados, Lupa Fija y UI Estática
    - Rebotes notables por elemento con desfase claro (--dc-stagger-step: 58ms) y
      opacidad inicial >= 0.58 (sin destellos negros en iOS/Safari).
    - Al cambiar de día o interactuar con botones dentro de la página, el marco

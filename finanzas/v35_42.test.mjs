@@ -9,7 +9,7 @@ const read = (file) => fs.readFileSync(path.join(DIR, file), 'utf8');
 
 test('v35.42 service worker avoids mid-session skipWaiting when active worker already exists', async () => {
   const swCode = read('sw.js');
-  assert.match(swCode, /const CACHE = 'dcarela-finanzas-v35-43'/);
+  assert.match(swCode, /const CACHE = 'dcarela-finanzas-v35-44'/);
 
   function bootSw(hasActiveWorker) {
     const handlers = {};
@@ -78,9 +78,9 @@ test('v35.42 HTML pre-paint theme script reads dcarela-mm-theme correctly for Ce
   }
 });
 
-test('v35.43 eliminates unsolicited reloads and scopes button updates cleanly in app.js', () => {
+test('v35.44 eliminates unsolicited reloads and scopes button updates cleanly in app.js', () => {
   const appJs = read('app.js');
-  assert.match(appJs, /const APP_VERSION='35\.43';/);
+  assert.match(appJs, /const APP_VERSION='35\.44';/);
 
   // 1) No automatic visibilitychange background reload
   assert.doesNotMatch(appJs, /addEventListener\('visibilitychange'/);
@@ -146,7 +146,19 @@ test('v35.42 CSS removes GPU layer bloat, fixed viewport bugs, and unscoped pane
   assert.match(motionCss, /\.shell\.dc-quiet-update\s+main\.page \*[\s\S]{0,120}animation:\s*none\s*!important/);
 });
 
-test('v35.43 enforces noticeable elastic bounces and clear per-element stagger without full-panel sweeps', () => {
+test('v35.44 ensures initial loading->ready transition never triggers dayChangedOnly / dc-day-shift', () => {
+  const appJs = read('app.js');
+  assert.match(
+    appJs,
+    /const isDayPeriodView=state\.tab==='finance'&&!state\.route&&\(state\.financeView==='diario'\|\|state\.financeView==='calendario'\)/,
+  );
+  assert.match(
+    appJs,
+    /const dayChangedOnly=Boolean\(viewIsNew && isDayPeriodView && String\(previousViewKey\|\|''\)\.endsWith\('\/ready'\) && viewKey\.endsWith\('\/ready'\) && rootKey===previousRootKey\)/,
+  );
+});
+
+test('v35.44 enforces noticeable elastic bounces and clear per-element stagger without full-panel sweeps', () => {
   const appJs = read('app.js');
   const motionCss = read('v35-26-motion.css');
 

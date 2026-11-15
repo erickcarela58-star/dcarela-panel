@@ -1,5 +1,11 @@
 # Continuidad del panel web
 
+## 15/11/2026 — Finanzas PWA v35.44: corrección de arranque inicial (`dayChangedOnly`) y caché sincronizada
+
+- **Coreografía completa garantizada desde el primer pintado (`finanzas/app.js`, `finanzas/v35_42.test.mjs`)**:
+  - Corregido `dayChangedOnly` en `render()` (`finanzas/app.js`) para exigir `isDayPeriodView` (`state.tab === 'finance' && !state.route && (state.financeView === 'diario' || state.financeView === 'calendario')`) y transición `.../ready -> .../ready` (`String(previousViewKey || '').endsWith('/ready') && viewKey.endsWith('/ready')`). Evita que el tránsito inicial `.../loading -> .../ready` en `Resumen` active `.dc-day-shift` (`dayOnly: true`), garantizando `.dc-anim-card` y `--dc-stagger` en `.hero`, accesos rápidos, métricas y contadores desde el arranque.
+  - Agregada prueba de regresión en [`finanzas/v35_42.test.mjs`](finanzas/v35_42.test.mjs) y actualizado el versionado `35.44` / `dcarela-finanzas-v35-44` en `index.html`, `plaza.html`, `sw.js`, `app.js`, `v35-26-inbox-fiscal.js`, `monochrome-glass-v35.css`, `v35-26-motion.css` y suites (`v35_29`, `v35_40`, `v35_41`, `v35_42`, `finanzas-pagar-compromiso`).
+
 ## 15/11/2026 — Finanzas PWA v35.43: rebotes elásticos notables con desfase por elemento y publicación unificada
 
 - **Rebotes notables y escalonamiento individual (`finanzas/v35-26-motion.css`, `finanzas/app.js`)**:

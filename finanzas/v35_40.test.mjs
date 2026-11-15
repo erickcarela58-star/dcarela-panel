@@ -117,7 +117,7 @@ test('v35.40 wires Refresh button next to Sun/Moon to SW/cache update & reload f
   const appJs = read('app.js');
   const swJs = read('sw.js');
 
-  assert.match(appJs, /const APP_VERSION='35\.43'/);
+  assert.match(appJs, /const APP_VERSION='35\.44'/);
   assert.match(appJs, /navigator\.serviceWorker\.register\('\.\/sw\.js',\{updateViaCache:'none'\}\)/);
   assert.match(appJs, /async function checkAndApplyAppUpdate\(\)/);
   assert.match(appJs, /if\(action==='refresh'\)\{await checkAndApplyAppUpdate\(\);return\}/);
@@ -125,7 +125,7 @@ test('v35.40 wires Refresh button next to Sun/Moon to SW/cache update & reload f
   assert.match(appJs, /waitingWorker\.postMessage\(\{type:'SKIP_WAITING'\}\)/);
   assert.match(appJs, /location\.reload\(\)/);
 
-  assert.match(swJs, /const CACHE = 'dcarela-finanzas-v35-43'/);
+  assert.match(swJs, /const CACHE = 'dcarela-finanzas-v35-44'/);
   assert.match(swJs, /event\.data\?\.type === 'SKIP_WAITING'/);
   assert.match(swJs, /url\.pathname\.endsWith\('\/sw\.js'\)/);
 });
