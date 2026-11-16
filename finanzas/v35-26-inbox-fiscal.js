@@ -1,5 +1,5 @@
-import { assessCut, effectiveCutTransferCentavos } from './cut-review.js?v=35.47';
-import { loadFacturadorSales } from './data-source.js?v=35.47';
+import { assessCut, effectiveCutTransferCentavos } from './cut-review.js?v=35.48';
+import { loadFacturadorSales } from './data-source.js?v=35.48';
 import {
   reducedMotion as motionReduced,
   stop as motionStop,
@@ -8,7 +8,7 @@ import {
   pop as motionPop,
   glassExpand as motionGlassExpand,
   revealText as motionRevealText
-} from './apple-motion.mjs?v=35.47';
+} from './apple-motion.mjs?v=35.48';
 
 /* ==========================================================================
    v35.26 Unified Inbox, Mail/Cash-Codes, Theme Palettes, Web Push & Fiscal UI
@@ -228,6 +228,7 @@ function getGlassConfig() {
   return { ...DEFAULT_GLASS_CFG, orbHues: [...DEFAULT_GLASS_CFG.orbHues], orbColors: [...DEFAULT_GLASS_CFG.orbColors] };
 }
 
+let lastGlassSig = '';
 function applyGlassConfig(patch, persist = true) {
   const cfg = { ...getGlassConfig(), ...(patch || {}) };
   if (Array.isArray(patch?.orbHues)) {
@@ -239,21 +240,30 @@ function applyGlassConfig(patch, persist = true) {
   const solidPreset = SOLID_BG_PRESETS.find((p) => p.id === cfg.solidBg) || SOLID_BG_PRESETS[0];
   cfg.solidBg = solidPreset.id;
   const isDark = document.documentElement.dataset.theme === 'dark';
+  const blurPx = Math.max(12, Math.min(96, Number(cfg.orbBlur || 52)));
+  const alpha = Math.max(0.12, Math.min(1, Number(cfg.orbOpacity || 78) / 100));
+  const scale = Math.max(0.55, Math.min(1.6, Number(cfg.orbScale || 100) / 100));
+  const speed = Math.max(0.35, Math.min(2.5, Number(cfg.orbSpeed || 1)));
+  const glassA = Math.max(0.18, Math.min(0.9, Number(cfg.glassAlpha || 54) / 100));
+  const orbMode = cfg.orbMode === 'custom' ? 'custom' : 'sync';
+  const sig = `${visualStyle}|${solidPreset.id}|${isDark}|${orbMode}|${blurPx}|${alpha}|${scale}|${speed}|${glassA}|${cfg.orbColors.join(',')}`;
+  if (!patch && !persist && sig === lastGlassSig) return cfg;
+  lastGlassSig = sig;
 
   const rootStyle = document.documentElement.style;
   document.documentElement.dataset.visualStyle = visualStyle;
   document.documentElement.dataset.solidBg = solidPreset.id;
-  document.documentElement.dataset.orbMode = cfg.orbMode === 'custom' ? 'custom' : 'sync';
+  document.documentElement.dataset.orbMode = orbMode;
   rootStyle.setProperty('--v3526-solid-bg-custom', isDark ? solidPreset.darkBg : solidPreset.lightBg);
   rootStyle.setProperty('--v3526-solid-surface-custom', isDark ? solidPreset.darkSurface : solidPreset.lightSurface);
   cfg.orbColors.forEach((col, i) => {
     if (/^#[0-9a-f]{6}$/i.test(col || '')) rootStyle.setProperty(`--v3526-orb-custom-${i + 1}`, col);
   });
-  rootStyle.setProperty('--v3526-orb-blur', `${Math.max(12, Math.min(96, Number(cfg.orbBlur || 52)))}px`);
-  rootStyle.setProperty('--v3526-orb-alpha', String(Math.max(0.12, Math.min(1, Number(cfg.orbOpacity || 78) / 100))));
-  rootStyle.setProperty('--v3526-orb-scale', String(Math.max(0.55, Math.min(1.6, Number(cfg.orbScale || 100) / 100))));
-  rootStyle.setProperty('--v3526-orb-speed', String(Math.max(0.35, Math.min(2.5, Number(cfg.orbSpeed || 1)))));
-  rootStyle.setProperty('--v3526-glass-alpha', String(Math.max(0.18, Math.min(0.9, Number(cfg.glassAlpha || 54) / 100))));
+  rootStyle.setProperty('--v3526-orb-blur', `${blurPx}px`);
+  rootStyle.setProperty('--v3526-orb-alpha', String(alpha));
+  rootStyle.setProperty('--v3526-orb-scale', String(scale));
+  rootStyle.setProperty('--v3526-orb-speed', String(speed));
+  rootStyle.setProperty('--v3526-glass-alpha', String(glassA));
   if (persist) {
     try { localStorage.setItem(GLASS_CFG_KEY, JSON.stringify(cfg)); } catch {}
   }
@@ -816,8 +826,10 @@ function enhanceHeaderAndQuickActions() {
     const total = Number(uiState.data?.counts?.totalPending || 0);
     const badge = bell.querySelector('.v3526-bell-badge');
     if (badge) {
-      badge.hidden = total <= 0;
-      badge.textContent = total > 9 ? '9+' : String(total);
+      const nextHidden = total <= 0;
+      const nextText = total > 9 ? '9+' : String(total);
+      if (badge.hidden !== nextHidden) badge.hidden = nextHidden;
+      if (badge.textContent !== nextText) badge.textContent = nextText;
     }
   }
 
@@ -894,16 +906,15 @@ function renderInboxStrip() {
         const cta = card.querySelector('#v3526OpenCutsCta');
         if (cta) cta.onclick = () => openModal('cuts');
         window.DcarelaAppleMotion?.applyApplePress?.(card);
-        window.DcarelaMotionRefresh?.(card);
+        window.DcarelaAppleMotion?.animateCountUps?.(card);
         if (!motionReduced() && typeof card.animate === 'function') {
-          motionReveal(card, { y: 10, scale: 0.985, duration: 400 });
+          motionReveal(card, { y: 10, scale: 0.985, duration: 380 });
           const ico = card.querySelector('.v3526-cut-action-title img, .v3526-cut-action-title svg');
-          if (ico) motionPop(ico, { delay: 45, duration: 360 });
+          if (ico) motionPop(ico, { delay: 40, duration: 340 });
           const titleEl = card.querySelector('.v3526-cut-action-title');
           const titleSpan = titleEl?.querySelector('span') || titleEl;
-          if (titleSpan) {
-            window.DcarelaAppleMotion?.wrapMotionWords?.(titleSpan);
-            motionRevealText(titleSpan, { delay: 30, stagger: 26, duration: 360 });
+          if (titleSpan && window.DcarelaAppleMotion?.wrapMotionWords?.(titleSpan)) {
+            motionRevealText(titleSpan, { delay: 25, stagger: 24, duration: 340 });
           }
         }
       }
@@ -2373,23 +2384,23 @@ function renderModalRoot() {
   const sheet = root.querySelector('.v3526-modal-sheet');
   window.DcarelaAppleMotion?.applyApplePress?.(root);
   if (sheet) {
-    window.DcarelaMotionRefresh?.(sheet);
+    window.DcarelaAppleMotion?.animateCountUps?.(sheet);
     const h2 = sheet.querySelector('.sheet-header h2');
     const h2Span = h2?.querySelector('span') || h2;
-    window.DcarelaAppleMotion?.wrapMotionWords?.(h2Span);
+    const wordsWrapped = Boolean(h2Span && window.DcarelaAppleMotion?.wrapMotionWords?.(h2Span));
     if (isFreshOpen && !motionReduced() && typeof sheet.animate === 'function') {
       appleMotion(root, { opacity: [0, 1] }, { preset: 'smooth', duration: 220 });
-      motionGlassExpand(sheet, { duration: 480, damping: 0.76 });
-      if (h2Span) motionRevealText(h2Span, { delay: 45, stagger: 28, duration: 380 });
+      motionGlassExpand(sheet, { duration: 440, damping: 0.78 });
+      if (wordsWrapped) motionRevealText(h2Span, { delay: 40, stagger: 24, duration: 340 });
     }
     if (!motionReduced() && typeof sheet.animate === 'function') {
-      const modalItems = [...sheet.querySelectorAll('.v3526-cut-sum-banner, .v3526-card, .v3526-kpi, .v3526-list-row')].slice(0, 16);
+      const modalItems = [...sheet.querySelectorAll('.v3526-cut-sum-banner, .v3526-card, .v3526-kpi, .v3526-list-row')].slice(0, 12);
       modalItems.forEach((node, idx) => {
         motionReveal(node, {
           y: 12,
           scale: 0.985,
-          delay: (isFreshOpen ? 70 : 0) + Math.min(idx, 10) * 32,
-          duration: 380
+          delay: (isFreshOpen ? 60 : 0) + Math.min(idx, 8) * 28,
+          duration: 350
         });
       });
     }
@@ -3116,7 +3127,7 @@ function handleDeepLink(rawUrl) {
 
 function syncDom() {
   uiState.renderQueued = false;
-  applyGlassConfig({}, false);
+  applyGlassConfig(null, false);
   updateLiveRibbonDOM();
   enhanceHeaderAndQuickActions();
   renderInboxStrip();
@@ -3145,7 +3156,7 @@ async function ensureCategoryLinker() {
   if (window.DcarelaCategoryLinker) return;
   await new Promise((resolve) => {
     const sc = document.createElement('script');
-    sc.src = './v35-26-category-emojis.js?v=35.47';
+    sc.src = './v35-26-category-emojis.js?v=35.48';
     sc.onload = resolve;
     sc.onerror = resolve;
     document.head.appendChild(sc);
@@ -3159,8 +3170,10 @@ async function init() {
   if (!uiState.mountedHooks) {
     uiState.mountedHooks = true;
     let lastBiz = appSnapshot().business || '';
+    let lastRenderedAt = 0;
     window.addEventListener('dcarela:finanzas-rendered', (ev) => {
       const d = ev?.detail || {};
+      lastRenderedAt = Date.now();
       if (d.modalOnly || d.themeOnly || d.filterOnly || d.statsTypeOnly || d.searchResultsOnly) return;
       const snapBiz = appSnapshot().business || '';
       const bizChanged = Boolean(snapBiz && snapBiz !== lastBiz);
@@ -3186,6 +3199,7 @@ async function init() {
     if (appNode && typeof MutationObserver === 'function') {
       let timer = null;
       const obs = new MutationObserver((mutations) => {
+        if (Date.now() - lastRenderedAt < 100) return;
         const hasMainOrShell = mutations.some((m) =>
           [...(m.addedNodes || []), ...(m.removedNodes || [])].some((n) => n?.nodeType === 1 && !n.classList?.contains('overlay'))
         );

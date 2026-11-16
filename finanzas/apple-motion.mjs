@@ -7,6 +7,7 @@ export const presets = Object.freeze({
   press: { duration: 260, damping: .85 },
 });
 const running = new WeakMap();
+const activeElements = new Set();
 export const reducedMotion = () => globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
 export function springProgress(t, damping = .78) {
   const z = Math.max(.15, Math.min(1, damping));
@@ -18,9 +19,20 @@ export function springProgress(t, damping = .78) {
   return 1-Math.exp(-z*w*t)*(Math.cos(wd*t)+z*w/wd*Math.sin(wd*t));
 }
 const clamp = (x, a=0, b=1) => Math.min(b, Math.max(a, x));
-export function stop(element) { running.get(element)?.cancel(); running.delete(element); }
+export function stop(element) {
+  running.get(element)?.cancel();
+  running.delete(element);
+  activeElements.delete(element);
+}
+export function stopInside(scope = globalThis.document) {
+  for (const el of [...activeElements]) {
+    if (!scope || scope === globalThis.document || el?.isConnected === false || scope.contains?.(el)) {
+      stop(el);
+    }
+  }
+}
 export function motion(element, from, to, {preset='snappy', duration, damping, delay=0} = {}) {
-  if (!element) return Promise.resolve(false);
+  if (!element || element.isConnected === false) return Promise.resolve(false);
   stop(element);
   const p = presets[preset] ?? presets.snappy;
   const start = {x:0,y:0,sx:1,sy:1,rotate:0,opacity:1,...from};
@@ -31,14 +43,20 @@ export function motion(element, from, to, {preset='snappy', duration, damping, d
     return { transform: `translate3d(${n('x')}px,${n('y')}px,0) rotate(${n('rotate')}deg) scale(${n('sx')},${n('sy')})`, opacity: clamp(n('opacity')) };
   };
   if (reducedMotion() || !element.animate) return Promise.resolve(true);
-  const frames = Array.from({length:81}, (_, i) => frame(i/80));
-  const a = element.animate(frames,{duration:duration ?? p.duration,delay,easing:'linear',fill:'both'});
+  const dur = duration ?? p.duration;
+  const steps = dur <= 280 ? 17 : 29;
+  const frames = Array.from({length: steps + 1}, (_, i) => frame(i / steps));
+  const a = element.animate(frames,{duration: dur,delay,easing:'linear',fill:'both'});
   running.set(element,a);
+  activeElements.add(element);
   return a.finished.then(()=>{
     if(running.get(element)!==a) return false;
     // Endpoints are transient: caller owns final layout and visibility.
-    running.delete(element); a.cancel(); return true;
-  },()=>false);
+    running.delete(element); activeElements.delete(element); a.cancel(); return true;
+  },()=>{
+    if(running.get(element)===a){ running.delete(element); activeElements.delete(element); }
+    return false;
+  });
 }
 export function reveal(element, opts={}) {
   return motion(element,{y:18,sx:.96,sy:.96,opacity:0},{y:0,sx:1,sy:1,opacity:1},opts);

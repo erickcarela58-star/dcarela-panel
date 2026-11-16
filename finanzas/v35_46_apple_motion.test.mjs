@@ -9,6 +9,7 @@ import {
   reducedMotion,
   springProgress,
   stop,
+  stopInside,
   motion,
   reveal,
   pop,
@@ -119,7 +120,8 @@ test('apple-motion WAAPI helpers animate only transform/opacity and cancel prior
     assert.equal(animations.length, 1);
     assert.equal(animations[0].cancelled, false);
 
-    // Every sampled keyframe only animates compositor-safe transform + opacity
+    // Every sampled keyframe only animates compositor-safe transform + opacity (with lean sampling budget)
+    assert.ok(animations[0].keyframes.length >= 17 && animations[0].keyframes.length <= 32, `Unexpected frame count ${animations[0].keyframes.length}`);
     for (const frame of animations[0].keyframes) {
       for (const prop of Object.keys(frame)) {
         assert.ok(['transform', 'opacity'].includes(prop), `Disallowed animated CSS prop ${prop}`);
@@ -140,6 +142,14 @@ test('apple-motion WAAPI helpers animate only transform/opacity and cancel prior
     enterScreen(el, { direction: 1 });
     assert.equal(animations.length, 4);
     assert.match(animations[3].keyframes[0].transform, /translate3d\(22px/);
+
+    // stopInside cancels only animations within matching scope in O(active)
+    const { el: otherEl, animations: otherAnims } = makeAnimTarget();
+    reveal(otherEl, { duration: 380 });
+    stopInside({ contains: (node) => node === el });
+    assert.equal(animations[3].cancelled, true);
+    assert.equal(otherAnims[0].cancelled, false);
+    stop(otherEl);
   });
 });
 
@@ -258,4 +268,16 @@ test('wrapMotionWords wraps plain text words into [data-motion-unit] while safel
   assert.equal(plainHost.dataset.motionWords, '1');
 
   assert.equal(sandbox.wrapMotionWords(svgHost), false);
+
+  const longHost = {
+    nodeType: 1,
+    dataset: {},
+    textContent: 'Uno dos tres cuatro cinco seis siete ocho nueve diez once doce',
+    childNodes: [{ nodeType: 3, textContent: 'Uno dos tres cuatro cinco seis siete ocho nueve diez once doce' }],
+    querySelector: () => null,
+    replaceChildren() {
+      throw new Error('Must skip word-splitting long strings >10 words to prevent animation storms');
+    }
+  };
+  assert.equal(sandbox.wrapMotionWords(longHost), false);
 });

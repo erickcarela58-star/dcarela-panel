@@ -430,7 +430,7 @@ body::before, body::after {
 }
 
 /* ==========================================================================
-   v35.47 Apple Motion PWA Global Physics, Cortes Post-Conciliación, Otra Cantidad y Lupa Fija
+   v35.48 Apple Motion PWA Global Physics (Anti-Freeze Budget & Fast Navigation)
    Reglas clave:
    - Cero keyframes CSS de rebote artificial: toda coreografía física corre
      con Apple Motion PWA (Smooth, Snappy, Bouncy, Liquid Glass) vía WAAPI.
@@ -1661,7 +1661,8 @@ details.v3526-fiscal-detail { display: block; padding: 0; }
   }
 }
 
-/* v35.47 Apple Motion Tactile Press & Microinteracciones Globales */
+/* v35.48 Apple Motion Tactile Press & Touch Scroll Panning */
+main.page, .finance-view-body { touch-action: pan-y; }
 .round-button,
 .fab,
 .primary-btn,

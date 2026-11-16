@@ -166,7 +166,7 @@ html{-webkit-text-size-adjust:100%}
 @media(max-width:700px){input:not([type="checkbox"]):not([type="radio"]),select,textarea,.filter-currency select{font-size:16px}}
 button{touch-action:manipulation}
 
-/* Coreografía Apple Motion v35.47: animaciones físicas suavizadas, cortes post-conciliación y lupa fija diaria. */
+/* Coreografía Apple Motion v35.48: animaciones físicas fluidas sin bloqueos al navegar rápido. */
 .top-actions{display:flex;align-items:center;gap:2px}
 .theme-toggle{color:var(--ink)!important;position:relative}
 .theme-toggle svg{width:19px;height:19px;filter:drop-shadow(0 0 5px rgba(255,255,255,.28))}
