@@ -9,7 +9,7 @@ const read = (file) => fs.readFileSync(path.join(DIR, file), 'utf8');
 
 test('v35.42 service worker avoids mid-session skipWaiting when active worker already exists', async () => {
   const swCode = read('sw.js');
-  assert.match(swCode, /const CACHE = 'dcarela-finanzas-v35-56'/);
+  assert.match(swCode, /const CACHE = 'dcarela-finanzas-v35-57'/);
 
   function bootSw(hasActiveWorker) {
     const handlers = {};
@@ -80,7 +80,7 @@ test('v35.42 HTML pre-paint theme script reads dcarela-mm-theme correctly for Ce
 
 test('v35.51 eliminates unsolicited reloads and scopes button updates cleanly in app.js', () => {
   const appJs = read('app.js');
-  assert.match(appJs, /const APP_VERSION='35\.56';/);
+  assert.match(appJs, /const APP_VERSION='35\.57';/);
 
   // 1) No automatic visibilitychange background reload
   assert.doesNotMatch(appJs, /addEventListener\('visibilitychange'/);
@@ -443,4 +443,15 @@ test('v35.56 corrige colisión de Fecha/Concepto, grids con date en iPhone 15, d
   assert.match(appJs, /function clearAppUpdateWaiting\(\)/);
   assert.match(appJs, /async function inspectWaitingWorker\(waiting\)/);
   assert.match(appJs, /if\(remote && remote===APP_VERSION\)\{[\s\S]*?clearAppUpdateWaiting\(\)/);
+});
+
+test('v35.57 aplica desenfoque gaussiano centrado en los orbes sin costo GPU de filter:blur en iPhone', () => {
+  const motionCss = read('v35-26-motion.css');
+  const inboxJs = read('v35-26-inbox-fiscal.js');
+
+  assert.match(motionCss, /closest-side at 50% 50%[\s\S]*?--v3526-orb-s1[\s\S]*?--v3526-orb-s4[\s\S]*?transparent 100%/);
+  assert.match(motionCss, /--v3526-orb-blur-scale/);
+  assert.match(inboxJs, /rootStyle\.setProperty\('--v3526-orb-blur-scale'/);
+  assert.match(inboxJs, /rootStyle\.setProperty\('--v3526-orb-s1'/);
+  assert.match(inboxJs, /rootStyle\.setProperty\('--v3526-orb-peak'/);
 });

@@ -1,5 +1,5 @@
-import { assessCut, effectiveCutTransferCentavos } from './cut-review.js?v=35.56';
-import { loadFacturadorSales } from './data-source.js?v=35.56';
+import { assessCut, effectiveCutTransferCentavos } from './cut-review.js?v=35.57';
+import { loadFacturadorSales } from './data-source.js?v=35.57';
 import {
   reducedMotion as motionReduced,
   stop as motionStop,
@@ -8,7 +8,7 @@ import {
   pop as motionPop,
   glassExpand as motionGlassExpand,
   revealText as motionRevealText
-} from './apple-motion.mjs?v=35.56';
+} from './apple-motion.mjs?v=35.57';
 
 /* ==========================================================================
    v35.26 Unified Inbox, Mail/Cash-Codes, Theme Palettes, Web Push & Fiscal UI
@@ -266,7 +266,14 @@ function applyGlassConfig(patch, persist = true) {
   cfg.orbColors.forEach((col, i) => {
     if (/^#[0-9a-f]{6}$/i.test(col || '')) rootStyle.setProperty(`--v3526-orb-custom-${i + 1}`, col);
   });
+  const blurT = Math.max(0, Math.min(1, (blurPx - 16) / 76));
   rootStyle.setProperty('--v3526-orb-blur', `${blurPx}px`);
+  rootStyle.setProperty('--v3526-orb-blur-scale', (0.88 + blurT * 0.44).toFixed(3));
+  rootStyle.setProperty('--v3526-orb-peak', `${Math.round(100 - blurT * 24)}%`);
+  rootStyle.setProperty('--v3526-orb-s1', `${(24 - blurT * 20).toFixed(1)}%`);
+  rootStyle.setProperty('--v3526-orb-s2', `${(46 - blurT * 20).toFixed(1)}%`);
+  rootStyle.setProperty('--v3526-orb-s3', `${(68 - blurT * 18).toFixed(1)}%`);
+  rootStyle.setProperty('--v3526-orb-s4', `${(86 - blurT * 10).toFixed(1)}%`);
   rootStyle.setProperty('--v3526-orb-alpha', String(alpha));
   rootStyle.setProperty('--v3526-orb-scale', String(scale));
   rootStyle.setProperty('--v3526-orb-speed', String(speed));
@@ -3382,7 +3389,7 @@ async function ensureCategoryLinker() {
   if (window.DcarelaCategoryLinker) return;
   await new Promise((resolve) => {
     const sc = document.createElement('script');
-    sc.src = './v35-26-category-emojis.js?v=35.56';
+    sc.src = './v35-26-category-emojis.js?v=35.57';
     sc.onload = resolve;
     sc.onerror = resolve;
     document.head.appendChild(sc);

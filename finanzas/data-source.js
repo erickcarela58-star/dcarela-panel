@@ -227,6 +227,23 @@ export async function loadFacturadorSales(requestedBusinessId, api = adapter()) 
   return { businessId: chosen, sales, demo: false };
 }
 
+// Descarga el archivo fiscal original desde un snapshot privado de Firebase.
+// La accion del servidor vuelve a validar sesion, rol y business_id.
+export async function loadFiscalBookDownload(businessId, book, api = adapter()) {
+  if (!isLive) throw new Error('La descarga del libro requiere una sesión real.');
+  if (!['active', 'template'].includes(book)) throw new Error('Archivo fiscal no admitido.');
+  if (typeof api.assistantRequest !== 'function') throw new Error('La descarga fiscal no está disponible.');
+  const { user, allowed } = await sessionBusinesses(api);
+  const member = allowed.find(branch => branch.id === businessId);
+  if (!member || !['owner', 'admin'].includes(member.role)) {
+    throw new Error('Tu cuenta no puede descargar los libros de esta sucursal.');
+  }
+  const result = await api.assistantRequest({ action: 'pwaFiscalBookDownload', book, sucursal_de_trabajo: businessId });
+  if (api.getCurrentUser()?.uid !== user.uid) throw new Error('La sesión cambió durante la descarga. Vuelve a iniciar sesión.');
+  if (!result || result.ok !== true) throw new Error('Firebase no entregó el libro fiscal.');
+  return result;
+}
+
 export async function commitAction(action, businessId, entityId, data) {
   if (!isLive) return {preview:true};
   if (action === 'fin.movement.cancel' && !canCancelMovement()) {

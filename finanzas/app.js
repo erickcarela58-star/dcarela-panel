@@ -1,7 +1,7 @@
-import {loadFinance,loadFullFinanceHistory,commitAction,getTerminalReceipt,loadLiveConnectivity,isLive,canRegister,canCancelMovement} from './data-source.js?v=35.56';
-import {fixture as demoFixture} from './demo-data.js?v=35.56';
-import {presets as motionPresets,reducedMotion as motionReduced,springProgress as appleSpringProgress,stop as motionStop,stopInside as motionStopInside,motion as appleMotion,reveal as motionReveal,pop as motionPop,glassExpand as motionGlassExpand,revealText as motionRevealText,enterScreen as motionEnterScreen,count as motionCount} from './apple-motion.mjs?v=35.56';
-const APP_VERSION='35.56';
+import {loadFinance,loadFullFinanceHistory,loadFiscalBookDownload,commitAction,getTerminalReceipt,loadLiveConnectivity,isLive,canRegister,canCancelMovement} from './data-source.js?v=35.57';
+import {fixture as demoFixture} from './demo-data.js?v=35.57';
+import {presets as motionPresets,reducedMotion as motionReduced,springProgress as appleSpringProgress,stop as motionStop,stopInside as motionStopInside,motion as appleMotion,reveal as motionReveal,pop as motionPop,glassExpand as motionGlassExpand,revealText as motionRevealText,enterScreen as motionEnterScreen,count as motionCount} from './apple-motion.mjs?v=35.57';
+const APP_VERSION='35.57';
 const emulatorWritesAllowed=()=>isLive && ['localhost','127.0.0.1'].includes(location.hostname)
  && String(window.__DCARELA_FIREBASE_CONFIG?.projectId||'').startsWith('demo-')
  && window.__DCARELA_FINANCE_STAGING_WRITE__===true;
@@ -549,6 +549,7 @@ function renderBooks(){
  const pref=state.data?.preferences||{},cfg=pref.libros_fiscales||{},st=pref.libros_fiscales_estado||{};
  const cuando=v=>{const t=Date.parse(v||'');return Number.isFinite(t)?new Intl.DateTimeFormat('es-DO',{dateStyle:'medium',timeStyle:'short',timeZone:'America/Santo_Domingo'}).format(new Date(t)):'Nunca'};
  const pendiente=Date.parse(cfg.solicitud_at||'')>Date.parse(st.ultima_corrida_at||'')||(cfg.solicitud_at&&!st.ultima_corrida_at);
+ const canDownload=isLive&&state.business==='dcarela'&&canWriteBranch();
  return `<main class="page" id="main">${routeHead('Libros fiscales','Propuestas 606/607 y comprobantes del Facturador')}
  <div class="card books-card"><div class="books-head">${ico('book','lg')}<div><b>Registro automático</b><small>${cfg.auto?'Encendido: se anota una vez al día':'Apagado: solo cuando lo pidas'}</small></div>
  <button class="switch ${cfg.auto?'on':''}" type="button" role="switch" aria-checked="${cfg.auto?'true':'false'}" aria-label="Registro automático de libros" data-do="books-toggle" ${state.busy||!canWriteBranch()?'disabled':''}><span></span></button></div>
@@ -560,8 +561,30 @@ function renderBooks(){
  <div class="info-line"><span>Ventas anotadas</span><strong>${Number(st.ventas||0)}</strong></div>
  <div class="info-line"><span>Por revisar</span><strong>${Number(st.revisar||0)}</strong></div>
  ${st.ultimo_error_at?`<div class="notice warning">${esc(st.mensaje||'La última pasada no pudo escribir el libro.')}</div>`:st.mensaje?`<p class="soft-note">${esc(st.mensaje)}</p>`:''}</div>
+ <div class="section-head"><h2>Descargar archivos</h2></div><div class="card">
+ <button class="primary-btn full" type="button" data-do="books-download" data-book="active" ${canDownload?'':'disabled'}>${ico('arrow-down','sm')} Descargar libro actualizado 606/607</button>
+ <button class="secondary-btn full" type="button" data-do="books-download" data-book="template" style="margin-top:10px" ${canDownload?'':'disabled'}>${ico('arrow-down','sm')} Descargar plantilla 606/607</button>
+ <p class="soft-note">${isLive&&state.business==='dcarela'?'Archivos privados de Central. Se comprueba el SHA-256 antes de descargar.':isLive?'Los archivos de Central no están disponibles desde Plaza.':'Inicia sesión en Central para descargar archivos reales.'}</p></div>
  <p class="soft-note">Compras: las facturas con RNC y NCF que mandas por WhatsApp. Ventas: los XML de e-CF que guardes en la carpeta «e-CF emitidos (XML)» de Drive y, si la dejas abierta en el navegador de Hermes, la lista de comprobantes del Facturador Gratuito. Las que tienen RNC, NCF o fecha ilegible quedan «por revisar» y no entran al libro.</p>
  <p class="soft-note">También por WhatsApp: «libros», «activa libros», «apaga libros».</p><div id="v3526FiscalHost"></div></main>`}
+async function saveFiscalBookSnapshot(result,book){
+ const files={active:"Libros fiscales D'Carela 2026.xlsx",template:'PLANTILLA Libro Ventas 607 y Compras 606.xlsx'};
+ const name=files[book],mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+ if(!name||result?.file_name!==name||result?.content_type!==mime)throw new Error('El archivo fiscal recibido no coincide con el solicitado.');
+ const size=Number(result.size_bytes),encoded=String(result.data_base64||'');
+ if(!Number.isSafeInteger(size)||size<4||size>8*1024*1024||encoded.length>Math.ceil(8*1024*1024/3)*4+4)throw new Error('Tamaño del libro fiscal no válido.');
+ let binary;try{binary=atob(encoded)}catch{throw new Error('Firebase entregó un libro fiscal incompleto.');}
+ if(binary.length!==size)throw new Error('El tamaño del libro fiscal descargado no coincide.');
+ const bytes=Uint8Array.from(binary,c=>c.charCodeAt(0));
+ const expectedHash=String(result.sha256||'').toUpperCase();
+ if(!/^[A-F0-9]{64}$/.test(expectedHash)||!globalThis.crypto?.subtle)throw new Error('No se pudo verificar la integridad del libro fiscal.');
+ const digest=await crypto.subtle.digest('SHA-256',bytes);
+ const actualHash=Array.from(new Uint8Array(digest),b=>b.toString(16).padStart(2,'0')).join('').toUpperCase();
+ if(actualHash!==expectedHash)throw new Error('El SHA-256 del libro fiscal no coincide.');
+ const url=URL.createObjectURL(new Blob([bytes],{type:mime}));
+ const link=document.createElement('a');link.href=url;link.download=name;document.body.append(link);link.click();link.remove();
+ setTimeout(()=>URL.revokeObjectURL(url),60000);
+}
 function renderCajaCrm(){return `<main class="page" id="main" data-v3526-page="caja_crm">${routeHead('Caja y CRM en vivo','Base de datos Firestore, POS y atención al cliente')}<div id="v3526CajaCrmHost"></div></main>`}
 function renderMail(){return `<main class="page" id="main" data-v3526-page="mail">${routeHead('Correos y Códigos Cash','Bancos conectados, transferencias y retiros cash')}<div id="v3526MailHost"></div></main>`}
 function renderSettings(){const userEmail=isLive?(window.DcarelaFirebase?.getCurrentUser?.()?.email||''):'demo@dcarelacompufoto.com';return `<main class="page" id="main" data-v3526-page="settings">${routeHead('Ajustes y Apariencia','Conexión en vivo, colores glass y alertas')}<div id="v3526SettingsTopHost"></div><div class="card" style="padding:15px"><div class="info-line" style="margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--border)"><span>Sucursal de esta PWA</span><strong>${esc(branchDisplayName())}</strong></div><label class="field-label" for="theme-choice" style="margin-top:0">Apariencia</label><select class="field-select" id="theme-choice" name="theme"><option value="light" ${state.theme==='light'?'selected':''}>Claro</option><option value="dark" ${state.theme==='dark'?'selected':''}>Oscuro</option></select><label class="field-label" for="pref-currency">Moneda de las vistas</label><select class="field-select" id="pref-currency" name="currency">${currencyOption('DOP')}${currencyOption('USD')}</select><div class="notice">Las monedas se muestran por separado; cambiar el selector nunca convierte importes ni modifica el libro.</div></div><div id="v3526ConnectionHost"><div class="section-head"><h2>Base de datos · Caja · CRM</h2></div><div class="card small-card"><h3>${isLive?'Firebase (erikccarela) · En línea':'Demostración sin escritura'}</h3><p>${isLive?`Cuenta activa: ${esc(userEmail||'autorizada')}. Abre «Caja y CRM en vivo» desde Herramientas para monitorear terminales, chats y clientes.`:'Previsualización interactiva sin alterar la base real.'}</p></div></div></main>`}
@@ -1889,6 +1912,12 @@ async function handleClick(e){if(Date.now()<swipeSuppressClickUntil)return;const
  if(action==='debt'){state.accountId=btn.dataset.id;openModal('debt');return}
  if(action==='books-toggle'||action==='books-now'){const cfg=state.data?.preferences?.libros_fiscales||{};state.pendingRequestId=requestId();
   await commit('fin.books.request',state.business,{requestId:state.pendingRequestId,...(action==='books-toggle'?{auto:!cfg.auto}:{})});return}
+ if(action==='books-download'){
+  const book=btn.dataset.book;if(!['active','template'].includes(book)||!isLive||state.business!=='dcarela'||!canWriteBranch()){note('La descarga requiere una sesión autorizada de Central.');return}
+  if(btn.disabled)return;btn.disabled=true;const original=btn.innerHTML;btn.textContent='Preparando descarga…';
+  try{const result=await loadFiscalBookDownload(state.business,book);await saveFiscalBookSnapshot(result,book);note('Archivo fiscal verificado y descargado.');}
+  catch(error){note(error?.message||'No se pudo descargar el libro fiscal.');}
+  finally{btn.disabled=false;btn.innerHTML=original}return}
  if(action==='entry-save'){const cents=Number(state.entryDigits||0),a=account(state.entryAccount);if(!Number.isSafeInteger(cents)||cents<=0){note('Introduce un monto mayor que cero.');return}if(!a){note('Selecciona una cuenta válida.');return}
  const dest=account(state.entryDest);if(state.entryType==='transferencia'&&(!dest||dest.id===a.id||dest.moneda!==a.moneda)){note('Elige cuentas diferentes y de la misma moneda.');return}
  if(isLive&&a.moneda!=='DOP'){note('La escritura manual del adaptador original solo admite cuentas DOP.');return}
