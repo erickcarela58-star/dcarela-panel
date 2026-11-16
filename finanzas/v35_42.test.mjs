@@ -9,7 +9,7 @@ const read = (file) => fs.readFileSync(path.join(DIR, file), 'utf8');
 
 test('v35.42 service worker avoids mid-session skipWaiting when active worker already exists', async () => {
   const swCode = read('sw.js');
-  assert.match(swCode, /const CACHE = 'dcarela-finanzas-v35-48'/);
+  assert.match(swCode, /const CACHE = 'dcarela-finanzas-v35-49'/);
 
   function bootSw(hasActiveWorker) {
     const handlers = {};
@@ -78,9 +78,9 @@ test('v35.42 HTML pre-paint theme script reads dcarela-mm-theme correctly for Ce
   }
 });
 
-test('v35.48 eliminates unsolicited reloads and scopes button updates cleanly in app.js', () => {
+test('v35.49 eliminates unsolicited reloads and scopes button updates cleanly in app.js', () => {
   const appJs = read('app.js');
-  assert.match(appJs, /const APP_VERSION='35\.48';/);
+  assert.match(appJs, /const APP_VERSION='35\.49';/);
 
   // 1) No automatic visibilitychange background reload
   assert.doesNotMatch(appJs, /addEventListener\('visibilitychange'/);
@@ -203,4 +203,24 @@ test('v35.45 excludes pre-reconciliation cuts and supports Otra cantidad live su
   assert.match(appJs, /function applyDemoCut\(cut=\{\},opts=\{\}\)/);
   assert.match(appJs, /opts\.manualAmountCentavos!==null/);
   assert.match(css, /\.v3526-cut-custom-box\s*\{/);
+});
+
+test('v35.49 muestra cuota de alquiler sin Saldo no verificado, separa 2 Adobe y expone Antigravity en compromisos y correo', () => {
+  const appJs = read('app.js');
+  const inboxJs = read('v35-26-inbox-fiscal.js');
+  const emojiJs = read('v35-26-category-emojis.js');
+  const demoJs = read('demo-data.js');
+
+  assert.match(appJs, /function debtDisplayInfo\(item\)/);
+  assert.match(appJs, /id="v3526DebtsSubsHost"/);
+  assert.match(inboxJs, /function renderDebtsSubsHost\(\)/);
+  assert.match(inboxJs, /data-mfilter="suscripcion"/);
+  assert.match(inboxJs, /subscriptions,/);
+  assert.match(emojiJs, /antigravity/);
+  assert.match(emojiJs, /tarjeta-adobe-1/);
+  assert.match(emojiJs, /tarjeta-adobe-2/);
+  assert.match(emojiJs, /tarjeta-antigravity/);
+  assert.match(demoJs, /Alquiler del local/);
+  assert.match(demoJs, /Genesis J Estevez · Nomina/);
+  assert.match(demoJs, /Denni Gil Carela · Pago mes Octubre contabilidad/);
 });

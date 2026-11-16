@@ -264,3 +264,54 @@ test("asocia pagos por palabras clave y sinonimos sin renombrar movimientos y ex
   assert.equal(plazaSummary.rows.length, 2);
   assert.equal(plazaSummary.overdueDue, 3000000);
 });
+
+test("alquiler no enlaza recibos de nomina/contabilidad con categoria Alquiler ni movimientos de otras obligaciones, y muestra cuota verificada", () => {
+  const alquiler = {
+    id: "recovery-compromiso-alquiler-local-20260905",
+    source: "compromiso",
+    name: "Alquiler del local",
+    type: "alquiler",
+    due: "2026-11-05",
+    periodAmount: 1150000,
+    outstanding: null,
+    active: true,
+    raw: { id: "recovery-compromiso-alquiler-local-20260905", nombre: "Alquiler del local", tipo: "alquiler", monto_centavos: 1150000, saldo_pendiente_centavos: null },
+  };
+  const contable = {
+    id: "ob-contable",
+    source: "compromiso",
+    name: "Contable",
+    type: "servicio",
+    due: "2026-11-15",
+    periodAmount: 1500000,
+    outstanding: 1500000,
+    active: true,
+    raw: { id: "ob-contable", nombre: "Contable", tipo: "servicio" },
+  };
+  const movements = [
+    { id: "m-rent", tipo: "gasto", estado: "registrado", fecha: "2026-11-05", monto_centavos: 1150000, descripcion: "Pago Alquiler del local noviembre", categoria: "Alquiler" },
+    { id: "m-recibo-10", tipo: "gasto", estado: "registrado", fecha: "2026-11-08", monto_centavos: 1800000, descripcion: "Recibo #10 · Genesis J Estevez · Nomina", categoria: "Alquiler" },
+    { id: "m-recibo-9", tipo: "gasto", estado: "registrado", fecha: "2026-11-09", monto_centavos: 1500000, descripcion: "Recibo #9 · Denni Gil Carela · Pago mes Octubre contabilidad", categoria: "Alquiler" },
+    { id: "m-claimed", tipo: "gasto", estado: "registrado", fecha: "2026-11-10", monto_centavos: 1500000, descripcion: "Pago mensual estudio", categoria: "Alquiler", compromiso_id: "ob-contable" },
+    { id: "m-claimed-cp", tipo: "gasto", estado: "registrado", fecha: "2026-11-11", monto_centavos: 1500000, descripcion: "Recibo local contable", categoria: "Alquiler" },
+  ];
+  const commitmentPayments = [
+    { id: "cp-1", compromiso_id: "ob-contable", movimiento_id: "m-claimed-cp", monto_centavos: 1500000, fecha: "2026-11-11" },
+  ];
+
+  const alquilerLinks = money.linkedPaymentsForCommitment(alquiler, { movements, commitmentPayments });
+  assert.deepEqual(alquilerLinks.map(x => x.movimientoId), ["m-rent"]);
+
+  const contableLinks = money.linkedPaymentsForCommitment(contable, { movements, commitmentPayments });
+  assert.ok(contableLinks.some(x => x.movimientoId === "m-recibo-9"));
+  assert.ok(contableLinks.some(x => x.movimientoId === "m-claimed"));
+  assert.ok(!contableLinks.some(x => x.movimientoId === "m-recibo-10"));
+
+  assert.deepEqual(money.obligationDisplayAmount(alquiler), { amount: 1150000, verified: true, kind: "installment" });
+  assert.deepEqual(money.obligationDisplayAmount({
+    id: "loan-unknown",
+    type: "prestamo",
+    periodAmount: 1150000,
+    outstanding: null,
+  }), { amount: null, verified: false, kind: "unverified" });
+});

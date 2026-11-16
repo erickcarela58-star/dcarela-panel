@@ -95,6 +95,7 @@
     { key: "claro", phrases: ["claro", "codetel", "claro dominicana"], tokens: ["claro", "codetel"] },
     { key: "altice", phrases: ["altice", "tricom"], tokens: ["altice", "tricom"] },
     { key: "adobe", phrases: ["adobe", "creative cloud", "lightroom", "photoshop", "acrobat"], tokens: ["adobe", "lightroom", "photoshop", "acrobat"] },
+    { key: "antigravity", phrases: ["google antigravity", "google ai pro", "google ai ultra", "google one"], tokens: ["antigravity", "googleone"] },
     { key: "chatgpt", phrases: ["chatgpt", "openai", "codex"], tokens: ["chatgpt", "openai", "codex"] },
     { key: "claude", phrases: ["claude", "anthropic", "antropic"], tokens: ["claude", "anthropic", "antropic"] },
     { key: "viegas", phrases: ["viegas", "viegas academy", "skool", "skool.com"], tokens: ["viegas", "skool"] },
@@ -204,8 +205,6 @@
       target?.payee,
       target?.proveedor,
       target?.acreedor,
-      target?.categoria,
-      target?.categoria_nombre,
       target?.recurrenteNombre,
       target?.recurrente_nombre,
       target?.referencia,
@@ -243,6 +242,24 @@
       const hasCommercial = descTokens.some(t => t === "estudio" || t === "local" || t === "dcarela") ||
         (!hasCasa && ctx.tokens.some(t => t === "edeeste" || t === "edeste" || t === "estudio" || t === "local"));
       if (hasCasa && !hasCommercial) return { matched: false, score: 0, matchedTerms: [] };
+    }
+
+    if (kw.groups.includes("alquiler")) {
+      const idText = normalizeKeywordText(typeof target === "object"
+        ? [target?.descripcion, target?.name, target?.nombre, target?.concepto, target?.payee, target?.proveedor, target?.acreedor].filter(Boolean).join(" ")
+        : target);
+      const hasOtherDomain = /\b(nomina|salario|salarios|sueldo|sueldos|contable|contabilidad|contador|auditoria|prestaciones|vacaciones|genesis|ashley|denni)\b/.test(idText);
+      const hasExplicitRent = /\b(alquiler|renta|arrendamiento|local)\b/.test(idText);
+      if (hasOtherDomain && !hasExplicitRent) return { matched: false, score: 0, matchedTerms: [] };
+    }
+
+    if (kw.groups.includes("contable")) {
+      const idText = normalizeKeywordText(typeof target === "object"
+        ? [target?.descripcion, target?.name, target?.nombre, target?.concepto, target?.payee, target?.proveedor, target?.acreedor].filter(Boolean).join(" ")
+        : target);
+      const hasOtherDomain = /\b(alquiler|renta|arrendamiento|nomina|sueldo|sueldos|salario|salarios|genesis|ashley)\b/.test(idText);
+      const hasExplicitAccounting = /\b(contable|contabilidad|contador|auditoria|denni)\b/.test(idText);
+      if (hasOtherDomain && !hasExplicitAccounting) return { matched: false, score: 0, matchedTerms: [] };
     }
 
     if (kw.lineNumbers.length > 0 && ctx.lineNumbers.length > 0) {
@@ -417,6 +434,31 @@
     }
 
     const kw = extractCommitmentKeywords(item);
+    const claimedByOtherIds = new Set();
+    for (const p of costPayments || []) {
+      const oid = text(p?.obligacionId || p?.obligacion_id);
+      if (oid && !facturaIds.has(oid) && !siblingFacturaIds.has(oid)) {
+        const pMid = text(p?.movimientoId || p?.movimiento_id);
+        if (pMid) claimedByOtherIds.add(pMid);
+      }
+    }
+    for (const o of costObligations || []) {
+      const oid = text(o?.id || o?.obligacionId);
+      if (oid && !facturaIds.has(oid) && !siblingFacturaIds.has(oid)) {
+        const pMid = text(o?.ultimo_pago_movimiento_id || o?.ultimoPagoMovimientoId);
+        if (pMid) claimedByOtherIds.add(pMid);
+      }
+    }
+    for (const p of commitmentPayments || []) {
+      const cid = text(p?.compromiso_id || p?.compromisoId);
+      if (cid && !nativeIds.has(cid)) {
+        for (const cand of [p?.movimiento_id, p?.movimientoId, ...(Array.isArray(p?.ledger_ids) ? p.ledger_ids : [])]) {
+          const pMid = text(cand);
+          if (pMid) claimedByOtherIds.add(pMid);
+        }
+      }
+    }
+
     for (const m of activeMovements(movements)) {
       if (m?.tipo && m.tipo !== "gasto") continue;
       if (isSyntheticTaxMovement(m)) continue;
@@ -434,6 +476,7 @@
 
       if (!explicitMatch) {
         if (directOb || directComp) continue;
+        if (mid && claimedByOtherIds.has(mid)) continue;
         if (mDate && mCents > 0 && seenDayAmount.has(`${mDate}|${mCents}`)) continue;
       }
 
@@ -645,6 +688,18 @@
     });
   }
 
+  function obligationDisplayAmount(item) {
+    if (!item || typeof item !== "object") return { amount: null, verified: false, kind: "unverified" };
+    if (Number.isSafeInteger(item.outstanding)) {
+      return { amount: item.outstanding, verified: true, kind: "balance" };
+    }
+    const period = Number(item.periodAmount);
+    if (!isLoanType(item.type) && Number.isSafeInteger(period) && period > 0) {
+      return { amount: period, verified: true, kind: "installment" };
+    }
+    return { amount: null, verified: false, kind: "unverified" };
+  }
+
   return {
     monthBounds,
     sourceOf,
@@ -652,6 +707,8 @@
     summarizeMovements,
     accountSummary,
     obligationSummary,
+    obligationDisplayAmount,
+    isLoanType,
     normalizeKeywordText,
     parseExplicitKeywords,
     extractCommitmentKeywords,

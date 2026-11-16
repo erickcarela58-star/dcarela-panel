@@ -55,7 +55,10 @@ function fixture(b='sucursal-a') {
     }
   }
   add('2026-11-04','gasto','cash','recon-cat-comida',245000*factor,'Almuerzo equipo estudio · demo');
+  add('2026-11-05','gasto','cash','alquiler',1150000*factor,'Pago Alquiler del local noviembre · demo');
   add('2026-11-07','gasto','visa','expense-category-suscripciones',122700*factor,'ChatGPT Plus · OpenAI USD');
+  add('2026-11-08','gasto','popular','nomina',1800000*factor,'Recibo #10 · Genesis J Estevez · Nomina',{categoria:'Alquiler'});
+  add('2026-11-09','gasto','popular','alquiler',1500000*factor,'Recibo #9 · Denni Gil Carela · Pago mes Octubre contabilidad',{categoria:'Alquiler'});
   // Movimientos históricos antiguos (2024-2026) para validar filtros Día, Año y Personalizado sin trabas.
   for (const hist of [
     ['2024-11-18', 'ingreso', 'popular', 'ventas', 310000, 'Boda histórica · archivo 2024'],
@@ -75,6 +78,9 @@ function fixture(b='sucursal-a') {
   add('2026-11-10','ingreso','cash','ventas',150000*factor,'D-104',{origen:'pos_venta',estado:'confirmado',venta_id:`${b}-sale-1`,sync_event_id:`${b}-sale-event`,venta_folio:'D-104'});
   // Una venta a crédito informativa (sin movimiento contable ni efecto en cuentas).
   const commitments=[
+    {id:`${b}-alquiler`,business_id:b,nombre:'Alquiler del local',tipo:'alquiler',saldo_pendiente_centavos:null,monto_centavos:1150000*factor,proximo_vencimiento:'2026-11-05',frecuencia:'mensual',estado:'activo',palabras_clave:['alquiler local','renta local']},
+    {id:`${b}-contable`,business_id:b,nombre:'Contable (Denni)',tipo:'servicio',saldo_pendiente_centavos:1500000*factor,monto_centavos:1500000*factor,proximo_vencimiento:'2026-11-15',frecuencia:'mensual',estado:'activo',palabras_clave:['contable','contabilidad','denni']},
+    {id:`${b}-genesis`,business_id:b,nombre:'Nómina de Génesis',tipo:'nomina',saldo_pendiente_centavos:1800000*factor,monto_centavos:1800000*factor,proximo_vencimiento:'2026-11-15',frecuencia:'mensual',estado:'activo',palabras_clave:['nomina genesis','genesis estevez']},
     {id:`${b}-d1`,business_id:b,nombre:'Cuota de equipo · demo',tipo:'prestamo',saldo_pendiente_centavos:380000*factor,monto_centavos:95000*factor,proximo_vencimiento:'2026-11-18',estado:'activo',cuotas_pagadas:2,cuotas_totales:6},
     {id:`${b}-d2`,business_id:b,nombre:'Servicio mensual · demo',tipo:'servicio',saldo_pendiente_centavos:68500*factor,monto_centavos:68500*factor,proximo_vencimiento:'2026-11-24',estado:'activo'}
   ];

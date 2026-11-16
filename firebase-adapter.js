@@ -136,13 +136,22 @@
       || (type !== 'ingreso' ? payload.cuentaId || payload.cuenta_id : null);
     const targetAccount = payload.cuentaDestinoId || payload.cuenta_destino_id
       || (type === 'ingreso' ? payload.cuentaId || payload.cuenta_id : null);
+    const descRaw = payload.descripcion || event.event_type || 'Movimiento de caja Windows';
+    let resolvedCategory = payload.categoria || '';
+    if (!payload.categoriaId && !payload.categoria_id && /^alquiler$/i.test(String(resolvedCategory).trim())) {
+      if (/\b(nomina|n[oó]mina|salario|sueldo|prestaciones\s+laborales)\b/i.test(descRaw) && !/\b(alquiler|renta|local)\b/i.test(descRaw)) {
+        resolvedCategory = 'Nómina';
+      } else if (/\b(contab|contador|contabilidad|denni)\b/i.test(descRaw) && !/\b(alquiler|renta|local)\b/i.test(descRaw)) {
+        resolvedCategory = 'Contabilidad';
+      }
+    }
     return {
       id: payload.ledgerId || event.entity_id || event.event_id || event.id,
       ledger_id: payload.ledgerId || event.entity_id || null,
       business_id: event.business_id || businessId,
       tipo: type,
-      categoria: payload.categoria || '',
-      descripcion: payload.descripcion || event.event_type || 'Movimiento de caja Windows',
+      categoria: resolvedCategory,
+      descripcion: descRaw,
       monto_centavos: Number(payload.importeDopCentavos ?? payload.importe_dop_centavos ?? 0),
       importe_dop_centavos: Number(payload.importeDopCentavos ?? payload.importe_dop_centavos ?? 0),
       moneda: payload.monedaOriginal || 'DOP',

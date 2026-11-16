@@ -8,7 +8,7 @@
   const CATEGORY_RULES = [
     { rx: /fotograf|sesi[oó]n|boda|quince|evento|studio|estudio|producci[oó]n|c[aá]mara|lente|impresi[oó]n/i, emoji: '📸' },
     { rx: /video|reel|edici[oó]n|dron|film/i, emoji: '🎬' },
-    { rx: /software|saas|nube|cloud|ia|inteligencia|app|hosting|dominio|suscripci|digital|chatgpt|openai|adobe|google|apple|canva/i, emoji: '💻' },
+    { rx: /software|saas|nube|cloud|ia|inteligencia|app|hosting|dominio|suscripci|digital|chatgpt|openai|adobe|antigravity|gemini|google|apple|canva/i, emoji: '💻' },
     { rx: /publicidad|meta|facebook|instagram|ads|marketing|pauta/i, emoji: '📣' },
     { rx: /transporte|combustible|gasolina|uber|indrive|peaje|parqueo|veh[ií]culo/i, emoji: '🚗' },
     { rx: /luz|edesur|edenorte|agua|internet|tel[eé]fono|claro|altice|servicio|energ[ií]a/i, emoji: '⚡' },
@@ -24,7 +24,7 @@
   const MERCHANT_RULES = [
     { rx: /codigo cash|c[oó]digo cash|cash code|cajero|atm/i, emoji: '🏧' },
     { rx: /lbtr|ach|pago al instante|transferencia/i, emoji: '🔁' },
-    { rx: /openai|chatgpt|claude|anthropic|cursor|github|vercel|firebase|google workspace|adobe|canva/i, emoji: '🤖' },
+    { rx: /openai|chatgpt|claude|anthropic|antigravity|gemini|cursor|github|vercel|firebase|google workspace|google one|google ai|adobe|canva/i, emoji: '🤖' },
     { rx: /apple|netflix|spotify|youtube|amazon|prime|meta|facebook/i, emoji: '✨' },
     { rx: /uber|indrive|didi|shell|texaco|total|petronan/i, emoji: '🚕' },
     { rx: /sirena|jumbo|nacional|bravo|pola|ole|pricesmart/i, emoji: '🛒' },
@@ -168,7 +168,7 @@
     }
 
     const matchRules = [
-      { test: /openai|chatgpt|claude|cursor|adobe|canva|google|apple|icloud|hosting|dominio|software|saas|microsoft|zoom/i, cat: /software|tecnolog|suscripci|digital|herramienta|app|operaci/i },
+      { test: /openai|chatgpt|claude|antigravity|gemini|cursor|adobe|canva|google|apple|icloud|hosting|dominio|software|saas|microsoft|zoom/i, cat: /software|tecnolog|suscripci|digital|herramienta|app|operaci/i },
       { test: /meta|facebook|instagram|tiktok|ads|publicidad|pauta|google ads/i, cat: /publicidad|marketing|mercadeo|pauta/i },
       { test: /uber|indrive|gasolina|combustible|peaje|shell|texaco|total|transporte|didi|estacionamiento/i, cat: /transporte|combustible|movilidad|vi[aá]tico/i },
       { test: /claro|altice|edesur|edenorte|agua|internet|luz|tel[eé]fono|electricidad/i, cat: /servicio|internet|luz|energ[ií]a|fijo|oficina/i },
@@ -305,6 +305,58 @@
           categoryName: 'Mantenimiento'
         }
       ],
+      subscriptions: [
+        {
+          id: 'tarjeta-adobe-1',
+          proveedor: 'adobe',
+          nombre: 'Adobe · Suscripción 1',
+          plan: 'Creative Cloud (ciclo 01-07)',
+          subscription_slot: 1,
+          cuenta_gmail: 'erickcarela91',
+          estado: 'activa',
+          origen: 'consumo_tarjeta',
+          importe_original: 'Col$93,058.00',
+          importe_rd_centavos: 138000,
+          ultimo_evento: 'cobro',
+          ultimo_evento_at: today,
+          ultimo_resumen: `💳 Adobe · Suscripción 1: cobro de Col$93,058.00 el ${today}.`,
+          suggested_category_id: 'expense-category-suscripciones',
+          suggested_category_name: 'Suscripciones digitales'
+        },
+        {
+          id: 'tarjeta-adobe-2',
+          proveedor: 'adobe',
+          nombre: 'Adobe · Suscripción 2',
+          plan: 'Creative Cloud (ciclo 08-31)',
+          subscription_slot: 2,
+          cuenta_gmail: 'erickcarela58',
+          estado: 'activa',
+          origen: 'consumo_tarjeta',
+          importe_original: 'Col$93,058.00',
+          importe_rd_centavos: 138000,
+          ultimo_evento: 'cobro',
+          ultimo_evento_at: today,
+          ultimo_resumen: `💳 Adobe · Suscripción 2: cobro de Col$93,058.00 el ${today}.`,
+          suggested_category_id: 'expense-category-suscripciones',
+          suggested_category_name: 'Suscripciones digitales'
+        },
+        {
+          id: 'tarjeta-antigravity',
+          proveedor: 'antigravity',
+          nombre: 'Antigravity · Google AI',
+          plan: 'Google AI Pro (01M)',
+          cuenta_gmail: 'erickcarela58',
+          estado: 'activa',
+          origen: 'correo_gmail',
+          importe_original: 'US$19.99',
+          importe_rd_centavos: 122639,
+          ultimo_evento: 'cobro',
+          ultimo_evento_at: today,
+          ultimo_resumen: `✨ Antigravity · Google AI (GOOGLE *GOOGLE*ONE 01M): US$19.99 el ${today}.`,
+          suggested_category_id: 'expense-category-suscripciones',
+          suggested_category_name: 'Suscripciones digitales'
+        }
+      ],
       fx: {
         updatedAt: new Date().toISOString(),
         confirmedDate: today,
@@ -411,9 +463,22 @@
             reference: 'APPL-90112',
             date: today,
             registered: true
+          },
+          {
+            id: 'demo-mail-ag-1',
+            kind: 'suscripcion',
+            proveedor: 'antigravity',
+            bank: 'Google Play · Antigravity',
+            accountEmail: 'erickcarela58@gmail.com',
+            subject: 'Your Google Play Order Receipt · Antigravity / Google AI Pro (US$19.99)',
+            amountCentavos: 1999,
+            currency: 'USD',
+            reference: 'GPA.3391-4412',
+            date: today,
+            registered: false
           }
         ],
-        summary: { total: 4, pending: 2, registered: 2 }
+        summary: { total: 5, pending: 3, registered: 2 }
       },
       fiscal: {
         compras: [

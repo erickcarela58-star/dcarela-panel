@@ -1,5 +1,5 @@
-import { assessCut, effectiveCutTransferCentavos } from './cut-review.js?v=35.48';
-import { loadFacturadorSales } from './data-source.js?v=35.48';
+import { assessCut, effectiveCutTransferCentavos } from './cut-review.js?v=35.49';
+import { loadFacturadorSales } from './data-source.js?v=35.49';
 import {
   reducedMotion as motionReduced,
   stop as motionStop,
@@ -8,7 +8,7 @@ import {
   pop as motionPop,
   glassExpand as motionGlassExpand,
   revealText as motionRevealText
-} from './apple-motion.mjs?v=35.48';
+} from './apple-motion.mjs?v=35.49';
 
 /* ==========================================================================
    v35.26 Unified Inbox, Mail/Cash-Codes, Theme Palettes, Web Push & Fiscal UI
@@ -519,6 +519,25 @@ function normalizeInbox(raw) {
     raw: a
   })) : [];
 
+  const subscriptions = Array.isArray(src.subscriptions) ? src.subscriptions.map((sub) => ({
+    id: String(sub.id || ''),
+    proveedor: String(sub.proveedor || sub.provider || '').toLowerCase(),
+    nombre: sub.nombre || sub.name || sub.proveedor || 'Suscripción',
+    plan: sub.plan || null,
+    subscription_slot: sub.subscription_slot ?? null,
+    cuenta_gmail: sub.cuenta_gmail || sub.accountEmail || null,
+    estado: String(sub.estado || 'activa').toLowerCase(),
+    origen: sub.origen || null,
+    importe_original: sub.importe_original || null,
+    importe_rd_centavos: Number.isSafeInteger(Number(sub.importe_rd_centavos)) ? Number(sub.importe_rd_centavos) : null,
+    ultimo_evento: sub.ultimo_evento || null,
+    ultimo_evento_at: sub.ultimo_evento_at || null,
+    proxima_fecha: sub.proxima_fecha || sub.proximaFecha || null,
+    ultimo_resumen: sub.ultimo_resumen || null,
+    suggested_category_id: sub.suggested_category_id || '',
+    suggested_category_name: sub.suggested_category_name || ''
+  })) : [];
+
   const rawMail = src.mail || {};
   const mailAccounts = Array.isArray(rawMail.accounts) ? rawMail.accounts.map((acc) => ({
     email: acc.email || acc.cuenta || '',
@@ -538,6 +557,7 @@ function normalizeInbox(raw) {
     return {
       id: String(m.id || ''),
       kind,
+      proveedor: String(m.proveedor || ''),
       bank: m.bank || m.proveedor || 'Banco',
       accountEmail: m.accountEmail || m.cuenta_gmail || m.cuenta || '',
       subject: m.subject || m.asunto || m.motivo || 'Notificación bancaria',
@@ -605,6 +625,7 @@ function normalizeInbox(raw) {
     cuts,
     consumptions,
     paymentAlerts,
+    subscriptions,
     fx: {
       confirmedDate,
       confirmedToday: Boolean(confirmedToday),
@@ -1124,19 +1145,27 @@ function renderMailHost() {
   if (!host) return;
   const mail = uiState.data?.mail || { accounts: [], movements: [], summary: {} };
   const f = uiState.mailFilter;
+  const isSubMail = (m) => ['suscripcion', 'cobro_servicio', 'consumo_digital'].includes(m.kind)
+    || /suscrip|adobe|antigravity|google\s*one|google\s*ai|claude|chatgpt|openai|skool/i.test(`${m.subject || ''} ${m.bank || ''} ${m.proveedor || ''}`);
 
   const filtered = mail.movements.filter((m) => {
     if (f === 'pending') return !m.registered;
     if (f === 'retiro_codigo_cash') return m.kind === 'retiro_codigo_cash';
     if (f === 'transferencia') return m.kind.includes('transferencia');
-    if (f === 'consumo') return m.kind.includes('consumo');
+    if (f === 'suscripcion') return isSubMail(m);
+    if (f === 'consumo') return m.kind.includes('consumo') || m.kind === 'cobro_servicio';
     return true;
   });
 
-  const kindLabel = (k) => k === 'retiro_codigo_cash' ? `${ae('🏧', 14)} Código Cash`
-    : k.includes('entrada') || k.includes('recibida') ? `${ae('📥', 14)} Transferencia recibida`
-      : k.includes('transferencia') ? `${ae('🔁', 14)} Transferencia enviada`
-        : `${ae('💳', 14)} Consumo bancario`;
+  const kindLabel = (m) => {
+    const k = String(m?.kind || '');
+    if (k === 'retiro_codigo_cash') return `${ae('🏧', 14)} Código Cash`;
+    if (k.includes('entrada') || k.includes('recibida')) return `${ae('📥', 14)} Transferencia recibida`;
+    if (k.includes('transferencia')) return `${ae('🔁', 14)} Transferencia enviada`;
+    if (k === 'suscripcion' || isSubMail(m)) return `${ae('✨', 14)} Suscripción`;
+    if (k === 'cobro_servicio') return `${ae('🧾', 14)} Servicio`;
+    return `${ae('💳', 14)} Consumo bancario`;
+  };
 
   host.innerHTML = `
     <div class="v3526-card">
@@ -1161,6 +1190,7 @@ function renderMailHost() {
           </div>
         </div>
       `).join('') : '<p class="soft-note">Agrega tus cuentas Gmail para leer transferencias y Códigos Cash.</p>'}
+      <p class="soft-note" style="margin-top:8px">Actualiza el <b>Script .gs</b> en tus cuentas Gmail para buscar automáticamente recibos de <b>Antigravity</b>, <b>Google AI</b> y <b>Adobe</b> además de tus bancos.</p>
     </div>
 
     <div class="v3526-card">
@@ -1172,6 +1202,7 @@ function renderMailHost() {
         <button type="button" class="chip ${f === 'pending' ? 'is-active' : ''}" data-mfilter="pending">Pendientes</button>
         <button type="button" class="chip ${f === 'retiro_codigo_cash' ? 'is-active' : ''}" data-mfilter="retiro_codigo_cash">${ae('🏧', 13)} Códigos Cash</button>
         <button type="button" class="chip ${f === 'transferencia' ? 'is-active' : ''}" data-mfilter="transferencia">${ae('🔁', 13)} Transferencias</button>
+        <button type="button" class="chip ${f === 'suscripcion' ? 'is-active' : ''}" data-mfilter="suscripcion">${ae('✨', 13)} Suscripciones</button>
         <button type="button" class="chip ${f === 'all' ? 'is-active' : ''}" data-mfilter="all">Todos</button>
       </div>
       ${filtered.length ? filtered.map((m) => {
@@ -1181,7 +1212,7 @@ function renderMailHost() {
         return `
         <div class="v3526-list-row">
           <div style="min-width:0;flex:1">
-            <div style="font-size:12px;font-weight:700">${kindLabel(m.kind)} · ${esc(m.bank)}</div>
+            <div style="font-size:12px;font-weight:700">${kindLabel(m)} · ${esc(m.bank)}</div>
             <div style="font-size:13px;font-weight:600;margin:2px 0">${esc(m.subject)}</div>
             <div style="font-size:11px;opacity:.72">${esc(m.accountEmail)} · ${esc(m.date)}${m.reference ? ` · Ref: ${esc(m.reference)}` : ''}</div>
             ${linkedLabel ? `<div style="font-size:11px;opacity:.84;margin-top:2px">${ae('🏦', 11)} Cuenta vinculada: <b>${esc(linkedLabel)}</b></div>` : ''}
@@ -1213,6 +1244,70 @@ function renderMailHost() {
       if (mov) openModal('mail-register', mov);
     };
   });
+}
+
+function subProviderEmoji(sub) {
+  const key = `${sub?.proveedor || ''} ${sub?.nombre || ''}`.toLowerCase();
+  if (/antigravity|google\s*ai|google\s*\*?\s*one/.test(key)) return '✨';
+  if (/adobe/.test(key)) return '🅰️';
+  if (/claude|anthropic/.test(key)) return '🧠';
+  if (/chatgpt|openai/.test(key)) return '🤖';
+  if (/skool/.test(key)) return '🎓';
+  if (/apple/.test(key)) return '🍎';
+  if (/google/.test(key)) return '☁️';
+  return '💳';
+}
+
+function renderDebtsSubsHost() {
+  const host = document.getElementById('v3526DebtsSubsHost');
+  if (!host) return;
+  const subs = Array.isArray(uiState.data?.subscriptions) ? uiState.data.subscriptions : [];
+  const sig = `${uiState.mode}:${subs.map((s) => `${s.id}:${s.estado}:${s.ultimo_evento_at || ''}:${s.importe_rd_centavos || ''}:${s.importe_original || ''}`).join('|')}`;
+  if (host.dataset.renderedKey === sig && host.childElementCount > 0) return;
+  host.dataset.renderedKey = sig;
+
+  if (!subs.length) {
+    host.innerHTML = '';
+    return;
+  }
+
+  host.innerHTML = `
+    <div class="section-head">
+      <h2>Suscripciones (tarjeta y correo)</h2>
+      <small>${subs.length} detectada${subs.length === 1 ? '' : 's'}</small>
+    </div>
+    <div class="card">
+      ${subs.map((s) => {
+        const icon = ae(subProviderEmoji(s), 16);
+        const isWarn = ['pago_rechazado', 'requiere_atencion', 'pendiente_cobro'].includes(s.estado);
+        const amountHtml = s.importe_rd_centavos != null && s.importe_rd_centavos > 0
+          ? fmtMoney(s.importe_rd_centavos, 'DOP')
+          : esc(s.importe_original || 'Activa');
+        const subMeta = [
+          s.plan || '',
+          s.subscription_slot ? `Ciclo ${s.subscription_slot}` : '',
+          s.cuenta_gmail ? `Gmail: ${s.cuenta_gmail}` : '',
+          s.importe_rd_centavos && s.importe_original ? s.importe_original : '',
+          s.ultimo_evento_at ? String(s.ultimo_evento_at).slice(0, 10) : ''
+        ].filter(Boolean).join(' · ');
+        return `
+          <div class="v3526-list-row" data-sub-id="${esc(s.id)}">
+            <div style="min-width:0;flex:1">
+              <div style="font-size:13px;font-weight:700;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+                <span>${icon}</span>
+                <span>${esc(s.nombre || 'Suscripción')}</span>
+                <span class="v3526-tag ${isWarn ? 'danger' : 'ok'}">${isWarn ? 'Revisar' : 'Activa'}</span>
+              </div>
+              ${subMeta ? `<div style="font-size:11px;opacity:.75;margin-top:2px">${esc(subMeta)}</div>` : ''}
+              ${s.ultimo_resumen ? `<div style="font-size:11px;opacity:.82;margin-top:3px">${esc(s.ultimo_resumen)}</div>` : ''}
+            </div>
+            <div style="text-align:right;flex-shrink:0">
+              <div style="font-size:13px;font-weight:700">${amountHtml}</div>
+              ${s.proxima_fecha ? `<div style="font-size:10px;opacity:.7">Próx: ${esc(String(s.proxima_fecha).slice(0, 10))}</div>` : ''}
+            </div>
+          </div>`;
+      }).join('')}
+    </div>`;
 }
 
 function getEffectiveEcosystem() {
@@ -3135,9 +3230,10 @@ function syncDom() {
   renderCajaCrmHost();
   renderFiscalHost();
   renderMailHost();
+  renderDebtsSubsHost();
   renderSettingsHost();
   renderConnectionHost();
-  for (const hostId of ['v3526CajaCrmHost', 'v3526FiscalHost', 'v3526MailHost', 'v3526SettingsTopHost', 'v3526ConnectionHost']) {
+  for (const hostId of ['v3526CajaCrmHost', 'v3526FiscalHost', 'v3526MailHost', 'v3526DebtsSubsHost', 'v3526SettingsTopHost', 'v3526ConnectionHost']) {
     const h = document.getElementById(hostId);
     if (h && h.children.length && !h.dataset.dcHostAnimated) {
       h.dataset.dcHostAnimated = '1';
@@ -3156,7 +3252,7 @@ async function ensureCategoryLinker() {
   if (window.DcarelaCategoryLinker) return;
   await new Promise((resolve) => {
     const sc = document.createElement('script');
-    sc.src = './v35-26-category-emojis.js?v=35.48';
+    sc.src = './v35-26-category-emojis.js?v=35.49';
     sc.onload = resolve;
     sc.onerror = resolve;
     document.head.appendChild(sc);
