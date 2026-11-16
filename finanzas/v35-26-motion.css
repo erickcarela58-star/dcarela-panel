@@ -231,7 +231,7 @@ body::before, body::after {
   width: calc(var(--orb-size, 196px) * var(--v3526-orb-scale, 1));
   height: calc(var(--orb-size, 196px) * var(--v3526-orb-scale, 1));
   border-radius: 50%;
-  filter: blur(min(calc(var(--v3526-orb-blur, 52px) * var(--orb-blur-mul, 1)), 42px));
+  filter: blur(min(calc(var(--v3526-orb-blur, 52px) * var(--orb-blur-mul, 1)), 22px));
   opacity: var(--v3526-orb-alpha, 0.78);
   transition: background 0.35s ease, filter 0.25s ease, opacity 0.25s ease;
 }
@@ -245,7 +245,7 @@ body::before, body::after {
   animation: v3526BounceY1 calc(15s / var(--v3526-orb-speed, 1)) linear infinite alternate;
 }
 .v3526-orb-track-x:nth-child(1) .v3526-orb {
-  background: radial-gradient(circle at 35% 35%, var(--v3526-orb-1) 0%, color-mix(in srgb, var(--v3526-orb-1) 42%, transparent) 58%, transparent 78%);
+  background: radial-gradient(circle at 35% 35%, var(--v3526-orb-1) 0%, color-mix(in srgb, var(--v3526-orb-1) 42%, transparent) 46%, color-mix(in srgb, var(--v3526-orb-1) 12%, transparent) 66%, transparent 78%);
 }
 
 .v3526-orb-track-x:nth-child(2) {
@@ -259,7 +259,7 @@ body::before, body::after {
   animation-delay: -5s;
 }
 .v3526-orb-track-x:nth-child(2) .v3526-orb {
-  background: radial-gradient(circle at 60% 40%, var(--v3526-orb-2) 0%, color-mix(in srgb, var(--v3526-orb-2) 40%, transparent) 56%, transparent 78%);
+  background: radial-gradient(circle at 60% 40%, var(--v3526-orb-2) 0%, color-mix(in srgb, var(--v3526-orb-2) 40%, transparent) 46%, color-mix(in srgb, var(--v3526-orb-2) 10%, transparent) 66%, transparent 78%);
   animation-delay: -3.2s;
 }
 
@@ -274,7 +274,7 @@ body::before, body::after {
   animation-delay: -9s;
 }
 .v3526-orb-track-x:nth-child(3) .v3526-orb {
-  background: radial-gradient(circle at 45% 55%, var(--v3526-orb-3) 0%, color-mix(in srgb, var(--v3526-orb-3) 40%, transparent) 56%, transparent 78%);
+  background: radial-gradient(circle at 45% 55%, var(--v3526-orb-3) 0%, color-mix(in srgb, var(--v3526-orb-3) 40%, transparent) 46%, color-mix(in srgb, var(--v3526-orb-3) 10%, transparent) 66%, transparent 78%);
   animation-delay: -6.1s;
 }
 
@@ -1790,4 +1790,60 @@ main.page, .finance-view-body { touch-action: pan-y; }
   border-radius: 999px;
   background: #10b981;
   box-shadow: 0 0 0 2px var(--surface, #fff);
+}
+
+/* v35.55 iOS WebKit GPU / Compositor Safety:
+   - Pausa animaciones continuas cuando la app pasa a segundo plano.
+   - En pantallas táctiles (@media hover:none / pointer:coarse) elimina filter:blur dinámico
+     en los orbes y los backdrop-filter redundantes en controles/chips/iconos para evitar
+     que WebKit exceda su cuota GPU/Jetsam y recargue en bucle. */
+html.dc-bg-paused .v3526-orb-track-x,
+html.dc-bg-paused .v3526-orb-track-y,
+html.dc-bg-paused .v3526-orb,
+html.dc-bg-paused .topbar .brand::after,
+html.dc-bg-paused .topbar .brand svg,
+html.dc-bg-paused .topbar .brand img {
+  animation-play-state: paused !important;
+}
+
+@media (hover: none), (pointer: coarse) {
+  .v3526-orb {
+    filter: none !important;
+    opacity: calc(var(--v3526-orb-alpha, 0.78) * 0.76);
+    transition: opacity 0.25s ease;
+  }
+  .topbar .brand::after,
+  .topbar .brand svg,
+  .topbar .brand img {
+    animation: none !important;
+  }
+  .quick-action .quick-icon,
+  .chip,
+  .search-chips .chip,
+  .search-chips button,
+  main.page .field-control,
+  main.page .field-select,
+  main.page .field-area,
+  main.page .filter-trigger,
+  .v3526-pill,
+  .fab,
+  .overlay,
+  .v3526-modal-backdrop {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+  .topbar,
+  .flow-panel,
+  .finance-filter-menu,
+  .v3526-cut-action-card,
+  .toast {
+    -webkit-backdrop-filter: blur(14px) saturate(1.25) !important;
+    backdrop-filter: blur(14px) saturate(1.25) !important;
+  }
+  .bottom-nav,
+  .sheet,
+  .v3526-modal-sheet {
+    -webkit-backdrop-filter: blur(16px) saturate(1.3) !important;
+    backdrop-filter: blur(16px) saturate(1.3) !important;
+  }
 }

@@ -1,5 +1,5 @@
-import { assessCut, effectiveCutTransferCentavos } from './cut-review.js?v=35.54';
-import { loadFacturadorSales } from './data-source.js?v=35.54';
+import { assessCut, effectiveCutTransferCentavos } from './cut-review.js?v=35.55';
+import { loadFacturadorSales } from './data-source.js?v=35.55';
 import {
   reducedMotion as motionReduced,
   stop as motionStop,
@@ -8,7 +8,7 @@ import {
   pop as motionPop,
   glassExpand as motionGlassExpand,
   revealText as motionRevealText
-} from './apple-motion.mjs?v=35.54';
+} from './apple-motion.mjs?v=35.55';
 
 /* ==========================================================================
    v35.26 Unified Inbox, Mail/Cash-Codes, Theme Palettes, Web Push & Fiscal UI
@@ -1455,6 +1455,14 @@ function renderConnectionHost() {
   const cajaInfo = eco?.caja || {};
   const crmInfo = eco?.crm || {};
   const bridge = crmInfo.bridgeStatus || {};
+  const nextSig = [
+    uiState.mode, userEmail, uiState.ecosystemLoading ? 1 : 0, uiState.ecosystemError || '',
+    dbInfo.connected ? 1 : 0, dbInfo.accountsCount || 0, dbInfo.movementsCount || 0, dbInfo.syncedAt || '',
+    cajaInfo.onlineDevices || 0, cajaInfo.totalDevices || 0, cajaInfo.activeShift?.cajaNombre || '', cajaInfo.lastAppliedEventAt || '',
+    bridge.online ? 1 : 0, crmInfo.unreadConversations || 0, crmInfo.quotesPending || 0, crmInfo.clientsCount || 0
+  ].join('|');
+  if (host.dataset.renderedSig === nextSig && host.children.length) return;
+  host.dataset.renderedSig = nextSig;
 
   host.innerHTML = `
     <div class="section-head"><h2>Base de datos · Caja · CRM</h2></div>
@@ -3374,7 +3382,7 @@ async function ensureCategoryLinker() {
   if (window.DcarelaCategoryLinker) return;
   await new Promise((resolve) => {
     const sc = document.createElement('script');
-    sc.src = './v35-26-category-emojis.js?v=35.54';
+    sc.src = './v35-26-category-emojis.js?v=35.55';
     sc.onload = resolve;
     sc.onerror = resolve;
     document.head.appendChild(sc);
@@ -3387,6 +3395,11 @@ async function init() {
 
   if (!uiState.mountedHooks) {
     uiState.mountedHooks = true;
+    const syncBgPaused = () => {
+      try { document.documentElement.classList.toggle('dc-bg-paused', Boolean(document.hidden)); } catch {}
+    };
+    syncBgPaused();
+    document.addEventListener('visibilitychange', syncBgPaused);
     let lastBiz = appSnapshot().business || '';
     let lastRenderedAt = 0;
     window.addEventListener('dcarela:finanzas-rendered', (ev) => {

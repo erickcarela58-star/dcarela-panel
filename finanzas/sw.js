@@ -1,5 +1,5 @@
-// DCARELA_PWA_VERSION: 35.54
-const CACHE = 'dcarela-finanzas-v35-54';
+// DCARELA_PWA_VERSION: 35.55
+const CACHE = 'dcarela-finanzas-v35-55';
 const SHELL = [
   './',
   './index.html',
@@ -8,16 +8,16 @@ const SHELL = [
   './manifest-plaza.webmanifest',
   './app.css',
   './minimal-v34.css',
-  './monochrome-glass-v35.css?v=35.54',
-  './apple-motion.css?v=35.54',
-  './v35-26-motion.css?v=35.54',
-  './apple-motion.mjs?v=35.54',
-  './app.js?v=35.54',
-  './data-source.js?v=35.54',
-  './demo-data.js?v=35.54',
-  './v35-26-category-emojis.js?v=35.54',
-  './v35-26-inbox-fiscal.js?v=35.54',
-  './cut-review.js?v=35.54',
+  './monochrome-glass-v35.css?v=35.55',
+  './apple-motion.css?v=35.55',
+  './v35-26-motion.css?v=35.55',
+  './apple-motion.mjs?v=35.55',
+  './app.js?v=35.55',
+  './data-source.js?v=35.55',
+  './demo-data.js?v=35.55',
+  './v35-26-category-emojis.js?v=35.55',
+  './v35-26-inbox-fiscal.js?v=35.55',
+  './cut-review.js?v=35.55',
   './icons/dcarela-logo.png',
   './icons/apple-touch-icon.png',
   './icons/apple-touch-icon-plaza.png',
@@ -84,10 +84,16 @@ const SHELL = [
   './assets/emojis/1f4dd.png',
 ];
 
+async function precacheShellInBatches(cache, urls, batchSize = 6) {
+  for (let i = 0; i < urls.length; i += batchSize) {
+    await Promise.allSettled(urls.slice(i, i + batchSize).map((url) => cache.add(url)));
+  }
+}
+
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE)
-      .then((cache) => Promise.allSettled(SHELL.map((url) => cache.add(url))))
+      .then((cache) => precacheShellInBatches(cache, SHELL, 6))
       .then(() => (!self.registration?.active ? self.skipWaiting() : undefined))
   );
 });
@@ -129,7 +135,12 @@ self.addEventListener('fetch', (event) => {
         }
         return res;
       })
-      .catch(() => caches.match(req).then((cached) => cached || (req.mode === 'navigate' ? caches.match('./index.html') : undefined)))
+      .catch(() => caches.match(req).then((cached) => (
+        cached
+        || (req.mode === 'navigate' ? caches.match(req, { ignoreSearch: true }) : undefined)
+      )).then((matched) => (
+        matched || (req.mode === 'navigate' ? caches.match(url.pathname.endsWith('/plaza.html') ? './plaza.html' : './index.html') : undefined)
+      )))
   );
 });
 

@@ -371,22 +371,22 @@ body,:root[data-theme="dark"] body{
 .donut-panel,.account-chart-panel,.books-card,.selection-card,.card,.card:has(>.pay-row),.card:has(>.budget-item),.card:has(>.info-line){
   background:transparent;border:0;box-shadow:none;border-radius:0;
 }
-.chip{background:rgba(255,255,255,.58);border:1px solid rgba(255,255,255,.8);color:var(--ink);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
+.chip{background:rgba(255,255,255,.58);border:1px solid rgba(255,255,255,.8);color:var(--ink)}
 :root[data-theme="dark"] .chip{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.14);color:rgba(246,247,249,.92)}
 .chip.is-active,
 :root[data-theme="dark"] .chip.is-active{background:var(--ink);color:var(--bg);border-color:var(--ink);font-weight:700;box-shadow:0 6px 16px rgba(0,0,0,.28)}
-.overlay{background:rgba(12,15,20,.32);backdrop-filter:blur(8px) saturate(1.2);-webkit-backdrop-filter:blur(8px) saturate(1.2)}
+.overlay{background:rgba(12,15,20,.40)}
 .sheet,:root[data-theme="dark"] .sheet{
   border-radius:28px 28px 0 0;
   max-height:calc(100dvh - env(safe-area-inset-top) - 10px);
   padding:8px 18px max(22px,calc(16px + env(safe-area-inset-bottom)));
-  background:linear-gradient(170deg,rgba(22,25,31,.78),rgba(11,13,17,.72));
+  background:linear-gradient(170deg,rgba(22,25,31,.82),rgba(11,13,17,.78));
   border-top:1px solid rgba(255,255,255,.17);
   box-shadow:0 -22px 58px rgba(0,0,0,.56),inset 0 1px 0 rgba(255,255,255,.14);
   backdrop-filter:blur(32px) saturate(1.75);-webkit-backdrop-filter:blur(32px) saturate(1.75);
 }
 :root:not([data-theme="dark"]) .sheet{
-  background:linear-gradient(170deg,rgba(255,255,255,.78),rgba(242,245,248,.68));
+  background:linear-gradient(170deg,rgba(255,255,255,.84),rgba(242,245,248,.76));
   border-top:1px solid rgba(255,255,255,.92);
   box-shadow:0 -20px 54px rgba(15,22,34,.18),inset 0 1px 0 #fff;
   backdrop-filter:blur(32px) saturate(1.85);-webkit-backdrop-filter:blur(32px) saturate(1.85);
@@ -395,7 +395,6 @@ body,:root[data-theme="dark"] body{
 .sheet-header{margin-bottom:8px}
 .sheet-tabs,.mini-switch{
   background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.11);border-radius:14px;padding:4px;gap:4px;margin-bottom:8px;
-  backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
 }
 :root:not([data-theme="dark"]) .sheet-tabs,:root:not([data-theme="dark"]) .mini-switch{background:rgba(17,19,21,.055);border-color:rgba(255,255,255,.7)}
 .sheet-tabs button,.mini-switch button{min-height:37px;border-radius:10px;border-bottom:0}
@@ -411,7 +410,6 @@ body,:root[data-theme="dark"] body{
   height:40px;border-radius:14px;font-size:1.08rem;
   background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.12);
   box-shadow:0 2px 8px rgba(0,0,0,.18),inset 0 1px 0 rgba(255,255,255,.12);
-  backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
   transition:transform .12s ease,background .12s ease;
 }
 :root:not([data-theme="dark"]) .keypad button{
@@ -423,7 +421,6 @@ body,:root[data-theme="dark"] body{
 .sheet .field-control,.sheet .field-select,.sheet .field-area,.sheet .filter-trigger,.sheet .account-chart-stat{
   min-height:41px;padding:8px 12px;border-radius:12px;
   background-color:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);
-  backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
 }
 .sheet .field-select{
   padding-right:35px;

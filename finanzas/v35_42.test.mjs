@@ -9,7 +9,7 @@ const read = (file) => fs.readFileSync(path.join(DIR, file), 'utf8');
 
 test('v35.42 service worker avoids mid-session skipWaiting when active worker already exists', async () => {
   const swCode = read('sw.js');
-  assert.match(swCode, /const CACHE = 'dcarela-finanzas-v35-54'/);
+  assert.match(swCode, /const CACHE = 'dcarela-finanzas-v35-55'/);
 
   function bootSw(hasActiveWorker) {
     const handlers = {};
@@ -80,7 +80,7 @@ test('v35.42 HTML pre-paint theme script reads dcarela-mm-theme correctly for Ce
 
 test('v35.51 eliminates unsolicited reloads and scopes button updates cleanly in app.js', () => {
   const appJs = read('app.js');
-  assert.match(appJs, /const APP_VERSION='35\.54';/);
+  assert.match(appJs, /const APP_VERSION='35\.55';/);
 
   // 1) No automatic visibilitychange background reload
   assert.doesNotMatch(appJs, /addEventListener\('visibilitychange'/);
@@ -362,4 +362,49 @@ test('v35.52 formatea COP como Col$, convierte COP/EUR a DOP sin 1:1 y filtra no
   assert.equal(ctx.isNonActionableMailNoise({ kind: 'retiro_codigo_cash', subject: 'Código Cash' }), false);
   assert.equal(ctx.isActionableMailMovement({ kind: 'transferencia_salida' }), true);
   assert.equal(ctx.isActionableMailMovement({ kind: 'suscripcion' }), false);
+});
+
+test('v35.55 evita descargas/recargas en bucle y protege memoria GPU en iOS PWA', async () => {
+  const appJs = read('app.js');
+  const swJs = read('sw.js');
+  const inboxJs = read('v35-26-inbox-fiscal.js');
+  const motionCss = read('v35-26-motion.css');
+  const glassCss = read('monochrome-glass-v35.css');
+
+  // 1) Boot load() no longer fires eager 77MB historical backfill at 1500ms
+  const loadStart = appJs.indexOf('async function load(opts={}){');
+  const loadEnd = appJs.indexOf('function liveRibbonText(');
+  const loadBody = appJs.slice(loadStart, loadEnd);
+  assert.doesNotMatch(loadBody, /setTimeout\(\(\)\s*=>\s*ensureFullHistory\(\)/);
+  assert.match(loadBody, /if\(isLive\)\{const activeUid=window\.DcarelaFirebase\?\.getCurrentUser\?\.\(\)\?\.uid;if\(activeUid\)seenAuthUid=activeUid;\}/);
+
+  // 2) Auth null -> uid hydration during boot does not wipe state and reload
+  assert.match(appJs, /if \(seenAuthUid === null && uid && \(state\.loading \|\| state\.data\) && !state\.authRequired\)\s*\{\s*seenAuthUid=uid;\s*return;\s*\}/);
+
+  // 3) Single-shot update reload guard prevents double location.reload() on controllerchange
+  let reloadCalls = 0;
+  const reloadCtx = {
+    appUpdateReloading: true,
+    location: { reload: () => { reloadCalls += 1; } },
+  };
+  const trigStart = appJs.indexOf('function triggerSingleUpdateReload(');
+  const trigEnd = appJs.indexOf('async function checkAndApplyAppUpdate(');
+  vm.runInNewContext(appJs.slice(trigStart, trigEnd), reloadCtx);
+  reloadCtx.triggerSingleUpdateReload();
+  reloadCtx.triggerSingleUpdateReload();
+  assert.equal(reloadCalls, 1, 'location.reload executes at most once per update cycle');
+
+  // 4) iOS touch screens drop dynamic orb blur and nested backdrop-filters; background tab pauses orbs
+  assert.match(motionCss, /html\.dc-bg-paused \.v3526-orb-track-x[\s\S]*?animation-play-state:\s*paused\s*!important/);
+  assert.match(motionCss, /@media \(hover: none\), \(pointer: coarse\)[\s\S]*?\.v3526-orb\s*\{[\s\S]*?filter:\s*none\s*!important/);
+  assert.match(motionCss, /@media \(hover: none\), \(pointer: coarse\)[\s\S]*?\.quick-action \.quick-icon[\s\S]*?backdrop-filter:\s*none\s*!important/);
+  const keypadBlock = glassCss.slice(glassCss.indexOf('.keypad button{'), glassCss.indexOf('.keypad button:active{'));
+  assert.doesNotMatch(keypadBlock, /backdrop-filter/);
+  assert.match(inboxJs, /dc-bg-paused/);
+  assert.match(inboxJs, /function renderConnectionHost\(\)\s*\{[\s\S]*?host\.dataset\.renderedSig === nextSig/);
+
+  // 5) sw.js precaches in batches and falls back cleanly on ?source=pwa navigations
+  assert.match(swJs, /async function precacheShellInBatches\(/);
+  assert.match(swJs, /ignoreSearch:\s*true/);
+  assert.match(swJs, /url\.pathname\.endsWith\('\/plaza\.html'\)\s*\?\s*'\.\/plaza\.html'\s*:\s*'\.\/index\.html'/);
 });

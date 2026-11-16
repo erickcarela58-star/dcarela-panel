@@ -1,7 +1,7 @@
-import {loadFinance,loadFullFinanceHistory,commitAction,getTerminalReceipt,loadLiveConnectivity,isLive,canRegister,canCancelMovement} from './data-source.js?v=35.54';
-import {fixture as demoFixture} from './demo-data.js?v=35.54';
-import {presets as motionPresets,reducedMotion as motionReduced,springProgress as appleSpringProgress,stop as motionStop,stopInside as motionStopInside,motion as appleMotion,reveal as motionReveal,pop as motionPop,glassExpand as motionGlassExpand,revealText as motionRevealText,enterScreen as motionEnterScreen,count as motionCount} from './apple-motion.mjs?v=35.54';
-const APP_VERSION='35.54';
+import {loadFinance,loadFullFinanceHistory,commitAction,getTerminalReceipt,loadLiveConnectivity,isLive,canRegister,canCancelMovement} from './data-source.js?v=35.55';
+import {fixture as demoFixture} from './demo-data.js?v=35.55';
+import {presets as motionPresets,reducedMotion as motionReduced,springProgress as appleSpringProgress,stop as motionStop,stopInside as motionStopInside,motion as appleMotion,reveal as motionReveal,pop as motionPop,glassExpand as motionGlassExpand,revealText as motionRevealText,enterScreen as motionEnterScreen,count as motionCount} from './apple-motion.mjs?v=35.55';
+const APP_VERSION='35.55';
 const emulatorWritesAllowed=()=>isLive && ['localhost','127.0.0.1'].includes(location.hostname)
  && String(window.__DCARELA_FIREBASE_CONFIG?.projectId||'').startsWith('demo-')
  && window.__DCARELA_FINANCE_STAGING_WRITE__===true;
@@ -183,6 +183,7 @@ async function load(opts={}){
   if(params.get('fail')==='1')throw new Error('Error de lectura simulado: no se pudo obtener el libro financiero.');
   const data=await loadFinance(defaultBranchId);
   if(serial!==loadSerial)return;
+  if(isLive){const activeUid=window.DcarelaFirebase?.getCurrentUser?.()?.uid;if(activeUid)seenAuthUid=activeUid;}
   state.business=data.businessId;
   for(const key of Object.keys(branches))delete branches[key];
   for(const b of data.authorizedBusinesses)branches[b.id]=(!isLive&&DEMO_BRANCH_NAMES[b.id])?DEMO_BRANCH_NAMES[b.id]:b.name;
@@ -201,7 +202,6 @@ async function load(opts={}){
   lastLoadedAt=Date.now();
   if(isLive){
    loadLiveConnectivity(data.businessId).then(conn=>{if(serial===loadSerial){state.liveConn=conn;const rightEl=document.getElementById('v3526LiveRibbonRight');if(rightEl)rightEl.textContent=liveRibbonText();}}).catch(()=>{});
-   if(!state.historyLoaded)setTimeout(()=>ensureFullHistory(),1500);
   }
  }catch(e){
   if(serial===loadSerial){
@@ -1093,6 +1093,11 @@ function parseSwVersion(text){
  const m=String(text||'').match(/dcarela-finanzas-v(\d+)-(\d+)/i);
  return m?`${m[1]}.${m[2]}`:'';
 }
+function triggerSingleUpdateReload(){
+ if(!appUpdateReloading)return;
+ appUpdateReloading=false;
+ location.reload();
+}
 async function checkAndApplyAppUpdate(){
  if(appRefreshing)return;
  appRefreshing=true;
@@ -1127,15 +1132,19 @@ async function checkAndApplyAppUpdate(){
   }
   const hasNewVersion=Boolean(waitingWorker||(remoteVersion && remoteVersion!==APP_VERSION));
   if(hasNewVersion){
+   appUpdateReloading=true;
    if(waitingWorker){try{waitingWorker.postMessage({type:'SKIP_WAITING'});}catch{}}
-   if('caches' in window){
-    try{const keys=await caches.keys();await Promise.all(keys.map(k=>caches.delete(k)));}catch{}
+   if('caches' in window && remoteVersion){
+    try{
+     const targetCache=`dcarela-finanzas-v${remoteVersion.replace(/\./g,'-')}`;
+     const keys=await caches.keys();
+     await Promise.all(keys.filter(k=>k!==targetCache).map(k=>caches.delete(k)));
+    }catch{}
    }
    try{await fetch(location.pathname,{cache:'reload'});}catch{}
-   appUpdateReloading=true;
    note(`Actualizando Finanzas a v${remoteVersion||'reciente'}...`);
-   await new Promise(r=>setTimeout(r,260));
-   location.reload();
+   await new Promise(r=>setTimeout(r,waitingWorker?450:260));
+   triggerSingleUpdateReload();
    return;
   }
   if(!state.loading){
@@ -1979,7 +1988,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape'&&state.modal)closeMo
 // o estado del usuario. La actualización de datos/versión queda bajo demanda en el botón Actualizar.
 if('serviceWorker' in navigator&&location.protocol!=='file:'&&!emulatorWritesAllowed()){
  navigator.serviceWorker.register('./sw.js',{updateViaCache:'none'}).then(reg=>{swRegistration=reg;watchAppUpdate(reg);reg.update().catch(()=>{});}).catch(()=>{});
- navigator.serviceWorker.addEventListener('controllerchange',()=>{if(appUpdateReloading)location.reload();});
+ navigator.serviceWorker.addEventListener('controllerchange',()=>{triggerSingleUpdateReload();});
 }
 if (!isLive) window.__DCARELA_UI_DEBUG={state,render,openModal,openTab}; // Solo demo.
 if (isLive && window.DcarelaFirebase?.onAuthStateChanged) {
@@ -1987,6 +1996,10 @@ if (isLive && window.DcarelaFirebase?.onAuthStateChanged) {
   const uid=user?.uid || null;
   if (seenAuthUid === undefined) {seenAuthUid=uid;return;}
   if (uid === seenAuthUid || signingIn) return;
+  if (seenAuthUid === null && uid && (state.loading || state.data) && !state.authRequired) {
+   seenAuthUid=uid;
+   return;
+  }
   if (!uid && typeof window.DcarelaFirebase.waitForAuthState === 'function') {
    window.DcarelaFirebase.waitForAuthState(1500).then(confirmed => {
     const confirmedUid=confirmed?.uid || null;
