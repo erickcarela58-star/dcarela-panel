@@ -1,7 +1,7 @@
-import {loadFinance,loadFullFinanceHistory,commitAction,getTerminalReceipt,loadLiveConnectivity,isLive,canRegister,canCancelMovement} from './data-source.js?v=35.55';
-import {fixture as demoFixture} from './demo-data.js?v=35.55';
-import {presets as motionPresets,reducedMotion as motionReduced,springProgress as appleSpringProgress,stop as motionStop,stopInside as motionStopInside,motion as appleMotion,reveal as motionReveal,pop as motionPop,glassExpand as motionGlassExpand,revealText as motionRevealText,enterScreen as motionEnterScreen,count as motionCount} from './apple-motion.mjs?v=35.55';
-const APP_VERSION='35.55';
+import {loadFinance,loadFullFinanceHistory,commitAction,getTerminalReceipt,loadLiveConnectivity,isLive,canRegister,canCancelMovement} from './data-source.js?v=35.56';
+import {fixture as demoFixture} from './demo-data.js?v=35.56';
+import {presets as motionPresets,reducedMotion as motionReduced,springProgress as appleSpringProgress,stop as motionStop,stopInside as motionStopInside,motion as appleMotion,reveal as motionReveal,pop as motionPop,glassExpand as motionGlassExpand,revealText as motionRevealText,enterScreen as motionEnterScreen,count as motionCount} from './apple-motion.mjs?v=35.56';
+const APP_VERSION='35.56';
 const emulatorWritesAllowed=()=>isLive && ['localhost','127.0.0.1'].includes(location.hostname)
  && String(window.__DCARELA_FIREBASE_CONFIG?.projectId||'').startsWith('demo-')
  && window.__DCARELA_FINANCE_STAGING_WRITE__===true;
@@ -403,7 +403,7 @@ function renderCustomRange(){
    <button type="button" class="chip" data-do="custom-preset" data-preset="prev-year">${Number(today.slice(0,4))-1}</button>
    <button type="button" class="chip" data-do="custom-preset" data-preset="all">Todo</button>
   </div>
-  <div class="filter-grid">
+  <div class="filter-grid filter-grid-dates">
    <div><label class="field-label" for="fin-custom-from">Desde</label><input class="field-control" id="fin-custom-from" type="date" name="finance-custom-from" value="${esc(state.customFrom)}"></div>
    <div><label class="field-label" for="fin-custom-to">Hasta</label><input class="field-control" id="fin-custom-to" type="date" name="finance-custom-to" value="${esc(state.customTo)}"></div>
   </div>
@@ -438,7 +438,7 @@ function searchChips(){
 }
 function renderSearch(fromTools=false){return `<main id="main" class="page" data-v3526-page="search">${fromTools?routeHead('Búsqueda','Filtra el historial de tu sucursal'):`<section class="screen-intro"><div class="eyebrow">ENCUENTRA CUALQUIER OPERACIÓN</div><h1 class="page-title">Búsqueda</h1><div class="subline">Filtra el historial de tu sucursal</div></section>`}${searchChips()}<form id="search-form" class="card search-form-card"><label class="field-label" for="query" style="margin-top:0">Concepto, nota o categoría</label><div class="search-input-wrapper">${ico('search')}<input class="field-control" id="query" name="search-query" value="${esc(state.search.query)}" placeholder="Buscar movimientos..." autocomplete="off"></div>
  <div class="search-advanced-fields" id="search-advanced-fields">
-  <div class="filter-grid"><div><label class="field-label" for="date-from">Desde</label><input class="field-control" type="date" name="from" id="date-from" value="${state.search.from}"></div><div><label class="field-label" for="date-to">Hasta</label><input class="field-control" type="date" name="to" id="date-to" value="${state.search.to}"></div></div>
+  <div class="filter-grid filter-grid-dates"><div><label class="field-label" for="date-from">Desde</label><input class="field-control" type="date" name="from" id="date-from" value="${state.search.from}"></div><div><label class="field-label" for="date-to">Hasta</label><input class="field-control" type="date" name="to" id="date-to" value="${state.search.to}"></div></div>
   <div class="search-accounts"><label class="field-label">Cuentas</label><button type="button" class="filter-trigger" data-do="accounts-filter"><span>${state.search.accountIds.length===accounts().length?'Todas las cuentas':`${state.search.accountIds.length} cuentas seleccionadas`}</span>${ico('chevron','sm')}</button></div>
   <div class="filter-grid"><div><label class="field-label" for="search-type">Tipo</label><select class="field-select" id="search-type" name="search-type"><option value="">Todos</option><option value="ingreso" ${state.search.type==='ingreso'?'selected':''}>Ingreso</option><option value="gasto" ${state.search.type==='gasto'?'selected':''}>Gasto</option><option value="transferencia" ${state.search.type==='transferencia'?'selected':''}>Transferencia</option></select></div><div><label class="field-label" for="search-cat">Categoría</label><select class="field-select" id="search-cat" name="search-category"><option value="">Todas</option>${cats().map(c=>`<option value="${esc(c.id)}" ${state.search.category===c.id?'selected':''}>${esc(c.nombre)}</option>`).join('')}</select></div></div>
  </div><button type="submit" class="primary-btn full" style="margin-top:16px">${ico('search','sm')} Buscar movimientos</button></form><p class="search-summary">Incluye registros anulados en los resultados para conservar la trazabilidad.</p><div id="search-results-slot">${searchResults()}</div></main>`}
@@ -677,7 +677,7 @@ function modalCommitment(){
   <div><label class="field-label" for="debt-monto">${isRec?'Monto estimado (RD$)':'Monto (RD$)'}</label><input class="field-control" id="debt-monto" name="debt-monto" value="${esc(f.monto)}" placeholder="0.00" inputmode="decimal" autocomplete="off"></div>
   <div><label class="field-label" for="debt-acreedor">Acreedor / proveedor</label><input class="field-control" id="debt-acreedor" name="debt-acreedor" value="${esc(f.acreedor)}" placeholder="Opcional" maxlength="160"></div>
  </div>
- <div class="filter-grid">
+ <div class="filter-grid filter-grid-dates">
   <div><label class="field-label" for="debt-categoria">Categoría</label><select class="field-select" id="debt-categoria" name="debt-categoria">${expenseCategoryOptions(f.categoriaId)}</select></div>
   <div><label class="field-label" for="debt-proxima">${isRec?'Próximo vencimiento':'Fecha límite de pago'}</label><input class="field-control" id="debt-proxima" type="date" name="debt-proxima" value="${esc(f.proximaFecha)}"></div>
  </div>
@@ -687,7 +687,7 @@ function modalCommitment(){
  </div>
  ${['quincenal','mensual'].includes(f.frecuencia)?`<div class="filter-grid"><div><label class="field-label" for="debt-dia1">Día del mes 1</label><input class="field-control" id="debt-dia1" name="debt-dia1" type="number" min="1" max="31" value="${esc(f.diaMes1)}" placeholder="Ej. 15"></div>${f.frecuencia==='quincenal'?`<div><label class="field-label" for="debt-dia2">Día del mes 2</label><input class="field-control" id="debt-dia2" name="debt-dia2" type="number" min="1" max="31" value="${esc(f.diaMes2)}" placeholder="Ej. 30"></div>`:'<div></div>'}</div>`:''}
  <label class="check-line"><input type="checkbox" name="debt-variable" ${f.montoVariable?'checked':''}><span>El monto puede variar en cada recibo</span></label>`
- :`<div class="filter-grid">
+ :`<div class="filter-grid filter-grid-dates">
   <div><label class="field-label" for="debt-emitida">Fecha de factura</label><input class="field-control" id="debt-emitida" type="date" name="debt-emitida" value="${esc(f.emitidaEn)}"></div>
   <div><label class="field-label" for="debt-factura">Núm. factura / ref.</label><input class="field-control" id="debt-factura" name="debt-factura" value="${esc(f.numeroFactura)}" placeholder="Opcional" maxlength="100"></div>
  </div>`}
@@ -744,7 +744,7 @@ function updateEntryCategoryBadge(){
  badge.innerHTML=L.appleEmojiHtml(L.emojiForCategory(curCat.nombre),14);
 }
 function modalEntry(){if(isLive&&!canRegister())return modalFrame('Registrar movimiento',`<div class="notice warning">El registro no está disponible desde este origen. Usa la PWA oficial o el panel central con una cuenta autorizada.</div><button class="primary-btn full" type="button" data-do="open-finance-panel" style="margin:16px 0">Abrir Finanzas del panel central</button>`);const type=state.entryType;const isTransfer=type==='transferencia';const a=account(state.entryAccount);const amt=state.entryDigits?Number(state.entryDigits):0;const currency=a?.moneda||'DOP';const backSvg='<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="pointer-events:none"><path d="M21 5H9l-6 7 6 7h12a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2Z"/><path d="m16 9-6 6"/><path d="m10 9 6 6"/></svg>';const selCatObj=cat(state.entryCategory)||cats().find(c=>c.tipo===type);const catBadgeHtml=selCatObj&&window.DcarelaCategoryLinker?.appleEmojiHtml?window.DcarelaCategoryLinker.appleEmojiHtml(window.DcarelaCategoryLinker.emojiForCategory(selCatObj.nombre),14):'';
- return modalFrame(state.entryLink&&type==='gasto'?'Pagar compromiso':'Registrar movimiento',`${state.entryLink&&type==='gasto'?`<div class="notice">Pago vinculado a <b>${esc(state.entryLink.name)}</b>. Revisa el monto y la cuenta antes de guardar.</div>`:''}<div class="sheet-tabs" role="group" aria-label="Tipo de movimiento"><button class="${type==='gasto'?'active':''}" data-do="entry-type" data-type="gasto">Gasto</button><button class="${type==='ingreso'?'active':''}" data-do="entry-type" data-type="ingreso">Ingreso</button><button class="${isTransfer?'active':''}" data-do="entry-type" data-type="transferencia">Transferencia</button></div><div class="input-amount ${type==='gasto'?'expense-text':type==='ingreso'?'income-text':'warning-text'}" aria-label="Importe actual" role="status">${type==='gasto'?'−':type==='ingreso'?'+':''}${moneyText(amt,currency)}</div><div class="keypad" role="group" aria-label="Teclado para introducir el importe">${['1','2','3','4','5','6','7','8','9','00','0','⌫'].map(v=>`<button data-do="digit" data-digit="${v}" aria-label="${v==='⌫'?'Borrar último dígito':`Agregar ${v}`}">${v==='⌫'?backSvg:v}</button>`).join('')}</div><label class="field-label" for="entry-account">${isTransfer?'Cuenta de origen':'Cuenta'}</label><select class="field-select" id="entry-account" name="entry-account">${cashAccountOptions(state.entryAccount,'',type==='gasto')}</select>${isTransfer?`<label class="field-label" for="entry-dest">Cuenta de destino</label><select class="field-select" id="entry-dest" name="entry-dest">${cashAccountOptions(state.entryDest,state.entryAccount,true)}</select>`:`<label class="field-label" for="entry-category" style="display:flex;align-items:center;gap:6px"><span>Categoría</span><span id="entry-category-badge">${catBadgeHtml}</span></label><select class="field-select" id="entry-category" name="entry-category">${cats().filter(c=>c.tipo===type).map(c=>`<option value="${esc(c.id)}" ${state.entryCategory===c.id?'selected':''}>${esc(c.nombre)}</option>`).join('')}</select>`}<div class="filter-grid"><div><label class="field-label" for="entry-date">Fecha</label><input class="field-control" id="entry-date" type="date" name="entry-date" value="${esc(state.entryDate)}"></div><div><label class="field-label" for="entry-note">Concepto</label><input class="field-control" id="entry-note" name="entry-note" value="${esc(state.entryNote)}" placeholder="Descripción" maxlength="180"></div></div><div id="entry-commitment-hint">${entryCommitmentHintHtml()}</div><div class="notice">${!canWriteBranch()?'Tu cuenta puede consultar, pero no registrar movimientos en esta sucursal.':isLive?'Se registra en Firebase (base de datos) y viaja sincronizado hacia Caja POS y el CRM.':'Previsualización: el registro no alterará saldos, historial ni Firebase.'}</div><button class="primary-btn full" data-do="entry-save" ${state.busy||!canWriteBranch()?'disabled':''}>${isLive?'Guardar movimiento':'Revisar simulación'}</button>`)}
+ return modalFrame(state.entryLink&&type==='gasto'?'Pagar compromiso':'Registrar movimiento',`${state.entryLink&&type==='gasto'?`<div class="notice">Pago vinculado a <b>${esc(state.entryLink.name)}</b>. Revisa el monto y la cuenta antes de guardar.</div>`:''}<div class="sheet-tabs" role="group" aria-label="Tipo de movimiento"><button class="${type==='gasto'?'active':''}" data-do="entry-type" data-type="gasto">Gasto</button><button class="${type==='ingreso'?'active':''}" data-do="entry-type" data-type="ingreso">Ingreso</button><button class="${isTransfer?'active':''}" data-do="entry-type" data-type="transferencia">Transferencia</button></div><div class="input-amount ${type==='gasto'?'expense-text':type==='ingreso'?'income-text':'warning-text'}" aria-label="Importe actual" role="status">${type==='gasto'?'−':type==='ingreso'?'+':''}${moneyText(amt,currency)}</div><div class="keypad" role="group" aria-label="Teclado para introducir el importe">${['1','2','3','4','5','6','7','8','9','00','0','⌫'].map(v=>`<button data-do="digit" data-digit="${v}" aria-label="${v==='⌫'?'Borrar último dígito':`Agregar ${v}`}">${v==='⌫'?backSvg:v}</button>`).join('')}</div><label class="field-label" for="entry-account">${isTransfer?'Cuenta de origen':'Cuenta'}</label><select class="field-select" id="entry-account" name="entry-account">${cashAccountOptions(state.entryAccount,'',type==='gasto')}</select>${isTransfer?`<label class="field-label" for="entry-dest">Cuenta de destino</label><select class="field-select" id="entry-dest" name="entry-dest">${cashAccountOptions(state.entryDest,state.entryAccount,true)}</select>`:`<label class="field-label" for="entry-category" style="display:flex;align-items:center;gap:6px"><span>Categoría</span><span id="entry-category-badge">${catBadgeHtml}</span></label><select class="field-select" id="entry-category" name="entry-category">${cats().filter(c=>c.tipo===type).map(c=>`<option value="${esc(c.id)}" ${state.entryCategory===c.id?'selected':''}>${esc(c.nombre)}</option>`).join('')}</select>`}<label class="field-label" for="entry-date">Fecha</label><input class="field-control" id="entry-date" type="date" name="entry-date" value="${esc(state.entryDate)}"><label class="field-label" for="entry-note">Concepto</label><input class="field-control" id="entry-note" name="entry-note" value="${esc(state.entryNote)}" placeholder="Descripción" maxlength="180"><div id="entry-commitment-hint">${entryCommitmentHintHtml()}</div><div class="notice">${!canWriteBranch()?'Tu cuenta puede consultar, pero no registrar movimientos en esta sucursal.':isLive?'Se registra en Firebase (base de datos) y viaja sincronizado hacia Caja POS y el CRM.':'Previsualización: el registro no alterará saldos, historial ni Firebase.'}</div><button class="primary-btn full" data-do="entry-save" ${state.busy||!canWriteBranch()?'disabled':''}>${isLive?'Guardar movimiento':'Revisar simulación'}</button>`)}
 function renderModal(){if(!state.modal)return '';switch(state.modal){case 'account':return modalAccount();case 'accounts-filter':return modalAccountsFilter();case 'movement':return modalMovement();case 'void':return modalVoid();case 'movement-edit':return modalMovementEdit();case 'account-edit':return modalAccountEdit();case 'reconcile':return modalReconcile();case 'debt':return modalDebt();case 'debt-delete':return modalDebtDelete();case 'commitment':return modalCommitment();case 'entry':return modalEntry();default:return ''}}
 let previousModal=null, previousViewKey='', previousRootKey='', popupSerial=0, navigationDirection=0, countRafId=0, swRegistration=null, appUpdateReloading=false, appRefreshing=false, appUpdateWaiting=false, appUpdateNotified=false, filterMenuSerial=0;
 const reducedMotion=()=>motionReduced();
@@ -1076,17 +1076,39 @@ function finishCountUpsImmediately(scope=document){
   el.removeAttribute('data-count-target');
  }
 }
+function clearAppUpdateWaiting(){
+ appUpdateWaiting=false;
+ appUpdateNotified=false;
+ document.querySelectorAll('[data-do="refresh"]').forEach(b=>b.classList.remove('has-update'));
+}
 function markAppUpdateWaiting(){
  appUpdateWaiting=true;
  document.querySelectorAll('[data-do="refresh"]').forEach(b=>b.classList.add('has-update'));
  if(!appUpdateNotified){appUpdateNotified=true;note('Hay una actualización lista · toca ↻ arriba para aplicarla.');}
 }
+async function inspectWaitingWorker(waiting){
+ if(!waiting)return;
+ if(location.protocol!=='file:'&&typeof fetch==='function'){
+  try{
+   const res=await fetch(`./sw.js?chk=${Date.now()}`,{cache:'no-store'});
+   if(res?.ok){
+    const remote=parseSwVersion(await res.text());
+    if(remote && remote===APP_VERSION){
+     try{waiting.postMessage({type:'SKIP_WAITING'});}catch{}
+     clearAppUpdateWaiting();
+     return;
+    }
+   }
+  }catch{}
+ }
+ markAppUpdateWaiting();
+}
 function watchAppUpdate(reg){
  if(!reg)return;
- if(reg.waiting)markAppUpdateWaiting();
+ if(reg.waiting)inspectWaitingWorker(reg.waiting);
  reg.addEventListener?.('updatefound',()=>{
   const w=reg.installing;if(!w)return;
-  w.addEventListener('statechange',()=>{if(w.state==='installed'&&navigator.serviceWorker.controller)markAppUpdateWaiting();});
+  w.addEventListener('statechange',()=>{if(w.state==='installed'&&navigator.serviceWorker.controller)inspectWaitingWorker(reg.waiting||w);});
  });
 }
 function parseSwVersion(text){
@@ -1130,7 +1152,8 @@ async function checkAndApplyAppUpdate(){
     if(res?.ok){remoteVersion=parseSwVersion(await res.text());}
    }catch{}
   }
-  const hasNewVersion=Boolean(waitingWorker||(remoteVersion && remoteVersion!==APP_VERSION));
+  const hasNewVersion=Boolean((remoteVersion && remoteVersion!==APP_VERSION)||(waitingWorker && !remoteVersion));
+  if(waitingWorker && remoteVersion===APP_VERSION){try{waitingWorker.postMessage({type:'SKIP_WAITING'});}catch{}}
   if(hasNewVersion){
    appUpdateReloading=true;
    if(waitingWorker){try{waitingWorker.postMessage({type:'SKIP_WAITING'});}catch{}}
@@ -1147,6 +1170,7 @@ async function checkAndApplyAppUpdate(){
    triggerSingleUpdateReload();
    return;
   }
+  clearAppUpdateWaiting();
   if(!state.loading){
    await load({silent:Boolean(state.data)});
    await window.DcarelaInboxFiscal?.loadInbox?.(true);

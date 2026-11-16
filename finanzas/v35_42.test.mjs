@@ -9,7 +9,7 @@ const read = (file) => fs.readFileSync(path.join(DIR, file), 'utf8');
 
 test('v35.42 service worker avoids mid-session skipWaiting when active worker already exists', async () => {
   const swCode = read('sw.js');
-  assert.match(swCode, /const CACHE = 'dcarela-finanzas-v35-55'/);
+  assert.match(swCode, /const CACHE = 'dcarela-finanzas-v35-56'/);
 
   function bootSw(hasActiveWorker) {
     const handlers = {};
@@ -80,7 +80,7 @@ test('v35.42 HTML pre-paint theme script reads dcarela-mm-theme correctly for Ce
 
 test('v35.51 eliminates unsolicited reloads and scopes button updates cleanly in app.js', () => {
   const appJs = read('app.js');
-  assert.match(appJs, /const APP_VERSION='35\.55';/);
+  assert.match(appJs, /const APP_VERSION='35\.56';/);
 
   // 1) No automatic visibilitychange background reload
   assert.doesNotMatch(appJs, /addEventListener\('visibilitychange'/);
@@ -407,4 +407,40 @@ test('v35.55 evita descargas/recargas en bucle y protege memoria GPU en iOS PWA'
   assert.match(swJs, /async function precacheShellInBatches\(/);
   assert.match(swJs, /ignoreSearch:\s*true/);
   assert.match(swJs, /url\.pathname\.endsWith\('\/plaza\.html'\)\s*\?\s*'\.\/plaza\.html'\s*:\s*'\.\/index\.html'/);
+});
+
+test('v35.56 corrige colisión de Fecha/Concepto, grids con date en iPhone 15, despeje de FAB y punto verde SW', async () => {
+  const appJs = read('app.js');
+  const appCss = read('app.css');
+  const glassCss = read('monochrome-glass-v35.css');
+  const motionCss = read('v35-26-motion.css');
+  const inboxJs = read('v35-26-inbox-fiscal.js');
+
+  // 1) CSS grids clamp columns via minmax(0, 1fr), stack date grids on <=480px, and clamp date inputs on WebKit
+  assert.match(appCss, /\.filter-grid\{[^}]*grid-template-columns:minmax\(0,1fr\) minmax\(0,1fr\)/);
+  assert.match(appCss, /\.filter-grid>\*\{min-width:0;max-width:100%\}/);
+  assert.match(appCss, /-webkit-appearance:none;appearance:none;box-sizing:border-box;overflow:hidden/);
+  assert.match(appCss, /@media\(max-width:480px\)\{\.filter-grid\.filter-grid-dates,\.filter-grid:has\(input\[type="date"\]\)\{grid-template-columns:minmax\(0,1fr\)\}\}/);
+  assert.match(motionCss, /@media \(max-width: 480px\)[\s\S]*?grid-template-columns:\s*minmax\(0,\s*1fr\)/);
+
+  // 2) modalEntry gives Fecha and Concepto dedicated full-width rows; date pairs use filter-grid-dates
+  const entryStart = appJs.indexOf('function modalEntry(');
+  const entryEnd = appJs.indexOf('const INTERACTIVE_PRESS_SEL=');
+  const entryBody = appJs.slice(entryStart, entryEnd);
+  assert.doesNotMatch(entryBody, /<div class="filter-grid">/);
+  assert.match(entryBody, /id="entry-date"[^>]*type="date"/);
+  assert.match(entryBody, /id="entry-note"/);
+  assert.match(appJs, /renderCustomRange[\s\S]*?<div class="filter-grid filter-grid-dates">/);
+  assert.match(appJs, /renderSearch[\s\S]*?<div class="filter-grid filter-grid-dates">/);
+  assert.match(inboxJs, /v3526NewTaskForm[\s\S]*?<div class="filter-grid filter-grid-dates">/);
+  assert.match(inboxJs, /v3526FiscalForm[\s\S]*?<div class="filter-grid filter-grid-dates">/);
+
+  // 3) Shell padding clears both bottom-nav and floating + FAB; KPI labels wrap cleanly without truncation
+  assert.match(glassCss, /\.shell\{padding-bottom:calc\(136px \+ env\(safe-area-inset-bottom\)\)\}/);
+  assert.match(motionCss, /\.v3526-kpi strong\s*\{[\s\S]*?white-space:\s*normal;/);
+
+  // 4) Waiting SW matching already-loaded APP_VERSION promotes cleanly without leaving persistent false green dot
+  assert.match(appJs, /function clearAppUpdateWaiting\(\)/);
+  assert.match(appJs, /async function inspectWaitingWorker\(waiting\)/);
+  assert.match(appJs, /if\(remote && remote===APP_VERSION\)\{[\s\S]*?clearAppUpdateWaiting\(\)/);
 });

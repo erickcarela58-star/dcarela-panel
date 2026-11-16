@@ -1,5 +1,5 @@
-import { assessCut, effectiveCutTransferCentavos } from './cut-review.js?v=35.55';
-import { loadFacturadorSales } from './data-source.js?v=35.55';
+import { assessCut, effectiveCutTransferCentavos } from './cut-review.js?v=35.56';
+import { loadFacturadorSales } from './data-source.js?v=35.56';
 import {
   reducedMotion as motionReduced,
   stop as motionStop,
@@ -8,7 +8,7 @@ import {
   pop as motionPop,
   glassExpand as motionGlassExpand,
   revealText as motionRevealText
-} from './apple-motion.mjs?v=35.55';
+} from './apple-motion.mjs?v=35.56';
 
 /* ==========================================================================
    v35.26 Unified Inbox, Mail/Cash-Codes, Theme Palettes, Web Push & Fiscal UI
@@ -1745,7 +1745,7 @@ function renderCajaCrmHost() {
         </div>
         <form id="v3526NewTaskForm" style="display:grid;gap:8px;margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--border)">
           <input type="text" class="field-control" name="task-title" placeholder="Nueva tarea rápida para el equipo..." maxlength="140" required>
-          <div class="filter-grid">
+          <div class="filter-grid filter-grid-dates">
             <input type="date" class="field-control" name="task-date" value="${esc(todayStr)}" aria-label="Fecha límite">
             <button type="submit" class="primary-btn compact">${ae('➕', 13)} Crear tarea</button>
           </div>
@@ -1987,7 +1987,7 @@ function renderSettingsHost() {
         </div>
         <div class="v3526-slider-row">
           <div class="v3526-slider-head"><span>Tamaño y velocidad de rebote</span><span class="v3526-slider-val" id="v3526ScaleVal">${Number(gCfg.orbScale || 100)}% · ${Number(gCfg.orbSpeed || 1).toFixed(1)}×</span></div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px">
             <input type="range" class="v3526-range" id="v3526OrbScale" min="55" max="150" value="${Number(gCfg.orbScale || 100)}" aria-label="Tamaño de círculos">
             <input type="range" class="v3526-range" id="v3526OrbSpeed" min="0.4" max="2.2" step="0.1" value="${Number(gCfg.orbSpeed || 1)}" aria-label="Velocidad de círculos">
           </div>
@@ -2421,7 +2421,7 @@ function renderModalRoot() {
           <div><label class="field-label">NCF / e-CF</label><input class="field-control" name="f-ncf" required value="${esc(isFact ? (it.encf || it.ncf || '') : (it.ncf || ''))}"></div>
           <div><label class="field-label">RNC</label><input class="field-control" name="f-rnc" value="${esc(isFact ? (it.rnc || '') : is607 ? it.rncCliente : it.rnc)}"></div>
         </div>
-        <div class="filter-grid">
+        <div class="filter-grid filter-grid-dates">
           <div><label class="field-label">Fecha</label><input class="field-control" type="date" name="f-date" value="${esc(it.fecha || '')}"></div>
           <div><label class="field-label">Monto RD$</label><input class="field-control" type="number" step="0.01" name="f-amount" value="${((Number(isFact ? it.total_centavos : it.montoCentavos) || 0) / 100).toFixed(2)}"></div>
         </div>
@@ -3382,7 +3382,7 @@ async function ensureCategoryLinker() {
   if (window.DcarelaCategoryLinker) return;
   await new Promise((resolve) => {
     const sc = document.createElement('script');
-    sc.src = './v35-26-category-emojis.js?v=35.55';
+    sc.src = './v35-26-category-emojis.js?v=35.56';
     sc.onload = resolve;
     sc.onerror = resolve;
     document.head.appendChild(sc);

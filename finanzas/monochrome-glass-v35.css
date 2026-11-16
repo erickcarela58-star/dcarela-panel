@@ -313,7 +313,7 @@ body,:root[data-theme="dark"] body{
   background:linear-gradient(180deg,rgba(243,245,248,.88) 0%,rgba(243,245,248,.48) 66%,rgba(243,245,248,0) 100%);
   border-bottom:0;
 }
-.shell{padding-bottom:calc(88px + env(safe-area-inset-bottom))}
+.shell{padding-bottom:calc(136px + env(safe-area-inset-bottom))}
 .bottom-nav,:root[data-theme="dark"] .bottom-nav{
   position:fixed;z-index:30;left:50%;right:auto;transform:translateX(-50%);
   bottom:max(8px,env(safe-area-inset-bottom));width:min(calc(100% - 28px),580px);max-width:580px;
