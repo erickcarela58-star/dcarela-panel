@@ -9,7 +9,7 @@ const read = (file) => fs.readFileSync(path.join(DIR, file), 'utf8');
 
 test('v35.42 service worker avoids mid-session skipWaiting when active worker already exists', async () => {
   const swCode = read('sw.js');
-  assert.match(swCode, /const CACHE = 'dcarela-finanzas-v35-51'/);
+  assert.match(swCode, /const CACHE = 'dcarela-finanzas-v35-52'/);
 
   function bootSw(hasActiveWorker) {
     const handlers = {};
@@ -80,7 +80,7 @@ test('v35.42 HTML pre-paint theme script reads dcarela-mm-theme correctly for Ce
 
 test('v35.51 eliminates unsolicited reloads and scopes button updates cleanly in app.js', () => {
   const appJs = read('app.js');
-  assert.match(appJs, /const APP_VERSION='35\.51';/);
+  assert.match(appJs, /const APP_VERSION='35\.52';/);
 
   // 1) No automatic visibilitychange background reload
   assert.doesNotMatch(appJs, /addEventListener\('visibilitychange'/);
@@ -306,4 +306,60 @@ test('v35.51 confirma cortes de forma optimista + force-reload sin raza de concu
   assert.equal(live.uiState.inboxInFlight, null);
   assert.equal(live.uiState.loading, false);
   assert.equal(live.stats().apiCount, 6, 'p1 sent 3 calls and forced p3 sent 3 fresh calls (p2 reused p1)');
+});
+
+test('v35.52 formatea COP como Col$, convierte COP/EUR a DOP sin 1:1 y filtra notificaciones de consumo fuera de Pendientes de Correo', () => {
+  const inboxJs = read('v35-26-inbox-fiscal.js');
+  const coreJs = fs.readFileSync(path.join(DIR, '..', 'money-manager-core.js'), 'utf8');
+  const appJs = read('app.js');
+
+  assert.match(coreJs, /excludeCoveredByMovements\s*=\s*false/);
+  assert.match(appJs, /excludeCoveredByMovements:\s*true/);
+
+  const startFn = inboxJs.indexOf('function resolveLinkedAccountBank(');
+  const endFn = inboxJs.indexOf('function getPalette()');
+  const fmtStart = inboxJs.indexOf('const ACTIONABLE_MAIL_KINDS = new Set');
+  const fmtEnd = inboxJs.indexOf('function relTime(');
+  const dopStart = inboxJs.indexOf('function getActiveBankRate(');
+  const dopEnd = inboxJs.indexOf('function appSnapshot(');
+  assert.ok(startFn >= 0 && endFn > startFn);
+  assert.ok(fmtStart >= 0 && fmtEnd > fmtStart);
+  assert.ok(dopStart >= 0 && dopEnd > dopStart);
+
+  const snippet = [
+    'const DEFAULT_BANKS = [{ key: "qik", label: "Qik", rateSell: 61.25 }];',
+    'const uiState = { data: { fx: { banks: [{ key: "qik", label: "Qik", rateSell: 61.25 }], market: { cop_por_usd: 4150, usd_por_eur: 1.08 } } } };',
+    'function getBankUrl() { return "https://qik.do/"; }',
+    'function inferBankKeyFromText(t) { return /qik/i.test(String(t || "")) ? "qik" : ""; }',
+    inboxJs.slice(startFn, endFn),
+    inboxJs.slice(fmtStart, fmtEnd),
+    inboxJs.slice(dopStart, dopEnd),
+  ].join('\n');
+
+  const ctx = { Math, Number, String, Array, Object, Set, RegExp, Boolean, uiState: undefined };
+  vm.runInNewContext(snippet, ctx);
+
+  assert.equal(ctx.fmtMoney(9305800, 'COP'), 'Col$93,058.00');
+  assert.equal(ctx.fmtMoney(1999, 'USD'), 'US$19.99');
+  assert.equal(ctx.fmtMoney(10000, 'EUR'), '€100.00');
+  assert.equal(ctx.fmtMoney(101629, 'DOP'), 'RD$1,016.29');
+  assert.equal(ctx.normalizeClientCurrency('DOP', 9305800, 'ADOBE'), 'COP');
+  assert.equal(ctx.normalizeClientCurrency('COL$', 9305800, 'ADOBE'), 'COP');
+
+  const dopFromCop = ctx.computeDopCentavos(9305800, 'COP', 'qik');
+  assert.equal(dopFromCop, 137345, 'Col$93,058.00 convierte a RD$1,373.45 y no RD$93,058.00');
+  const dopFromEur = ctx.computeDopCentavos(10000, 'EUR', 'qik');
+  assert.equal(dopFromEur, 661500);
+
+  const noFakeBank = ctx.findLinkedBankAccountForMail(
+    { kind: 'suscripcion', bank: 'adobe', subject: 'Notificación de Consumo', currency: 'COP' },
+    [{ id: 'qik-1', nombre: 'Cuenta Corriente Qik', tipo: 'banco', moneda: 'DOP', bankKey: 'qik' }]
+  );
+  assert.equal(noFakeBank, null, 'no asigna Cuenta Corriente Qik arbitrariamente a un comercio');
+
+  assert.equal(ctx.isNonActionableMailNoise({ kind: 'consumo_bancario', subject: 'Consumo bancario · claro' }), true);
+  assert.equal(ctx.isNonActionableMailNoise({ kind: 'suscripcion', subject: 'Notificación de Consumo' }), true);
+  assert.equal(ctx.isNonActionableMailNoise({ kind: 'retiro_codigo_cash', subject: 'Código Cash' }), false);
+  assert.equal(ctx.isActionableMailMovement({ kind: 'transferencia_salida' }), true);
+  assert.equal(ctx.isActionableMailMovement({ kind: 'suscripcion' }), false);
 });

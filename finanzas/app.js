@@ -1,7 +1,7 @@
-import {loadFinance,loadFullFinanceHistory,commitAction,getTerminalReceipt,loadLiveConnectivity,isLive,canRegister,canCancelMovement} from './data-source.js?v=35.51';
-import {fixture as demoFixture} from './demo-data.js?v=35.51';
-import {presets as motionPresets,reducedMotion as motionReduced,springProgress as appleSpringProgress,stop as motionStop,stopInside as motionStopInside,motion as appleMotion,reveal as motionReveal,pop as motionPop,glassExpand as motionGlassExpand,revealText as motionRevealText,enterScreen as motionEnterScreen,count as motionCount} from './apple-motion.mjs?v=35.51';
-const APP_VERSION='35.51';
+import {loadFinance,loadFullFinanceHistory,commitAction,getTerminalReceipt,loadLiveConnectivity,isLive,canRegister,canCancelMovement} from './data-source.js?v=35.52';
+import {fixture as demoFixture} from './demo-data.js?v=35.52';
+import {presets as motionPresets,reducedMotion as motionReduced,springProgress as appleSpringProgress,stop as motionStop,stopInside as motionStopInside,motion as appleMotion,reveal as motionReveal,pop as motionPop,glassExpand as motionGlassExpand,revealText as motionRevealText,enterScreen as motionEnterScreen,count as motionCount} from './apple-motion.mjs?v=35.52';
+const APP_VERSION='35.52';
 const emulatorWritesAllowed=()=>isLive && ['localhost','127.0.0.1'].includes(location.hostname)
  && String(window.__DCARELA_FIREBASE_CONFIG?.projectId||'').startsWith('demo-')
  && window.__DCARELA_FINANCE_STAGING_WRITE__===true;
@@ -453,7 +453,7 @@ const moreItems=[
 ];
 function renderMore(){return `<main id="main" class="page" data-v3526-page="tools"><section class="screen-intro"><h1 class="page-title">Herramientas</h1><div class="subline">Accesos avanzados, correos y control</div></section><div class="card settings-list">${moreItems.map(([route,ic,title,caption])=>`<button class="setting-row" data-do="route" data-route="${route}"><span class="setting-icon" aria-hidden="true">${ico(ic,'sm')}</span><span class="row-copy"><b>${title}</b><small>${caption}</small></span>${ico('chevron','sm chev')}</button>`).join('')}</div>${isLive?'<button class="secondary-btn full finance-signout" data-do="sign-out">Cerrar sesión</button>':`<button class="secondary-btn full finance-signout" data-do="demo-login">Ver pantalla de login · ${esc(branchDisplayName())}</button>`}</main>`}
 function routeHead(title,desc,actionHtml=''){const intro=`<section class="screen-intro"><button class="round-button" data-do="back-more" aria-label="Regresar a Herramientas">${ico('back')}</button><div class="eyebrow">HERRAMIENTAS</div><h1 class="page-title">${title}</h1><div class="subline">${desc}</div></section>`;return actionHtml?`<div class="route-head-row">${intro}${actionHtml}</div>`:intro}
-function obligationRows(){return money.obligationSummary({commitments:state.data.commitments||[],costObligations:state.data.costObligations||[],costRecurrents:state.data.costRecurrents||[],month:state.month})}
+function obligationRows(){return money.obligationSummary({commitments:state.data.commitments||[],costObligations:state.data.costObligations||[],costRecurrents:state.data.costRecurrents||[],month:state.month,movements:active(),costPayments:state.data.costPayments||[],commitmentPayments:state.data.commitmentPayments||[],excludeCoveredByMovements:true})}
 function debtDisplayInfo(item){
  const info=typeof money.obligationDisplayAmount==='function'?money.obligationDisplayAmount(item):(item&&Number.isSafeInteger(item.outstanding)?{amount:item.outstanding,verified:true,kind:'balance'}:{amount:null,verified:false,kind:'unverified'});
  if(info.kind==='installment')return {...info,text:animMoney(info.amount,'DOP'),plain:moneyText(info.amount,'DOP'),tiny:'Cuota · Ver detalle'};

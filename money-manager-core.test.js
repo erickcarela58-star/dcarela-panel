@@ -315,3 +315,33 @@ test("alquiler no enlaza recibos de nomina/contabilidad con categoria Alquiler n
     outstanding: null,
   }), { amount: null, verified: false, kind: "unverified" });
 });
+
+test("v35.52 excludeCoveredByMovements oculta Google y Nomina del 5 cubiertos pero conserva Claude, Nomina del 20, Internet, Luz y Fotoquimsa", () => {
+  const summary = money.obligationSummary({
+    month: "2026-11",
+    excludeCoveredByMovements: true,
+    commitments: [
+      { id: "c-google", nombre: "Google AI / Workspace", monto_centavos: 125000, saldo_pendiente_centavos: 125000, proximo_vencimiento: "2026-11-10", frecuencia: "mensual", activo: true, estado: "activo" },
+      { id: "c-claude", nombre: "Claude Pro", monto_centavos: 130000, saldo_pendiente_centavos: 130000, proximo_vencimiento: "2026-11-18", frecuencia: "mensual", activo: true, estado: "activo" },
+      { id: "c-nomina", nombre: "Genesis J Estevez · Nomina", monto_centavos: 1800000, saldo_pendiente_centavos: 1800000, proximo_vencimiento: "2026-11-20", frecuencia: "quincenal", activo: true, estado: "activo" },
+    ],
+    costObligations: [
+      { id: "ob-nom-5", concepto: "Genesis J Estevez · Nomina", monto_centavos: 1800000, saldo_centavos: 0, vence_en: "2026-11-05", estado: "pagada" },
+      { id: "ob-claro", concepto: "Claro Internet 8095748651", monto_centavos: 345000, saldo_centavos: 345000, vence_en: "2026-11-22", estado: "pendiente" },
+      { id: "ob-luz", concepto: "Edeeste Luz Estudio", monto_centavos: 480000, saldo_centavos: 480000, vence_en: "2026-11-25", estado: "pendiente" },
+      { id: "ob-fotoq", concepto: "Fotoquimsa", monto_centavos: 650000, saldo_centavos: 650000, vence_en: "2026-11-21", estado: "pendiente" },
+    ],
+    movements: [
+      { id: "m-google", tipo: "gasto", estado: "registrado", fecha: "2026-11-10", monto_centavos: 126000, descripcion: "Consumo GOOGLE *GOOGLE ONE", categoria: "Suscripciones" },
+      { id: "m-nom-5", tipo: "gasto", estado: "registrado", fecha: "2026-11-05", monto_centavos: 1800000, descripcion: "Genesis J Estevez · Nomina 1ra quincena", categoria: "Nómina" },
+    ],
+  });
+
+  const names = summary.rows.map(r => r.name);
+  assert.ok(!names.some(n => /Google/i.test(n)), "Google cubierto en noviembre debe ocultarse");
+  assert.ok(names.some(n => /Claude/i.test(n)), "Claude pendiente debe seguir visible");
+  assert.ok(names.some(n => /Nomina/i.test(n)), "Nomina del 20 no debe ocultarse por pago del dia 5");
+  assert.ok(names.some(n => /Claro/i.test(n)), "Claro Internet pendiente debe seguir visible");
+  assert.ok(names.some(n => /Edeeste/i.test(n)), "Luz Edeeste pendiente debe seguir visible");
+  assert.ok(names.some(n => /Fotoquimsa/i.test(n)), "Fotoquimsa pendiente debe seguir visible");
+});

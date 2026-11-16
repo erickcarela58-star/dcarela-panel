@@ -1,5 +1,5 @@
-import { assessCut, effectiveCutTransferCentavos } from './cut-review.js?v=35.51';
-import { loadFacturadorSales } from './data-source.js?v=35.51';
+import { assessCut, effectiveCutTransferCentavos } from './cut-review.js?v=35.52';
+import { loadFacturadorSales } from './data-source.js?v=35.52';
 import {
   reducedMotion as motionReduced,
   stop as motionStop,
@@ -8,7 +8,7 @@ import {
   pop as motionPop,
   glassExpand as motionGlassExpand,
   revealText as motionRevealText
-} from './apple-motion.mjs?v=35.51';
+} from './apple-motion.mjs?v=35.52';
 
 /* ==========================================================================
    v35.26 Unified Inbox, Mail/Cash-Codes, Theme Palettes, Web Push & Fiscal UI
@@ -329,7 +329,7 @@ function findLinkedBankAccountForMail(m, allAccounts = []) {
   if (m?.kind === 'retiro_codigo_cash') {
     return pool.find((a) => a.tipo === 'banco') || pool[0] || null;
   }
-  return pool[0] || null;
+  return null;
 }
 
 function getPalette() {
@@ -354,9 +354,42 @@ function applyPalette(paletteId, customHex, skipSync = false) {
   if (!skipSync) scheduleSync();
 }
 
+const ACTIONABLE_MAIL_KINDS = new Set([
+  'retiro_codigo_cash',
+  'transferencia_salida',
+  'transferencia_enviada',
+  'transferencia_entrada',
+  'transferencia_recibida'
+]);
+
+function isActionableMailMovement(m) {
+  return ACTIONABLE_MAIL_KINDS.has(String(m?.kind || '').toLowerCase());
+}
+
+function isNonActionableMailNoise(m) {
+  const kind = String(m?.kind || '').toLowerCase();
+  if (ACTIONABLE_MAIL_KINDS.has(kind)) return false;
+  if (['consumo_bancario', 'cobro_servicio', 'factura', 'pago_servicio', 'aviso_banco', 'estado_de_cuenta', 'rechazado'].includes(kind)) {
+    return true;
+  }
+  return /notificaci[oó]n de consumo|consumo bancario|cargo a tarjeta/i.test(`${m?.subject || ''} ${m?.motivo || ''}`);
+}
+
+function normalizeClientCurrency(rawCur, amountMinor = 0, hintText = '') {
+  const s = String(rawCur || 'DOP').trim().toUpperCase();
+  if (/COP|COL\$|CO\$|PESO.*COLOMB/.test(s)) return 'COP';
+  if (/EUR|€/.test(s)) return 'EUR';
+  if (/USD|US\$|DOLAR/.test(s)) return 'USD';
+  if ((s === 'DOP' || s === 'RD$' || !s) && Number(amountMinor || 0) >= 2500000 && /\badobe\b/i.test(String(hintText || ''))) {
+    return 'COP';
+  }
+  return 'DOP';
+}
+
 function fmtMoney(centavos, currency = 'DOP') {
   const n = Number(centavos || 0) / 100;
-  const prefix = String(currency || 'DOP').toUpperCase() === 'USD' ? 'US$' : 'RD$';
+  const cur = String(currency || 'DOP').toUpperCase();
+  const prefix = cur === 'USD' ? 'US$' : (cur === 'COP' ? 'Col$' : (cur === 'EUR' ? '€' : 'RD$'));
   return `${prefix}${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
@@ -444,6 +477,12 @@ function normalizeInbox(raw) {
     }));
   }
   if (!banksList.length) banksList = DEFAULT_BANKS.map((b) => ({ ...b }));
+  const rawMarket = rawFx.market || rawFx.tasas_mercado || {};
+  const fxMarket = {
+    dop_por_usd: Number(rawMarket.dop_por_usd || banksList[0]?.rateSell || 61.25) || 61.25,
+    cop_por_usd: Number(rawMarket.cop_por_usd || 4150) || 4150,
+    usd_por_eur: Number(rawMarket.usd_por_eur || 1.08) || 1.08
+  };
 
   const rawCardLinks = src.cardLinks || src.card_links || {};
   const cardLinks = Array.isArray(rawCardLinks)
@@ -508,7 +547,7 @@ function normalizeInbox(raw) {
       bankName: c.bankName || c.bank || resolved.bankLabel || 'Cuenta vinculada',
       bankKey: resolved.bankKey || '',
       accountId: c.accountId || c.selected_account_id || resolved.matchedAcc?.id || '',
-      currency: String(c.currency || 'DOP').toUpperCase(),
+      currency: normalizeClientCurrency(c.currency, Number(c.originalCentavos ?? c.amount_minor ?? 0), `${merchant} ${c.bankName || c.bank || ''}`),
       originalCentavos: Number(c.originalCentavos ?? c.amount_minor ?? 0),
       computedDopMinor: Number(c.computedDopMinor ?? c.computed_dop_minor ?? 0),
       date: String(c.date || c.transaction_date || c.received_at || '').slice(0, 10),
@@ -526,7 +565,7 @@ function normalizeInbox(raw) {
     title: a.title || a.concepto || a.nombre || 'Pago pendiente',
     dueDate: String(a.dueDate || a.vence_en || a.proxima_fecha || '').slice(0, 10),
     amountCentavos: Number(a.amountCentavos ?? a.saldo_centavos ?? a.monto_centavos ?? 0),
-    currency: a.currency || 'DOP',
+    currency: normalizeClientCurrency(a.currency, Number(a.amountCentavos ?? a.saldo_centavos ?? a.monto_centavos ?? 0), a.title || a.concepto || a.nombre || ''),
     severity: a.severity || 'hoy',
     categoryName: a.categoryName || a.categoria || 'Servicios',
     raw: a
@@ -562,11 +601,17 @@ function normalizeInbox(raw) {
     status: acc.status || 'activo'
   })) : [];
 
-  const mailMovements = Array.isArray(rawMail.movements) ? rawMail.movements.map((m) => {
+  const rawMailMovements = Array.isArray(rawMail.movements) ? rawMail.movements.map((m) => {
     const rawCls = String(m.kind || m.clasificacion || '').toLowerCase();
     const kind = (rawCls === 'retiro_cajero' || rawCls === 'retiro_codigo_cash' || /codigo cash|cash code/i.test(`${m.asunto || ''} ${m.subject || ''}`))
       ? 'retiro_codigo_cash'
       : (rawCls.includes('transferencia') ? rawCls : (rawCls || 'otro'));
+    const amountCentavos = Number(m.amountCentavos ?? m.monto_centavos ?? 0);
+    const currency = normalizeClientCurrency(
+      m.currency || m.moneda || 'DOP',
+      amountCentavos,
+      `${m.proveedor || ''} ${m.bank || ''} ${m.subject || m.asunto || ''}`
+    );
     return {
       id: String(m.id || ''),
       kind,
@@ -574,8 +619,8 @@ function normalizeInbox(raw) {
       bank: m.bank || m.proveedor || 'Banco',
       accountEmail: m.accountEmail || m.cuenta_gmail || m.cuenta || '',
       subject: m.subject || m.asunto || m.motivo || 'Notificación bancaria',
-      amountCentavos: Number(m.amountCentavos ?? m.monto_centavos ?? 0),
-      currency: String(m.currency || m.moneda || 'DOP').toUpperCase(),
+      amountCentavos,
+      currency,
       reference: m.reference || m.referencia || '',
       date: String(m.date || m.recibido_en || m.creado_en || m.procesado_en || '').slice(0, 10),
       registered: Boolean(m.registered ?? m.pwa_registered ?? m.conciliado),
@@ -584,6 +629,7 @@ function normalizeInbox(raw) {
       suggestedAccountMoneda: String(m.suggested_account_moneda || m.suggestedAccountMoneda || '')
     };
   }) : [];
+  const mailMovements = rawMailMovements.filter((m) => !isNonActionableMailNoise(m));
 
   const rawFiscal = src.fiscal || {};
   const mapCompra = (x) => ({
@@ -614,7 +660,7 @@ function normalizeInbox(raw) {
   const revisar = Array.isArray(rawFiscal.revisar) ? rawFiscal.revisar.map(mapCompra) : [];
   const ventas = Array.isArray(rawFiscal.ventas) ? rawFiscal.ventas.map(mapVenta) : [];
 
-  const pendingMailCount = mailMovements.filter((m) => !m.registered && ['retiro_codigo_cash', 'transferencia_salida', 'transferencia_enviada', 'transferencia_entrada', 'transferencia_recibida'].includes(m.kind)).length;
+  const pendingMailCount = mailMovements.filter((m) => !m.registered && isActionableMailMovement(m)).length;
   const pendingFiscalCount = revisar.length + ventas.filter((v) => v.estado !== 'validado').length;
   const pendingCutsCount = cuts.filter((c) => c.status !== 'validated' && c.status !== 'confirmed').length;
   const pendingConsCount = consumptions.filter((c) => c.status !== 'registered' && c.status !== 'rejected').length;
@@ -643,7 +689,8 @@ function normalizeInbox(raw) {
       confirmedDate,
       confirmedToday: Boolean(confirmedToday),
       updatedAt: rawFx.updatedAt || rawFx.actualizado_en || new Date().toISOString(),
-      banks: banksList
+      banks: banksList,
+      market: fxMarket
     },
     cardLinks,
     categories: Array.isArray(src.categories) ? src.categories : [],
@@ -792,11 +839,21 @@ function getActiveBankRate(bankKey) {
   };
 }
 
-function computeDopCentavos(amountMinor, currency, bankKey) {
+function computeDopCentavos(amountMinor, currency, bankKey, fxData = null) {
   const cur = String(currency || 'DOP').toUpperCase();
-  if (cur === 'DOP') return Math.round(Number(amountMinor || 0));
+  const minor = Number(amountMinor || 0);
+  if (cur === 'DOP') return Math.round(minor);
   const rate = Number(getActiveBankRate(bankKey)?.rateSell || 61.25);
-  return Math.round(Number(amountMinor || 0) * rate);
+  const market = fxData?.market || uiState.data?.fx?.market || {};
+  if (cur === 'COP') {
+    const copPerUsd = Number(market.cop_por_usd || 4150) || 4150;
+    return Math.round(minor * (rate / copPerUsd));
+  }
+  if (cur === 'EUR') {
+    const usdPerEur = Number(market.usd_por_eur || 1.08) || 1.08;
+    return Math.round(minor * rate * usdPerEur);
+  }
+  return Math.round(minor * rate);
 }
 
 function appSnapshot() {
@@ -1171,13 +1228,14 @@ function renderMailHost() {
     || /suscrip|adobe|antigravity|google\s*one|google\s*ai|claude|chatgpt|openai|skool/i.test(`${m.subject || ''} ${m.bank || ''} ${m.proveedor || ''}`);
 
   const filtered = mail.movements.filter((m) => {
-    if (f === 'pending') return !m.registered;
+    if (f === 'pending') return !m.registered && isActionableMailMovement(m);
     if (f === 'retiro_codigo_cash') return m.kind === 'retiro_codigo_cash';
     if (f === 'transferencia') return m.kind.includes('transferencia');
     if (f === 'suscripcion') return isSubMail(m);
     if (f === 'consumo') return m.kind.includes('consumo') || m.kind === 'cobro_servicio';
     return true;
   });
+  const pendingActionableMail = mail.movements.filter((m) => !m.registered && isActionableMailMovement(m)).length;
 
   const kindLabel = (m) => {
     const k = String(m?.kind || '');
@@ -1218,7 +1276,7 @@ function renderMailHost() {
     <div class="v3526-card">
       <div class="v3526-card-head">
         <h3>${ae('🏧', 17)} Códigos Cash y Transferencias</h3>
-        <span class="v3526-tag warn">${mail.movements.filter((m) => !m.registered).length} pendientes</span>
+        <span class="v3526-tag warn">${pendingActionableMail} pendientes</span>
       </div>
       <div class="search-chips" style="margin:6px 0 10px">
         <button type="button" class="chip ${f === 'pending' ? 'is-active' : ''}" data-mfilter="pending">Pendientes</button>
@@ -1241,6 +1299,7 @@ function renderMailHost() {
           </div>
           <div style="text-align:right;flex-shrink:0">
             <div style="font-size:14px;font-weight:700">${fmtMoney(m.amountCentavos, m.currency)}</div>
+            ${String(m.currency || 'DOP').toUpperCase() !== 'DOP' ? `<div style="font-size:11px;opacity:.72">≈ ${fmtMoney(computeDopCentavos(m.amountCentavos, m.currency, linkedAcc?.bankKey || m.bank), 'DOP')}</div>` : ''}
             ${m.registered
               ? `<span class="v3526-tag ok" style="margin-top:5px">${ae('✅', 12)} Registrado</span>`
               : `<button type="button" class="primary-btn compact" style="margin-top:5px" data-mail-reg="${esc(m.id)}">${ae('⚡', 13)} Anotar</button>`}
@@ -2270,25 +2329,35 @@ function renderModalRoot() {
       const bankUrl = resolved.bankUrl || getBankUrl(bankKey);
       const shortUrl = String(bankUrl).replace(/^https?:\/\//, '').replace(/\/$/, '');
       const rateObj = getActiveBankRate(bankKey);
-      const isUsd = item.currency === 'USD';
-      const dopMinor = isUsd ? computeDopCentavos(item.originalCentavos, 'USD', bankKey) : item.originalCentavos;
+      const cur = String(item.currency || 'DOP').toUpperCase();
+      const isFx = cur !== 'DOP';
+      const dopMinor = isFx
+        ? (item.computedDopMinor > 0 && item.bankKey === bankKey ? item.computedDopMinor : computeDopCentavos(item.originalCentavos, cur, bankKey))
+        : item.originalCentavos;
+      const copPerUsd = Number(uiState.data?.fx?.market?.cop_por_usd || 4150);
+      const usdPerEur = Number(uiState.data?.fx?.market?.usd_por_eur || 1.08);
+      const rateSummary = cur === 'COP'
+        ? `1 USD = RD$${Number(rateObj.rateSell).toFixed(2)} · Col$${copPerUsd.toLocaleString('en-US')}`
+        : (cur === 'EUR'
+          ? `1 EUR = US$${usdPerEur.toFixed(2)} · 1 USD = RD$${Number(rateObj.rateSell).toFixed(2)}`
+          : `RD$${Number(rateObj.rateSell).toFixed(2)}`);
       const autoCat = linker().resolveClientExpenseCategory({ descripcion: `${item.merchant} ${item.suggestedCategoryName}` }, expenseCats);
       const chosenCatId = item.suggestedCategoryId || autoCat.categoria_id || '';
       return `
-        <div class="card v3526-cons-card" data-cid="${esc(item.id)}" data-currency="${esc(item.currency)}" data-amount="${Number(item.originalCentavos || 0)}" data-bank-key="${esc(bankKey)}" data-bank-url="${esc(bankUrl)}" style="padding:12px;margin-bottom:10px">
+        <div class="card v3526-cons-card" data-cid="${esc(item.id)}" data-currency="${esc(cur)}" data-amount="${Number(item.originalCentavos || 0)}" data-bank-key="${esc(bankKey)}" data-bank-url="${esc(bankUrl)}" style="padding:12px;margin-bottom:10px">
           <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start">
             <div>
               <div style="font-size:14px;font-weight:700;display:flex;align-items:center;gap:6px">${ae(linker().emojiForMerchant(item.merchant), 16)} ${esc(item.merchant)}</div>
               <div style="font-size:12px;opacity:.78">${esc(resolved.bankLabel || item.bankName)}${item.cardLast4 ? ` · ****${esc(item.cardLast4)}` : ''} · ${esc(item.date)}</div>
             </div>
             <div style="text-align:right">
-              <div style="font-size:15px;font-weight:700">${fmtMoney(item.originalCentavos, item.currency)}</div>
+              <div style="font-size:15px;font-weight:700">${fmtMoney(item.originalCentavos, cur)}</div>
               ${item.isDigital ? `<span class="v3526-tag">${ae('🌐', 12)} Digital / App</span>` : ''}
             </div>
           </div>
-          ${isUsd ? `
+          ${isFx ? `
             <div class="notice v3526-cons-rate-box" style="margin:8px 0">
-              <div style="font-size:12px;opacity:.86">Banco vinculado: <b class="v3526-cons-bank-label">${esc(rateObj.label)}</b> · Tasa <b class="v3526-cons-rate-val">RD$${Number(rateObj.rateSell).toFixed(2)}</b></div>
+              <div style="font-size:12px;opacity:.86">Banco vinculado: <b class="v3526-cons-bank-label">${esc(rateObj.label)}</b> · Tasa <b class="v3526-cons-rate-val">${esc(rateSummary)}</b></div>
               <div style="font-size:11px;opacity:.68">URL del día: <span class="v3526-cons-bank-url">${esc(shortUrl)}</span> (se verifica al confirmar)</div>
               <div style="margin-top:3px">Débito calculado: <b class="v3526-cons-dop">${fmtMoney(dopMinor, 'DOP')}</b></div>
             </div>
@@ -2301,14 +2370,14 @@ function renderModalRoot() {
           <select class="field-select v3526-cons-cat">
             ${expenseCats.map((c) => `<option value="${esc(c.id)}" ${chosenCatId === c.id ? 'selected' : ''}>${esc(c.nombre)}</option>`).join('')}
           </select>
-          ${item.isDigital ? `
+          ${item.isDigital || item.cardLast4 ? `
             <label class="check-line" style="margin-top:8px">
               <input type="checkbox" class="v3526-cons-autodebit" checked>
-              <span>${ae('⚡', 13)} Auto-debitar futuras compras digitales de esta tarjeta (Google / Apps Script)</span>
+              <span>${ae('⚡', 13)} Auto-debitar futuras notificaciones de consumo de esta tarjeta</span>
             </label>
           ` : ''}
           <div class="v3526-btn-row">
-            <button type="button" class="primary-btn" data-cons-accept="${esc(item.id)}">${ae('✅', 14)} Confirmar y debitar ${isUsd ? '<span class="v3526-cons-btn-dop">' + fmtMoney(dopMinor, 'DOP') + '</span>' : fmtMoney(dopMinor, 'DOP')}</button>
+            <button type="button" class="primary-btn" data-cons-accept="${esc(item.id)}">${ae('✅', 14)} Confirmar y debitar ${isFx ? '<span class="v3526-cons-btn-dop">' + fmtMoney(dopMinor, 'DOP') + '</span>' : fmtMoney(dopMinor, 'DOP')}</button>
             <button type="button" class="secondary-btn" data-cons-reject="${esc(item.id)}">Omitir</button>
           </div>
         </div>
@@ -2407,10 +2476,14 @@ function renderModalRoot() {
     })();
     const modalCats = (snap.categories || []).filter((c) => c.tipo === (isIn ? 'ingreso' : 'gasto'));
     const lockedSingleBank = finalBankOptions.length === 1 ? finalBankOptions[0] : null;
+    const mailDopEq = mailCurrency !== 'DOP' ? computeDopCentavos(m.amountCentavos, mailCurrency, mBankKey || linkedAcc?.bankKey || '') : m.amountCentavos;
+    const mailMoneyText = mailCurrency !== 'DOP'
+      ? `${fmtMoney(m.amountCentavos, mailCurrency)} (≈ ${fmtMoney(mailDopEq, 'DOP')})`
+      : fmtMoney(m.amountCentavos, mailCurrency);
     bodyHtml = `
       <div class="card" style="padding:11px;margin-bottom:10px">
         <div style="font-size:13px;font-weight:700">${esc(m.subject)}</div>
-        <div style="font-size:12px;opacity:.78">${esc(m.bank)} · ${fmtMoney(m.amountCentavos, m.currency)} · ${esc(m.date)}</div>
+        <div style="font-size:12px;opacity:.78">${esc(m.bank)} · ${mailMoneyText} · ${esc(m.date)}</div>
       </div>
       <form id="v3526MailRegForm">
         <label class="field-label" style="margin-top:0">Tipo de registro</label>
@@ -2449,7 +2522,7 @@ function renderModalRoot() {
           </select>
         </div>
         <div class="v3526-btn-row">
-          <button type="submit" class="primary-btn full" ${!finalBankOptions.length || (isCash && !cashDestPool.length) ? 'disabled' : ''}>Confirmar y anotar (${fmtMoney(m.amountCentavos, m.currency)})</button>
+          <button type="submit" class="primary-btn full" ${!finalBankOptions.length || (isCash && !cashDestPool.length) ? 'disabled' : ''}>Confirmar y anotar (${mailMoneyText})</button>
         </div>
       </form>
     `;
@@ -2849,9 +2922,16 @@ function bindModalEvents(root, payload) {
       const bankUrl = getBankUrl(accBank);
       const shortUrl = String(bankUrl).replace(/^https?:\/\//, '').replace(/\/$/, '');
       const rateObj = getActiveBankRate(accBank);
-      const currency = card.dataset.currency || 'DOP';
+      const currency = String(card.dataset.currency || 'DOP').toUpperCase();
       const minor = Number(card.dataset.amount || 0);
-      const dop = currency === 'USD' ? computeDopCentavos(minor, 'USD', accBank) : minor;
+      const dop = currency !== 'DOP' ? computeDopCentavos(minor, currency, accBank) : minor;
+      const copPerUsd = Number(uiState.data?.fx?.market?.cop_por_usd || 4150);
+      const usdPerEur = Number(uiState.data?.fx?.market?.usd_por_eur || 1.08);
+      const rateSummary = currency === 'COP'
+        ? `1 USD = RD$${Number(rateObj.rateSell).toFixed(2)} · Col$${copPerUsd.toLocaleString('en-US')}`
+        : (currency === 'EUR'
+          ? `1 EUR = US$${usdPerEur.toFixed(2)} · 1 USD = RD$${Number(rateObj.rateSell).toFixed(2)}`
+          : `RD$${Number(rateObj.rateSell).toFixed(2)}`);
       const formatted = fmtMoney(dop, 'DOP');
       card.dataset.bankKey = accBank;
       card.dataset.bankUrl = bankUrl;
@@ -2861,7 +2941,7 @@ function bindModalEvents(root, payload) {
       const dopLabel = card.querySelector('.v3526-cons-dop');
       const btnSpan = card.querySelector('.v3526-cons-btn-dop');
       if (bankLbl) bankLbl.textContent = rateObj.label;
-      if (rateVal) rateVal.textContent = `RD$${Number(rateObj.rateSell).toFixed(2)}`;
+      if (rateVal) rateVal.textContent = rateSummary;
       if (urlSpan) urlSpan.textContent = shortUrl;
       if (dopLabel) dopLabel.textContent = formatted;
       if (btnSpan) btnSpan.textContent = formatted;
@@ -2929,7 +3009,7 @@ function bindModalEvents(root, payload) {
       if (!al) return;
       openNativePrefilled({
         type: 'gasto',
-        cents: al.amountCentavos,
+        cents: computeDopCentavos(al.amountCentavos, al.currency),
         note: `Pago ${al.title}`,
         date: al.dueDate
       });
@@ -3294,7 +3374,7 @@ async function ensureCategoryLinker() {
   if (window.DcarelaCategoryLinker) return;
   await new Promise((resolve) => {
     const sc = document.createElement('script');
-    sc.src = './v35-26-category-emojis.js?v=35.51';
+    sc.src = './v35-26-category-emojis.js?v=35.52';
     sc.onload = resolve;
     sc.onerror = resolve;
     document.head.appendChild(sc);
@@ -3360,6 +3440,10 @@ window.DcarelaInboxFiscal = {
   openModal,
   applyPalette,
   getEcosystemSummary,
+  fmtMoney,
+  computeDopCentavos,
+  normalizeClientCurrency,
+  normalizeInbox,
   getState: () => uiState
 };
 

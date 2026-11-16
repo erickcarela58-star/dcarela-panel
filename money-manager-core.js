@@ -586,7 +586,16 @@
     };
   }
 
-  function obligationSummary({ commitments = [], costObligations = [], costRecurrents = [], month } = {}) {
+  function obligationSummary({
+    commitments = [],
+    costObligations = [],
+    costRecurrents = [],
+    month,
+    movements = null,
+    costPayments = [],
+    commitmentPayments = [],
+    excludeCoveredByMovements = false,
+  } = {}) {
     const range = monthBounds(month);
     const native = commitments.map(nativeCommitment);
     const nativeIds = new Set(native.map(item => item.id).filter(Boolean));
@@ -612,7 +621,58 @@
       if (materializedNames.has(`${name}|${item.due}`)) return false;
       return item.due <= range.to;
     });
-    const rows = deduplicateObligationItems([...native, ...legacy, ...planned].filter(item => item.active));
+    const dedupedActive = deduplicateObligationItems([...native, ...legacy, ...planned].filter(item => item.active));
+    const activeMovs = Array.isArray(movements) ? movements : [];
+    const paidObligationMonthKeys = new Set(
+      costObligations
+        .filter(o => ["pagada", "pagado"].includes(lower(o?.estado)) || Number(o?.saldoCentavos ?? o?.saldo_centavos) === 0)
+        .map(o => {
+          const kw = extractCommitmentKeywords({ name: o?.concepto || o?.descripcion || "", raw: o });
+          const d = financeCore.businessDay(o?.venceEn || o?.vence_en || "");
+          const key = kw.groups[0] || kw.tokens[0] || "";
+          return key && d ? `${key}|${d.slice(0, 7)}|${kw.lineNumbers.join(",")}` : "";
+        })
+        .filter(Boolean)
+    );
+    const allItemsInScope = [...native, ...legacy, ...planned];
+    const rows = excludeCoveredByMovements ? dedupedActive.filter(item => {
+      if (!item.due || item.due > range.to) return true;
+      const kw = extractCommitmentKeywords(item);
+      const itemGroup = kw.groups[0] || kw.tokens[0] || "";
+      const isFrequent = /^(quincenal|semanal|biweekly|weekly)$/i.test(text(item.raw?.frecuencia || item.raw?.frequency)) || /quincen/i.test(text(item.name));
+      const groupMonthCount = itemGroup
+        ? allItemsInScope.filter(other => {
+            const okw = extractCommitmentKeywords(other);
+            return (okw.groups[0] || okw.tokens[0] || "") === itemGroup && text(other.due).slice(0, 7) === item.due.slice(0, 7);
+          }).length
+        : 0;
+      if (itemGroup && !isFrequent && groupMonthCount <= 1 && paidObligationMonthKeys.has(`${itemGroup}|${item.due.slice(0, 7)}|${kw.lineNumbers.join(",")}`)) {
+        return false;
+      }
+      const links = linkedPaymentsForCommitment(item, {
+        commitmentPayments,
+        costPayments,
+        movements: activeMovs,
+        costObligations,
+      });
+      if (!links.length) return true;
+      const dueMs = /^\d{4}-\d{2}-\d{2}$/.test(item.due) ? Date.parse(`${item.due}T12:00:00Z`) : NaN;
+      const targetAmt = Math.max(0, number(item.outstanding ?? item.periodAmount));
+      const strictWindow = isFrequent || groupMonthCount > 1;
+      const maxWindowDays = strictWindow ? 6 : 20;
+      const covered = links.some(p => {
+        const pDay = text(p?.fecha).slice(0, 10);
+        const pMs = /^\d{4}-\d{2}-\d{2}$/.test(pDay) ? Date.parse(`${pDay}T12:00:00Z`) : NaN;
+        if (Number.isFinite(dueMs) && Number.isFinite(pMs)) {
+          const diffDays = Math.abs(pMs - dueMs) / 86400000;
+          const sameMonth = pDay.slice(0, 7) === item.due.slice(0, 7);
+          if (diffDays > maxWindowDays && !(!strictWindow && sameMonth)) return false;
+        }
+        if (targetAmt > 0 && number(p?.monto_centavos) < Math.round(targetAmt * 0.7)) return false;
+        return true;
+      });
+      return !covered;
+    }) : dedupedActive;
     // Un pago declarado pero sin conciliación no equivale a una deuda saldada.
     // Se muestra para revisión, fuera de los totales pagaderos, sin reabrirlo.
     const review = legacy.filter(item => item.state === "pago_por_verificar" && item.outstanding > 0);
