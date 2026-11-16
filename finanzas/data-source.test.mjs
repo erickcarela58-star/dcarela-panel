@@ -94,8 +94,29 @@ test('lee pagos y obligaciones de Caja por sucursal sin agregarlos al diario',as
   assert.equal(data.costObligations[0].saldoCentavos,7000);
   assert.equal(data.movements.length,1);
   assert.equal(calls.filter(c=>c[0]==='journal').length,1);
-  assert.deepEqual(collections.map(c=>c[0]).sort(),['cost_obligations','cost_payments','cost_recurrents']);
+  assert.deepEqual(collections.map(c=>c[0]).sort(),['cost_obligations','cost_payments','cost_recurrents','pos_obligaciones','suppliers']);
   assert.ok(collections.every(([,filter])=>filter[0][2]==='central'));
+});
+
+test('integra obligaciones de pos_obligaciones y saldos positivos de suplidores (Fotoquimsa) sin duplicar cost_obligations',async()=>{
+  mock({getCollection:async(name)=>
+    name==='cost_obligations'?[{id:'ob-claro',business_id:'central',concepto:'Claro',saldoCentavos:120000,estado:'pendiente'}]:
+    name==='pos_obligaciones'?[
+      {id:'ob-claro',business_id:'central',concepto:'Claro',saldo_centavos:120000,estado:'pendiente'},
+      {id:'pos-pion',business_id:'central',concepto:'Factura PION',saldo_centavos:850000,estado:'pendiente',vence_en:'2026-11-22'},
+      {id:'pos-paid',business_id:'central',concepto:'Edesur',saldo_centavos:0,estado:'pagada'}
+    ]:
+    name==='suppliers'?[
+      {id:'sup-foto',business_id:'central',nombre:'Fotoquimsa',saldoPendienteCentavos:2650000,proximo_vencimiento:'2026-11-25'},
+      {id:'sup-zero',business_id:'central',nombre:'Suplidor Saldado',saldoPendienteCentavos:0}
+    ]:[]
+  });
+  const data=await loadFinance('central');
+  assert.deepEqual(data.costObligations.map(o=>[o.id,o.saldoCentavos]),[
+    ['ob-claro',120000],
+    ['pos-pion',850000],
+    ['supplier:sup-foto',2650000]
+  ]);
 });
 
 test('conserva el detalle de venta y los pagos vinculados sin sumar otro movimiento',async()=>{

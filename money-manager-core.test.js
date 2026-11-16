@@ -345,3 +345,51 @@ test("v35.52 excludeCoveredByMovements oculta Google y Nomina del 5 cubiertos pe
   assert.ok(names.some(n => /Edeeste/i.test(n)), "Luz Edeeste pendiente debe seguir visible");
   assert.ok(names.some(n => /Fotoquimsa/i.test(n)), "Fotoquimsa pendiente debe seguir visible");
 });
+
+test("v35.53 Fotoquimsa: no muestra RD$0.00 si tiene cuota o pendiente, ni se oculta por gastos previos del mes o pagos parciales", () => {
+  // (a) Compromiso recurrente de Fotoquimsa con saldo_pendiente_centavos: 0 y monto_centavos > 0
+  const recurringSummary = money.obligationSummary({
+    month: "2026-11",
+    commitments: [
+      { id: "c-foto-rec", nombre: "Fotoquimsa", tipo: "proveedor", frecuencia: "mensual", monto_centavos: 2650000, saldo_pendiente_centavos: 0, proximo_vencimiento: "2026-11-21", activo: true, estado: "activo" },
+      { id: "c-unica-paid", nombre: "Compra Única Saldada", tipo: "deuda", frecuencia: "unica", monto_centavos: 500000, saldo_pendiente_centavos: 0, proximo_vencimiento: "2026-11-15", activo: true, estado: "activo" },
+    ],
+  });
+  assert.equal(recurringSummary.rows.length, 1);
+  assert.equal(recurringSummary.rows[0].id, "c-foto-rec");
+  assert.deepEqual(money.obligationDisplayAmount(recurringSummary.rows[0]), { amount: 2650000, verified: true, kind: "installment" });
+  assert.equal(recurringSummary.currentDue, 2650000);
+
+  // (b) Un compromiso en 0 nunca se come ni aparece junto a una obligacion/suplidor con pendiente real
+  const dedupSummary = money.obligationSummary({
+    month: "2026-11",
+    commitments: [
+      { id: "c-foto-zero-same", nombre: "Fotoquimsa", tipo: "proveedor", frecuencia: "mensual", monto_centavos: 0, saldo_pendiente_centavos: 0, proximo_vencimiento: "2026-11-21", activo: true, estado: "activo" },
+      { id: "c-foto-zero-diff", nombre: "Fotoquimsa Crédito", tipo: "proveedor", frecuencia: "mensual", monto_centavos: 0, saldo_pendiente_centavos: 0, proximo_vencimiento: "2026-11-05", activo: true, estado: "activo" },
+    ],
+    costObligations: [
+      { id: "ob-foto-real", concepto: "Fotoquimsa SRL", tipo: "proveedor", montoCentavos: 2650000, saldoCentavos: 2650000, venceEn: "2026-11-21", estado: "pendiente" },
+    ],
+  });
+  assert.equal(dedupSummary.rows.length, 1);
+  assert.deepEqual(money.obligationDisplayAmount(dedupSummary.rows[0]), { amount: 2650000, verified: true, kind: "balance" });
+
+  // (c) Un gasto previo del mes o abono parcial (>= 70%) con saldo > 0 nunca oculta Fotoquimsa pendiente
+  const coveredCheck = money.obligationSummary({
+    month: "2026-11",
+    excludeCoveredByMovements: true,
+    costObligations: [
+      { id: "ob-foto-prev", concepto: "Factura pagada Fotoquimsa", tipo: "proveedor", montoCentavos: 1500000, saldoCentavos: 0, venceEn: "2026-11-05", estado: "pagada" },
+      { id: "ob-foto-open", concepto: "Fotoquimsa SRL", tipo: "proveedor", montoCentavos: 2650000, saldoCentavos: 650000, venceEn: "2026-11-25", emitidaEn: "2026-11-12", estado: "parcial" },
+    ],
+    costPayments: [
+      { id: "cp-foto-1", obligacionId: "ob-foto-open", montoCentavos: 2000000, pagadoEn: "2026-11-14" },
+    ],
+    movements: [
+      { id: "m-foto-prev", tipo: "gasto", estado: "registrado", fecha: "2026-11-05", monto_centavos: 2650000, descripcion: "Pago Fotoquimsa factura anterior", categoria: "Proveedores" },
+    ],
+  });
+  assert.equal(coveredCheck.rows.length, 1);
+  assert.equal(coveredCheck.rows[0].id, "legacy:ob-foto-open");
+  assert.deepEqual(money.obligationDisplayAmount(coveredCheck.rows[0]), { amount: 650000, verified: true, kind: "balance" });
+});

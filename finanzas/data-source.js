@@ -76,13 +76,20 @@ export async function loadFinance(requestedBusinessId, options = {}) {
   if (!allowed.some(b => b.id === chosen)) {
     throw new Error('Acceso denegado: esta sucursal no pertenece a tu sesión.');
   }
+  const optionalCollection = (name) => typeof api.getCollection === 'function'
+    ? Promise.resolve(api.getCollection(name, [['business_id', '==', chosen]]))
+        .then(rows => Array.isArray(rows) ? rows.filter(r => !r?.business_id || r.business_id === chosen) : [])
+        .catch(() => [])
+    : Promise.resolve([]);
   const [accounts, categories, budgets, cards, commitments, commitmentPayments, preferences,
-    costObligations, costPayments, costRecurrents] = await Promise.all([
+    costObligations, costPayments, costRecurrents, posObligaciones, suppliers] = await Promise.all([
     api.getFinanceAccounts(chosen), api.getFinanceCategories(chosen), api.getFinanceBudgets(chosen),
     api.getFinanceCards(chosen), api.getFinanceCommitments(chosen), api.getFinanceCommitmentPayments(chosen), api.getFinancePreferences(chosen),
     api.getCollection('cost_obligations', [['business_id', '==', chosen]]),
     api.getCollection('cost_payments', [['business_id', '==', chosen]]),
-    api.getCollection('cost_recurrents', [['business_id', '==', chosen]])
+    api.getCollection('cost_recurrents', [['business_id', '==', chosen]]),
+    optionalCollection('pos_obligaciones'),
+    optionalCollection('suppliers'),
   ]);
   scopedRows(accounts, chosen, 'cuentas');
   if (!accounts.length) throw new Error('Esta sucursal no tiene cuentas verificadas; no se mostrará un saldo cero.');
@@ -100,6 +107,62 @@ export async function loadFinance(requestedBusinessId, options = {}) {
   scopedRows(costObligations, chosen, 'obligaciones de Caja');
   scopedRows(costPayments, chosen, 'pagos de Caja');
   scopedRows(costRecurrents, chosen, 'costos recurrentes');
+  const normText = (v) => String(v || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+  const seenObligationIds = new Set(costObligations.map(o => String(o?.id || o?.obligacionId || '').trim()).filter(Boolean));
+  const mergedObligations = costObligations.slice();
+  for (const ob of posObligaciones) {
+    if (!ob || (ob.business_id && ob.business_id !== chosen)) continue;
+    const oid = String(ob.id || ob.obligacionId || '').trim();
+    if (oid && seenObligationIds.has(oid)) continue;
+    const st = normText(ob.estado);
+    const bal = Number(ob.saldoCentavos ?? ob.saldo_centavos ?? ob.saldoPendienteCentavos ?? ob.saldo_pendiente_centavos ?? ob.montoCentavos ?? ob.monto_centavos);
+    if (['pagada', 'pagado', 'anulada', 'anulado', 'cancelada', 'cancelado', 'eliminada', 'eliminado'].includes(st) || !(Number.isSafeInteger(bal) && bal > 0)) continue;
+    if (oid) seenObligationIds.add(oid);
+    mergedObligations.push({
+      ...ob,
+      id: oid || `pos-ob-${mergedObligations.length}`,
+      business_id: ob.business_id || chosen,
+      concepto: ob.concepto || ob.descripcion || ob.proveedor || 'Obligación',
+      saldoCentavos: bal,
+      montoCentavos: Number(ob.montoCentavos ?? ob.monto_centavos) || bal,
+      venceEn: ob.venceEn || ob.vence_en || ob.fechaVencimiento || '',
+    });
+  }
+  const openSupplierNames = mergedObligations
+    .filter(o => Number(o?.saldoCentavos ?? o?.saldo_centavos ?? o?.montoCentavos ?? o?.monto_centavos) > 0 && !['pagada', 'pagado', 'anulada', 'anulado', 'eliminada', 'eliminado'].includes(normText(o?.estado)))
+    .map(o => ({
+      supplierId: String(o?.supplierId || o?.proveedorId || o?.proveedor_id || '').trim(),
+      label: normText(o?.concepto || o?.descripcion || o?.proveedor),
+    }));
+  for (const sup of suppliers) {
+    if (!sup || (sup.business_id && sup.business_id !== chosen)) continue;
+    if (sup.activo === false || sup.active === false) continue;
+    const rawBal = sup.saldoPendienteCentavos ?? sup.saldo_pendiente_centavos ?? sup.saldoCentavos ?? sup.saldo_centavos ?? sup.deudaCentavos ?? sup.deuda_centavos;
+    const bal = Number(rawBal);
+    if (!(Number.isSafeInteger(bal) && bal > 0)) continue;
+    const supName = String(sup.nombre || sup.name || sup.razonSocial || sup.razon_social || sup.empresa || sup.id || '').trim();
+    const normSup = normText(supName);
+    const sid = String(sup.id || '').trim();
+    const alreadyOpen = openSupplierNames.some(o => (sid && o.supplierId === sid) || (normSup && o.label && (o.label.includes(normSup) || normSup.includes(o.label))));
+    if (alreadyOpen || !supName) continue;
+    mergedObligations.push({
+      id: `supplier:${sid || normSup}`,
+      obligacionId: `supplier:${sid || normSup}`,
+      supplierId: sid || undefined,
+      business_id: chosen,
+      concepto: supName,
+      descripcion: supName,
+      proveedor: supName,
+      tipo: 'proveedor',
+      estado: 'pendiente',
+      saldoCentavos: bal,
+      montoCentavos: bal,
+      venceEn: sup.proximo_vencimiento || sup.proximoVencimiento || sup.venceEn || sup.vence_en || sup.fechaVencimiento || '',
+      fechaVencimiento: sup.proximo_vencimiento || sup.proximoVencimiento || sup.venceEn || sup.vence_en || sup.fechaVencimiento || '',
+      emitidaEn: sup.updated_at || sup.ultima_compra_at || '',
+      source: 'supplier_balance',
+    });
+  }
   if (preferences && preferences.business_id !== chosen) {
     throw new Error('Las preferencias pertenecen a otra sucursal.');
   }
@@ -115,7 +178,7 @@ export async function loadFinance(requestedBusinessId, options = {}) {
   // salida de cuenta. El diario ya registra la salida contable una sola vez.
   const sales = scopedRows(movements.sales || [], chosen, 'detalle de ventas');
   return {accounts, categories, movements, sales, budgets, cards, commitments, commitmentPayments,
-    costObligations, costPayments, costRecurrents,
+    costObligations: mergedObligations, costPayments, costRecurrents,
     preferences, authorizedBusinesses:allowed, businessId:chosen, demo:false, fullHistoryLoaded: Boolean(historyFrom)};
 }
 

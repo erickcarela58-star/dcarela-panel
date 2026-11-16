@@ -301,10 +301,11 @@
   }
 
   function itemPreferenceRank(item) {
+    const positiveBonus = Math.max(0, number(item?.outstanding), number(item?.periodAmount)) > 0 ? 10 : 0;
     const loanBonus = isLoanType(item?.type) || item?.capital != null || Number(item?.raw?.cuotas_totales) > 0 ? 4 : 0;
     const sourceScore = item?.source === "factura" ? 3 : item?.source === "compromiso" ? 2 : 1;
     const keywordBonus = Array.isArray(item?.raw?.palabras_clave) && item.raw.palabras_clave.length > 0 ? 1 : 0;
-    return loanBonus + sourceScore + keywordBonus;
+    return positiveBonus + loanBonus + sourceScore + keywordBonus;
   }
 
   function duplicateRefFrom(item) {
@@ -319,6 +320,16 @@
     };
   }
 
+  function effectiveObligationAmount(item) {
+    if (!item || typeof item !== "object") return 0;
+    const out = Number(item.outstanding);
+    const per = number(item.periodAmount);
+    if (isLoanType(item.type)) return Number.isSafeInteger(out) ? Math.max(0, out) : per;
+    if (Number.isSafeInteger(out) && out > 0) return out;
+    if (per > 0) return per;
+    return Math.max(0, Number.isSafeInteger(out) ? out : 0);
+  }
+
   function deduplicateObligationItems(items) {
     const ordered = items.slice().sort((a, b) => itemPreferenceRank(b) - itemPreferenceRank(a));
     const kept = [];
@@ -327,7 +338,7 @@
         kept.push(item);
         continue;
       }
-      const amtA = number(item.outstanding ?? item.periodAmount);
+      const amtA = effectiveObligationAmount(item);
       const dueA = text(item.due);
       const monthA = dueA.slice(0, 7);
       const existing = kept.find(prev => {
@@ -337,7 +348,8 @@
         const dueB = text(prev.due);
         const monthB = dueB.slice(0, 7);
         const sameDue = Boolean(dueA && dueB && dueA === dueB);
-        const amtB = number(prev.outstanding ?? prev.periodAmount);
+        const amtB = effectiveObligationAmount(prev);
+        if (amtB === 0 && amtA > 0) return false;
         if (amtA > 0 && amtB > 0 && Math.abs(amtA - amtB) > 100) return false;
         const sameMonthAndAmount = Boolean(monthA && monthB && monthA === monthB && amtA > 0 && amtB > 0 && Math.abs(amtA - amtB) <= 100);
         if (!sameDue && !sameMonthAndAmount) return false;
@@ -546,8 +558,9 @@
     const state = lower(item?.estado || (item?.activo === false ? "inactivo" : "activo"));
     const outstanding = item?.saldo_pendiente_centavos == null ? null : number(item.saldo_pendiente_centavos);
     const loan = isLoanType(item?.tipo);
+    const oneTime = ["unica", "unico", "una vez", "única", "único", "one_time", "once"].includes(lower(item?.frecuencia || item?.frequency));
     const complete = number(item?.cuotas_totales) > 0 && number(item?.cuotas_pagadas) >= number(item.cuotas_totales);
-    const settled = loan && (outstanding === 0 || (complete && outstanding == null));
+    const settled = (loan && (outstanding === 0 || (complete && outstanding == null))) || (oneTime && outstanding === 0);
     const periodAmount = number(item?.monto_centavos);
     return {
       id: text(item?.id),
@@ -634,11 +647,29 @@
         })
         .filter(Boolean)
     );
+    const positiveGroups = new Set();
+    for (const item of dedupedActive) {
+      if (effectiveObligationAmount(item) <= 0) continue;
+      const kw = extractCommitmentKeywords(item);
+      for (const g of kw.groups) positiveGroups.add(g);
+    }
+    const nonZeroPreferred = dedupedActive.filter(item => {
+      if (effectiveObligationAmount(item) > 0) return true;
+      const kw = extractCommitmentKeywords(item);
+      return !kw.groups.some(g => positiveGroups.has(g));
+    });
+    const SUPPLIER_DEBT_GROUPS = new Set(["fotoquimsa", "pion", "paredes"]);
+    const SUPPLIER_DEBT_TYPES = new Set(["deuda", "proveedor", "compra", "cheque", "factura_proveedor", "credito", "cuentas_por_pagar"]);
     const allItemsInScope = [...native, ...legacy, ...planned];
-    const rows = excludeCoveredByMovements ? dedupedActive.filter(item => {
+    const rows = excludeCoveredByMovements ? nonZeroPreferred.filter(item => {
       if (!item.due || item.due > range.to) return true;
       const kw = extractCommitmentKeywords(item);
       const itemGroup = kw.groups[0] || kw.tokens[0] || "";
+      const normType = lower(item.type).normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      const skipFuzzySuppression =
+        isLoanType(item.type) ||
+        SUPPLIER_DEBT_TYPES.has(normType) ||
+        kw.groups.some(g => SUPPLIER_DEBT_GROUPS.has(g));
       const isFrequent = /^(quincenal|semanal|biweekly|weekly)$/i.test(text(item.raw?.frecuencia || item.raw?.frequency)) || /quincen/i.test(text(item.name));
       const groupMonthCount = itemGroup
         ? allItemsInScope.filter(other => {
@@ -646,22 +677,30 @@
             return (okw.groups[0] || okw.tokens[0] || "") === itemGroup && text(other.due).slice(0, 7) === item.due.slice(0, 7);
           }).length
         : 0;
-      if (itemGroup && !isFrequent && groupMonthCount <= 1 && paidObligationMonthKeys.has(`${itemGroup}|${item.due.slice(0, 7)}|${kw.lineNumbers.join(",")}`)) {
+      if (!skipFuzzySuppression && itemGroup && !isFrequent && groupMonthCount <= 1 && paidObligationMonthKeys.has(`${itemGroup}|${item.due.slice(0, 7)}|${kw.lineNumbers.join(",")}`)) {
         return false;
       }
       const links = linkedPaymentsForCommitment(item, {
-        commitmentPayments,
-        costPayments,
+        commitmentPayments: [],
+        costPayments: [],
         movements: activeMovs,
         costObligations,
       });
       if (!links.length) return true;
       const dueMs = /^\d{4}-\d{2}-\d{2}$/.test(item.due) ? Date.parse(`${item.due}T12:00:00Z`) : NaN;
-      const targetAmt = Math.max(0, number(item.outstanding ?? item.periodAmount));
+      const emitidaDay = financeCore.businessDay(item.raw?.emitida_en || item.raw?.emitidaEn || item.raw?.fecha_emision || "");
+      const targetAmt = effectiveObligationAmount(item);
       const strictWindow = isFrequent || groupMonthCount > 1;
       const maxWindowDays = strictWindow ? 6 : 20;
       const covered = links.some(p => {
+        if (skipFuzzySuppression) {
+          if (p?.linkedBy !== "direct") return false;
+          if (Number.isSafeInteger(item.outstanding) && item.outstanding > 0 && number(p?.monto_centavos) < item.outstanding) {
+            return false;
+          }
+        }
         const pDay = text(p?.fecha).slice(0, 10);
+        if (emitidaDay && (!pDay || pDay < emitidaDay)) return false;
         const pMs = /^\d{4}-\d{2}-\d{2}$/.test(pDay) ? Date.parse(`${pDay}T12:00:00Z`) : NaN;
         if (Number.isFinite(dueMs) && Number.isFinite(pMs)) {
           const diffDays = Math.abs(pMs - dueMs) / 86400000;
@@ -672,7 +711,7 @@
         return true;
       });
       return !covered;
-    }) : dedupedActive;
+    }) : nonZeroPreferred;
     // Un pago declarado pero sin conciliación no equivale a una deuda saldada.
     // Se muestra para revisión, fuera de los totales pagaderos, sin reabrirlo.
     const review = legacy.filter(item => item.state === "pago_por_verificar" && item.outstanding > 0);
@@ -750,12 +789,16 @@
 
   function obligationDisplayAmount(item) {
     if (!item || typeof item !== "object") return { amount: null, verified: false, kind: "unverified" };
-    if (Number.isSafeInteger(item.outstanding)) {
+    const loan = isLoanType(item.type);
+    if (Number.isSafeInteger(item.outstanding) && (loan || item.outstanding > 0)) {
       return { amount: item.outstanding, verified: true, kind: "balance" };
     }
     const period = Number(item.periodAmount);
-    if (!isLoanType(item.type) && Number.isSafeInteger(period) && period > 0) {
+    if (!loan && Number.isSafeInteger(period) && period > 0) {
       return { amount: period, verified: true, kind: "installment" };
+    }
+    if (Number.isSafeInteger(item.outstanding)) {
+      return { amount: item.outstanding, verified: true, kind: "balance" };
     }
     return { amount: null, verified: false, kind: "unverified" };
   }
