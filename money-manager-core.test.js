@@ -392,4 +392,14 @@ test("v35.53 Fotoquimsa: no muestra RD$0.00 si tiene cuota o pendiente, ni se oc
   assert.equal(coveredCheck.rows.length, 1);
   assert.equal(coveredCheck.rows[0].id, "legacy:ob-foto-open");
   assert.deepEqual(money.obligationDisplayAmount(coveredCheck.rows[0]), { amount: 650000, verified: true, kind: "balance" });
+
+  // (d) Alias saldoPendienteCentavos en obligaciones legadas
+  const aliasCheck = money.obligationSummary({
+    month: "2026-11",
+    costObligations: [
+      { id: "ob-foto-alias", concepto: "Fotoquimsa Crédito", tipo: "proveedor", saldoPendienteCentavos: 1960000, venceEn: "2026-11-30", estado: "pendiente" },
+    ],
+  });
+  assert.equal(aliasCheck.rows.length, 1);
+  assert.deepEqual(money.obligationDisplayAmount(aliasCheck.rows[0]), { amount: 1960000, verified: true, kind: "balance" });
 });

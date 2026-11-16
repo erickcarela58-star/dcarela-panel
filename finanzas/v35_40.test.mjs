@@ -25,7 +25,7 @@ test('v35.40 removes whole-page left-sweep on day change and enables per-element
   const appleCss = read('apple-motion.css');
   const appleMjs = read('apple-motion.mjs');
 
-  assert.match(appJs, /\.\/apple-motion\.mjs\?v=35\.53/);
+  assert.match(appJs, /\.\/apple-motion\.mjs\?v=35\.54/);
   assert.match(appJs, /function wrapMotionWords\(/);
   assert.match(appJs, /function applyApplePress\(/);
   assert.match(appJs, /function stopScopeAnimations\(/);
@@ -131,11 +131,93 @@ test('v35.40 count-up animator starts money values at 0 and lands on exact forma
   assert.equal(fakeEl.classes.has('is-counted'), true);
 });
 
+test('v35.54 animateCountUps on child host does not cancel ancestor main count-ups (Compromisos Fotoquimsa RD$0.00 fix)', () => {
+  const appJs = read('app.js');
+  const fnSlice = (name) => {
+    const idx = appJs.indexOf(`function ${name}(`);
+    const bodyStart = appJs.indexOf('){', idx);
+    let depth = 0, end = -1;
+    for (let i = bodyStart + 1; i < appJs.length; i++) {
+      if (appJs[i] === '{') depth++;
+      else if (appJs[i] === '}') { depth--; if (depth === 0) { end = i + 1; break; } }
+    }
+    return appJs.slice(idx, end);
+  };
+  let nowMs = 0;
+  let nextId = 1;
+  const frames = new Map();
+  const makeCountEl = (target, finalStr) => {
+    const el = {
+      dataset: { countTarget: String(target), countKind: 'money', countCurr: 'DOP', countCompact: '0', countPrefix: '', countFinal: finalStr },
+      textContent: 'RD$0.00',
+      isConnected: true,
+      classes: new Set(),
+      closest: () => null,
+      classList: { add: (c) => el.classes.add(c) },
+      removeAttribute(attr) { if (attr === 'data-count-target') delete this.dataset.countTarget; },
+    };
+    return el;
+  };
+  const fotoEl = makeCountEl(1960000, 'RD$19,600.00');
+  const subEl = makeCountEl(146731, 'RD$1,467.31');
+  const childHost = {
+    isConnected: true,
+    contains: (node) => node === childHost || node === subEl,
+    querySelectorAll: () => [subEl],
+  };
+  const mainEl = {
+    isConnected: true,
+    contains: (node) => node === mainEl || node === fotoEl || node === childHost || node === subEl,
+    querySelectorAll: () => [fotoEl],
+  };
+  const docEl = {
+    isConnected: true,
+    contains: (node) => node === docEl || mainEl.contains(node),
+    querySelectorAll: () => [fotoEl, subEl],
+  };
+  const sandbox = {
+    Number, String, Math, Boolean, Date, Set, WeakMap,
+    countRafId: 0,
+    reducedMotion: () => false,
+    esc: (x) => String(x ?? ''),
+    performance: { now: () => nowMs },
+    requestAnimationFrame: (cb) => { const id = nextId++; frames.set(id, cb); return id; },
+    cancelAnimationFrame: (id) => { frames.delete(id); },
+    document: docEl,
+  };
+  vm.createContext(sandbox);
+  vm.runInContext([fnSlice('moneyText'), fnSlice('animMoney'), fnSlice('animateCountUps')].join('\n'), sandbox);
+
+  sandbox.animateCountUps(mainEl);
+  sandbox.animateCountUps(childHost);
+  nowMs = 1200;
+  for (const [, cb] of [...frames.entries()]) cb(nowMs);
+  assert.equal(fotoEl.textContent, 'RD$19,600.00');
+  assert.equal(subEl.textContent, 'RD$1,467.31');
+
+  // Also verify full-document runner (first mount) is NOT cancelled when child host refreshes
+  const fotoEl2 = makeCountEl(1960000, 'RD$19,600.00');
+  const subEl2 = makeCountEl(146731, 'RD$1,467.31');
+  mainEl.contains = (node) => node === mainEl || node === fotoEl2 || node === childHost || node === subEl2;
+  mainEl.querySelectorAll = () => [fotoEl2];
+  childHost.contains = (node) => node === childHost || node === subEl2;
+  childHost.querySelectorAll = () => [subEl2];
+  docEl.querySelectorAll = () => [fotoEl2, subEl2];
+  frames.clear();
+  nowMs = 2000;
+  sandbox.animateCountUps(docEl);
+  sandbox.animateCountUps(childHost);
+  nowMs = 3400;
+  for (const [, cb] of [...frames.entries()]) cb(nowMs);
+  assert.equal(fotoEl2.textContent, 'RD$19,600.00');
+  assert.equal(subEl2.textContent, 'RD$1,467.31');
+});
+
 test('v35.40 wires Refresh button next to Sun/Moon to SW/cache update & reload flow', () => {
   const appJs = read('app.js');
   const swJs = read('sw.js');
 
-  assert.match(appJs, /const APP_VERSION='35\.53'/);
+  assert.match(appJs, /const APP_VERSION='35\.54'/);
   assert.match(appJs, /navigator\.serviceWorker\.register\('\.\/sw\.js',\{updateViaCache:'none'\}\)/);
   assert.match(appJs, /async function checkAndApplyAppUpdate\(\)/);
   assert.match(appJs, /if\(action==='refresh'\)\{await checkAndApplyAppUpdate\(\);return\}/);
@@ -143,7 +225,7 @@ test('v35.40 wires Refresh button next to Sun/Moon to SW/cache update & reload f
   assert.match(appJs, /waitingWorker\.postMessage\(\{type:'SKIP_WAITING'\}\)/);
   assert.match(appJs, /location\.reload\(\)/);
 
-  assert.match(swJs, /const CACHE = 'dcarela-finanzas-v35-53'/);
+  assert.match(swJs, /const CACHE = 'dcarela-finanzas-v35-54'/);
   assert.match(swJs, /event\.data\?\.type === 'SKIP_WAITING'/);
   assert.match(swJs, /url\.pathname\.endsWith\('\/sw\.js'\)/);
 });

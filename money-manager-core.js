@@ -538,7 +538,7 @@
   function legacyObligation(item) {
     const state = lower(item?.estado || "pendiente");
     const due = financeCore.businessDay(item?.venceEn || item?.vence_en || item?.fechaVencimiento || item?.proximo_vencimiento || "");
-    const balance = number(item?.saldoCentavos ?? item?.saldo_centavos ?? item?.montoCentavos ?? item?.monto_centavos);
+    const balance = number(item?.saldoCentavos ?? item?.saldo_centavos ?? item?.saldoPendienteCentavos ?? item?.saldo_pendiente_centavos ?? item?.montoCentavos ?? item?.monto_centavos);
     return {
       id: `legacy:${item?.id || item?.obligacionId || item?.concepto || due}`,
       legacyId: item?.id || item?.obligacionId || null,

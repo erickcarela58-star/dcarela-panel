@@ -1,7 +1,7 @@
-import {loadFinance,loadFullFinanceHistory,commitAction,getTerminalReceipt,loadLiveConnectivity,isLive,canRegister,canCancelMovement} from './data-source.js?v=35.53';
-import {fixture as demoFixture} from './demo-data.js?v=35.53';
-import {presets as motionPresets,reducedMotion as motionReduced,springProgress as appleSpringProgress,stop as motionStop,stopInside as motionStopInside,motion as appleMotion,reveal as motionReveal,pop as motionPop,glassExpand as motionGlassExpand,revealText as motionRevealText,enterScreen as motionEnterScreen,count as motionCount} from './apple-motion.mjs?v=35.53';
-const APP_VERSION='35.53';
+import {loadFinance,loadFullFinanceHistory,commitAction,getTerminalReceipt,loadLiveConnectivity,isLive,canRegister,canCancelMovement} from './data-source.js?v=35.54';
+import {fixture as demoFixture} from './demo-data.js?v=35.54';
+import {presets as motionPresets,reducedMotion as motionReduced,springProgress as appleSpringProgress,stop as motionStop,stopInside as motionStopInside,motion as appleMotion,reveal as motionReveal,pop as motionPop,glassExpand as motionGlassExpand,revealText as motionRevealText,enterScreen as motionEnterScreen,count as motionCount} from './apple-motion.mjs?v=35.54';
+const APP_VERSION='35.54';
 const emulatorWritesAllowed=()=>isLive && ['localhost','127.0.0.1'].includes(location.hostname)
  && String(window.__DCARELA_FIREBASE_CONFIG?.projectId||'').startsWith('demo-')
  && window.__DCARELA_FINANCE_STAGING_WRITE__===true;
@@ -784,7 +784,7 @@ function stopScopeAnimations(scope=document){
  if(animateCountUps._runners){
   for(const runner of [...animateCountUps._runners]){
    if(scope===document||runner.root===document||runner.root===scope||!runner.root?.isConnected||scope.contains?.(runner.root)){
-    runner.cancel();
+    runner.cancel(true);
    }
   }
  }
@@ -961,8 +961,10 @@ function animateCountUps(scope=document){
  if(!root?.querySelectorAll)return;
  const runners=animateCountUps._runners||(animateCountUps._runners=new Set());
  for(const r of [...runners]){
-  if(scope===document||r.root===document||r.root===root||r.root?.isConnected===false||(typeof root.contains==='function'&&root.contains(r.root))||(typeof r.root?.contains==='function'&&r.root.contains(root))){
-   r.cancel();
+  if(scope===document||r.root===root||r.root?.isConnected===false||(typeof root.contains==='function'&&root.contains(r.root))){
+   r.cancel(false);
+  }else if(r.root===document||(typeof r.root?.contains==='function'&&r.root.contains(root))){
+   r.detachChild?.(root);
   }
  }
  const nodes=[...root.querySelectorAll('.dc-count[data-count-target]')];
@@ -1001,10 +1003,26 @@ function animateCountUps(scope=document){
  let localRafId=0,runnerStopped=false;
  const runner={
   root,
-  cancel(){
+  detachChild(childRoot){
+   for(const it of items){
+    if(childRoot&&typeof childRoot.contains==='function'&&childRoot.contains(it.el)){
+     it.stopped=true;
+     it.done=true;
+    }
+   }
+  },
+  cancel(settle=false){
    runnerStopped=true;
    if(localRafId){cancelAnimationFrame(localRafId);localRafId=0;}
-   for(const it of items)it.stopped=true;
+   for(const it of items){
+    it.stopped=true;
+    if(settle&&!it.done&&it.el&&it.el.isConnected!==false){
+     it.el.textContent=it.finalText;
+     it.el.classList?.add('is-counted');
+     it.el.removeAttribute?.('data-count-target');
+     it.done=true;
+    }
+   }
    runners.delete(runner);
   }
  };

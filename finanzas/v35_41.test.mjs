@@ -139,29 +139,29 @@ test('v35.41 surfaces visible cut confirmation card, batch/direct confirm button
   assert.equal(renderCalls, 2);
 });
 
-test('v35.53 updates service worker and asset query strings consistently across Central and Plaza including Apple Motion assets and Plaza demo cuts', () => {
+test('v35.54 updates service worker and asset query strings consistently across Central and Plaza including Apple Motion assets and Plaza demo cuts', () => {
   const indexHtml = read('index.html');
   const plazaHtml = read('plaza.html');
   const swJs = read('sw.js');
   const appJs = read('app.js');
   const inboxJs = read('v35-26-inbox-fiscal.js');
 
-  assert.match(appJs, /const APP_VERSION='35\.53'/);
-  assert.match(appJs, /\.\/apple-motion\.mjs\?v=35\.53/);
-  assert.match(appJs, /\.\/data-source\.js\?v=35\.53/);
-  assert.match(appJs, /\.\/demo-data\.js\?v=35\.53/);
-  assert.match(inboxJs, /\.\/apple-motion\.mjs\?v=35\.53/);
-  assert.match(inboxJs, /\.\/cut-review\.js\?v=35\.53/);
-  assert.match(inboxJs, /\.\/data-source\.js\?v=35\.53/);
-  assert.match(inboxJs, /v35-26-category-emojis\.js\?v=35\.53/);
+  assert.match(appJs, /const APP_VERSION='35\.54'/);
+  assert.match(appJs, /\.\/apple-motion\.mjs\?v=35\.54/);
+  assert.match(appJs, /\.\/data-source\.js\?v=35\.54/);
+  assert.match(appJs, /\.\/demo-data\.js\?v=35\.54/);
+  assert.match(inboxJs, /\.\/apple-motion\.mjs\?v=35\.54/);
+  assert.match(inboxJs, /\.\/cut-review\.js\?v=35\.54/);
+  assert.match(inboxJs, /\.\/data-source\.js\?v=35\.54/);
+  assert.match(inboxJs, /v35-26-category-emojis\.js\?v=35\.54/);
   assert.match(inboxJs, /uiState\.mode === 'demo' \? normalizeInbox\(linker\(\)\.buildDemoInboxData\(\)\) : normalizeInbox\(/);
-  assert.match(swJs, /\/\/ DCARELA_PWA_VERSION: 35\.53/);
-  assert.match(swJs, /const CACHE = 'dcarela-finanzas-v35-53'/);
+  assert.match(swJs, /\/\/ DCARELA_PWA_VERSION: 35\.54/);
+  assert.match(swJs, /const CACHE = 'dcarela-finanzas-v35-54'/);
   for (const file of ['apple-motion.css', 'apple-motion.mjs', 'monochrome-glass-v35.css', 'v35-26-motion.css', 'app.js', 'data-source.js', 'demo-data.js', 'v35-26-category-emojis.js', 'v35-26-inbox-fiscal.js', 'cut-review.js']) {
-    assert.ok(swJs.includes(`'./${file}?v=35.53'`), `sw.js missing cache bust for ${file}`);
+    assert.ok(swJs.includes(`'./${file}?v=35.54'`), `sw.js missing cache bust for ${file}`);
   }
   for (const html of [indexHtml, plazaHtml]) {
-    assert.ok(html.includes('v=35.53'), 'HTML missing v=35.53 query params');
-    assert.doesNotMatch(html, /\?v=35\.52\b/);
+    assert.ok(html.includes('v=35.54'), 'HTML missing v=35.54 query params');
+    assert.doesNotMatch(html, /\?v=35\.53\b/);
   }
 });

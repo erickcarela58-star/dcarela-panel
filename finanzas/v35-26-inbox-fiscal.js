@@ -1,5 +1,5 @@
-import { assessCut, effectiveCutTransferCentavos } from './cut-review.js?v=35.53';
-import { loadFacturadorSales } from './data-source.js?v=35.53';
+import { assessCut, effectiveCutTransferCentavos } from './cut-review.js?v=35.54';
+import { loadFacturadorSales } from './data-source.js?v=35.54';
 import {
   reducedMotion as motionReduced,
   stop as motionStop,
@@ -8,7 +8,7 @@ import {
   pop as motionPop,
   glassExpand as motionGlassExpand,
   revealText as motionRevealText
-} from './apple-motion.mjs?v=35.53';
+} from './apple-motion.mjs?v=35.54';
 
 /* ==========================================================================
    v35.26 Unified Inbox, Mail/Cash-Codes, Theme Palettes, Web Push & Fiscal UI
@@ -3374,7 +3374,7 @@ async function ensureCategoryLinker() {
   if (window.DcarelaCategoryLinker) return;
   await new Promise((resolve) => {
     const sc = document.createElement('script');
-    sc.src = './v35-26-category-emojis.js?v=35.53';
+    sc.src = './v35-26-category-emojis.js?v=35.54';
     sc.onload = resolve;
     sc.onerror = resolve;
     document.head.appendChild(sc);
