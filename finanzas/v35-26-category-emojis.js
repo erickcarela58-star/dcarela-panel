@@ -194,6 +194,8 @@
 
   function buildDemoInboxData() {
     const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Santo_Domingo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+    const isPlazaDemo = typeof document !== 'undefined' && document.querySelector?.('meta[name="dcarela-branch-app"]')?.content === 'plaza';
+    const branchLabel = isPlazaDemo ? 'Plaza Artesanal' : 'Central';
     return {
       ok: true,
       mode: 'demo',
@@ -213,7 +215,7 @@
           date: today,
           cutTime: '1:32 PM',
           shift: 'EXTRA',
-          cashier: 'Caja Central',
+          cashier: `Caja ${branchLabel}`,
           systemCentavos: 336000,
           reportedCentavos: 336000,
           differenceCentavos: 0,
@@ -234,7 +236,7 @@
           date: today,
           cutTime: '1:54 AM',
           shift: '1PM',
-          cashier: 'Caja Central',
+          cashier: `Caja ${branchLabel}`,
           systemCentavos: 740000,
           reportedCentavos: 671000,
           differenceCentavos: -69000,
@@ -434,7 +436,6 @@
         summary: { compras: 2, ventas: 2, revisar: 1 }
       },
       ecosystem: (function () {
-        const isPlazaDemo = typeof document !== 'undefined' && document.querySelector?.('meta[name="dcarela-branch-app"]')?.content === 'plaza';
         const biz = isPlazaDemo ? 'plaza-artesanal' : 'dcarela';
         const branchName = isPlazaDemo ? 'Plaza Artesanal' : 'Central';
         const nowIso = new Date().toISOString();

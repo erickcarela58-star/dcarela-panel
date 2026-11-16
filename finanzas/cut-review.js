@@ -20,7 +20,7 @@ export function assessCut(cut = {}, businessId = 'dcarela') {
   const reviewable = cut.kind === 'cash_cut' ? status === 'awaiting_confirmation' : status === 'pending_review';
   const ownerCashConfirmableStatus = cut.kind === 'cash_cut'
     && ['awaiting_confirmation', 'discrepancy', 'mismatch_reported', 'awaiting_panel_reconciliation'].includes(status);
-  const transferSupported = cut.kind !== 'cash_cut' || businessId === 'dcarela' || businessId === 'sucursal-a';
+  const transferSupported = cut.kind !== 'cash_cut' || businessId === 'dcarela' || businessId === 'sucursal-a' || businessId === 'sucursal-b';
   const canConfirm = consistent && difference === 0 && reviewable && Boolean(cut.updatedAt) && transferSupported;
   const canConfirmWithReview = cut.kind === 'cash_cut'
     ? (consistent && ownerCashConfirmableStatus && Boolean(cut.updatedAt) && transferSupported)

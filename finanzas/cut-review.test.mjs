@@ -8,6 +8,8 @@ const base = { kind: 'cash_cut', systemCentavos: 231000, reportedCentavos: 23100
 test('cut review permits only a complete, current and balanced cut', () => {
   assert.equal(assessCut(base).canConfirm, true);
   assert.equal(assessCut(base, 'sucursal-a').canConfirm, true);
+  assert.equal(assessCut(base, 'sucursal-b').canConfirm, true);
+  assert.equal(assessCut(base, 'sucursal-b').transferSupported, true);
   assert.equal(assessCut({ ...base, reportedCentavos: 232000, differenceCentavos: 1000 }).canConfirm, false);
   assert.equal(assessCut({ ...base, reportedCentavos: 232000, differenceCentavos: 0 }).consistent, false);
   assert.equal(assessCut({ ...base, status: 'mismatch_reported' }).canConfirm, false);
@@ -37,5 +39,6 @@ test('consistent cash_cut with difference allows owner confirmation and custom O
   const mismatchCut = { ...nightCut, status: 'mismatch_reported' };
   const rvMismatch = assessCut(mismatchCut, 'dcarela');
   assert.equal(rvMismatch.canConfirmCustom, true);
+  assert.equal(assessCut(nightCut, 'sucursal-b').canConfirmCustom, true);
   assert.equal(assessCut(nightCut, 'plaza-artesanal').canConfirmCustom, false);
 });

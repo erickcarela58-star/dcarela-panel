@@ -1,5 +1,5 @@
-import { assessCut, effectiveCutTransferCentavos } from './cut-review.js?v=35.46';
-import { loadFacturadorSales } from './data-source.js?v=35.46';
+import { assessCut, effectiveCutTransferCentavos } from './cut-review.js?v=35.47';
+import { loadFacturadorSales } from './data-source.js?v=35.47';
 import {
   reducedMotion as motionReduced,
   stop as motionStop,
@@ -8,7 +8,7 @@ import {
   pop as motionPop,
   glassExpand as motionGlassExpand,
   revealText as motionRevealText
-} from './apple-motion.mjs?v=35.46';
+} from './apple-motion.mjs?v=35.47';
 
 /* ==========================================================================
    v35.26 Unified Inbox, Mail/Cash-Codes, Theme Palettes, Web Push & Fiscal UI
@@ -2000,7 +2000,7 @@ function renderModalRoot() {
   const isFreshOpen = !prevModalType || prevModalType !== nextModalType;
 
   const { type, payload } = uiState.activeModal;
-  const data = uiState.data || normalizeInbox(linker().buildDemoInboxData());
+  const data = uiState.data || (uiState.mode === 'demo' ? normalizeInbox(linker().buildDemoInboxData()) : normalizeInbox({ ok: true, counts: {}, cuts: [], consumptions: [], paymentAlerts: [] }));
   const snap = appSnapshot();
   const expenseCats = (snap.categories || []).filter((c) => c.tipo === 'gasto');
   const allAccounts = (snap.accounts || []).filter((a) => a.estado !== 'eliminada');
@@ -3145,7 +3145,7 @@ async function ensureCategoryLinker() {
   if (window.DcarelaCategoryLinker) return;
   await new Promise((resolve) => {
     const sc = document.createElement('script');
-    sc.src = './v35-26-category-emojis.js?v=35.46';
+    sc.src = './v35-26-category-emojis.js?v=35.47';
     sc.onload = resolve;
     sc.onerror = resolve;
     document.head.appendChild(sc);
