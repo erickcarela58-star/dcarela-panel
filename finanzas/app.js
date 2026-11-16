@@ -1,7 +1,7 @@
-import {loadFinance,loadFullFinanceHistory,commitAction,getTerminalReceipt,loadLiveConnectivity,isLive,canRegister,canCancelMovement} from './data-source.js?v=35.49';
-import {fixture as demoFixture} from './demo-data.js?v=35.49';
-import {presets as motionPresets,reducedMotion as motionReduced,springProgress as appleSpringProgress,stop as motionStop,stopInside as motionStopInside,motion as appleMotion,reveal as motionReveal,pop as motionPop,glassExpand as motionGlassExpand,revealText as motionRevealText,enterScreen as motionEnterScreen,count as motionCount} from './apple-motion.mjs?v=35.49';
-const APP_VERSION='35.49';
+import {loadFinance,loadFullFinanceHistory,commitAction,getTerminalReceipt,loadLiveConnectivity,isLive,canRegister,canCancelMovement} from './data-source.js?v=35.50';
+import {fixture as demoFixture} from './demo-data.js?v=35.50';
+import {presets as motionPresets,reducedMotion as motionReduced,springProgress as appleSpringProgress,stop as motionStop,stopInside as motionStopInside,motion as appleMotion,reveal as motionReveal,pop as motionPop,glassExpand as motionGlassExpand,revealText as motionRevealText,enterScreen as motionEnterScreen,count as motionCount} from './apple-motion.mjs?v=35.50';
+const APP_VERSION='35.50';
 const emulatorWritesAllowed=()=>isLive && ['localhost','127.0.0.1'].includes(location.hostname)
  && String(window.__DCARELA_FIREBASE_CONFIG?.projectId||'').startsWith('demo-')
  && window.__DCARELA_FINANCE_STAGING_WRITE__===true;
@@ -233,7 +233,7 @@ function liveRibbonText(){
 }
 function renderHeader(){return `<header class="topbar"><div class="brand-block"><img class="brand-logo" src="./icons/dcarela-logo.png" width="38" height="38" alt="Logo D’ Carela ${esc(branchDisplayName())}"><div><div class="brand-title">D’ Carela</div><div class="brand-sub">${isPlazaBranch()?'PLAZA ARTESANAL':'CENTRAL'} · FINANZAS</div></div></div><div class="top-actions">
  <button class="round-button theme-toggle" data-do="theme" aria-label="Cambiar a tema ${state.theme==='dark'?'claro':'oscuro'}" title="Cambiar a tema ${state.theme==='dark'?'claro':'oscuro'}">${ico(state.theme==='dark'?'sun':'moon')}</button>
- <button class="round-button${appRefreshing?' is-spinning':''}" data-do="refresh" aria-label="Buscar actualización de la app y actualizar datos" title="Actualizar app, base de datos, Caja y CRM (v${APP_VERSION})">${ico('refresh')}</button>
+ <button class="round-button${appRefreshing?' is-spinning':''}${appUpdateWaiting?' has-update':''}" data-do="refresh" aria-label="Buscar actualización de la app y actualizar datos" title="Actualizar app, base de datos, Caja y CRM (v${APP_VERSION})">${ico('refresh')}</button>
  </div></header>${!isLive?`<div class="demo-ribbon"><span><span class="dot"></span><strong>PROTOTIPO</strong> · ${esc(branchDisplayName())}</span><span>Sin conexión real</span></div>`:emulatorWritesAllowed()?`<div class="demo-ribbon"><span>Emulador Firebase aislado</span><span>Datos ficticios</span></div>`:`<div class="demo-ribbon"><span>Libro Firebase · ${esc(branchDisplayName())}</span><span id="v3526LiveRibbonRight">${esc(liveRibbonText())}</span></div>`}`}
 function renderBottom(){const nav=[['home','house','Resumen'],['finance','bars','Finanzas'],['debts','clock','Compromisos'],['more','tools','Herramientas']];const selected=state.route?'more':state.tab;
  if(state.authRequired||(isLive&&state.loading&&!state.data))return '';
@@ -746,7 +746,7 @@ function updateEntryCategoryBadge(){
 function modalEntry(){if(isLive&&!canRegister())return modalFrame('Registrar movimiento',`<div class="notice warning">El registro no está disponible desde este origen. Usa la PWA oficial o el panel central con una cuenta autorizada.</div><button class="primary-btn full" type="button" data-do="open-finance-panel" style="margin:16px 0">Abrir Finanzas del panel central</button>`);const type=state.entryType;const isTransfer=type==='transferencia';const a=account(state.entryAccount);const amt=state.entryDigits?Number(state.entryDigits):0;const currency=a?.moneda||'DOP';const backSvg='<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="pointer-events:none"><path d="M21 5H9l-6 7 6 7h12a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2Z"/><path d="m16 9-6 6"/><path d="m10 9 6 6"/></svg>';const selCatObj=cat(state.entryCategory)||cats().find(c=>c.tipo===type);const catBadgeHtml=selCatObj&&window.DcarelaCategoryLinker?.appleEmojiHtml?window.DcarelaCategoryLinker.appleEmojiHtml(window.DcarelaCategoryLinker.emojiForCategory(selCatObj.nombre),14):'';
  return modalFrame(state.entryLink&&type==='gasto'?'Pagar compromiso':'Registrar movimiento',`${state.entryLink&&type==='gasto'?`<div class="notice">Pago vinculado a <b>${esc(state.entryLink.name)}</b>. Revisa el monto y la cuenta antes de guardar.</div>`:''}<div class="sheet-tabs" role="group" aria-label="Tipo de movimiento"><button class="${type==='gasto'?'active':''}" data-do="entry-type" data-type="gasto">Gasto</button><button class="${type==='ingreso'?'active':''}" data-do="entry-type" data-type="ingreso">Ingreso</button><button class="${isTransfer?'active':''}" data-do="entry-type" data-type="transferencia">Transferencia</button></div><div class="input-amount ${type==='gasto'?'expense-text':type==='ingreso'?'income-text':'warning-text'}" aria-label="Importe actual" role="status">${type==='gasto'?'−':type==='ingreso'?'+':''}${moneyText(amt,currency)}</div><div class="keypad" role="group" aria-label="Teclado para introducir el importe">${['1','2','3','4','5','6','7','8','9','00','0','⌫'].map(v=>`<button data-do="digit" data-digit="${v}" aria-label="${v==='⌫'?'Borrar último dígito':`Agregar ${v}`}">${v==='⌫'?backSvg:v}</button>`).join('')}</div><label class="field-label" for="entry-account">${isTransfer?'Cuenta de origen':'Cuenta'}</label><select class="field-select" id="entry-account" name="entry-account">${cashAccountOptions(state.entryAccount,'',type==='gasto')}</select>${isTransfer?`<label class="field-label" for="entry-dest">Cuenta de destino</label><select class="field-select" id="entry-dest" name="entry-dest">${cashAccountOptions(state.entryDest,state.entryAccount,true)}</select>`:`<label class="field-label" for="entry-category" style="display:flex;align-items:center;gap:6px"><span>Categoría</span><span id="entry-category-badge">${catBadgeHtml}</span></label><select class="field-select" id="entry-category" name="entry-category">${cats().filter(c=>c.tipo===type).map(c=>`<option value="${esc(c.id)}" ${state.entryCategory===c.id?'selected':''}>${esc(c.nombre)}</option>`).join('')}</select>`}<div class="filter-grid"><div><label class="field-label" for="entry-date">Fecha</label><input class="field-control" id="entry-date" type="date" name="entry-date" value="${esc(state.entryDate)}"></div><div><label class="field-label" for="entry-note">Concepto</label><input class="field-control" id="entry-note" name="entry-note" value="${esc(state.entryNote)}" placeholder="Descripción" maxlength="180"></div></div><div id="entry-commitment-hint">${entryCommitmentHintHtml()}</div><div class="notice">${!canWriteBranch()?'Tu cuenta puede consultar, pero no registrar movimientos en esta sucursal.':isLive?'Se registra en Firebase (base de datos) y viaja sincronizado hacia Caja POS y el CRM.':'Previsualización: el registro no alterará saldos, historial ni Firebase.'}</div><button class="primary-btn full" data-do="entry-save" ${state.busy||!canWriteBranch()?'disabled':''}>${isLive?'Guardar movimiento':'Revisar simulación'}</button>`)}
 function renderModal(){if(!state.modal)return '';switch(state.modal){case 'account':return modalAccount();case 'accounts-filter':return modalAccountsFilter();case 'movement':return modalMovement();case 'void':return modalVoid();case 'movement-edit':return modalMovementEdit();case 'account-edit':return modalAccountEdit();case 'reconcile':return modalReconcile();case 'debt':return modalDebt();case 'debt-delete':return modalDebtDelete();case 'commitment':return modalCommitment();case 'entry':return modalEntry();default:return ''}}
-let previousModal=null, previousViewKey='', previousRootKey='', popupSerial=0, navigationDirection=0, countRafId=0, swRegistration=null, appUpdateReloading=false, appRefreshing=false, filterMenuSerial=0;
+let previousModal=null, previousViewKey='', previousRootKey='', popupSerial=0, navigationDirection=0, countRafId=0, swRegistration=null, appUpdateReloading=false, appRefreshing=false, appUpdateWaiting=false, appUpdateNotified=false, filterMenuSerial=0;
 const reducedMotion=()=>motionReduced();
 const INTERACTIVE_PRESS_SEL='button:not(.daily-day), .quick-action, .tab-button, .chip, .movement-row, .account-row, .pay-copy, .pay-btn, .setting-row, .filter-open, .filter-trigger, .finance-filter-menu button, .year-step-btn, .mini-switch button, .sheet-tabs button, .keypad button, .text-link, .card[data-do], .day-cell:not(.outside), .route-add-btn, .month-swipe, .v3526-cut-action-btn, .v3526-pill, .v3526-swatch';
 function applyApplePress(scope=document){
@@ -1058,6 +1058,19 @@ function finishCountUpsImmediately(scope=document){
   el.removeAttribute('data-count-target');
  }
 }
+function markAppUpdateWaiting(){
+ appUpdateWaiting=true;
+ document.querySelectorAll('[data-do="refresh"]').forEach(b=>b.classList.add('has-update'));
+ if(!appUpdateNotified){appUpdateNotified=true;note('Hay una actualización lista · toca ↻ arriba para aplicarla.');}
+}
+function watchAppUpdate(reg){
+ if(!reg)return;
+ if(reg.waiting)markAppUpdateWaiting();
+ reg.addEventListener?.('updatefound',()=>{
+  const w=reg.installing;if(!w)return;
+  w.addEventListener('statechange',()=>{if(w.state==='installed'&&navigator.serviceWorker.controller)markAppUpdateWaiting();});
+ });
+}
 function parseSwVersion(text){
  const m=String(text||'').match(/dcarela-finanzas-v(\d+)-(\d+)/i);
  return m?`${m[1]}.${m[2]}`:'';
@@ -1333,6 +1346,7 @@ function syncHeaderAndNavChrome(){
  const refBtn=shellEl.querySelector('.topbar [data-do="refresh"]');
  if(refBtn){
   refBtn.classList.toggle('is-spinning',Boolean(appRefreshing));
+  refBtn.classList.toggle('has-update',Boolean(appUpdateWaiting));
   refBtn.setAttribute('title',`Actualizar app, base de datos, Caja y CRM (v${APP_VERSION})`);
  }
  const rightEl=document.getElementById('v3526LiveRibbonRight');
@@ -1946,7 +1960,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape'&&state.modal)closeMo
 // Sin recarga automática al volver a primer plano: evita perder formularios, scroll
 // o estado del usuario. La actualización de datos/versión queda bajo demanda en el botón Actualizar.
 if('serviceWorker' in navigator&&location.protocol!=='file:'&&!emulatorWritesAllowed()){
- navigator.serviceWorker.register('./sw.js',{updateViaCache:'none'}).then(reg=>{swRegistration=reg;reg.update().catch(()=>{});}).catch(()=>{});
+ navigator.serviceWorker.register('./sw.js',{updateViaCache:'none'}).then(reg=>{swRegistration=reg;watchAppUpdate(reg);reg.update().catch(()=>{});}).catch(()=>{});
  navigator.serviceWorker.addEventListener('controllerchange',()=>{if(appUpdateReloading)location.reload();});
 }
 if (!isLive) window.__DCARELA_UI_DEBUG={state,render,openModal,openTab}; // Solo demo.

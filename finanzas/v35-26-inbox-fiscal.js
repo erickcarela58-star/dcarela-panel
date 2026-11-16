@@ -1,5 +1,5 @@
-import { assessCut, effectiveCutTransferCentavos } from './cut-review.js?v=35.49';
-import { loadFacturadorSales } from './data-source.js?v=35.49';
+import { assessCut, effectiveCutTransferCentavos } from './cut-review.js?v=35.50';
+import { loadFacturadorSales } from './data-source.js?v=35.50';
 import {
   reducedMotion as motionReduced,
   stop as motionStop,
@@ -8,7 +8,7 @@ import {
   pop as motionPop,
   glassExpand as motionGlassExpand,
   revealText as motionRevealText
-} from './apple-motion.mjs?v=35.49';
+} from './apple-motion.mjs?v=35.50';
 
 /* ==========================================================================
    v35.26 Unified Inbox, Mail/Cash-Codes, Theme Palettes, Web Push & Fiscal UI
@@ -90,6 +90,8 @@ const uiState = {
   pushSubscribed: false,
   pushBusy: false,
   busy: false,
+  inboxInFlight: null,
+  resolvedCuts: new Map(),
   toastTimer: null,
   renderQueued: false,
   mountedHooks: false
@@ -103,6 +105,11 @@ function esc(value) {
 
 function parseIsoMsClient(val) {
   if (!val) return 0;
+  if (typeof val === 'object') {
+    const secs = Number(val._seconds ?? val.seconds);
+    if (Number.isFinite(secs)) return Math.round(secs * 1000);
+    return 0;
+  }
   const ms = Date.parse(String(val));
   return Number.isFinite(ms) ? ms : 0;
 }
@@ -463,8 +470,8 @@ function normalizeInbox(raw) {
         reportedCentavos: Number(c.reportedCentavos ?? c.counted_centavos ?? c.expected_centavos ?? 0),
         differenceCentavos: Number(c.differenceCentavos ?? c.difference_centavos ?? ((c.counted_centavos ?? 0) - (c.expected_centavos ?? 0))),
         transferCentavos: Number(c.transferCentavos ?? c.transfer_centavos ?? 0),
-        amountsComplete: (c.systemCentavos ?? c.expected_centavos) != null && (c.reportedCentavos ?? c.counted_centavos) != null,
-        updatedAt: String(c.updatedAt || c.updated_at || ''),
+        amountsComplete: c.amounts_complete !== false && (c.systemCentavos ?? c.expected_centavos) != null && (c.reportedCentavos ?? c.counted_centavos) != null,
+        updatedAt: typeof c.updatedAt === 'string' ? c.updatedAt : (typeof c.updated_at === 'string' ? c.updated_at : (parseIsoMsClient(c.updatedAt ?? c.updated_at) ? new Date(parseIsoMsClient(c.updatedAt ?? c.updated_at)).toISOString() : '')),
         turnoId: String(c.turno_id || ''),
         cashier: String(c.cashier || ''),
         shift: String(c.shift || ''),
@@ -474,7 +481,13 @@ function normalizeInbox(raw) {
         exitsCentavos: Number(c.exitsCentavos ?? c.salidas_centavos ?? c.exits_centavos ?? 0),
         pettyCashRemainingCentavos: Number(c.pettyCashRemainingCentavos ?? c.petty_cash_remaining_centavos ?? 0),
         currency: c.currency || 'DOP',
-        status: c.status || 'pending_review',
+        status: (() => {
+          const cid = String(c.id || '');
+          const resolved = uiState.resolvedCuts?.get(cid);
+          if (resolved && (Date.now() - resolved.at) < 60000) return resolved.status;
+          if (resolved) uiState.resolvedCuts.delete(cid);
+          return c.status || 'pending_review';
+        })(),
         summary: c.summary || `${c.cashier ? `Cajero: ${c.cashier} · ` : ''}${c.branch_name || 'Estudio'}`
       };
     }) : [];
@@ -670,53 +683,58 @@ async function apiCall(payload) {
   return fn(body);
 }
 
-async function loadInbox(forceRefreshRates = false) {
-  if (uiState.loading) return;
+async function loadInbox(forceRefreshRates = false, opts = {}) {
+  const force = Boolean(opts?.force);
+  if (uiState.inboxInFlight) {
+    if (!force) return uiState.inboxInFlight;
+    await uiState.inboxInFlight.catch(() => null);
+  }
   uiState.loading = true;
   uiState.ecosystemLoading = true;
   uiState.error = '';
   uiState.ecosystemError = '';
-  try {
-    if (uiState.mode === 'demo') {
-      if (!uiState.data) {
-        uiState.data = normalizeInbox(linker().buildDemoInboxData());
-      }
-      uiState.ecosystem = linker().buildDemoInboxData().ecosystem || null;
-    } else {
-      const user = window.DcarelaFirebase?.getCurrentUser?.();
-      if (!user) {
-        uiState.loading = false;
-        uiState.ecosystemLoading = false;
-        return;
-      }
-      const [inboxSettled, ecoSettled, pushSettled] = await Promise.allSettled([
-        apiCall({ action: 'pwaFinanceInbox', refresh_rates: forceRefreshRates }),
-        apiCall({ action: 'pwaEcosystemStatus' }),
-        apiCall({ action: 'pwaPushConfig' }),
-      ]);
-      if (inboxSettled.status === 'fulfilled') {
-        uiState.data = normalizeInbox(inboxSettled.value);
+  const run = (async () => {
+    try {
+      if (uiState.mode === 'demo') {
+        if (!uiState.data) {
+          uiState.data = normalizeInbox(linker().buildDemoInboxData());
+        }
+        uiState.ecosystem = linker().buildDemoInboxData().ecosystem || null;
       } else {
-        uiState.error = inboxSettled.reason?.message || 'No se pudo consultar el buzón.';
+        const user = window.DcarelaFirebase?.getCurrentUser?.();
+        if (!user) return;
+        const [inboxSettled, ecoSettled, pushSettled] = await Promise.allSettled([
+          apiCall({ action: 'pwaFinanceInbox', refresh_rates: forceRefreshRates }),
+          apiCall({ action: 'pwaEcosystemStatus' }),
+          apiCall({ action: 'pwaPushConfig' }),
+        ]);
+        if (inboxSettled.status === 'fulfilled') {
+          uiState.data = normalizeInbox(inboxSettled.value);
+        } else {
+          uiState.error = inboxSettled.reason?.message || 'No se pudo consultar el buzón.';
+        }
+        if (ecoSettled.status === 'fulfilled' && ecoSettled.value?.ok) {
+          uiState.ecosystem = ecoSettled.value;
+        } else {
+          uiState.ecosystemError = ecoSettled.reason?.message || 'Estado en vivo pendiente de sincronizar.';
+        }
+        if (pushSettled.status === 'fulfilled') {
+          uiState.pushConfig = pushSettled.value;
+          uiState.pushSubscribed = Boolean(pushSettled.value?.mySubscriptions?.length);
+        }
       }
-      if (ecoSettled.status === 'fulfilled' && ecoSettled.value?.ok) {
-        uiState.ecosystem = ecoSettled.value;
-      } else {
-        uiState.ecosystemError = ecoSettled.reason?.message || 'Estado en vivo pendiente de sincronizar.';
-      }
-      if (pushSettled.status === 'fulfilled') {
-        uiState.pushConfig = pushSettled.value;
-        uiState.pushSubscribed = Boolean(pushSettled.value?.mySubscriptions?.length);
-      }
+    } catch (err) {
+      uiState.error = err?.message || 'No se pudo consultar el buzón.';
+    } finally {
+      if (uiState.inboxInFlight === run) uiState.inboxInFlight = null;
+      uiState.loading = false;
+      uiState.ecosystemLoading = false;
+      updateLiveRibbonDOM();
+      scheduleSync();
     }
-  } catch (err) {
-    uiState.error = err?.message || 'No se pudo consultar el buzón.';
-  } finally {
-    uiState.loading = false;
-    uiState.ecosystemLoading = false;
-    updateLiveRibbonDOM();
-    scheduleSync();
-  }
+  })();
+  uiState.inboxInFlight = run;
+  return run;
 }
 
 function getEcosystemSummary() {
@@ -2577,13 +2595,20 @@ function bindModalEvents(root, payload) {
         payload.manual_amount_centavos = manualAmountCentavos;
       }
       const res = await apiCall(payload);
+      const nextStatus = decision === 'confirm'
+        ? (res?.status || (cut.kind === 'cash_cut' ? 'confirmed' : 'validated'))
+        : (res?.status || (cut.kind === 'cash_cut' ? 'mismatch_reported' : 'needs_review'));
+      if (decision === 'confirm') {
+        uiState.resolvedCuts.set(cut.id, { status: nextStatus, at: Date.now() });
+      }
+      const localCut = uiState.data?.cuts?.find((x) => x.id === cut.id);
+      if (localCut) localCut.status = nextStatus;
       if (decision === 'confirm' && uiState.cutCustomAmounts) {
         delete uiState.cutCustomAmounts[cut.id];
       }
-      await Promise.all([
-        loadInbox(false),
-        Promise.resolve(window.DcarelaFinanzasReload?.()).catch(() => null)
-      ]);
+      if (uiState.data) {
+        uiState.data = normalizeInbox(uiState.data);
+      }
       let msg = 'Diferencia enviada a revisión. No se movió dinero.';
       if (decision === 'confirm') {
         const moved = Number(res?.transfer_centavos ?? finalTransfer ?? 0);
@@ -2600,9 +2625,21 @@ function bindModalEvents(root, payload) {
         }
       }
       showToast(msg, false, '✅');
-      const remaining = (uiState.data?.cuts || []).filter((x) => x.status !== 'validated' && x.status !== 'confirmed');
-      if (stayOpenIfRemaining && remaining.length) openModal('cuts');
-      else if (stayOpenIfRemaining) closeModal();
+      if (stayOpenIfRemaining) {
+        const remNow = (uiState.data?.cuts || []).filter((x) => x.status !== 'validated' && x.status !== 'confirmed');
+        if (remNow.length) openModal('cuts');
+        else closeModal();
+      }
+      renderInboxStrip();
+      await Promise.all([
+        loadInbox(false, { force: true }),
+        Promise.resolve(window.DcarelaFinanzasReload?.()).catch(() => null)
+      ]);
+      if (stayOpenIfRemaining) {
+        const remAfter = (uiState.data?.cuts || []).filter((x) => x.status !== 'validated' && x.status !== 'confirmed');
+        if (remAfter.length && uiState.activeModal?.type === 'cuts') openModal('cuts');
+        else if (!remAfter.length && uiState.activeModal?.type === 'cuts') closeModal();
+      }
       scheduleSync();
       return res;
     } catch (err) {
@@ -2755,7 +2792,7 @@ function bindModalEvents(root, payload) {
       if (confirmedCount > 0) {
         if (uiState.mode === 'live') {
           await Promise.all([
-            loadInbox(false),
+            loadInbox(false, { force: true }),
             Promise.resolve(window.DcarelaFinanzasReload?.()).catch(() => null)
           ]);
         }
@@ -2776,7 +2813,8 @@ function bindModalEvents(root, payload) {
       const id = btn.dataset.cutId;
       const decision = btn.dataset.submitCut;
       const cut = uiState.data?.cuts?.find((x) => x.id === id);
-      if (!cut || !root.querySelector('#v3526CutReviewed')?.checked) {
+      if (!cut) return;
+      if (decision === 'mismatch' && !root.querySelector('#v3526CutReviewed')?.checked) {
         showToast('Revisa los importes y marca la casilla antes de continuar.', true);
         return;
       }
@@ -3252,7 +3290,7 @@ async function ensureCategoryLinker() {
   if (window.DcarelaCategoryLinker) return;
   await new Promise((resolve) => {
     const sc = document.createElement('script');
-    sc.src = './v35-26-category-emojis.js?v=35.49';
+    sc.src = './v35-26-category-emojis.js?v=35.50';
     sc.onload = resolve;
     sc.onerror = resolve;
     document.head.appendChild(sc);

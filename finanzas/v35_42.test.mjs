@@ -9,7 +9,7 @@ const read = (file) => fs.readFileSync(path.join(DIR, file), 'utf8');
 
 test('v35.42 service worker avoids mid-session skipWaiting when active worker already exists', async () => {
   const swCode = read('sw.js');
-  assert.match(swCode, /const CACHE = 'dcarela-finanzas-v35-49'/);
+  assert.match(swCode, /const CACHE = 'dcarela-finanzas-v35-50'/);
 
   function bootSw(hasActiveWorker) {
     const handlers = {};
@@ -78,9 +78,9 @@ test('v35.42 HTML pre-paint theme script reads dcarela-mm-theme correctly for Ce
   }
 });
 
-test('v35.49 eliminates unsolicited reloads and scopes button updates cleanly in app.js', () => {
+test('v35.50 eliminates unsolicited reloads and scopes button updates cleanly in app.js', () => {
   const appJs = read('app.js');
-  assert.match(appJs, /const APP_VERSION='35\.49';/);
+  assert.match(appJs, /const APP_VERSION='35\.50';/);
 
   // 1) No automatic visibilitychange background reload
   assert.doesNotMatch(appJs, /addEventListener\('visibilitychange'/);
@@ -223,4 +223,17 @@ test('v35.49 muestra cuota de alquiler sin Saldo no verificado, separa 2 Adobe y
   assert.match(demoJs, /Alquiler del local/);
   assert.match(demoJs, /Genesis J Estevez · Nomina/);
   assert.match(demoJs, /Denni Gil Carela · Pago mes Octubre contabilidad/);
+});
+
+test('v35.50 confirma cortes de forma optimista + force-reload sin raza de concurrencia y avisa cuando hay SW esperando', () => {
+  const inboxJs = read('v35-26-inbox-fiscal.js');
+  const appJs = read('app.js');
+  const css = read('v35-26-motion.css');
+
+  assert.match(inboxJs, /inboxInFlight:\s*null/);
+  assert.match(inboxJs, /resolvedCuts:\s*new Map\(\)/);
+  assert.match(inboxJs, /loadInbox\(false,\s*\{\s*force:\s*true\s*\}\)/);
+  assert.match(inboxJs, /if \(decision === 'mismatch' && !root\.querySelector\('#v3526CutReviewed'\)\?\.checked\)/);
+  assert.match(appJs, /function watchAppUpdate\(reg\)/);
+  assert.match(css, /\.round-button\[data-do="refresh"\]\.has-update::after/);
 });

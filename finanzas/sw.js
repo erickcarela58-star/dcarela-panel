@@ -1,5 +1,5 @@
-// DCARELA_PWA_VERSION: 35.49
-const CACHE = 'dcarela-finanzas-v35-49';
+// DCARELA_PWA_VERSION: 35.50
+const CACHE = 'dcarela-finanzas-v35-50';
 const SHELL = [
   './',
   './index.html',
@@ -8,16 +8,16 @@ const SHELL = [
   './manifest-plaza.webmanifest',
   './app.css',
   './minimal-v34.css',
-  './monochrome-glass-v35.css?v=35.49',
-  './apple-motion.css?v=35.49',
-  './v35-26-motion.css?v=35.49',
-  './apple-motion.mjs?v=35.49',
-  './app.js?v=35.49',
-  './data-source.js?v=35.49',
-  './demo-data.js?v=35.49',
-  './v35-26-category-emojis.js?v=35.49',
-  './v35-26-inbox-fiscal.js?v=35.49',
-  './cut-review.js?v=35.49',
+  './monochrome-glass-v35.css?v=35.50',
+  './apple-motion.css?v=35.50',
+  './v35-26-motion.css?v=35.50',
+  './apple-motion.mjs?v=35.50',
+  './app.js?v=35.50',
+  './data-source.js?v=35.50',
+  './demo-data.js?v=35.50',
+  './v35-26-category-emojis.js?v=35.50',
+  './v35-26-inbox-fiscal.js?v=35.50',
+  './cut-review.js?v=35.50',
   './icons/dcarela-logo.png',
   './icons/apple-touch-icon.png',
   './icons/apple-touch-icon-plaza.png',
