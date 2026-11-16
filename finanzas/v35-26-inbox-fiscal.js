@@ -1,5 +1,5 @@
-import { assessCut, effectiveCutTransferCentavos } from './cut-review.js?v=35.50';
-import { loadFacturadorSales } from './data-source.js?v=35.50';
+import { assessCut, effectiveCutTransferCentavos } from './cut-review.js?v=35.51';
+import { loadFacturadorSales } from './data-source.js?v=35.51';
 import {
   reducedMotion as motionReduced,
   stop as motionStop,
@@ -8,7 +8,7 @@ import {
   pop as motionPop,
   glassExpand as motionGlassExpand,
   revealText as motionRevealText
-} from './apple-motion.mjs?v=35.50';
+} from './apple-motion.mjs?v=35.51';
 
 /* ==========================================================================
    v35.26 Unified Inbox, Mail/Cash-Codes, Theme Palettes, Web Push & Fiscal UI
@@ -685,7 +685,7 @@ async function apiCall(payload) {
 
 async function loadInbox(forceRefreshRates = false, opts = {}) {
   const force = Boolean(opts?.force);
-  if (uiState.inboxInFlight) {
+  while (uiState.inboxInFlight) {
     if (!force) return uiState.inboxInFlight;
     await uiState.inboxInFlight.catch(() => null);
   }
@@ -693,7 +693,9 @@ async function loadInbox(forceRefreshRates = false, opts = {}) {
   uiState.ecosystemLoading = true;
   uiState.error = '';
   uiState.ecosystemError = '';
-  const run = (async () => {
+  let run = null;
+  let settled = false;
+  const execute = async () => {
     try {
       if (uiState.mode === 'demo') {
         if (!uiState.data) {
@@ -726,14 +728,16 @@ async function loadInbox(forceRefreshRates = false, opts = {}) {
     } catch (err) {
       uiState.error = err?.message || 'No se pudo consultar el buzón.';
     } finally {
-      if (uiState.inboxInFlight === run) uiState.inboxInFlight = null;
+      settled = true;
+      if (run && uiState.inboxInFlight === run) uiState.inboxInFlight = null;
       uiState.loading = false;
       uiState.ecosystemLoading = false;
       updateLiveRibbonDOM();
       scheduleSync();
     }
-  })();
-  uiState.inboxInFlight = run;
+  };
+  run = execute();
+  if (!settled) uiState.inboxInFlight = run;
   return run;
 }
 
@@ -3290,7 +3294,7 @@ async function ensureCategoryLinker() {
   if (window.DcarelaCategoryLinker) return;
   await new Promise((resolve) => {
     const sc = document.createElement('script');
-    sc.src = './v35-26-category-emojis.js?v=35.50';
+    sc.src = './v35-26-category-emojis.js?v=35.51';
     sc.onload = resolve;
     sc.onerror = resolve;
     document.head.appendChild(sc);

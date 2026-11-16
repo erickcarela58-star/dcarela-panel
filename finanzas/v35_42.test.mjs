@@ -9,7 +9,7 @@ const read = (file) => fs.readFileSync(path.join(DIR, file), 'utf8');
 
 test('v35.42 service worker avoids mid-session skipWaiting when active worker already exists', async () => {
   const swCode = read('sw.js');
-  assert.match(swCode, /const CACHE = 'dcarela-finanzas-v35-50'/);
+  assert.match(swCode, /const CACHE = 'dcarela-finanzas-v35-51'/);
 
   function bootSw(hasActiveWorker) {
     const handlers = {};
@@ -78,9 +78,9 @@ test('v35.42 HTML pre-paint theme script reads dcarela-mm-theme correctly for Ce
   }
 });
 
-test('v35.50 eliminates unsolicited reloads and scopes button updates cleanly in app.js', () => {
+test('v35.51 eliminates unsolicited reloads and scopes button updates cleanly in app.js', () => {
   const appJs = read('app.js');
-  assert.match(appJs, /const APP_VERSION='35\.50';/);
+  assert.match(appJs, /const APP_VERSION='35\.51';/);
 
   // 1) No automatic visibilitychange background reload
   assert.doesNotMatch(appJs, /addEventListener\('visibilitychange'/);
@@ -225,7 +225,7 @@ test('v35.49 muestra cuota de alquiler sin Saldo no verificado, separa 2 Adobe y
   assert.match(demoJs, /Denni Gil Carela · Pago mes Octubre contabilidad/);
 });
 
-test('v35.50 confirma cortes de forma optimista + force-reload sin raza de concurrencia y avisa cuando hay SW esperando', () => {
+test('v35.51 confirma cortes de forma optimista + force-reload sin raza de concurrencia y avisa cuando hay SW esperando', async () => {
   const inboxJs = read('v35-26-inbox-fiscal.js');
   const appJs = read('app.js');
   const css = read('v35-26-motion.css');
@@ -236,4 +236,74 @@ test('v35.50 confirma cortes de forma optimista + force-reload sin raza de concu
   assert.match(inboxJs, /if \(decision === 'mismatch' && !root\.querySelector\('#v3526CutReviewed'\)\?\.checked\)/);
   assert.match(appJs, /function watchAppUpdate\(reg\)/);
   assert.match(css, /\.round-button\[data-do="refresh"\]\.has-update::after/);
+
+  const startIdx = inboxJs.indexOf('async function loadInbox(');
+  const endIdx = inboxJs.indexOf('function getEcosystemSummary()');
+  assert.ok(startIdx >= 0 && endIdx > startIdx, 'loadInbox function bounds not found');
+  const loadInboxSrc = inboxJs.slice(startIdx, endIdx);
+
+  function harness({ mode = 'demo', user = null, apiDelayMs = 0 } = {}) {
+    let apiCount = 0;
+    let ribbonUpdates = 0;
+    let scheduleCount = 0;
+    const uiState = {
+      mode,
+      loading: false,
+      ecosystemLoading: false,
+      error: '',
+      ecosystemError: '',
+      inboxInFlight: null,
+      data: null,
+      ecosystem: null,
+      pushConfig: null,
+      pushSubscribed: false,
+    };
+    const ctx = {
+      Promise,
+      setTimeout,
+      uiState,
+      normalizeInbox: (v) => v,
+      linker: () => ({ buildDemoInboxData: () => ({ ok: true, ecosystem: { database: { connected: true } } }) }),
+      window: { DcarelaFirebase: { getCurrentUser: () => user } },
+      apiCall: async ({ action }) => {
+        apiCount += 1;
+        if (apiDelayMs) await new Promise((r) => setTimeout(r, apiDelayMs));
+        if (action === 'pwaFinanceInbox') return { ok: true, cuts: [], call: apiCount };
+        return { ok: true };
+      },
+      updateLiveRibbonDOM: () => { ribbonUpdates += 1; },
+      scheduleSync: () => { scheduleCount += 1; },
+    };
+    vm.runInNewContext(loadInboxSrc, ctx);
+    return { ctx, uiState, stats: () => ({ apiCount, ribbonUpdates, scheduleCount }) };
+  }
+
+  // 1) Synchronous demo path must not hit TDZ or leave inboxInFlight dangling
+  const demo = harness({ mode: 'demo' });
+  await demo.ctx.loadInbox();
+  assert.equal(demo.uiState.inboxInFlight, null);
+  assert.equal(demo.uiState.loading, false);
+  assert.equal(demo.uiState.error, '');
+  await demo.ctx.loadInbox(false, { force: true });
+  assert.equal(demo.stats().scheduleCount, 2);
+
+  // 2) Synchronous live !user path must return cleanly without TDZ error
+  const noUser = harness({ mode: 'live', user: null });
+  await noUser.ctx.loadInbox();
+  assert.equal(noUser.uiState.inboxInFlight, null);
+  assert.equal(noUser.uiState.loading, false);
+  assert.equal(noUser.uiState.error, '');
+
+  // 3) Live concurrent + forced reloads serialize cleanly without duplicate fetches
+  const live = harness({ mode: 'live', user: { uid: 'u1' }, apiDelayMs: 25 });
+  const p1 = live.ctx.loadInbox(false);
+  const inflightAfterFirst = live.uiState.inboxInFlight;
+  assert.ok(inflightAfterFirst, 'in-flight promise stored for live fetch');
+  const p2 = live.ctx.loadInbox(false);
+  assert.equal(live.uiState.inboxInFlight, inflightAfterFirst, 'non-forced call keeps the same in-flight promise');
+  const p3 = live.ctx.loadInbox(false, { force: true });
+  await Promise.all([p1, p2, p3]);
+  assert.equal(live.uiState.inboxInFlight, null);
+  assert.equal(live.uiState.loading, false);
+  assert.equal(live.stats().apiCount, 6, 'p1 sent 3 calls and forced p3 sent 3 fresh calls (p2 reused p1)');
 });

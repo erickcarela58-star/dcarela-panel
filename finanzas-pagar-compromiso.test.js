@@ -26,18 +26,18 @@ test('el gasto viaja con el enlace al compromiso y el adaptador lo guarda y lo p
   assert.match(adapter, /obligacionId: movement\.obligacion_id \|\| null,/);
 });
 
-test('la versión 35.50 integra Apple Motion PWA, renueva caché y conserva el vidrio translúcido para iPhone 15', () => {
+test('la versión 35.51 integra Apple Motion PWA, renueva caché y conserva el vidrio translúcido para iPhone 15', () => {
   const html = fs.readFileSync(path.join(__dirname, 'finanzas', 'index.html'), 'utf8');
   const sw = fs.readFileSync(path.join(__dirname, 'finanzas', 'sw.js'), 'utf8');
   const css = fs.readFileSync(path.join(__dirname, 'finanzas', 'monochrome-glass-v35.css'), 'utf8');
-  assert.match(html, /apple-motion\.css\?v=35\.50/);
-  assert.match(html, /app\.js\?v=35\.50/); assert.match(html, /firebase-adapter\.js\?v=35\.50/);
-  assert.match(html, /monochrome-glass-v35\.css\?v=35\.50/);
-  assert.match(html, /money-manager-core\.js\?v=35\.50/);
-  assert.match(sw, /dcarela-finanzas-v35-50/);
-  assert.match(sw, /'\.\/apple-motion\.css\?v=35\.50'/);
-  assert.match(sw, /'\.\/apple-motion\.mjs\?v=35\.50'/);
-  assert.match(sw, /'\.\/app\.js\?v=35\.50'/);
+  assert.match(html, /apple-motion\.css\?v=35\.51/);
+  assert.match(html, /app\.js\?v=35\.51/); assert.match(html, /firebase-adapter\.js\?v=35\.51/);
+  assert.match(html, /monochrome-glass-v35\.css\?v=35\.51/);
+  assert.match(html, /money-manager-core\.js\?v=35\.51/);
+  assert.match(sw, /dcarela-finanzas-v35-51/);
+  assert.match(sw, /'\.\/apple-motion\.css\?v=35\.51'/);
+  assert.match(sw, /'\.\/apple-motion\.mjs\?v=35\.51'/);
+  assert.match(sw, /'\.\/app\.js\?v=35\.51'/);
   assert.match(css, /backdrop-filter:blur\(32px\)/); assert.match(css, /\.keypad button/);
   assert.match(app, /cashAccountOptions\(state\.entryAccount,'',type==='gasto'\)/);
 });
