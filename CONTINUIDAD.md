@@ -457,3 +457,9 @@ El cotejo confirma los archivos servidos, no la fluidez en Safari iPhone ni una 
 ### 16/11/2026 — Codex — cotejo público Finanzas 35.53 (solo lectura)
 
 HEAD `370f3a1`, Pages run `43827757638` completed/success. `https://panel.dcarelacompufoto.com/finanzas/` respondió 200 y anunció 35.53; 12 recursos de Central/Plaza coincidieron byte a byte con el árbol por SHA-256. Evidencia `C:/tmp/dcarela-pwa-3553-public-audit-20261116.json`. Suite local `node --test`: 493 pass, 0 fail, 1 skip de 494; log `C:/tmp/dcarela-pwa-3553-full-suite-20261116.log`. El skip requiere emulador. No hubo sesión autenticada, prueba Safari iPhone 15, escritura de movimiento ni cotejo de Caja/CRM/PWA por centavo. El cotejo HTTP confirma entrega del código, no funcionamiento físico ni paridad financiera.
+
+### 17/11/2026 — Codex — candidato Finanzas 35.58 para correcciones fiscales
+
+En el worktree aislado `C:/tmp/dcarela-panel-fiscal-release-20261117` se incorporaron los cambios de revisión optimista de `codex/fiscal-download-cas-20261116` sobre `e9808df`. Los formularios 606/607 y Facturador envían `expected_revision`, recargan tras conflicto 409 y limitan la edición de los e-CF DGII a forma de pago y nota; el 606 conserva el desglose de importe en solo lectura. Se renovó a 35.58 la caché de Central y Plaza. La rama principal y los archivos temporales del checkout compartido no se tocaron.
+
+Verificación local: `node --test` 501 aprobadas, 0 fallos, 1 omitida por falta de emulador; pruebas focales 38/38; `node --check` y `git -c core.whitespace=cr-at-eol diff --check` correctos. Registro `C:/tmp/dcarela-pwa-v3558-full-test.log`. En este punto sigue siendo candidato local: faltan el despliegue del contrato de correcciones de `crmApi`/`crmPublicacionesAgente`, publicación de Pages/Hosting, cotejo de hashes públicos y una prueba autenticada de la edición real con retorno a Excel. No se generó una corrección fiscal productiva de prueba.

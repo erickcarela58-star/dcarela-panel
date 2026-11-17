@@ -80,7 +80,7 @@ test('v35.42 HTML pre-paint theme script reads dcarela-mm-theme correctly for Ce
 
 test('v35.51 eliminates unsolicited reloads and scopes button updates cleanly in app.js', () => {
   const appJs = read('app.js');
-  assert.match(appJs, /const APP_VERSION='35\.57';/);
+  assert.match(appJs, /const APP_VERSION='35\.58';/);
 
   // 1) No automatic visibilitychange background reload
   assert.doesNotMatch(appJs, /addEventListener\('visibilitychange'/);

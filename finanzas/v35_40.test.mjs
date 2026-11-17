@@ -25,7 +25,7 @@ test('v35.40 removes whole-page left-sweep on day change and enables per-element
   const appleCss = read('apple-motion.css');
   const appleMjs = read('apple-motion.mjs');
 
-  assert.match(appJs, /\.\/apple-motion\.mjs\?v=35\.57/);
+  assert.match(appJs, /\.\/apple-motion\.mjs\?v=35\.58/);
   assert.match(appJs, /function wrapMotionWords\(/);
   assert.match(appJs, /function applyApplePress\(/);
   assert.match(appJs, /function stopScopeAnimations\(/);
@@ -217,7 +217,7 @@ test('v35.40 wires Refresh button next to Sun/Moon to SW/cache update & reload f
   const appJs = read('app.js');
   const swJs = read('sw.js');
 
-  assert.match(appJs, /const APP_VERSION='35\.57'/);
+  assert.match(appJs, /const APP_VERSION='35\.58'/);
   assert.match(appJs, /navigator\.serviceWorker\.register\('\.\/sw\.js',\{updateViaCache:'none'\}\)/);
   assert.match(appJs, /async function checkAndApplyAppUpdate\(\)/);
   assert.match(appJs, /if\(action==='refresh'\)\{await checkAndApplyAppUpdate\(\);return\}/);
