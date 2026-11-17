@@ -1129,6 +1129,10 @@ async function refreshFiscalAfterRevisionConflict(error, kind) {
   return true;
 }
 
+function isDgiiEcf(row) {
+  return [row?.ncf, row?.id].some(value => /^E\d{12}(?:[_#]\d+)?$/i.test(String(value || '').trim()));
+}
+
 function facturadorItems(row) {
   try {
     const items = JSON.parse(row.items_json || '[]');
@@ -2447,7 +2451,7 @@ function renderModalRoot() {
     const isFact = payload.kind === 'facturador';
     const is607 = payload.kind === '607';
     const isSale = is607 || isFact;
-    const isEcf = isFact || (is607 && /^E\d+/i.test(String(it.ncf || '')));
+    const isEcf = isFact || (is607 && isDgiiEcf(it));
     titleText = isFact ? 'Verificar e-CF con Hermes' : is607 ? 'Validar Venta 607 / Hermes' : 'Corregir y Validar Compra 606';
     titleHtml = `${ae(isFact ? '📄' : is607 ? '🧾' : '🛒', 18)} <span>${esc(titleText)}</span>`;
     bodyHtml = `
@@ -3070,7 +3074,7 @@ function bindModalEvents(root, payload) {
       const fd = new FormData(fiscalForm);
       const amountCentavos = Math.round(Number(fd.get('f-amount') || 0) * 100);
       const isFact = payload.kind === 'facturador';
-      const isEcf = isFact || (payload.kind === '607' && /^E\d+/i.test(String(payload.item.ncf || '')));
+      const isEcf = isFact || (payload.kind === '607' && isDgiiEcf(payload.item));
       const patch = isFact
         ? { forma_pago: fd.get('f-pay'), nota_fiscal: fd.get('f-note') }
         : isEcf
