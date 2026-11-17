@@ -1105,11 +1105,15 @@ async function loadFacturadorForBooks(businessId) {
   }
 }
 
+function invalidateFiscalRender() {
+  const host = document.getElementById('v3526FiscalHost');
+  if (host) delete host.dataset.renderedSig;
+}
+
 async function refreshFiscalAfterRevisionConflict(error, kind) {
   if (error?.status !== 409 || error?.code !== 'fiscal_revision_conflict') return false;
   closeModal();
-  const host = document.getElementById('v3526FiscalHost');
-  if (host) delete host.dataset.renderedSig;
+  invalidateFiscalRender();
   let refreshed = false;
   if (kind === 'facturador') {
     await loadFacturadorForBooks(uiState.facturadorBusiness || appSnapshot().business || '');
@@ -3115,6 +3119,8 @@ function bindModalEvents(root, payload) {
           return;
         }
         await loadInbox();
+        invalidateFiscalRender();
+        renderFiscalHost();
         closeModal();
         showToast('Comprobante fiscal guardado.', false, '✅');
       } catch (err) {
@@ -3147,6 +3153,8 @@ function bindModalEvents(root, payload) {
           return;
         }
         await loadInbox();
+        invalidateFiscalRender();
+        renderFiscalHost();
         closeModal();
         showToast('Comprobante anulado.');
       } catch (err) {
