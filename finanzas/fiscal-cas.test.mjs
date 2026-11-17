@@ -10,6 +10,19 @@ const source = fs.readFileSync(path.join(dir, 'v35-26-inbox-fiscal.js'), 'utf8')
 const start = source.indexOf('function invalidateFiscalRender(');
 const end = source.indexOf('function facturadorItems(', start);
 assert.ok(start >= 0 && end > start);
+const identityStart = source.indexOf('function isDgiiEcf(');
+assert.ok(identityStart >= start && identityStart < end);
+
+test('identifies a DGII e-CF by 607 row ID even when NCF is missing', () => {
+  const context = {};
+  vm.createContext(context);
+  vm.runInContext(source.slice(identityStart, end), context);
+  assert.equal(context.isDgiiEcf({ id: 'E320000000001_1', ncf: 'Sin e-CF' }), true);
+  assert.equal(context.isDgiiEcf({ id: 'E320000000001#2', ncf: '' }), true);
+  assert.equal(context.isDgiiEcf({ id: 'pos-123', ncf: 'E320000000001' }), true);
+  assert.equal(context.isDgiiEcf({ id: 'pos-123', ncf: 'B0100000001' }), false);
+  assert.equal(context.isDgiiEcf({ id: 'E320000000001-extra', ncf: '' }), false);
+});
 
 function harness({ facturadorError = '', inboxError = '' } = {}) {
   const events = [];
