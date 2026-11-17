@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 
 const dir = path.dirname(fileURLToPath(import.meta.url));
 const source = fs.readFileSync(path.join(dir, 'v35-26-inbox-fiscal.js'), 'utf8');
-const start = source.indexOf('async function refreshFiscalAfterRevisionConflict(');
+const start = source.indexOf('function invalidateFiscalRender(');
 const end = source.indexOf('function facturadorItems(', start);
 assert.ok(start >= 0 && end > start);
 
