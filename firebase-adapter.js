@@ -2922,7 +2922,13 @@
         body: JSON.stringify(body),
       });
       const result = await response.json().catch(() => ({}));
-      if (!response.ok || result.ok === false) throw new Error(result.error || `Google IA no respondio (HTTP ${response.status}).`);
+      if (!response.ok || result.ok === false) {
+        const error = new Error(result.error || `Google IA no respondio (HTTP ${response.status}).`);
+        error.status = response.status;
+        error.code = result.code || '';
+        error.detail = result.detail || null;
+        throw error;
+      }
       return result;
     }
   };

@@ -641,6 +641,7 @@ function normalizeInbox(raw) {
   const rawFiscal = src.fiscal || {};
   const mapCompra = (x) => ({
     id: String(x.id || ''),
+    correction_revision: Number(x.correction_revision || 0),
     ncf: x.ncf || 'Sin NCF',
     rnc: x.rnc || 'Sin RNC',
     proveedor: x.proveedor || x.supplier || 'Proveedor',
@@ -649,10 +650,12 @@ function normalizeInbox(raw) {
     itbisCentavos: Number(x.itbisCentavos ?? x.itbis_centavos ?? 0),
     estado: x.estado || x.status || 'por_revisar',
     motivo: x.motivo || x.problema || '',
-    origen: x.origen || '606'
+    origen: x.origen || '606',
+    nota_fiscal: x.nota_fiscal || ''
   });
   const mapVenta = (x) => ({
     id: String(x.id || ''),
+    correction_revision: Number(x.correction_revision || 0),
     ncf: x.ncf || 'Sin e-CF',
     rncCliente: x.rncCliente || x.rnc_cliente || '000000000',
     cliente: x.cliente || x.client || 'Consumidor Final',
@@ -660,7 +663,9 @@ function normalizeInbox(raw) {
     montoCentavos: Number(x.montoCentavos ?? x.total_centavos ?? (Number(x.monto || 0) * 100)),
     itbisCentavos: Number(x.itbisCentavos ?? x.itbis_centavos ?? 0),
     estado: (x.estado === 'validado' || x.validada) ? 'validado' : 'pendiente_validar',
-    origen: x.origen || x.source || 'Hermes'
+    origen: x.origen || x.source || 'Hermes',
+    nota_fiscal: x.nota_fiscal || '',
+    forma_pago: x.forma_pago || 'Por confirmar'
   });
 
   const compras = Array.isArray(rawFiscal.compras) ? rawFiscal.compras.map(mapCompra) : [];
@@ -1100,6 +1105,26 @@ async function loadFacturadorForBooks(businessId) {
   }
 }
 
+async function refreshFiscalAfterRevisionConflict(error, kind) {
+  if (error?.status !== 409 || error?.code !== 'fiscal_revision_conflict') return false;
+  closeModal();
+  const host = document.getElementById('v3526FiscalHost');
+  if (host) delete host.dataset.renderedSig;
+  let refreshed = false;
+  if (kind === 'facturador') {
+    await loadFacturadorForBooks(uiState.facturadorBusiness || appSnapshot().business || '');
+    refreshed = !uiState.facturadorError;
+  } else {
+    await loadInbox(false, { force: true });
+    renderFiscalHost();
+    refreshed = !uiState.error;
+  }
+  showToast(refreshed
+    ? 'El comprobante cambió en otra sesión. Se recargó la vista; ábrelo de nuevo antes de guardar.'
+    : 'El comprobante cambió en otra sesión y no se pudo recargar. Actualiza la página antes de editar.', true);
+  return true;
+}
+
 function facturadorItems(row) {
   try {
     const items = JSON.parse(row.items_json || '[]');
@@ -1215,12 +1240,12 @@ function renderFiscalHost() {
       }
       b.disabled = true;
       try {
-        await apiCall({ action: 'pwaValidateFiscal', kind: 'facturador', id, decision: 'request_hermes' });
+        await apiCall({ action: 'pwaValidateFiscal', kind: 'facturador', id, decision: 'request_hermes', expected_revision: Number(item.correction_revision || 0) });
         await loadFacturadorForBooks(businessId);
         showToast('Solicitud enviada a Hermes.');
       } catch (err) {
         b.disabled = false;
-        showToast(err.message, true);
+        if (!await refreshFiscalAfterRevisionConflict(err, 'facturador')) showToast(err.message, true);
       }
     };
   });
@@ -2418,21 +2443,24 @@ function renderModalRoot() {
     const isFact = payload.kind === 'facturador';
     const is607 = payload.kind === '607';
     const isSale = is607 || isFact;
+    const isEcf = isFact || (is607 && /^E\d+/i.test(String(it.ncf || '')));
     titleText = isFact ? 'Verificar e-CF con Hermes' : is607 ? 'Validar Venta 607 / Hermes' : 'Corregir y Validar Compra 606';
     titleHtml = `${ae(isFact ? '📄' : is607 ? '🧾' : '🛒', 18)} <span>${esc(titleText)}</span>`;
     bodyHtml = `
       <form id="v3526FiscalForm">
         <label class="field-label" style="margin-top:0">${isSale ? 'Cliente' : 'Proveedor'}</label>
-        <input class="field-control" name="f-party" required value="${esc(isFact ? (it.cliente || 'Consumidor final') : is607 ? it.cliente : it.proveedor)}">
+        <input class="field-control" name="f-party" required ${isEcf ? 'readonly' : ''} value="${esc(isFact ? (it.cliente || 'Consumidor final') : is607 ? it.cliente : it.proveedor)}">
         <div class="filter-grid">
-          <div><label class="field-label">NCF / e-CF</label><input class="field-control" name="f-ncf" required value="${esc(isFact ? (it.encf || it.ncf || '') : (it.ncf || ''))}"></div>
-          <div><label class="field-label">RNC</label><input class="field-control" name="f-rnc" value="${esc(isFact ? (it.rnc || '') : is607 ? it.rncCliente : it.rnc)}"></div>
+          <div><label class="field-label">NCF / e-CF</label><input class="field-control" name="f-ncf" required ${isEcf ? 'readonly' : ''} value="${esc(isFact ? (it.encf || it.ncf || '') : (it.ncf || ''))}"></div>
+          <div><label class="field-label">RNC</label><input class="field-control" name="f-rnc" ${isEcf ? 'readonly' : ''} value="${esc(isFact ? (it.rnc || '') : is607 ? it.rncCliente : it.rnc)}"></div>
         </div>
         <div class="filter-grid filter-grid-dates">
-          <div><label class="field-label">Fecha</label><input class="field-control" type="date" name="f-date" value="${esc(it.fecha || '')}"></div>
-          <div><label class="field-label">Monto RD$</label><input class="field-control" type="number" step="0.01" name="f-amount" value="${((Number(isFact ? it.total_centavos : it.montoCentavos) || 0) / 100).toFixed(2)}"></div>
+          <div><label class="field-label">Fecha</label><input class="field-control" type="date" name="f-date" ${isEcf ? 'readonly' : ''} value="${esc(it.fecha || '')}"></div>
+          <div><label class="field-label">Monto RD$</label><input class="field-control" type="number" step="0.01" name="f-amount" ${isEcf || !isSale ? 'readonly' : ''} value="${((Number(isFact ? it.total_centavos : it.montoCentavos) || 0) / 100).toFixed(2)}"></div>
         </div>
-        ${isFact ? `<label class="field-label">Forma de pago</label><input class="field-control" name="f-pay" value="${esc(it.forma_pago || 'Por confirmar')}">` : ''}
+        ${isSale ? `<label class="field-label">Forma de pago</label><input class="field-control" name="f-pay" maxlength="60" value="${esc(it.forma_pago || 'Por confirmar')}">` : ''}
+        <label class="field-label">Nota fiscal</label><textarea class="field-control" name="f-note" maxlength="300" rows="2">${esc(it.nota_fiscal || '')}</textarea>
+        ${isEcf ? '<p class="soft-note">Los datos del e-CF vienen de DGII y son de solo lectura. Puedes verificar la forma de pago y añadir una nota.</p>' : !isSale ? '<p class="soft-note">El importe 606 se conserva con su desglose original de subtotal e ITBIS.</p>' : ''}
         <div class="v3526-btn-row">
           <button type="submit" class="primary-btn">${ae('✅', 14)} ${isFact ? 'Validar e-CF' : `Validar en libro ${is607 ? '607' : '606'}`}</button>
           <button type="button" class="secondary-btn" id="v3526FiscalVoidBtn">${isFact ? 'Descartar dato irreal' : 'Descartar'}</button>
@@ -3038,21 +3066,21 @@ function bindModalEvents(root, payload) {
       const fd = new FormData(fiscalForm);
       const amountCentavos = Math.round(Number(fd.get('f-amount') || 0) * 100);
       const isFact = payload.kind === 'facturador';
+      const isEcf = isFact || (payload.kind === '607' && /^E\d+/i.test(String(payload.item.ncf || '')));
       const patch = isFact
-        ? { cliente: fd.get('f-party'), encf: fd.get('f-ncf'), rnc: fd.get('f-rnc'), fecha: fd.get('f-date'), forma_pago: fd.get('f-pay'), total_centavos: amountCentavos }
+        ? { forma_pago: fd.get('f-pay'), nota_fiscal: fd.get('f-note') }
+        : isEcf
+          ? { forma_pago: fd.get('f-pay'), nota_fiscal: fd.get('f-note') }
         : payload.kind === '607'
-          ? { cliente: fd.get('f-party'), ncf: fd.get('f-ncf'), rnc_cliente: fd.get('f-rnc'), fecha: fd.get('f-date'), total_centavos: amountCentavos }
-          : { supplier: fd.get('f-party'), ncf: fd.get('f-ncf'), rnc: fd.get('f-rnc'), invoice_date: fd.get('f-date'), total_centavos: amountCentavos, fecha_confirmada: true };
+          ? { cliente: fd.get('f-party'), ncf: fd.get('f-ncf'), rnc_cliente: fd.get('f-rnc'), fecha: fd.get('f-date'), total_centavos: amountCentavos, forma_pago: fd.get('f-pay'), nota_fiscal: fd.get('f-note') }
+          : { supplier: fd.get('f-party'), ncf: fd.get('f-ncf'), rnc: fd.get('f-rnc'), invoice_date: fd.get('f-date'), fecha_confirmada: true, nota_fiscal: fd.get('f-note') };
 
       if (uiState.mode === 'demo') {
         const it = payload.item;
-        it.fecha = String(fd.get('f-date') || it.fecha);
+        if (!isEcf) it.fecha = String(fd.get('f-date') || it.fecha);
+        it.nota_fiscal = String(fd.get('f-note') || '');
         if (isFact) {
-          it.encf = String(fd.get('f-ncf') || it.encf);
-          it.cliente = String(fd.get('f-party') || it.cliente);
-          it.rnc = String(fd.get('f-rnc') || it.rnc);
           it.forma_pago = String(fd.get('f-pay') || it.forma_pago);
-          it.total_centavos = amountCentavos || it.total_centavos;
           it.verificado_hermes = true;
           it.requiere_verificacion_hermes = false;
           closeModal();
@@ -3060,8 +3088,9 @@ function bindModalEvents(root, payload) {
           renderFiscalHost();
           return;
         }
-        it.ncf = String(fd.get('f-ncf') || it.ncf);
-        it.montoCentavos = amountCentavos || it.montoCentavos;
+        if (!isEcf) it.ncf = String(fd.get('f-ncf') || it.ncf);
+        if (payload.kind === '607' && !isEcf) it.montoCentavos = amountCentavos || it.montoCentavos;
+        if (isSale) it.forma_pago = String(fd.get('f-pay') || it.forma_pago);
         it.estado = 'validado';
         if (payload.kind === '606') {
           it.proveedor = String(fd.get('f-party') || it.proveedor);
@@ -3078,7 +3107,7 @@ function bindModalEvents(root, payload) {
         return;
       }
       try {
-        await apiCall({ action: 'pwaValidateFiscal', kind: payload.kind, id: payload.item.id, decision: 'validate', patch });
+        await apiCall({ action: 'pwaValidateFiscal', kind: payload.kind, id: payload.item.id, decision: 'validate', expected_revision: Number(payload.item.correction_revision || 0), patch });
         if (isFact) {
           await loadFacturadorForBooks(uiState.facturadorBusiness || appSnapshot().business || '');
           closeModal();
@@ -3088,7 +3117,9 @@ function bindModalEvents(root, payload) {
         await loadInbox();
         closeModal();
         showToast('Comprobante fiscal guardado.', false, '✅');
-      } catch (err) { showToast(err.message, true); }
+      } catch (err) {
+        if (!await refreshFiscalAfterRevisionConflict(err, payload.kind)) showToast(err.message, true);
+      }
     };
     root.querySelector('#v3526FiscalVoidBtn').onclick = async () => {
       if (uiState.mode === 'demo') {
@@ -3108,7 +3139,7 @@ function bindModalEvents(root, payload) {
         return;
       }
       try {
-        await apiCall({ action: 'pwaValidateFiscal', kind: payload.kind, id: payload.item.id, decision: 'anular' });
+        await apiCall({ action: 'pwaValidateFiscal', kind: payload.kind, id: payload.item.id, decision: 'anular', expected_revision: Number(payload.item.correction_revision || 0) });
         if (payload.kind === 'facturador') {
           await loadFacturadorForBooks(uiState.facturadorBusiness || appSnapshot().business || '');
           closeModal();
@@ -3118,7 +3149,9 @@ function bindModalEvents(root, payload) {
         await loadInbox();
         closeModal();
         showToast('Comprobante anulado.');
-      } catch (err) { showToast(err.message, true); }
+      } catch (err) {
+        if (!await refreshFiscalAfterRevisionConflict(err, payload.kind)) showToast(err.message, true);
+      }
     };
   }
 
