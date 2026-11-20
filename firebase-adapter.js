@@ -1454,6 +1454,7 @@
       const sourceId = text(data.cuentaOrigenId, 160);
       const targetId = text(data.cuentaDestinoId, 160);
       if (!sourceId || !targetId || sourceId === targetId) throw new Error('Selecciona dos cuentas diferentes.');
+      if (data.compromisoId && !(await optionalBusinessDocument(ctx,'fin_commitments',text(data.compromisoId,160))).exists) throw new Error('El compromiso no corresponde a esta tarjeta.');
       const amount = integer(data.montoCentavos, 'monto', 1);
       const fee = integer(data.comisionCentavos || 0, 'comision', 0);
       const sourceRef = d.collection('fin_accounts').doc(sourceId);
@@ -1468,6 +1469,13 @@
         }
         assertManualDopAccount(sourceDoc.data());
         assertManualDopAccount(targetDoc.data());
+        const cardPayment = targetDoc.data().tipo === 'tarjeta_credito';
+        const commitmentId = cardPayment ? text(data.compromisoId, 160) : '';
+        if (commitmentId) {
+          const snap = await transaction.get(d.collection('fin_commitments').doc(commitmentId));
+          const c = snap.data() || {};
+          if (!snap.exists || c.business_id !== ctx.businessId || (c.cuenta_tarjeta_id || c.tarjeta_cuenta_id) !== targetId) throw new Error('El compromiso no corresponde a esta tarjeta.');
+        }
         const sourceBalance = Number(sourceDoc.data().saldo_actual_centavos ?? sourceDoc.data().saldo_inicial_centavos ?? 0);
         const targetBalance = Number(targetDoc.data().saldo_actual_centavos ?? targetDoc.data().saldo_inicial_centavos ?? 0);
         const movement = {
@@ -1478,12 +1486,14 @@
           cuenta_id: sourceId, cuenta_destino_id: targetId,
           descripcion: text(data.descripcion, 500) || 'Transferencia entre cuentas', nota: text(data.nota, 1200) || null,
           origen: 'panel', estado: 'registrado', conciliado: true, afecta_resultado: false,
+          ...(cardPayment ? {categoria:'Pago de tarjeta',pago_tarjeta:true,compromiso_id:commitmentId || null} : {}),
           sync_event_id: eventId, created_at: createdAt, updated_at: createdAt, ...actor
         };
         transaction.set(d.collection('fin_movements').doc(movementId), movement);
         transaction.set(eventRef, eventDocument(ctx, eventId, 'LedgerMovimientoRegistrado',
           'fin_movements', movementId, {
-            ledgerId: movementId, tipo: 'TRANSFERENCIA', categoria: 'Transferencia',
+            ledgerId: movementId, tipo: 'TRANSFERENCIA', categoria: cardPayment ? 'Pago de tarjeta' : 'Transferencia',
+            ...(commitmentId ? {compromisoId:commitmentId} : {}),
             descripcion: movement.descripcion, importeDopCentavos: amount,
             importeOriginalCentavos: amount, monedaOriginal: 'DOP', tipoCambio: '1',
             estado: 'confirmado', fechaEfectiva: movement.source_timestamp,
@@ -1502,6 +1512,7 @@
         if (prior.ledgerId !== movementId || prior.tipo !== 'TRANSFERENCIA'
           || prior.cuentaOrigenId !== sourceId || prior.cuentaDestinoId !== targetId
           || prior.importeDopCentavos !== amount || prior.comisionCentavos !== fee
+          || (prior.compromisoId || '') !== text(data.compromisoId,160)
           || prior.descripcion !== (text(data.descripcion, 500) || 'Transferencia entre cuentas'))
           throw new Error('El identificador pertenece a otra transferencia. No se aplicó el reintento.');
       }
@@ -1576,13 +1587,23 @@
     if (action === 'fin.card.upsert') {
       const id = text(entityId || data.cuentaId, 160);
       if (!id) throw new Error('Selecciona la cuenta de tarjeta.');
-      await d.collection('fin_cards').doc(id).set({
-        business_id: ctx.businessId, cuenta_id: id, cuenta_pago_id: text(data.cuentaPagoId, 160) || null,
-        dia_corte: Number(data.diaCorte || 30), dia_pago: Number(data.diaPago || 5),
+      const diaCorte=Number(data.diaCorte),diaPago=Number(data.diaPago);
+      if (![diaCorte,diaPago].every(n=>Number.isInteger(n)&&n>=1&&n<=31)) throw new Error('Los días de corte y pago deben estar entre 1 y 31.');
+      const selected=await optionalBusinessDocument(ctx,'fin_accounts',id);
+      if (!selected.exists || selected.data().tipo !== 'tarjeta_credito') throw new Error('La tarjeta no corresponde a esta sucursal.');
+      await d.runTransaction(async transaction => {
+      const account = await transaction.get(d.collection('fin_accounts').doc(id));
+      if (!account.exists || account.data().business_id !== ctx.businessId || account.data().tipo !== 'tarjeta_credito') throw new Error('La tarjeta no corresponde a esta sucursal.');
+      transaction.set(d.collection('fin_cards').doc(id),{
+        business_id: ctx.businessId, cuenta_id: id,
+        ...(data.cuentaPagoId === undefined ? {} : {cuenta_pago_id:text(data.cuentaPagoId,160) || null}),
+        dia_corte: diaCorte, dia_pago: diaPago,
         limite_credito_centavos: integer(data.limiteCreditoCentavos || 0, 'limite', 0),
-        color: text(data.color, 20) || '#18181B', metodo_visualizacion: text(data.metodoVisualizacion, 30) || 'al_comprar',
+        ...(data.color === undefined ? {} : {color:text(data.color,20) || '#18181B'}),
+        ...(data.metodoVisualizacion === undefined ? {} : {metodo_visualizacion:text(data.metodoVisualizacion,30) || 'al_comprar'}),
         updated_at: createdAt, ...actor
       }, { merge: true });
+      });
       return { ok: true, id, message: 'Tarjeta configurada.' };
     }
 

@@ -370,6 +370,11 @@
   function linkedPaymentsForCommitment(item, { commitmentPayments = [], costPayments = [], movements = [], costObligations = [] } = {}) {
     if (!item) return [];
     const raw = item.raw || {};
+    if (item.source === 'tarjeta') return activeMovements(movements).filter(m => m.tipo === 'transferencia'
+      && text(m.cuenta_destino_id) === text(raw.cuenta_tarjeta_id)).map(m => ({
+        id:m.id,movimientoId:m.id,fecha:financeCore.businessDay(m.fecha),monto_centavos:m.monto_centavos,
+        descripcion:m.descripcion || 'Pago de tarjeta',estado:m.estado,linkedBy:'direct',metodoPago:'transferencia',matchedTerms:[]
+      }));
     const dupRefs = Array.isArray(item.duplicateRefs) ? item.duplicateRefs : [];
     const facturaIds = new Set([
       item.source === "factura" ? text(raw.id || raw.obligacionId || item.legacyId) : "",
@@ -599,8 +604,31 @@
     };
   }
 
+  function creditCardSchedule({ accounts = [], cards = [], movements = [], asOf = financeCore.businessDay(new Date()) } = {}) {
+    const month = monthBounds(String(asOf).slice(0, 7));
+    return accounts.filter(a => a.tipo === 'tarjeta_credito' && a.estado !== 'eliminada' && a.activa !== false).map(account => {
+      const card = cards.find(c => text(c.cuenta_id || c.cuentaId || c.id) === text(account.id)) || {};
+      const balance = financeCore.effectiveAccountBalance(account, movements);
+      const debt = Number.isSafeInteger(balance) ? Math.max(0, -balance) : null;
+      const day = Number(card.dia_pago ?? account.dia_pago);
+      const explicit=text(card.proximo_vencimiento || card.fecha_vencimiento);
+      let due = Number.isInteger(day) && day >= 1 && day <= 31
+        ? `${month.month}-${String(Math.min(day, Number(month.to.slice(-2)))).padStart(2, '0')}` : '';
+      if(due && due < String(asOf).slice(0,10)){
+        const [year,m]=month.month.split('-').map(Number),next=monthBounds(new Date(Date.UTC(year,m,1)).toISOString().slice(0,7));
+        due=`${next.month}-${String(Math.min(day,Number(next.to.slice(-2)))).padStart(2,'0')}`;
+      }
+      const explicitDate=new Date(explicit+'T12:00:00Z');
+      if(/^\d{4}-\d{2}-\d{2}$/.test(explicit)&&Number.isFinite(explicitDate.valueOf())&&explicitDate.toISOString().slice(0,10)===explicit)due=explicit;
+      return { account, card, accountId:account.id, currency:financeCore.accountCurrency(account), debt, due };
+    });
+  }
+
   function obligationSummary({
     commitments = [],
+    accounts = [],
+    cards = [],
+    asOf,
     costObligations = [],
     costRecurrents = [],
     month,
@@ -661,7 +689,7 @@
     const SUPPLIER_DEBT_GROUPS = new Set(["fotoquimsa", "pion", "paredes"]);
     const SUPPLIER_DEBT_TYPES = new Set(["deuda", "proveedor", "compra", "cheque", "factura_proveedor", "credito", "cuentas_por_pagar"]);
     const allItemsInScope = [...native, ...legacy, ...planned];
-    const rows = excludeCoveredByMovements ? nonZeroPreferred.filter(item => {
+    let rows = excludeCoveredByMovements ? nonZeroPreferred.filter(item => {
       if (!item.due || item.due > range.to) return true;
       const kw = extractCommitmentKeywords(item);
       const itemGroup = kw.groups[0] || kw.tokens[0] || "";
@@ -712,6 +740,18 @@
       });
       return !covered;
     }) : nonZeroPreferred;
+    // La deuda de la tarjeta procede de su cuenta: pagarla es una transferencia,
+    // no un segundo gasto por compras que ya figuran en el libro.
+    const schedule = creditCardSchedule({accounts,cards,movements:activeMovs,asOf});
+    const cardAccountIds = new Set(schedule.map(c => c.accountId));
+    const linkedCard = raw => text(raw?.cuenta_tarjeta_id || raw?.tarjeta_cuenta_id);
+    rows = rows.filter(item => !cardAccountIds.has(linkedCard(item.raw)));
+    rows.push(...schedule.filter(c => c.currency === 'DOP' && c.debt > 0).map(c => {
+      const nativeLink = commitments.find(item => linkedCard(item) === c.accountId && item.activo !== false && activeState(item.estado));
+      return {id:'card:'+c.accountId,source:'tarjeta',name:'Pago '+c.account.nombre,type:'tarjeta_credito',
+        due:c.due,periodAmount:c.debt,outstanding:c.debt,active:true,state:c.due?'Saldo de tarjeta · fecha configurada':'Configurar fecha de pago',
+        raw:{...c.card,cuenta_tarjeta_id:c.accountId,compromiso_id:nativeLink?.id || null}};
+    }));
     // Un pago declarado pero sin conciliación no equivale a una deuda saldada.
     // Se muestra para revisión, fuera de los totales pagaderos, sin reabrirlo.
     const review = legacy.filter(item => item.state === "pago_por_verificar" && item.outstanding > 0);
@@ -809,6 +849,7 @@
     activeMovements,
     summarizeMovements,
     accountSummary,
+    creditCardSchedule,
     obligationSummary,
     obligationDisplayAmount,
     isLoanType,

@@ -1,5 +1,15 @@
 # Continuidad del panel web
 
+## 20/11/2026 — Finanzas 35.59: tarjeta como compromiso y pago vinculado
+
+Las cuentas de crédito aparecen en Compromisos y Próximos pagos aunque aún no tengan documento `fin_cards`. El importe mostrado es la deuda actual de la cuenta; no se inventa un pago mínimo ni un estado de cuenta. Sin día de pago se solicita configurarlo. Con día configurado se muestra la próxima fecha, ajustada al fin de mes; no se declara mora basándose solo en un día mensual. No se suman monedas distintas. Configurar fechas y límite conserva el resto de la ficha.
+
+«Pagar tarjeta» abre una transferencia con origen y tarjeta de destino, categoría visible **Pago de tarjeta**, y enlace por identificador. El mismo asiento reduce la cuenta de origen y la deuda una vez; no vuelve a registrar las compras como gasto. La ficha lista transferencias a esa tarjeta como pagos vinculados. Si existe un compromiso con `cuenta_tarjeta_id`, su referencia viaja validada en el evento contable. El adaptador rechaza tarjetas/compromisos de otra sucursal y reintentos que intenten cambiar el compromiso.
+
+Código preparado desde `origin/main` 38dfd7e en worktree aislado, conservando el checkout de Antigravity y sus temporales. Pruebas completas `node --test`: **508 aprobadas, 0 fallos, 1 omitida** (emulador). UI en Chrome aislado **390×844, 8 comprobaciones**, red externa bloqueada y cero escrituras reales; captura `C:/tmp/dcarela-card-pwa-20261120.png`. El demo no prueba Safari físico ni el pago productivo.
+
+**Dependencia del servidor:** corrección de enlace de pagos con factura/recibos y compromisos instalada en la nube local Servicios y respaldo Erick, todavía en `migration_staging`. Código y evidencia en `C:/tmp/dcarela-migracion-20261120/PAGOS_FACTURAS_TARJETAS_20261120.md`. El origen sigue bloqueado por cuota; la migración productiva y el enlace observado en una operación real quedan pendientes de conciliación/corte. Esta actualización de interfaz conserva por ahora el backend anterior y no certifica esa migración.
+
 ## 15/11/2026 — Finanzas PWA v35.44: corrección de arranque inicial (`dayChangedOnly`) y caché sincronizada
 
 - **Coreografía completa garantizada desde el primer pintado (`finanzas/app.js`, `finanzas/v35_42.test.mjs`)**:

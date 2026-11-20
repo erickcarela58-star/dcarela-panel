@@ -4,6 +4,30 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const core = require('./finance-core');
 
+test('el pago de tarjeta se registra una vez como transferencia con categoría y compromiso explícito',async()=>{
+ const h=harness(),before=h.docs.get('fin_accounts/cash').saldo_actual_centavos;
+ h.docs.set('fin_accounts/visa',{business_id:'test',tipo:'tarjeta_credito',nombre:'Visa fixture',moneda:'DOP',estado:'activa',saldo_actual_centavos:-200000});
+ h.docs.set('fin_commitments/card',{business_id:'test',cuenta_tarjeta_id:'visa',nombre:'Visa fixture'});
+ const pay={cuentaOrigenId:'cash',cuentaDestinoId:'visa',montoCentavos:100000,requestId:'card-pay-fixture',compromisoId:'card'};
+ await h.api.adminAction('fin.transfer.create','test','admin',null,pay);await h.api.adminAction('fin.transfer.create','test','admin',null,pay);
+ assert.equal(h.docs.get('fin_accounts/cash').saldo_actual_centavos,before-100000);assert.equal(h.docs.get('fin_accounts/visa').saldo_actual_centavos,-100000);
+ const m=h.docs.get('fin_movements/card-pay-fixture'),e=h.docs.get('sync_events/ledger-card-pay-fixture');
+ assert.equal(m.tipo,'transferencia');assert.equal(m.categoria,'Pago de tarjeta');assert.equal(m.afecta_resultado,false);assert.equal(e.payload.compromisoId,'card');
+ await assert.rejects(h.api.adminAction('fin.transfer.create','test','admin',null,{...pay,requestId:'bad-card',compromisoId:'missing'}),/compromiso/);
+ assert.equal(h.docs.has('fin_movements/bad-card'),false);
+});
+
+test('configurar tarjeta valida días, tipo de cuenta y sucursal antes de escribir',async()=>{
+ const h=harness();h.docs.set('fin_accounts/visa',{business_id:'test',tipo:'tarjeta_credito',moneda:'DOP'});
+ const data={diaCorte:25,diaPago:5,limiteCreditoCentavos:1000000};
+ await h.api.adminAction('fin.card.upsert','test','admin','visa',data);assert.equal(h.docs.get('fin_cards/visa').dia_pago,5);
+ for(const id of ['cash','missing']) await assert.rejects(h.api.adminAction('fin.card.upsert','test','admin',id,data),/tarjeta/);
+ await assert.rejects(h.api.adminAction('fin.card.upsert','test','admin','visa',{...data,diaPago:32}),/días/);
+ assert.equal(h.docs.get('fin_cards/visa').dia_pago,5);
+ h.docs.set('fin_accounts/foreign-card',{business_id:'foreign',tipo:'tarjeta_credito'});
+ await assert.rejects(h.api.adminAction('fin.card.upsert','test','admin','foreign-card',data),/sucursal/);
+});
+
 test('crear cuenta no lee un documento inexistente, conserva identidad y no altera un cuadre al editar',async()=>{
  const h=harness();
  const data={nombre:'Cuenta fixture',tipo:'banco',saldoInicialCentavos:12345,incluirEnTotal:true};
