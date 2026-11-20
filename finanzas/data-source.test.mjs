@@ -77,6 +77,8 @@ test('Facturador falla cerrado ante otra sucursal, cifra inconsistente o sesión
   await assert.rejects(loadFacturadorSales('central'),/fuera de la sucursal/);
   mock({getCollection:async()=>[{business_id:'central',total_centavos:11800,itbis_centavos:1800,subtotal_centavos:9999}]});
   await assert.rejects(loadFacturadorSales('central'),/no verificables/);
+  mock({getCollection:async()=>[{business_id:'central',total_centavos:11800,itbis_centavos:null,subtotal_centavos:11800}]});
+  await assert.rejects(loadFacturadorSales('central'),/no verificables/);
   let n=0;
   mock({getCurrentUser:()=>({uid:++n===1?'owner-1':'intruso'}),getCollection:async()=>[]});
   await assert.rejects(loadFacturadorSales('central'),/sesión cambió/);

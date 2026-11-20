@@ -58,7 +58,7 @@ test('v35.31 expone fixtures demo separados por sucursal para Base de datos, Caj
   );
 });
 
-test('v35.31 integra Caja y CRM en vivo sin romper la barra de 4 tabs ni el aislamiento de sucursales', () => {
+test('v35.31 integra Caja y CRM en vivo sin romper la barra con Facturador ni el aislamiento de sucursales', () => {
   const appJs = read('app.js');
   const inboxJs = read('v35-26-inbox-fiscal.js');
   const motionCss = read('v35-26-motion.css');
@@ -68,7 +68,7 @@ test('v35.31 integra Caja y CRM en vivo sin romper la barra de 4 tabs ni el aisl
   assert.match(appJs, /\['caja_crm','users','Caja y CRM en vivo','Base de datos, turnos POS, chats y clientes'\]/);
   assert.match(appJs, /function renderCajaCrm\(\)/);
   assert.match(appJs, /id="v3526ConnectionHost"/);
-  assert.match(appJs, /\[\['home','house','Resumen'\],\['finance','bars','Finanzas'\],\['debts','clock','Compromisos'\],\['more','tools','Herramientas'\]\]/);
+  assert.match(appJs, /\[\['home','house','Resumen'\],\['finance','bars','Finanzas'\],\['debts','clock','Compromisos'\],\['facturador','receipt','Facturador'\],\['more','tools','Herramientas'\]\]/);
 
   assert.match(inboxJs, /action:\s*'pwaEcosystemStatus'/);
   assert.match(inboxJs, /action:\s*'cotizacionEstado'/);

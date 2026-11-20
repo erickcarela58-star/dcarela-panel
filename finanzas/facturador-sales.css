@@ -1,0 +1,21 @@
+.bottom-nav.has-facturador{grid-template-columns:repeat(5,minmax(0,1fr))}
+.bottom-nav.has-facturador .tab-button{min-width:0;padding-inline:1px}
+.bottom-nav.has-facturador .tab-label{white-space:nowrap;font-size:clamp(.52rem,2.35vw,.59rem)}
+.facturador-filter{margin-bottom:14px}
+.facturador-filter .field-label{margin-top:0}
+.facturador-filter .btn-pair{grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:stretch}
+.facturador-filter input{min-width:0;max-width:100%;width:100%;box-sizing:border-box}
+.facturador-filter .soft-note{margin-bottom:0}
+.facturador-totals{margin-bottom:12px}
+.facturador-totals .account-large{margin:0 0 12px}
+.facturador-totals .account-large strong{font-size:clamp(1.8rem,7.6vw,2.5rem);overflow-wrap:anywhere}
+.facturador-sale+.facturador-sale{border-top:1px solid var(--line,rgba(140,155,205,.18))}
+.facturador-sale summary{display:flex;align-items:center;gap:12px;justify-content:space-between;padding:14px 0;cursor:pointer;list-style:none}
+.facturador-sale summary::-webkit-details-marker{display:none}
+.facturador-sale summary>.row-copy{min-width:0;flex:1}
+.facturador-sale summary>.row-copy b,.facturador-sale summary>.row-copy small{display:block;overflow-wrap:anywhere;white-space:normal}
+.facturador-sale summary>strong{font-size:.85rem;white-space:nowrap;flex-shrink:0}
+.facturador-sale-body{padding-bottom:12px}
+.facturador-sale-body strong{max-width:65%;overflow-wrap:anywhere;text-align:right}
+.facturador-pagination{margin-top:12px}
+@media(max-width:350px){.facturador-filter .btn-pair{grid-template-columns:minmax(0,1.25fr) minmax(0,1fr)}.facturador-sale summary{align-items:flex-start;flex-wrap:wrap}.facturador-sale summary>.row-copy{flex-basis:100%}}

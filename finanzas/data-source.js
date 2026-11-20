@@ -216,6 +216,9 @@ export async function loadFacturadorSales(requestedBusinessId, api = adapter()) 
     throw new Error('La sesión cambió durante la lectura. Vuelve a intentarlo.');
   }
   const sales = rows.map(row => {
+    if (['total_centavos','itbis_centavos','subtotal_centavos'].some(k=>row[k]===null||row[k]===undefined||row[k]===''||typeof row[k]==='boolean')) {
+      throw new Error('Un e-CF tiene importes no verificables; no se mostrarán cifras.');
+    }
     const total = Number(row.total_centavos);
     const itbis = Number(row.itbis_centavos);
     const subtotal = Number(row.subtotal_centavos);
