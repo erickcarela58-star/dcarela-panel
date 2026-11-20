@@ -211,7 +211,7 @@ export async function loadFacturadorSales(requestedBusinessId, api = adapter()) 
   if (!allowed.some(b => b.id === chosen)) {
     throw new Error('Acceso denegado: esta sucursal no pertenece a tu sesión.');
   }
-  const rows = scopedRows(await api.getCollection('facturador_ventas', [['business_id', '==', chosen]]), chosen, 'ventas del Facturador');
+  const rows = scopedRows(await api.getCollection('facturador_ventas', [['business_id', '==', chosen]], { complete: true }), chosen, 'ventas del Facturador');
   if (api.getCurrentUser()?.uid !== user.uid) {
     throw new Error('La sesión cambió durante la lectura. Vuelve a intentarlo.');
   }

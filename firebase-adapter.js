@@ -1912,10 +1912,31 @@
     },
 
     // Firestore Generic CRUD
-    async getCollection(collectionName, conditions = []) {
+    async getCollection(collectionName, conditions = [], options = {}) {
       const { db: d } = initFirebase();
       if (!d) throw new Error('Firestore no inicializado.');
       if (canReadDirect()) {
+        // La compatibilidad REST de la nube local acota runQuery a 1000 documentos por defecto.
+        if (window.DCARELA_NUBE_URL && options.complete === true) {
+          const uid = auth.currentUser.uid;
+          const pageSize = 1000;
+          const seen = new Set();
+          const rows = [];
+          let after = null;
+          while (true) {
+            const {docs} = await readCollectionDirect(collectionName, conditions, [], pageSize, after);
+            if (auth.currentUser?.uid !== uid) {
+              throw Object.assign(new Error('La sesión cambió durante la lectura.'), {code:'unauthenticated'});
+            }
+            for (const doc of docs) {
+              if (seen.has(doc.id)) throw new Error('La consulta devolvió un cursor repetido.');
+              seen.add(doc.id);
+              rows.push({id:doc.id,...doc.data()});
+            }
+            if (docs.length < pageSize) return rows;
+            after = docs.at(-1);
+          }
+        }
         const snap = await readCollectionDirect(collectionName, conditions);
         return snap.docs.map(doc => ({id:doc.id,...doc.data()}));
       }

@@ -20,6 +20,45 @@ test('respuesta de una sesión anterior no se entrega al siguiente usuario',asyn
  let finish,begin;const started=new Promise(r=>begin=r);const h=harness(()=>{begin();return new Promise(r=>finish=r);});const p=h.api.getDocument('business_members','owner');await started;h.auth.currentUser={uid:'other'};finish({ok:true,status:200,json:async()=>({fields:{active:{booleanValue:true}}})});await assert.rejects(()=>p,{code:'unauthenticated'});
 });
 
+const fiscalBase='https://fixture-cloud.example';
+const fiscalPath='projects/fixture-project/databases/(default)/documents/facturador_ventas/';
+const fiscalFilters=[['business_id','==','dcarela']];
+const fiscalPage=(start,end)=>Array.from({length:end-start+1},(_,i)=>({
+ document:{name:fiscalPath+String(start+i).padStart(4,'0'),
+ fields:{business_id:{stringValue:'dcarela'},total_centavos:{integerValue:'11800'}}},
+}));
+test('Facturador local agota la lectura por nombre y conserva el filtro de sucursal en cada página',async()=>{
+ let calls=0;
+ const {api}=harness(async(url,options)=>{
+  assert.equal(url,fiscalBase+'/firestore/v1/projects/fixture-project/databases/(default)/documents:runQuery');
+  const q=JSON.parse(options.body).structuredQuery;
+  assert.equal(q.limit,1000);
+  assert.equal(q.from[0].collectionId,'facturador_ventas');
+  assert.deepEqual(q.where,{fieldFilter:{field:{fieldPath:'business_id'},op:'EQUAL',value:{stringValue:'dcarela'}}});
+  assert.deepEqual(q.orderBy,[{field:{fieldPath:'__name__'},direction:'ASCENDING'}]);
+  const first=++calls===1;
+  assert.deepEqual(q.startAt,first?undefined:{before:false,values:[{referenceValue:fiscalPath+'1000'}]});
+  return {ok:true,status:200,json:async()=>first?fiscalPage(1,1000):fiscalPage(1001,1002)};
+ },fiscalBase);
+ const rows=await api.getCollection('facturador_ventas',fiscalFilters,{complete:true});
+ assert.equal(calls,2);
+ assert.equal(rows.length,1002);
+ assert.equal(rows[1001].id,'1002');
+ assert.equal(rows.reduce((sum,row)=>sum+row.total_centavos,0),11823600);
+});
+test('Facturador local rechaza una página fallida o repetida sin devolver totales parciales',async()=>{
+ for(const repeated of [false,true]){
+  let calls=0;
+  const {api}=harness(async()=>{
+   if(++calls===2&&!repeated)return {ok:false,status:503,json:async()=>({error:{status:'UNAVAILABLE'}})};
+   return {ok:true,status:200,json:async()=>fiscalPage(1,1000)};
+  },fiscalBase);
+  await assert.rejects(api.getCollection('facturador_ventas',fiscalFilters,{complete:true}),
+   repeated?/cursor repetido/:{code:'unavailable'});
+  assert.equal(calls,2);
+ }
+});
+
 const document=(id)=>({name:'projects/fixture-project/databases/(default)/documents/sync_events/'+id,fields:{event_id:{stringValue:id},business_id:{stringValue:'dcarela'},event_type:{stringValue:'LedgerMovimientoRegistrado'},received_at_cloud:{stringValue:'2026-11-05T12:00:00Z'}}});
 test('consulta financiera directa pagina completa, conserva sucursal y no pierde eventos empatados en fecha',async()=>{
  let pages=0;const queries=[];const h=harness(async(url,options)=>{assert.ok(url.endsWith('/documents:runQuery'));const q=JSON.parse(options.body).structuredQuery;queries.push(q);if(q.from[0].collectionId==='sync_event_archives')return {ok:true,status:200,json:async()=>[]};
