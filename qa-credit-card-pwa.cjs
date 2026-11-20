@@ -21,7 +21,9 @@ async function until(expression){for(let i=0;i<100;i++){if(await evaluate(expres
   const ext=path.extname(target),types={'.html':'text/html','.js':'text/javascript','.mjs':'text/javascript','.css':'text/css','.png':'image/png','.svg':'image/svg+xml','.webmanifest':'application/manifest+json'};
   res.setHeader('Content-Type',types[ext]||'application/octet-stream');res.setHeader('Cache-Control','no-store');fs.createReadStream(target).pipe(res);
  });
- await new Promise(r=>server.listen(0,'127.0.0.1',r));const base='http://127.0.0.1:'+server.address().port;
+ await new Promise(r=>server.listen(0,'127.0.0.1',r));const localBase='http://127.0.0.1:'+server.address().port;
+ const base=process.env.DCARELA_QA_PUBLIC_BASE || localBase;
+ assert.ok([localBase,'https://panel.dcarelacompufoto.com','https://erikccarela.web.app'].includes(base));
  const chrome=path.join(process.env.PROGRAMFILES,'Google','Chrome','Application','chrome.exe');
  browser=spawn(chrome,['--headless=new','--disable-gpu','--no-first-run','--no-default-browser-check','--remote-debugging-port=0','--user-data-dir='+profile,'about:blank'],{windowsHide:true,stdio:'ignore'});
  let port;for(let i=0;i<100;i++){try{port=Number(fs.readFileSync(path.join(profile,'DevToolsActivePort'),'utf8').split('\n')[0]);break;}catch{await sleep(100);}}

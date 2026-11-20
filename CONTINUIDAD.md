@@ -2,6 +2,8 @@
 
 ## 20/11/2026 — Finanzas 35.59: tarjeta como compromiso y pago vinculado
 
+**Publicada:** código `d6e5d796ec3dc45ae0baba1e96c6cd31a3e30ca0` enviado a `main`; GitHub Pages confirmó `built` y Firebase Hosting completó el release. Central y Plaza respondieron HTTP200 en ambos dominios. **30/30 recursos SHA-256**, cero diferencias; cuatro URLs de entrada cotejadas. Evidencia versionada en `outputs/finanzas-3559-public-20261120.json` (18:44:25Z). UI pública también pasó las ocho comprobaciones en Chrome 390×844 con datos ficticios y red externa bloqueada; captura `C:/tmp/dcarela-card-pwa-publica-20261120.png`. La entrega de archivos y la prueba demo no confirman la conciliación productiva ni un pago real.
+
 Las cuentas de crédito aparecen en Compromisos y Próximos pagos aunque aún no tengan documento `fin_cards`. El importe mostrado es la deuda actual de la cuenta; no se inventa un pago mínimo ni un estado de cuenta. Sin día de pago se solicita configurarlo. Con día configurado se muestra la próxima fecha, ajustada al fin de mes; no se declara mora basándose solo en un día mensual. No se suman monedas distintas. Configurar fechas y límite conserva el resto de la ficha.
 
 «Pagar tarjeta» abre una transferencia con origen y tarjeta de destino, categoría visible **Pago de tarjeta**, y enlace por identificador. El mismo asiento reduce la cuenta de origen y la deuda una vez; no vuelve a registrar las compras como gasto. La ficha lista transferencias a esa tarjeta como pagos vinculados. Si existe un compromiso con `cuenta_tarjeta_id`, su referencia viaja validada en el evento contable. El adaptador rechaza tarjetas/compromisos de otra sucursal y reintentos que intenten cambiar el compromiso.

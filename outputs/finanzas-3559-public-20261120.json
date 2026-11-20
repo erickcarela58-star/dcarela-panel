@@ -1,0 +1,242 @@
+{
+  "at": "2026-11-20T18:44:25.902Z",
+  "version": "35.59",
+  "sourceCommit": "d6e5d796ec3dc45ae0baba1e96c6cd31a3e30ca0",
+  "resources": 30,
+  "mismatches": 0,
+  "productionDataValidated": false,
+  "rows": [
+    {
+      "url": "https://panel.dcarelacompufoto.com/finanzas/index.html",
+      "status": 200,
+      "expected": "9d10c6c1b7a8562df46e789d885620c89480c8a8153cb5d5e4d1b396837802fe",
+      "actual": "9d10c6c1b7a8562df46e789d885620c89480c8a8153cb5d5e4d1b396837802fe",
+      "matches": true
+    },
+    {
+      "url": "https://panel.dcarelacompufoto.com/finanzas/plaza.html",
+      "status": 200,
+      "expected": "ac81d9576f00a701c2842904ed175c04f213c7261cda51e330e3ab17cedde237",
+      "actual": "ac81d9576f00a701c2842904ed175c04f213c7261cda51e330e3ab17cedde237",
+      "matches": true
+    },
+    {
+      "url": "https://panel.dcarelacompufoto.com/finanzas/app.js",
+      "status": 200,
+      "expected": "c248b34444a0e47997f215afdab060774187ee8cd178b4de3bb33495285b9810",
+      "actual": "c248b34444a0e47997f215afdab060774187ee8cd178b4de3bb33495285b9810",
+      "matches": true
+    },
+    {
+      "url": "https://panel.dcarelacompufoto.com/finanzas/data-source.js",
+      "status": 200,
+      "expected": "5ceaec4bc3cdf31869cab1e451e714ca3d53716b40fa568c02b96a75f3cf643e",
+      "actual": "5ceaec4bc3cdf31869cab1e451e714ca3d53716b40fa568c02b96a75f3cf643e",
+      "matches": true
+    },
+    {
+      "url": "https://panel.dcarelacompufoto.com/finanzas/sw.js",
+      "status": 200,
+      "expected": "ce8f7ce9b7a2b9e6dc02b003d2f3d6f4268662e71ec41395e4d453ee36b3d183",
+      "actual": "ce8f7ce9b7a2b9e6dc02b003d2f3d6f4268662e71ec41395e4d453ee36b3d183",
+      "matches": true
+    },
+    {
+      "url": "https://panel.dcarelacompufoto.com/finanzas/v35-26-inbox-fiscal.js",
+      "status": 200,
+      "expected": "bac06e2c406f52c6bfcbb442dfefbff9345b52cd816c2170082cbdc9d5ae61a5",
+      "actual": "bac06e2c406f52c6bfcbb442dfefbff9345b52cd816c2170082cbdc9d5ae61a5",
+      "matches": true
+    },
+    {
+      "url": "https://panel.dcarelacompufoto.com/money-manager-core.js",
+      "status": 200,
+      "expected": "b7d2cc5aee13b215219d04293a19e667b94c26c6f6d6cafa607ae4cb3f76b909",
+      "actual": "b7d2cc5aee13b215219d04293a19e667b94c26c6f6d6cafa607ae4cb3f76b909",
+      "matches": true
+    },
+    {
+      "url": "https://panel.dcarelacompufoto.com/firebase-adapter.js",
+      "status": 200,
+      "expected": "f496806449d07d42e432d340a52daeec29852eac086f370a1250e5c4fc53c262",
+      "actual": "f496806449d07d42e432d340a52daeec29852eac086f370a1250e5c4fc53c262",
+      "matches": true
+    },
+    {
+      "url": "https://panel.dcarelacompufoto.com/finance-core.js",
+      "status": 200,
+      "expected": "0c8c236d2cbcf16908b4487009d197f39dfaa03050b1b5df3e65e529b9bcfd04",
+      "actual": "0c8c236d2cbcf16908b4487009d197f39dfaa03050b1b5df3e65e529b9bcfd04",
+      "matches": true
+    },
+    {
+      "url": "https://panel.dcarelacompufoto.com/simple-finance-core.js",
+      "status": 200,
+      "expected": "2f3fd9e4aa4c3fd751ebe41e9c826320a8c73663efa790fa912351c8bb9e7daa",
+      "actual": "2f3fd9e4aa4c3fd751ebe41e9c826320a8c73663efa790fa912351c8bb9e7daa",
+      "matches": true
+    },
+    {
+      "url": "https://panel.dcarelacompufoto.com/finanzas/app.css",
+      "status": 200,
+      "expected": "8e097368773faaeb01519b4456952d47d965f2404ca16b86910afcbf6297975a",
+      "actual": "8e097368773faaeb01519b4456952d47d965f2404ca16b86910afcbf6297975a",
+      "matches": true
+    },
+    {
+      "url": "https://panel.dcarelacompufoto.com/finanzas/monochrome-glass-v35.css",
+      "status": 200,
+      "expected": "41feec752ebfb76b226cb6ce6caf984f0c33b577eb0773cf3a8a6ffbb7091f13",
+      "actual": "41feec752ebfb76b226cb6ce6caf984f0c33b577eb0773cf3a8a6ffbb7091f13",
+      "matches": true
+    },
+    {
+      "url": "https://panel.dcarelacompufoto.com/finanzas/apple-motion.css",
+      "status": 200,
+      "expected": "aa449b64b8f4a3652e2e7ee71e49665f263d6498f2b51e328d8b574d0b9df9b3",
+      "actual": "aa449b64b8f4a3652e2e7ee71e49665f263d6498f2b51e328d8b574d0b9df9b3",
+      "matches": true
+    },
+    {
+      "url": "https://panel.dcarelacompufoto.com/finanzas/apple-motion.mjs",
+      "status": 200,
+      "expected": "a68064db73b72f8430d2f1485b7ad8d78a0462c0e5e6fcbc497c6933832516cc",
+      "actual": "a68064db73b72f8430d2f1485b7ad8d78a0462c0e5e6fcbc497c6933832516cc",
+      "matches": true
+    },
+    {
+      "url": "https://panel.dcarelacompufoto.com/finanzas/v35-26-motion.css",
+      "status": 200,
+      "expected": "1b98e3ba075c5c4ab09419fc46047666c096ea1c028e4cbcab38b9eeff20a7c8",
+      "actual": "1b98e3ba075c5c4ab09419fc46047666c096ea1c028e4cbcab38b9eeff20a7c8",
+      "matches": true
+    },
+    {
+      "url": "https://erikccarela.web.app/finanzas/index.html",
+      "status": 200,
+      "expected": "9d10c6c1b7a8562df46e789d885620c89480c8a8153cb5d5e4d1b396837802fe",
+      "actual": "9d10c6c1b7a8562df46e789d885620c89480c8a8153cb5d5e4d1b396837802fe",
+      "matches": true
+    },
+    {
+      "url": "https://erikccarela.web.app/finanzas/plaza.html",
+      "status": 200,
+      "expected": "ac81d9576f00a701c2842904ed175c04f213c7261cda51e330e3ab17cedde237",
+      "actual": "ac81d9576f00a701c2842904ed175c04f213c7261cda51e330e3ab17cedde237",
+      "matches": true
+    },
+    {
+      "url": "https://erikccarela.web.app/finanzas/app.js",
+      "status": 200,
+      "expected": "c248b34444a0e47997f215afdab060774187ee8cd178b4de3bb33495285b9810",
+      "actual": "c248b34444a0e47997f215afdab060774187ee8cd178b4de3bb33495285b9810",
+      "matches": true
+    },
+    {
+      "url": "https://erikccarela.web.app/finanzas/data-source.js",
+      "status": 200,
+      "expected": "5ceaec4bc3cdf31869cab1e451e714ca3d53716b40fa568c02b96a75f3cf643e",
+      "actual": "5ceaec4bc3cdf31869cab1e451e714ca3d53716b40fa568c02b96a75f3cf643e",
+      "matches": true
+    },
+    {
+      "url": "https://erikccarela.web.app/finanzas/sw.js",
+      "status": 200,
+      "expected": "ce8f7ce9b7a2b9e6dc02b003d2f3d6f4268662e71ec41395e4d453ee36b3d183",
+      "actual": "ce8f7ce9b7a2b9e6dc02b003d2f3d6f4268662e71ec41395e4d453ee36b3d183",
+      "matches": true
+    },
+    {
+      "url": "https://erikccarela.web.app/finanzas/v35-26-inbox-fiscal.js",
+      "status": 200,
+      "expected": "bac06e2c406f52c6bfcbb442dfefbff9345b52cd816c2170082cbdc9d5ae61a5",
+      "actual": "bac06e2c406f52c6bfcbb442dfefbff9345b52cd816c2170082cbdc9d5ae61a5",
+      "matches": true
+    },
+    {
+      "url": "https://erikccarela.web.app/money-manager-core.js",
+      "status": 200,
+      "expected": "b7d2cc5aee13b215219d04293a19e667b94c26c6f6d6cafa607ae4cb3f76b909",
+      "actual": "b7d2cc5aee13b215219d04293a19e667b94c26c6f6d6cafa607ae4cb3f76b909",
+      "matches": true
+    },
+    {
+      "url": "https://erikccarela.web.app/firebase-adapter.js",
+      "status": 200,
+      "expected": "f496806449d07d42e432d340a52daeec29852eac086f370a1250e5c4fc53c262",
+      "actual": "f496806449d07d42e432d340a52daeec29852eac086f370a1250e5c4fc53c262",
+      "matches": true
+    },
+    {
+      "url": "https://erikccarela.web.app/finance-core.js",
+      "status": 200,
+      "expected": "0c8c236d2cbcf16908b4487009d197f39dfaa03050b1b5df3e65e529b9bcfd04",
+      "actual": "0c8c236d2cbcf16908b4487009d197f39dfaa03050b1b5df3e65e529b9bcfd04",
+      "matches": true
+    },
+    {
+      "url": "https://erikccarela.web.app/simple-finance-core.js",
+      "status": 200,
+      "expected": "2f3fd9e4aa4c3fd751ebe41e9c826320a8c73663efa790fa912351c8bb9e7daa",
+      "actual": "2f3fd9e4aa4c3fd751ebe41e9c826320a8c73663efa790fa912351c8bb9e7daa",
+      "matches": true
+    },
+    {
+      "url": "https://erikccarela.web.app/finanzas/app.css",
+      "status": 200,
+      "expected": "8e097368773faaeb01519b4456952d47d965f2404ca16b86910afcbf6297975a",
+      "actual": "8e097368773faaeb01519b4456952d47d965f2404ca16b86910afcbf6297975a",
+      "matches": true
+    },
+    {
+      "url": "https://erikccarela.web.app/finanzas/monochrome-glass-v35.css",
+      "status": 200,
+      "expected": "41feec752ebfb76b226cb6ce6caf984f0c33b577eb0773cf3a8a6ffbb7091f13",
+      "actual": "41feec752ebfb76b226cb6ce6caf984f0c33b577eb0773cf3a8a6ffbb7091f13",
+      "matches": true
+    },
+    {
+      "url": "https://erikccarela.web.app/finanzas/apple-motion.css",
+      "status": 200,
+      "expected": "aa449b64b8f4a3652e2e7ee71e49665f263d6498f2b51e328d8b574d0b9df9b3",
+      "actual": "aa449b64b8f4a3652e2e7ee71e49665f263d6498f2b51e328d8b574d0b9df9b3",
+      "matches": true
+    },
+    {
+      "url": "https://erikccarela.web.app/finanzas/apple-motion.mjs",
+      "status": 200,
+      "expected": "a68064db73b72f8430d2f1485b7ad8d78a0462c0e5e6fcbc497c6933832516cc",
+      "actual": "a68064db73b72f8430d2f1485b7ad8d78a0462c0e5e6fcbc497c6933832516cc",
+      "matches": true
+    },
+    {
+      "url": "https://erikccarela.web.app/finanzas/v35-26-motion.css",
+      "status": 200,
+      "expected": "1b98e3ba075c5c4ab09419fc46047666c096ea1c028e4cbcab38b9eeff20a7c8",
+      "actual": "1b98e3ba075c5c4ab09419fc46047666c096ea1c028e4cbcab38b9eeff20a7c8",
+      "matches": true
+    }
+  ],
+  "entries": [
+    {
+      "url": "https://panel.dcarelacompufoto.com/finanzas/",
+      "status": 200,
+      "matches": true
+    },
+    {
+      "url": "https://panel.dcarelacompufoto.com/finanzas/plaza.html",
+      "status": 200,
+      "matches": true
+    },
+    {
+      "url": "https://erikccarela.web.app/finanzas/",
+      "status": 200,
+      "matches": true
+    },
+    {
+      "url": "https://erikccarela.web.app/finanzas/plaza.html",
+      "status": 200,
+      "matches": true
+    }
+  ]
+}
