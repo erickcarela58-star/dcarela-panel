@@ -1,5 +1,13 @@
 # Continuidad del panel web
 
+## 20/11/2026 — Finanzas 35.61: ventas del Facturador en la navegación
+
+El botón **Facturador** abre los e-CF capturados por Hermes en la sucursal de la sesión. Presenta todo el historial disponible al abrir y permite filtrar por mes. La suma abarca todas las páginas y separa ventas brutas, notas de crédito E34, subtotal neto, ITBIS y total neto por moneda. Los anulados, rechazados y descartados quedan identificados fuera del total. Los comprobantes pendientes aparecen señalados y la revisión se abre en Libros fiscales.
+
+La sección consulta `facturador_ventas` en la primera apertura por sesión o al pulsar Actualizar en esa vista. Usa los importes en centavos del libro fiscal, agrupa capturas repetidas del e-CF, borra la lectura en memoria al cambiar sesión y evita escrituras en Caja o en el diario.
+
+Pruebas locales `node --test`: **515 aprobadas, 0 fallos, 1 omitida** (emulador). Chrome Playwright aislado verificó Central (320 px) y Plaza (390 px) en demo y una sesión de Central simulada (1365 px), con filtro mensual, detalle, suma de dos páginas, reintento e invalidación de una respuesta de otra sucursal. La sesión simulada usó datos ficticios. La consulta de ventas reales queda pendiente mientras el origen tenga la cuota limitada.
+
 ## 20/11/2026 — Finanzas 35.59: tarjeta como compromiso y pago vinculado
 
 **Publicada:** código `d6e5d796ec3dc45ae0baba1e96c6cd31a3e30ca0` enviado a `main`; GitHub Pages confirmó `built` y Firebase Hosting completó el release. Central y Plaza respondieron HTTP200 en ambos dominios. **30/30 recursos SHA-256**, cero diferencias; cuatro URLs de entrada cotejadas. Evidencia versionada en `outputs/finanzas-3559-public-20261120.json` (18:44:25Z). UI pública también pasó las ocho comprobaciones en Chrome 390×844 con datos ficticios y red externa bloqueada; captura `C:/tmp/dcarela-card-pwa-publica-20261120.png`. La entrega de archivos y la prueba demo no confirman la conciliación productiva ni un pago real.
