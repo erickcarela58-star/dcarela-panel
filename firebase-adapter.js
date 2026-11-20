@@ -248,7 +248,8 @@
       try {
         const token = await user.getIdToken();
         if (auth.currentUser?.uid !== user.uid) throw Object.assign(new Error('La sesión cambió.'), {code:'unauthenticated'});
-        const response = await fetch(`https://firestore.googleapis.com/v1/projects/${encodeURIComponent(cfg.projectId)}/databases/(default)/documents${path.startsWith(':') ? '' : '/'}${path}`, {
+        const base = window.DCARELA_NUBE_URL ? String(window.DCARELA_NUBE_URL).replace(/\/$/, '') + '/firestore/v1' : 'https://firestore.googleapis.com/v1';
+        const response = await fetch(`${base}/projects/${encodeURIComponent(cfg.projectId)}/databases/(default)/documents${path.startsWith(':') ? '' : '/'}${path}`, {
           headers: {Authorization: `Bearer ${token}`}, signal: controller.signal, cache:'no-store', redirect:'error',
           ...(body ? {method:'POST',body:JSON.stringify(body),headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'}} : {}),
         });
@@ -2934,7 +2935,7 @@
     async assistantRequest(body = {}) {
       const user = auth?.currentUser;
       if (!user) throw new Error('La sesion Firebase vencio. Inicia sesion nuevamente.');
-      const response = await fetch('https://crmapi-o2uqjp6fra-uc.a.run.app', {
+      const response = await fetch(window.DCARELA_NUBE_URL ? String(window.DCARELA_NUBE_URL).replace(/\/$/, '') + '/functions/crmApi' : 'https://crmapi-o2uqjp6fra-uc.a.run.app', {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${await user.getIdToken()}`,

@@ -1,0 +1,10 @@
+import {auth,onAuth,login,logout,ready} from './core.mjs';
+export const getAuth=()=>auth;
+auth.authStateReady=ready;
+export const onAuthStateChanged=(instance,next,error)=>onAuth(next,error);
+export const onIdTokenChanged=onAuthStateChanged;
+export const signInWithEmailAndPassword=(instance,email,password)=>login(email,password);
+export const signOut=()=>logout();
+export const browserLocalPersistence={type:'LOCAL'};
+export const setPersistence=async()=>{};
+export const getIdToken=(user,force)=>user.getIdToken(force);

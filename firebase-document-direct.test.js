@@ -1,14 +1,20 @@
 'use strict';
 const fs=require('node:fs'),vm=require('node:vm'),test=require('node:test'),assert=require('node:assert/strict');
 const source=fs.readFileSync(__dirname+'/firebase-adapter.js','utf8');
-function harness(fetch){const auth={currentUser:{uid:'owner',getIdToken:async()=> 'fixture-token'}};const query={where(){return this;},orderBy(){return this;},limit(){return this;},startAfter(){throw Error('SDK cursor used');},get(){throw Error('streaming used');}};const db={settings:()=>{},collection:()=>query};
-const window={__DCARELA_FIREBASE_CONFIG:{projectId:'fixture-project'}};vm.runInNewContext(source,{window,fetch,AbortController,setTimeout,clearTimeout,console,firebase:{apps:[{}],initializeApp:()=>({}),app:()=>({}),auth:()=>auth,firestore:()=>db}});return {api:window.DcarelaFirebase,auth};}
+function harness(fetch,base){const auth={currentUser:{uid:'owner',getIdToken:async()=> 'fixture-token'}};const query={where(){return this;},orderBy(){return this;},limit(){return this;},startAfter(){throw Error('SDK cursor used');},get(){throw Error('streaming used');}};const db={settings:()=>{},collection:()=>query};
+const window={DCARELA_NUBE_URL:base,__DCARELA_FIREBASE_CONFIG:{projectId:'fixture-project'}};vm.runInNewContext(source,{window,fetch,AbortController,setTimeout,clearTimeout,console,firebase:{apps:[{}],initializeApp:()=>({}),app:()=>({}),auth:()=>auth,firestore:()=>db}});return {api:window.DcarelaFirebase,auth};}
 test('validación puntual usa identidad del usuario y conserva tipos sin esperar al canal persistente',async()=>{
  const h=harness(async (url,options)=>{assert.equal(url,'https://firestore.googleapis.com/v1/projects/fixture-project/databases/(default)/documents/business_members/owner');assert.equal(options.headers.Authorization,'Bearer fixture-token');assert.equal(options.redirect,'error');return {ok:true,status:200,json:async()=>({fields:{active:{booleanValue:true},business_ids:{arrayValue:{values:[{stringValue:'dcarela'}]}},amount:{integerValue:'365079'}}})};});
  const r=await h.api.getDocument('business_members','owner');assert.equal(r.active,true);assert.equal(r.business_ids[0],'dcarela');assert.equal(r.amount,365079);
 });
 test('permisos revocados no usan caché ni otro transporte para conceder acceso',async()=>{
  const h=harness(async()=>({ok:false,status:403}));await assert.rejects(()=>h.api.getDocument('business_members','owner'),{code:'permission-denied'});
+});
+test('nube local dirige la consulta puntual y las acciones al mismo origen sin consultar Google',async()=>{
+ const seen=[],base='https://fixture-cloud.example';const h=harness(async(url,options)=>{seen.push({url,options});return {ok:true,status:200,json:async()=>url.includes('/firestore/')?{fields:{active:{booleanValue:true}}}:{ok:true}};},base);
+ await h.api.getDocument('business_members','owner');await h.api.assistantRequest({action:'whoami'});
+ assert.equal(seen[0].url,base+'/firestore/v1/projects/fixture-project/databases/(default)/documents/business_members/owner');assert.equal(seen[1].url,base+'/functions/crmApi');
+ assert.ok(seen.every(x=>x.options.headers.Authorization==='Bearer fixture-token'));
 });
 test('respuesta de una sesión anterior no se entrega al siguiente usuario',async()=>{
  let finish,begin;const started=new Promise(r=>begin=r);const h=harness(()=>{begin();return new Promise(r=>finish=r);});const p=h.api.getDocument('business_members','owner');await started;h.auth.currentUser={uid:'other'};finish({ok:true,status:200,json:async()=>({fields:{active:{booleanValue:true}}})});await assert.rejects(()=>p,{code:'unauthenticated'});

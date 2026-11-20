@@ -1,0 +1,9 @@
+# PWA 35.60 candidata para nube local — sin publicar
+
+Base `origin/main` **55706f1**, que conserva la PWA 35.59 publicada, tarjetas/compromisos, entrega fiscal y trabajo previo de Antigravity. La copia compartida no se modificó.
+
+Se sustituyen los scripts Firebase compat de Central/Plaza por `nube-sdk/compat.mjs` como dependencia del módulo de aplicación; configuración en `nube-config.js`. Se incluye la capa local en el precache y se renueva versión/caché a **35.60** para que el corte no reutilice los módulos 35.59. Las consultas REST puntuales y las acciones del adaptador financiero usan el origen local cuando está configurado. Los consumidores antiguos que no cargan esa configuración conservan su transporte hasta ser migrados; no confundir esto con todo el panel de Caja ya portado.
+
+**Pruebas:** `node --test` **509 aprobadas, 0 fallos, 1 omitida** (emulador). Playwright sobre API/PostgreSQL aislados: sesión compartida con CRM, carga de cuentas/compromisos, pago de tarjeta por 225.000 ct desde banco ficticio, saldo de banco 1.000.000→775.000 ct y tarjeta -225.000→0 ct, sin otro débito; tras recargar conserva sesión y desaparece el pendiente. Cero errores JS/avisos de aplicación/HTTP fallidos y cero escrituras productivas. Browser plugin no disponible; Chrome instalado, perfil aislado, red externa bloqueada. Evidencia `C:\tmp\dcarela-crm-local-ui-qa-result.json`, captura `C:\tmp\dcarela-pwa-nube-live-fixture-20261120.png`.
+
+**No publicar todavía.** La entrada HTTPS mantiene `PRODUCTION_ENABLED=false` y falta certificar/cambiar los datos actuales, emisores, POS/Hermes/colectores y tareas. PWA pública vigente: 35.59. La confirmación del propietario —tarjeta ya pagada, deuda 0, límite RD$10.000, corte 5 y pago 1— está guardada privadamente en los dos equipos como `control/owner-card-confirmation.json`, pendiente de leer el registro vigente antes de conciliar. No sumar el límite como saldo bancario ni inventar un segundo pago.
