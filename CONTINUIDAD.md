@@ -2,6 +2,8 @@
 
 ## 20/11/2026 — Finanzas 35.61: ventas del Facturador en la navegación
 
+**Publicada y verificada.** GitHub Pages confirmó `built` para `33eeb490801a6f418ea13ad9b0ce17d1f7ef796e` y Firebase Hosting completó el release. [Central](https://panel.dcarelacompufoto.com/finanzas/), [Plaza](https://panel.dcarelacompufoto.com/finanzas/plaza.html) y sus equivalentes de Hosting devolvieron HTTP 200 y **34/34 recursos SHA-256** coincidentes con ese commit. El service worker usa `dcarela-finanzas-v35-61`. Los cuatro accesos públicos pasaron la prueba de navegador en modo demo (390 px), con el botón visible, total RD$1,652.00 ficticio y cero errores de JavaScript. El informe `outputs/finanzas-3561-public-20261120.json` incluye las huellas verificadas.
+
 El botón **Facturador** abre los e-CF capturados por Hermes en la sucursal de la sesión. Presenta todo el historial disponible al abrir y permite filtrar por mes. La suma abarca todas las páginas y separa ventas brutas, notas de crédito E34, subtotal neto, ITBIS y total neto por moneda. Los anulados, rechazados y descartados quedan identificados fuera del total. Los comprobantes pendientes aparecen señalados y la revisión se abre en Libros fiscales.
 
 La sección consulta `facturador_ventas` en la primera apertura por sesión o al pulsar Actualizar en esa vista. Usa los importes en centavos del libro fiscal, agrupa capturas repetidas del e-CF, borra la lectura en memoria al cambiar sesión y evita escrituras en Caja o en el diario.
