@@ -20,13 +20,16 @@ export const canCancelMovement = () => !isLive || isIsolatedEmulator();
 
 export async function fiscalReadIsProvisional() {
   if (!isLive || !window.DCARELA_NUBE_URL) return false;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 4000);
   try {
     const url = new URL('/healthz', window.DCARELA_NUBE_URL);
-    const response = await fetch(url, { cache:'no-store', redirect:'error', signal:AbortSignal.timeout(4000) });
+    const response = await fetch(url, { cache:'no-store', redirect:'error', signal:controller.signal });
     if (!response.ok) return false;
     const status = await response.json();
     return status.productionCutover === false && status.financeFiscalRead === true && status.primaryConnected === true;
   } catch { return false; }
+  finally { clearTimeout(timer); }
 }
 
 function adapter() {
