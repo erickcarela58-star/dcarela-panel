@@ -1,5 +1,13 @@
 # Continuidad del panel web
 
+## 20/11/2026 — Finanzas 35.62 publicada con Facturador provisional
+
+GitHub Pages publicó el commit `284dccd37a4c8108ba853657383cae321d9affe4`. [Central](https://panel.dcarelacompufoto.com/finanzas/?vista=facturador) y [Plaza](https://panel.dcarelacompufoto.com/finanzas/plaza.html?vista=facturador) respondieron HTTP 200, con **15/15 recursos verificados por SHA-256** y caché `dcarela-finanzas-v35-62`. El seguimiento del despliegue confirmó `built`. Chrome a 390 px verificó las dos pantallas de acceso, conexión real con Servicios, sumatorias en demo y cero peticiones a Firestore. La sesión autentificada y la lectura paginada se verificaron con datos de prueba en el entorno aislado.
+
+A las 02:41:02Z del 21/11, una consulta de solo lectura en Servicios, con Administrador=True, confirmó 12 e-CF reales de Central, todos distintos, emitidos y con importes válidos, del 08 al 20/11. Plaza no tenía comprobantes en la copia. La consulta no certifica el historial completo ni la lectura de una sesión real en la PWA. El libro general y sus escrituras permanecen en conciliación. No se publicó en Firebase Hosting ni se reactivó su facturación.
+
+Evidencia pública `C:/tmp/dcarela-finanzas-3562-public-hashes.json` SHA-256 `429ACB4805250ACBFD893BCBDE129F86ED6A8C63E52C86D0753C89858A99F126`. Prueba de Chrome `C:/tmp/dcarela-pwa-3562-public-browser.json` SHA-256 `F51F49AA3346E88E9F89A3A1D46E38D027E75DA4F37305CBB60A9EBB4FA37A8A`. Cotejo de Servicios `C:/tmp/dcarela-facturador-3562-servicios.json` SHA-256 `0982CC7EF09A046F079EDD3173B79CBCC1BFF0F0C85E91EF22CB051A45F5533B`.
+
 ## 20/11/2026 — Consulta provisional de Facturador en Servicios
 
 La candidata 35.62 consulta la disponibilidad del origen. Tras autenticar al usuario y verificar su sucursal, durante la conciliación abre Facturador y avisa que el historial mostrado es provisional. El filtro mensual y la sumatoria trabajan sobre los comprobantes disponibles. No consulta el buzón ni las cifras del libro general en ese estado. Tras el corte carga el libro por el recorrido habitual. Se puede abrir la pestaña directamente con `?vista=facturador`.
