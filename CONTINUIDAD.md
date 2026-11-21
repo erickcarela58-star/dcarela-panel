@@ -1,5 +1,11 @@
 # Continuidad del panel web
 
+## 21/11/2026 — Finanzas 35.62 sustituye la 35.61 en los accesos antiguos
+
+Firebase Hosting estático publicó `5ff5f0d008d31efc` a las **06:17:49Z**, con 15 recursos del commit `284dccd` y 321 archivos del despliegue anterior conservados. La versión antigua llamaba a Firestore y mostraba el aviso de cuota agotada. Ahora tanto [Central](https://erikccarela.web.app/finanzas/?vista=facturador) como [Plaza](https://erikccarela.web.app/finanzas/plaza.html?vista=facturador) y sus rutas equivalentes en `erikccarela.firebaseapp.com` sirven 35.62 y consultan Facturador en Servicios. El dominio del panel conserva la misma entrega.
+
+Se comprobaron **15/15 SHA-256 por dirección**, pantalla de acceso, conexión a Servicios y sumatoria demo de Central y Plaza en Chrome a 390 px con Playwright. Cero peticiones a Firestore y cero errores JavaScript. Las lecturas de Facturador requieren sesión y sucursal autorizada. El libro general sigue en conciliación. Evidencia `C:/tmp/dcarela-finanzas-3562-hosting-hashes.json`, `C:/tmp/dcarela-pwa-3562-web.app-browser.json` y `C:/tmp/dcarela-pwa-3562-firebaseapp.com-browser.json`.
+
 ## 20/11/2026 — Finanzas 35.62 publicada con Facturador provisional
 
 GitHub Pages publicó el commit `284dccd37a4c8108ba853657383cae321d9affe4`. [Central](https://panel.dcarelacompufoto.com/finanzas/?vista=facturador) y [Plaza](https://panel.dcarelacompufoto.com/finanzas/plaza.html?vista=facturador) respondieron HTTP 200, con **15/15 recursos verificados por SHA-256** y caché `dcarela-finanzas-v35-62`. El seguimiento del despliegue confirmó `built`. Chrome a 390 px verificó las dos pantallas de acceso, conexión real con Servicios, sumatorias en demo y cero peticiones a Firestore. La sesión autentificada y la lectura paginada se verificaron con datos de prueba en el entorno aislado.
