@@ -1,5 +1,11 @@
 # Continuidad del panel web
 
+## 21/11/2026 — Finanzas 35.63 abre el libro de Servicios
+
+La versión **35.63** (`90e92161f7298df01559541bfe55eb9db25387ee`) abrió Resumen, Finanzas, Compromisos y Facturador con sesión autorizada. La cabecera muestra la fecha de la copia cotejada. El registro de movimientos queda deshabilitado mientras se completa el corte. Se conservaron la sesión, el filtro por sucursal y las sumatorias de Facturador.
+
+Pages registró `built` y Hosting estático publicó `493ba1c36b9bca21`. Cada uno de los tres dominios devolvió los seis recursos con SHA-256 idéntico. Chrome a 390 px verificó Central y Plaza contra API y PostgreSQL aislados, incluidas la preferencia aún sin crear, la navegación al Facturador y la suma de 1002 comprobantes de prueba de Central. En los tres dominios, el acceso público y Facturador en demo abrieron con cero errores JavaScript y cero peticiones a Firestore. Pruebas **519 aprobadas, 0 fallos y 1 omitida**. Evidencia `C:/tmp/dcarela-finanzas-3563-paridad.json`, `C:/tmp/dcarela-finanzas-3563-public-api.json` y `C:/tmp/dcarela-pwa-libro-3563-browser.json`. Pendientes la comprobación con sesión real, las escrituras y la prueba de un pago de factura real. [Central](https://panel.dcarelacompufoto.com/finanzas/) y [Plaza](https://panel.dcarelacompufoto.com/finanzas/plaza.html).
+
 ## 21/11/2026 — Finanzas 35.62 sustituye la 35.61 en los accesos antiguos
 
 Firebase Hosting estático publicó `5ff5f0d008d31efc` a las **06:17:49Z**, con 15 recursos del commit `284dccd` y 321 archivos del despliegue anterior conservados. La versión antigua llamaba a Firestore y mostraba el aviso de cuota agotada. Ahora tanto [Central](https://erikccarela.web.app/finanzas/?vista=facturador) como [Plaza](https://erikccarela.web.app/finanzas/plaza.html?vista=facturador) y sus rutas equivalentes en `erikccarela.firebaseapp.com` sirven 35.62 y consultan Facturador en Servicios. El dominio del panel conserva la misma entrega.
