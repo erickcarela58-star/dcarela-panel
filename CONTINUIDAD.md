@@ -1,5 +1,11 @@
 # Continuidad del panel web
 
+## 20/11/2026 — Finanzas 35.62 candidata: Facturador y abono de Caja en Servicios
+
+Chrome verificado contra PostgreSQL aislado con la API para Servicios, la candidata Caja `8a56520` y Finanzas `551e6c5`. Las pruebas del 21/11 a las 02:04–02:05Z vieron un abono de RD$1,000.00 enlazado una sola vez al compromiso de Central tras un reintento, con saldo pendiente de RD$1,000.00 antes y después de recargar. El caso bancario mostró RD$3,000.00 desde una base de RD$4,000.00 y un solo asiento. Facturador presentó un e-CF de Central por RD$118.00 y excluyó el de Plaza. Cero errores de JavaScript.
+
+Resultados en `C:/tmp/dcarela-caja-pwa-e2e-20261120/result.json` y `result-bank.json`. Ambos casos usaron datos ficticios y dejaron intacta la producción. La candidata sigue en la rama `codex/pwa-nube-3562-20261120`. Los accesos públicos [Central](https://panel.dcarelacompufoto.com/finanzas/) y [Plaza](https://panel.dcarelacompufoto.com/finanzas/plaza.html) conservan la entrega 35.61 hasta el corte.
+
 ## 20/11/2026 — Finanzas 35.61: ventas del Facturador en la navegación
 
 **Publicada y verificada.** GitHub Pages confirmó `built` para `33eeb490801a6f418ea13ad9b0ce17d1f7ef796e` y Firebase Hosting completó el release. [Central](https://panel.dcarelacompufoto.com/finanzas/), [Plaza](https://panel.dcarelacompufoto.com/finanzas/plaza.html) y sus equivalentes de Hosting devolvieron HTTP 200 y **34/34 recursos SHA-256** coincidentes con ese commit. El service worker usa `dcarela-finanzas-v35-61`. Los cuatro accesos públicos pasaron la prueba de navegador en modo demo (390 px), con el botón visible, total RD$1,652.00 ficticio y cero errores de JavaScript. El informe `outputs/finanzas-3561-public-20261120.json` incluye las huellas verificadas.
