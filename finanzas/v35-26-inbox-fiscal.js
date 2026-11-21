@@ -743,6 +743,8 @@ async function apiCall(payload) {
 }
 
 async function loadInbox(forceRefreshRates = false, opts = {}) {
+  const finance = window.DcarelaFinanzasActions?.getSnapshot?.().state;
+  if (uiState.mode === 'live' && (finance?.fiscalProvisional || (finance?.loading && !finance.data))) return;
   const force = Boolean(opts?.force);
   while (uiState.inboxInFlight) {
     if (!force) return uiState.inboxInFlight;

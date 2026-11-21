@@ -18,6 +18,17 @@ export const canRegister = () => isLive && (isIsolatedEmulator() || isOfficialFi
 // Firebase y el libro físico en estados distintos.
 export const canCancelMovement = () => !isLive || isIsolatedEmulator();
 
+export async function fiscalReadIsProvisional() {
+  if (!isLive || !window.DCARELA_NUBE_URL) return false;
+  try {
+    const url = new URL('/healthz', window.DCARELA_NUBE_URL);
+    const response = await fetch(url, { cache:'no-store', redirect:'error', signal:AbortSignal.timeout(4000) });
+    if (!response.ok) return false;
+    const status = await response.json();
+    return status.productionCutover === false && status.financeFiscalRead === true && status.primaryConnected === true;
+  } catch { return false; }
+}
+
 function adapter() {
   const api = window.DcarelaFirebase;
   if (!api?.isAvailable || !api.waitForAuthState || !api.getMembershipsForUser ||

@@ -1,5 +1,11 @@
 # Continuidad del panel web
 
+## 20/11/2026 — Consulta provisional de Facturador en Servicios
+
+La candidata 35.62 consulta la disponibilidad del origen. Tras autenticar al usuario y verificar su sucursal, durante la conciliación abre Facturador y avisa que el historial mostrado es provisional. El filtro mensual y la sumatoria trabajan sobre los comprobantes disponibles. No consulta el buzón ni las cifras del libro general en ese estado. Tras el corte carga el libro por el recorrido habitual. Se puede abrir la pestaña directamente con `?vista=facturador`.
+
+El Worker `ffe8d5dd-1137-476c-98a2-93995d67bb17` tiene la ruta fiscal disponible con autenticación. Chrome aislado a 390 px verificó acceso inicial, dos páginas de Central con 1002 comprobantes ficticios, filtro mensual sin solicitudes nuevas, Plaza con sesión conservada y un registro, y cero fallos de red o JavaScript. Se usó Playwright porque el complemento Browser no estaba disponible. **518 aprobadas, 0 fallos, 1 omitida** en Node. Evidencia `C:/tmp/dcarela-pwa-facturador-3562-provisional.json`. La candidata queda en su rama de preparación. El sitio público conserva 35.61.
+
 ## 20/11/2026 — Finanzas 35.62 candidata: Facturador y abono de Caja en Servicios
 
 Chrome verificado contra PostgreSQL aislado con la API para Servicios, la candidata Caja `8a56520` y Finanzas `551e6c5`. Las pruebas del 21/11 a las 02:04–02:05Z vieron un abono de RD$1,000.00 enlazado una sola vez al compromiso de Central tras un reintento, con saldo pendiente de RD$1,000.00 antes y después de recargar. El caso bancario mostró RD$3,000.00 desde una base de RD$4,000.00 y un solo asiento. Facturador presentó un e-CF de Central por RD$118.00 y excluyó el de Plaza. Cero errores de JavaScript.

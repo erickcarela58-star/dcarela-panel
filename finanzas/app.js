@@ -1,5 +1,5 @@
 import '../nube-sdk/compat.mjs';
-import {loadFinance,loadFullFinanceHistory,loadFiscalBookDownload,loadFacturadorSales,commitAction,getTerminalReceipt,loadLiveConnectivity,isLive,canRegister,canCancelMovement} from './data-source.js?v=35.62';
+import {loadFinance,loadFullFinanceHistory,loadFiscalBookDownload,loadFacturadorSales,commitAction,getTerminalReceipt,loadLiveConnectivity,isLive,canRegister,canCancelMovement,fiscalReadIsProvisional,sessionBusinesses} from './data-source.js?v=35.62';
 import {summarizeFacturadorSales} from './facturador-sales.mjs?v=35.62';
 import {fixture as demoFixture} from './demo-data.js?v=35.62';
 import {presets as motionPresets,reducedMotion as motionReduced,springProgress as appleSpringProgress,stop as motionStop,stopInside as motionStopInside,motion as appleMotion,reveal as motionReveal,pop as motionPop,glassExpand as motionGlassExpand,revealText as motionRevealText,enterScreen as motionEnterScreen,count as motionCount} from './apple-motion.mjs?v=35.62';
@@ -18,6 +18,7 @@ const monthEndOf=m=>new Date(Date.UTC(Number(m.slice(0,4)),Number(m.slice(5,7)),
 const initialMonthEnd=monthEndOf(initialMonth);
 const defaultCommitmentForm=(catId='')=>({kind:'recurrente',nombre:'',acreedor:'',palabrasClave:'',monto:'',categoriaId:catId,frecuencia:'mensual',diaMes1:'',diaMes2:'',proximaFecha:today,emitidaEn:today,numeroFactura:'',metodoPago:'transferencia',montoVariable:false,nota:''});
 const params=new URLSearchParams(location.search);
+const initialTab=params.get('vista')==='facturador'?'facturador':'home';
 const branchAppKind=document.querySelector('meta[name="dcarela-branch-app"]')?.content==='plaza'||/\/plaza(?:\.html)?$/i.test(location.pathname)?'plaza':'central';
 const DEMO_BRANCH_NAMES={'sucursal-a':'Central · Demo','sucursal-b':'Plaza Artesanal · Demo'};
 const LIVE_BRANCH_NAMES={dcarela:'Central','plaza-artesanal':'Plaza Artesanal'};
@@ -26,9 +27,9 @@ const defaultBranchId=isLive?(branchAppKind==='plaza'?'plaza-artesanal':'dcarela
 const isPlazaBranch=(id=state.business)=>id==='plaza-artesanal'||id==='sucursal-b'||(id===''&&branchAppKind==='plaza');
 const branchDisplayName=(id=state.business)=>branches[id]||LIVE_BRANCH_NAMES[id]||DEMO_BRANCH_NAMES[id]||(isPlazaBranch(id)?'Plaza Artesanal':'Central');
 const FINANCE_VIEWS=[['diario','Día'],['calendario','Calendario'],['semana','Semana'],['mes','Mes'],['ano','Año'],['personalizado','Personalizado'],['resumen','Resumen'],['estadisticas','Estadísticas']];
-const state={business:defaultBranchId,loading:true,error:'',authRequired:params.get('login')==='1'&&!isLive,loginBusy:false,loginError:'',loginEmail:'',data:null,liveConn:null,tab:'home',route:'',financeView:'diario',
+const state={business:defaultBranchId,loading:true,error:'',authRequired:params.get('login')==='1'&&!isLive,loginBusy:false,loginError:'',loginEmail:'',data:null,liveConn:null,tab:initialTab,route:'',financeView:'diario',
  month:today.slice(0,7),day:today,year:today.slice(0,4),customFrom:`${initialMonth}-01`,customTo:today,theme:localStorage.getItem('dcarela-mm-theme')==='dark'?'dark':'light',
- currency:'DOP',statsType:'gasto',modal:null,accountId:null,movementId:null,accountDraft:null,historyLoaded:!isLive,historyLoading:false,
+ currency:'DOP',fiscalProvisional:false,statsType:'gasto',modal:null,accountId:null,movementId:null,accountDraft:null,historyLoaded:!isLive,historyLoading:false,
  search:{query:'',type:'',category:'',from:`${initialMonth}-01`,to:initialMonthEnd,accountIds:[]},searched:false,
  entryType:'gasto',entryDigits:'',entryAccount:'',entryDest:'',entryCategory:'',entryNote:'',entryDate:today,entryLink:null,entryLinkDismissed:false,
  commitmentForm:defaultCommitmentForm(),debtDeleteReason:'',
@@ -183,6 +184,19 @@ async function load(opts={}){
  }
  try{
   if(params.get('fail')==='1')throw new Error('Error de lectura simulado: no se pudo obtener el libro financiero.');
+  const provisional=await fiscalReadIsProvisional();
+  if(serial!==loadSerial)return;
+  state.fiscalProvisional=provisional;
+  if(provisional){
+   const {user,allowed}=await sessionBusinesses();
+   if(serial!==loadSerial)return;
+   if(!allowed.some(b=>b.id===defaultBranchId))throw new Error('Tu sesión no tiene acceso a esta sucursal.');
+   seenAuthUid=user.uid;
+   for(const branch of allowed)branches[branch.id]=branch.name;
+   state.business=defaultBranchId;state.tab='facturador';state.route='';state.data=null;
+   state.error='El libro financiero de esta sucursal sigue en conciliación.';
+   return;
+  }
   const data=await loadFinance(defaultBranchId);
   if(serial!==loadSerial)return;
   if(isLive){const activeUid=window.DcarelaFirebase?.getCurrentUser?.()?.uid;if(activeUid)seenAuthUid=activeUid;}
@@ -586,7 +600,7 @@ function renderFacturador(){
   return `<details class="facturador-sale"><summary><span class="row-copy"><b>${esc(row.encf||'Comprobante sin número')}</b><small>${esc(row.fecha||'Sin fecha')} · ${esc(row.cliente||'Consumidor final')}</small><small>${esc(tag)}</small></span><strong class="${row.excluded?'muted':row.credit?'expense-text':''}">${row.credit&&!row.excluded?'− ':''}${moneyText(row.total_centavos,row.moneda)}</strong></summary><div class="facturador-sale-body"><div class="info-line"><span>RNC</span><strong>${esc(row.rnc||'No indicado')}</strong></div><div class="info-line"><span>Subtotal</span><strong>${moneyText(row.subtotal_centavos,row.moneda)}</strong></div><div class="info-line"><span>ITBIS</span><strong>${moneyText(row.itbis_centavos,row.moneda)}</strong></div><div class="info-line"><span>Forma de pago</span><strong>${esc(row.forma_pago||'No indicada')}</strong></div><div class="info-line"><span>Estado del origen</span><strong>${esc(row.estado||'No indicado')}</strong></div>${row.encf_modificado?`<div class="info-line"><span>e-CF relacionado</span><strong>${esc(row.encf_modificado)}</strong></div>`:''}<p class="soft-note">${items.length?items.map(i=>`${esc(i.nombre||'Artículo')} × ${esc(i.cantidad??1)}${Number.isSafeInteger(i.monto_centavos)?` · ${moneyText(i.monto_centavos,row.moneda)}`:''}`).join('<br>'):'El origen no incluyó el desglose de artículos.'}</p></div></details>`;
  };
  const readAt=new Intl.DateTimeFormat('es-DO',{dateStyle:'short',timeStyle:'short',timeZone:'America/Santo_Domingo'}).format(new Date(f.loadedAt));
- return `<main class="page" id="main" data-v3526-page="facturador">${header}<div class="card facturador-filter"><label class="field-label" for="facturador-month">Periodo</label><div class="btn-pair"><input class="field-control" id="facturador-month" type="month" name="facturador-month" value="${esc(f.month)}" aria-label="Mes de ventas del Facturador"><button class="secondary-btn" data-do="facturador-all">Todas las ventas</button></div><p class="soft-note">${f.month?'Mes '+esc(f.month):'Todo el historial capturado'} · ${summary.selectedRecords} comprobante(s) · ${isLive?'Lectura':'Demo'} ${esc(readAt)}</p></div>${metrics||'<div class="card"><div class="empty">No hay comprobantes para este periodo.</div></div>'}<p class="soft-note">Las sumatorias incluyen todo el periodo seleccionado, aunque la lista tenga varias páginas. No se mezclan monedas.${summary.duplicates?` ${summary.duplicates} captura(s) repetida(s) de e-CF se cuentan una sola vez.`:''}${summary.withoutDate?' Hay comprobantes sin fecha, visibles en Todas las ventas.':''}</p><div class="section-head"><h2>Registros de ventas</h2><small>${summary.selectedRecords}</small></div><div class="card facturador-sales-list">${page.map(detail).join('')||'<div class="empty">Hermes todavía no ha registrado ventas para este periodo.</div>'}</div>${maxPage?`<div class="btn-pair facturador-pagination"><button class="secondary-btn" data-do="facturador-page" data-step="-1" ${f.page===0?'disabled':''}>Anterior</button><button class="secondary-btn" data-do="facturador-page" data-step="1" ${f.page===maxPage?'disabled':''}>Siguiente</button></div><p class="soft-note">Página ${f.page+1} de ${maxPage+1}</p>`:''}<button class="secondary-btn full" data-do="route" data-route="books">Ver libros fiscales y revisión con Hermes</button></main>`;
+ return `<main class="page" id="main" data-v3526-page="facturador">${header}${state.fiscalProvisional?'<div class="notice" role="status">Mostrando los comprobantes disponibles en Servicios. La conciliación del historial continúa.</div>':''}<div class="card facturador-filter"><label class="field-label" for="facturador-month">Periodo</label><div class="btn-pair"><input class="field-control" id="facturador-month" type="month" name="facturador-month" value="${esc(f.month)}" aria-label="Mes de ventas del Facturador"><button class="secondary-btn" data-do="facturador-all">Todas las ventas</button></div><p class="soft-note">${f.month?'Mes '+esc(f.month):'Todos los registros disponibles'} · ${summary.selectedRecords} comprobante(s) · ${isLive?'Lectura':'Demo'} ${esc(readAt)}</p></div>${metrics||'<div class="card"><div class="empty">No hay comprobantes para este periodo.</div></div>'}<p class="soft-note">Las sumatorias incluyen todo el periodo seleccionado, aunque la lista tenga varias páginas. No se mezclan monedas.${summary.duplicates?` ${summary.duplicates} captura(s) repetida(s) de e-CF se cuentan una sola vez.`:''}${summary.withoutDate?' Hay comprobantes sin fecha, visibles en Todas las ventas.':''}</p><div class="section-head"><h2>Registros de ventas</h2><small>${summary.selectedRecords}</small></div><div class="card facturador-sales-list">${page.map(detail).join('')||'<div class="empty">Hermes todavía no ha registrado ventas para este periodo.</div>'}</div>${maxPage?`<div class="btn-pair facturador-pagination"><button class="secondary-btn" data-do="facturador-page" data-step="-1" ${f.page===0?'disabled':''}>Anterior</button><button class="secondary-btn" data-do="facturador-page" data-step="1" ${f.page===maxPage?'disabled':''}>Siguiente</button></div><p class="soft-note">Página ${f.page+1} de ${maxPage+1}</p>`:''}${state.fiscalProvisional?'':'<button class="secondary-btn full" data-do="route" data-route="books">Ver libros fiscales y revisión con Hermes</button>'}</main>`;
 }
 // Libros fiscales 606/607 en el Excel de Drive. Hermes registra una vez al día con el interruptor encendido.
 function renderBooks(){
@@ -1807,7 +1821,7 @@ async function handleClick(e){if(Date.now()<swipeSuppressClickUntil)return;const
  if(action==='sign-out'){
   if(!isLive)return;
   const previousUid=seenAuthUid;seenAuthUid=null;
-  try{await window.DcarelaFirebase.signOut();state.loginEmail='';state.loginError='';state.business=defaultBranchId;state.tab='home';state.route='';state.modal=null;params.delete('b');history.replaceState(null,'',`${location.pathname}?${params.toString()}`);await load({reset:true});}
+  try{await window.DcarelaFirebase.signOut();state.loginEmail='';state.loginError='';state.business=defaultBranchId;state.tab=initialTab;state.route='';state.modal=null;params.delete('b');history.replaceState(null,'',`${location.pathname}?${params.toString()}`);await load({reset:true});}
   catch{seenAuthUid=previousUid;note('No se pudo cerrar la sesión. Inténtalo de nuevo.');}
   return;
  }
