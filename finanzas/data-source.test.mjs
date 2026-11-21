@@ -5,7 +5,7 @@ import {readFile} from 'node:fs/promises';
 globalThis.location = {search:'?mode=live',hostname:'localhost'};
 globalThis.window = {};
 const source = await readFile(new URL('./data-source.js', import.meta.url), 'utf8');
-const {authorizedBusinesses, sessionBusinesses, loadFinance, loadFacturadorSales, loadLiveConnectivity, commitAction, canRegister, canCancelMovement, getTerminalReceipt} =
+const {authorizedBusinesses, sessionBusinesses, loadFinance, loadFacturadorSales, loadLiveConnectivity, commitAction, canRegister, canCancelMovement, getTerminalReceipt, getFinanceAvailability} =
   await import(`data:text/javascript,${encodeURIComponent(source)}`);
 
 function mock(overrides={}) {
@@ -202,6 +202,35 @@ test('PWA oficial registra movimientos y obligaciones, pero detiene anulaciones 
     assert.equal(canRegister(),false);
     await assert.rejects(commitAction('fin.movement.create','central','http-1',{requestId:'http-1'}),/PWA oficial/);
   }finally{location.hostname=previous.hostname;location.protocol=previous.protocol}
+});
+
+test('el libro cotejado conserva Facturador y bloquea escrituras hasta confirmar el corte local',async()=>{
+  const before = {location:{...location},fetch:globalThis.fetch};
+  try {
+    mock();
+    location.hostname='panel.dcarelacompufoto.com';
+    location.protocol='https:';
+    window.DCARELA_NUBE_URL='https://fixture.invalid';
+    const ledgerReadAt='2026-11-21T10:14:22.806Z';
+    let health={productionCutover:false,primaryConnected:true,financeFiscalRead:true};
+    globalThis.fetch=async()=>Response.json(health);
+    assert.deepEqual(await getFinanceAvailability(),{fiscalOnly:true,ledgerReadAt:null});
+    health.financeLedgerReadAt=ledgerReadAt;
+    assert.deepEqual(await getFinanceAvailability(),{fiscalOnly:false,ledgerReadAt});
+    assert.equal(canRegister(),false);
+    await assert.rejects(commitAction('fin.movement.create','central','pending-cutover',{requestId:'pending-cutover'}),/PWA oficial/);
+    health.productionCutover=true;
+    assert.deepEqual(await getFinanceAvailability(),{fiscalOnly:false,ledgerReadAt:null});
+    assert.equal(canRegister(),true);
+    health.primaryConnected=false;
+    await getFinanceAvailability();
+    assert.equal(canRegister(),false);
+  } finally {
+    Object.assign(location,before.location);
+    delete location.protocol;
+    delete window.DCARELA_NUBE_URL;
+    globalThis.fetch=before.fetch;
+  }
 });
 
 test('loadLiveConnectivity consulta dispositivos y turnos filtrados estrictamente por sucursal',async()=>{

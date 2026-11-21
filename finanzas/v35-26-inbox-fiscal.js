@@ -1,5 +1,5 @@
-import { assessCut, effectiveCutTransferCentavos } from './cut-review.js?v=35.62';
-import { loadFacturadorSales } from './data-source.js?v=35.62';
+import { assessCut, effectiveCutTransferCentavos } from './cut-review.js?v=35.63';
+import { loadFacturadorSales } from './data-source.js?v=35.63';
 import {
   reducedMotion as motionReduced,
   stop as motionStop,
@@ -8,7 +8,7 @@ import {
   pop as motionPop,
   glassExpand as motionGlassExpand,
   revealText as motionRevealText
-} from './apple-motion.mjs?v=35.62';
+} from './apple-motion.mjs?v=35.63';
 
 /* ==========================================================================
    v35.26 Unified Inbox, Mail/Cash-Codes, Theme Palettes, Web Push & Fiscal UI
@@ -744,7 +744,7 @@ async function apiCall(payload) {
 
 async function loadInbox(forceRefreshRates = false, opts = {}) {
   const finance = window.DcarelaFinanzasActions?.getSnapshot?.().state;
-  if (uiState.mode === 'live' && (finance?.fiscalProvisional || (finance?.loading && !finance.data))) return;
+  if (uiState.mode === 'live' && (finance?.fiscalProvisional || finance?.ledgerReadAt || (finance?.loading && !finance.data))) return;
   const force = Boolean(opts?.force);
   while (uiState.inboxInFlight) {
     if (!force) return uiState.inboxInFlight;
@@ -3436,7 +3436,7 @@ async function ensureCategoryLinker() {
   if (window.DcarelaCategoryLinker) return;
   await new Promise((resolve) => {
     const sc = document.createElement('script');
-    sc.src = './v35-26-category-emojis.js?v=35.62';
+    sc.src = './v35-26-category-emojis.js?v=35.63';
     sc.onload = resolve;
     sc.onerror = resolve;
     document.head.appendChild(sc);

@@ -12,23 +12,32 @@ const OFFICIAL_FINANCE_HOSTS = new Set([
 const isOfficialFinance = () => OFFICIAL_FINANCE_HOSTS.has(location.hostname)
   && location.protocol === 'https:'
   && window.__DCARELA_FIREBASE_CONFIG?.projectId === 'erikccarela';
-export const canRegister = () => isLive && (isIsolatedEmulator() || isOfficialFinance());
+let localWritesEnabled = false;
+export const canRegister = () => isLive && (isIsolatedEmulator() ||
+  isOfficialFinance() && (!window.DCARELA_NUBE_URL || localWritesEnabled));
 // Caja 1.0.77 no aplica revisiones de estado del mismo ledgerId. Hasta que la
 // terminal activa confirme una versión compatible, una anulación dejaría
 // Firebase y el libro físico en estados distintos.
 export const canCancelMovement = () => !isLive || isIsolatedEmulator();
 
-export async function fiscalReadIsProvisional() {
-  if (!isLive || !window.DCARELA_NUBE_URL) return false;
+export async function getFinanceAvailability() {
+  const unavailable = {fiscalOnly:false, ledgerReadAt:null};
+  if (!isLive || !window.DCARELA_NUBE_URL) return unavailable;
+  localWritesEnabled = false;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 4000);
   try {
     const url = new URL('/healthz', window.DCARELA_NUBE_URL);
     const response = await fetch(url, { cache:'no-store', redirect:'error', signal:controller.signal });
-    if (!response.ok) return false;
+    if (!response.ok) return unavailable;
     const status = await response.json();
-    return status.productionCutover === false && status.financeFiscalRead === true && status.primaryConnected === true;
-  } catch { return false; }
+    const connected = status.primaryConnected === true;
+    localWritesEnabled = connected && status.productionCutover === true;
+    if (!connected || status.productionCutover !== false || status.financeFiscalRead !== true) return unavailable;
+    const ledgerReadAt = typeof status.financeLedgerReadAt === 'string' && Number.isFinite(Date.parse(status.financeLedgerReadAt))
+      ? status.financeLedgerReadAt : null;
+    return {fiscalOnly:!ledgerReadAt, ledgerReadAt};
+  } catch { return unavailable; }
   finally { clearTimeout(timer); }
 }
 
