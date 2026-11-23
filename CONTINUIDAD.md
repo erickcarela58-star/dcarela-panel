@@ -1,5 +1,11 @@
 # Continuidad del panel web
 
+## 23/11/2026 — Finanzas 35.64: gastos en otra moneda y anulación apagada
+
+La versión **35.64** (`01a597039d0f5700aa589ca1aa05464bc105ee7f`) publica `70e9e12` (gasto en US$ desde una cuenta en pesos con tasa explícita) y `ae177bf` (anulación desde la PWA, **apagada**: `window.DCARELA_FINANCE_CANCEL_ENABLED` no está definido en ninguna configuración). `finance-core.js` lleva ahora `?v=` en Central y Plaza porque 35.64 usa sus funciones nuevas. Se publicó con el mismo procedimiento de 35.63: avance rápido de `main` (Pages `built` para ese commit) y superposición de 8 recursos sobre la versión de Hosting anterior `493ba1c36b9bca21`, que pasó a `2f82fa79bf227e6a` con 328 archivos conservados. Cotejo **24/24 SHA-256** en `panel.dcarelacompufoto.com`, `erikccarela.web.app` y `erikccarela.firebaseapp.com` (`C:/tmp/dcarela-finanzas-3564-public-audit.json`). Chrome a 390 px en los tres dominios: versión 35.64, interruptor de anulación apagado, sumatoria demo del Facturador y cero errores o peticiones a Firestore (`C:/tmp/dcarela-pwa-3564-*-browser.json`). Pruebas **530 aprobadas, 0 fallos, 1 omitida** (`C:/tmp/dcarela-pwa-3564-suite-20261123.log`).
+
+El script de movimientos del 23/11 (`643d894`) **no se publicó**: contiene conteos y saldos reales del dueño y este repositorio es público y lo sirve GitHub Pages. Queda solo en local, en la rama `claude/movimientos-20261123-privado`. Pendientes: comprobar con la sesión real del propietario y registrar un gasto en US$ cuando se habiliten las escrituras.
+
 ## 21/11/2026 — Finanzas 35.63 abre el libro de Servicios
 
 La versión **35.63** (`90e92161f7298df01559541bfe55eb9db25387ee`) abrió Resumen, Finanzas, Compromisos y Facturador con sesión autorizada. La cabecera muestra la fecha de la copia cotejada. El registro de movimientos queda deshabilitado mientras se completa el corte. Se conservaron la sesión, el filtro por sucursal y las sumatorias de Facturador.
