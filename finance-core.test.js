@@ -288,3 +288,36 @@ test("sustituye un marcador ledger sin importe por la venta POS completa", () =>
   assert.equal(merged[0].origen, "pos_venta");
   assert.equal(merged[0].monto_centavos, 4501500);
 });
+
+// 23/11/2026: gasto en otra moneda pagado desde una cuenta en pesos (p. ej. suscripción de US$100).
+test("convierte un importe en otra moneda a centavos DOP con la tasa exacta, sin flotantes", () => {
+  const c = core.convertToDopCents({ moneda: "usd", importeCentavos: 10000, tasa: "61.07" });
+  assert.deepEqual(c, { monedaOriginal: "USD", importeOriginalCentavos: 10000, tipoCambio: "61.07", dopCentavos: 610700 });
+  // 0.1 + 0.2 no es 0.3 en flotante; aquí sí: US$0.30 a 58.495 = RD$17.5485 → RD$17.55.
+  assert.equal(core.convertToDopCents({ moneda: "USD", importeCentavos: 30, tasa: "58.495" }).dopCentavos, 1755);
+  assert.equal(core.convertToDopCents({ moneda: "USD", importeCentavos: 1, tasa: "0.5" }).dopCentavos, 1);
+  assert.equal(core.convertToDopCents({ moneda: "EUR", importeCentavos: 2000, tasa: "70,25" }).tipoCambio, "70.25");
+  assert.equal(core.convertToDopCents({ moneda: "USD", importeCentavos: 10000, tasa: 61 }).dopCentavos, 610000);
+});
+
+test("rechaza conversiones sin moneda, importe o tasa verificables", () => {
+  for (const bad of [
+    { moneda: "DOP", importeCentavos: 100, tasa: "1" },
+    { moneda: "US", importeCentavos: 100, tasa: "60" },
+    { moneda: "USD", importeCentavos: 0, tasa: "60" },
+    { moneda: "USD", importeCentavos: 10.5, tasa: "60" },
+    { moneda: "USD", importeCentavos: 100, tasa: "0" },
+    { moneda: "USD", importeCentavos: 100, tasa: "-3" },
+    { moneda: "USD", importeCentavos: 100, tasa: "abc" },
+    { moneda: "USD", importeCentavos: 100, tasa: "61.1234567" },
+    { moneda: "USD", importeCentavos: 100, tasa: "" },
+    { moneda: "USD", importeCentavos: 100, tasa: 61.07 },
+  ]) assert.throws(() => core.convertToDopCents(bad), /moneda|importe|tasa/i, JSON.stringify(bad));
+});
+
+test("describe el importe original de forma legible", () => {
+  assert.equal(core.originalAmountLabel({ moneda_original: "USD", importe_original_centavos: 10000, tipo_cambio: "61.07" }), "US$100.00 × 61.07");
+  assert.equal(core.originalAmountLabel({ moneda_original: "EUR", importe_original_centavos: 2050, tipo_cambio: "70.25" }), "EUR 20.50 × 70.25");
+  assert.equal(core.originalAmountLabel({ monto_centavos: 100 }), "");
+  assert.equal(core.originalAmountLabel({ moneda_original: "DOP", importe_original_centavos: 100, tipo_cambio: "1" }), "");
+});

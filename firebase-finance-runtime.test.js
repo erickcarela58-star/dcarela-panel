@@ -87,6 +87,77 @@ test('Credito valida sucursal y saldo actual en cada intento de transaccion', as
   await assert.rejects(h.api.webSaleAction('sale.create','test','admin',sale,'foreign-client'),/sucursal/);
 });
 
+// 23/11/2026: gasto en otra moneda pagado desde una cuenta DOP. El importe y la tasa originales quedan
+// guardados y visibles; el saldo baja en pesos una sola vez.
+test('un gasto en USD desde una cuenta DOP se guarda en pesos con el importe y la tasa originales', async () => {
+  const h = harness();
+  const before = h.docs.get('fin_accounts/bank').saldo_actual_centavos;
+  h.docs.set('fin_accounts/bank', {...h.docs.get('fin_accounts/bank'), saldo_actual_centavos: 1000000});
+  const data = {requestId:'fx-claude', cuentaId:'bank', tipo:'gasto', descripcion:'Claude Code',
+    monedaOriginal:'USD', importeOriginalCentavos:10000, tipoCambio:'61.07', fecha:'2026-11-23'};
+  await h.api.adminAction('fin.movement.create','test','admin',null,data);
+  await h.api.adminAction('fin.movement.create','test','admin',null,data); // reintento idéntico
+  const m = h.docs.get('fin_movements/fx-claude'), e = h.docs.get('sync_events/ledger-fx-claude');
+  assert.equal(m.monto_centavos, 610700);
+  assert.equal(m.moneda_original, 'USD');
+  assert.equal(m.importe_original_centavos, 10000);
+  assert.equal(m.tipo_cambio, '61.07');
+  assert.equal(h.docs.get('fin_accounts/bank').saldo_actual_centavos, 1000000 - 610700);
+  // Contrato del libro de Caja: importe DOP + moneda, importe y tasa originales.
+  assert.equal(e.payload.importeDopCentavos, 610700);
+  assert.equal(e.payload.monedaOriginal, 'USD');
+  assert.equal(e.payload.importeOriginalCentavos, 10000);
+  assert.equal(e.payload.tipoCambio, '61.07');
+  assert.match(e.payload.descripcion, /US\$100\.00 × 61\.07/);
+  // Un importe en pesos que no coincide con la conversión no se acepta en silencio.
+  await assert.rejects(h.api.adminAction('fin.movement.create','test','admin',null,
+    {...data, requestId:'fx-bad', montoCentavos:600000}), /tasa|conversi/i);
+  assert.equal(h.docs.has('fin_movements/fx-bad'), false);
+  // El mismo identificador con otra tasa es otro movimiento: no se aplica.
+  await assert.rejects(h.api.adminAction('fin.movement.create','test','admin',null,{...data, tipoCambio:'62'}), /identificador/);
+  await assert.rejects(h.api.adminAction('fin.movement.create','test','admin',null,
+    {...data, requestId:'fx-sin-tasa', tipoCambio:''}), /tasa/i);
+  assert.equal(before, 63410);
+});
+
+test('el diario lee un gasto con conversión como pesos y conserva el importe y la tasa originales', async () => {
+  const h = harness();
+  await h.api.adminAction('fin.movement.create','test','admin',null,{requestId:'fx-read',cuentaId:'bank',tipo:'gasto',descripcion:'Claude Code',
+    monedaOriginal:'USD',importeOriginalCentavos:10000,tipoCambio:'61.07',fecha:'2026-11-23'});
+  const event = h.docs.get('sync_events/ledger-fx-read');
+  h.docs.delete('fin_movements/fx-read'); // solo queda el evento, como cuando lo emite la Caja
+  h.api.getSyncEvents = async () => [event];
+  const row = (await h.api.getFinanceLedgerMovements('test', {})).find(r => r.id === 'fx-read');
+  assert.equal(row.moneda, 'DOP');
+  assert.equal(row.monto_centavos, 610700);
+  assert.equal(row.moneda_original, 'USD');
+  assert.equal(row.importe_original_centavos, 10000);
+  assert.equal(row.tipo_cambio, '61.07');
+});
+
+test('un movimiento en pesos sigue saliendo con moneda DOP y tasa 1', async () => {
+  const h = harness();
+  await h.api.adminAction('fin.movement.create','test','admin',null,{requestId:'dop-1',cuentaId:'cash',tipo:'gasto',montoCentavos:5000,descripcion:'Café'});
+  const m = h.docs.get('fin_movements/dop-1'), e = h.docs.get('sync_events/ledger-dop-1');
+  assert.equal(m.moneda_original, undefined);
+  assert.equal(e.payload.monedaOriginal, 'DOP');
+  assert.equal(e.payload.descripcion, 'Café');
+});
+
+test('un costo recurrente en USD guarda el estimado en pesos y el importe y la tasa originales', async () => {
+  const h = harness();
+  await h.api.adminAction('cost.recurring.upsert','test','admin','claude-code',{requestId:'rec-1',recurrenteId:'claude-code',
+    nombre:'Claude Code',acreedor:'Anthropic',categoriaId:'c',frecuencia:'mensual',diaMes1:23,proximaFecha:'2026-12-23',metodoPago:'transferencia',
+    montoVariable:true,monedaOriginal:'USD',importeOriginalCentavos:10000,tipoCambio:'61.07'});
+  const r = h.docs.get('cost_recurrents/claude-code');
+  assert.equal(r.montoEstimadoCentavos, 610700);
+  assert.equal(r.monedaOriginal, 'USD');
+  assert.equal(r.importeOriginalCentavos, 10000);
+  assert.equal(r.tipoCambio, '61.07');
+  await assert.rejects(h.api.adminAction('cost.recurring.upsert','test','admin','x',{requestId:'rec-2',nombre:'X',
+    monedaOriginal:'USD',importeOriginalCentavos:10000,tipoCambio:'61.07',montoEstimadoCentavos:1}), /tasa|conversi/i);
+});
+
 test('Un tipo de movimiento desconocido no puede aumentar saldo', async () => {
   const h = harness();
   await assert.rejects(h.api.adminAction('fin.movement.create','test','admin',null,{
@@ -170,7 +241,7 @@ function harness(role='admin',business='test') {
     },
     doc(id){const key=`${name}/${id}`;return {key,async get(){if(!docs.has(key))throw new Error('missing-read');return snap(key);}};}
   });
-  const db={collection:query,enablePersistence:async()=>{},async runTransaction(fn){
+  const db={collection:query,enablePersistence:async()=>{},batch(){const w=[];return{set:(ref,v,opts)=>w.push({key:ref.key,v,merge:opts?.merge}),async commit(){for(const x of w)docs.set(x.key,x.merge?{...docs.get(x.key),...x.v}:x.v);}};},async runTransaction(fn){
     for(let attempt=0;attempt<8;attempt++) {
     const writes=[], reads=new Map();
     const result=await fn({async get(ref){assert.equal(writes.length,0,'reads before writes');if(!docs.has(ref.key))throw new Error('missing-read');

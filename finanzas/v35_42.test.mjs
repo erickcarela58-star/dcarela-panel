@@ -455,3 +455,18 @@ test('v35.57 aplica desenfoque gaussiano centrado en los orbes sin costo GPU de 
   assert.match(inboxJs, /rootStyle\.setProperty\('--v3526-orb-s1'/);
   assert.match(inboxJs, /rootStyle\.setProperty\('--v3526-orb-peak'/);
 });
+
+// 23/11/2026: gasto en otra moneda desde una cuenta en pesos (flujo con tipo de cambio).
+test('el registro manual ofrece moneda del importe y tasa, y envía el importe original en vez de pesos', () => {
+  const app = read('app.js');
+  assert.match(app, /name="entry-currency"/);
+  assert.match(app, /name="entry-rate"/);
+  assert.match(app, /id="entry-fx-preview"/);
+  assert.match(app, /core\.convertToDopCents\(\{moneda:state\.entryCurrency,importeCentavos:Number\(state\.entryDigits\|\|0\),tasa:state\.entryRate\}\)/);
+  assert.match(app, /conversion\?\{monedaOriginal:conversion\.monedaOriginal,importeOriginalCentavos:conversion\.importeOriginalCentavos,tipoCambio:conversion\.tipoCambio\}:\{montoCentavos:cents\}/);
+  // La transferencia entre cuentas sigue siendo solo en la moneda de las cuentas.
+  assert.match(app, /function entryForeign\(\)\{return state\.entryType!=='transferencia'/);
+  // El interruptor de escrituras no cambia con este flujo.
+  const ds = read('data-source.js');
+  assert.match(ds, /export const canRegister = \(\) => isLive && \(isIsolatedEmulator\(\) \|\|\s+isOfficialFinance\(\) && \(!window\.DCARELA_NUBE_URL \|\| localWritesEnabled\)\);/);
+});

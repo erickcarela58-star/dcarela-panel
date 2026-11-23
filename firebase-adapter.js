@@ -126,6 +126,13 @@
     return key || String(item?.id || item?.sync_event_id || "");
   }
 
+  function foreignConversion(payload) {
+    const code = String(payload?.monedaOriginal || '').toUpperCase();
+    const rate = String(payload?.tipoCambio ?? '').trim();
+    return /^[A-Z]{3}$/.test(code) && code !== 'DOP' && Number.isSafeInteger(Number(payload?.importeOriginalCentavos))
+      && Number(payload.importeOriginalCentavos) > 0 && rate !== '' && rate !== '1';
+  }
+
   function financeMovementFromLedgerEvent(event, businessId) {
     let payload = event.payload || {};
     if (typeof payload === 'string') {
@@ -154,7 +161,11 @@
       descripcion: descRaw,
       monto_centavos: Number(payload.importeDopCentavos ?? payload.importe_dop_centavos ?? 0),
       importe_dop_centavos: Number(payload.importeDopCentavos ?? payload.importe_dop_centavos ?? 0),
-      moneda: payload.monedaOriginal || 'DOP',
+      // Con conversión explícita (importe y tasa originales) el importe del asiento ya está en pesos.
+      ...(foreignConversion(payload)
+        ? { moneda: 'DOP', moneda_original: String(payload.monedaOriginal).toUpperCase(),
+            importe_original_centavos: Number(payload.importeOriginalCentavos), tipo_cambio: String(payload.tipoCambio) }
+        : { moneda: payload.monedaOriginal || 'DOP' }),
       estado: String(payload.estado || 'confirmado').trim().toLowerCase(),
       fecha: businessDay(payload.fecha || payload.fechaEfectiva || event.created_at_local || event.received_at_cloud || ''),
       cuenta_id: sourceAccount || targetAccount || null,
@@ -821,7 +832,11 @@
       categoria: text(category.nombre, 120) || '',
       descripcion: text(movement.descripcion, 500),
       importeDopCentavos: Number(movement.monto_centavos || 0),
-      monedaOriginal: 'DOP',
+      // Gasto en otra moneda desde una cuenta DOP: Caja guarda moneda, importe y tasa originales.
+      ...(movement.moneda_original && movement.moneda_original !== 'DOP'
+        ? { monedaOriginal: movement.moneda_original, importeOriginalCentavos: Number(movement.importe_original_centavos),
+            tipoCambio: String(movement.tipo_cambio) }
+        : { monedaOriginal: 'DOP' }),
       // El diario web usa "registrado"; SQLite de Caja acepta "confirmado".
       estado: movement.estado === 'registrado' ? 'confirmado' : (movement.estado || 'confirmado'),
       fechaEfectiva: movement.source_timestamp || movement.fecha || movement.created_at,
@@ -935,6 +950,17 @@
     const d = ctx.d;
     const createdAt = nowIso();
     const actor = { created_by_uid: ctx.user.uid, created_by_email: ctx.user.email || '' };
+    // Importe en otra moneda + tasa → centavos DOP. Si además llega el importe en pesos, debe coincidir.
+    const foreignAmount = (source, dopGiven) => {
+      const code = text(source.monedaOriginal, 8).toUpperCase();
+      if (!code || code === 'DOP') return null;
+      const fx = window.DcarelaFinanceCore.convertToDopCents({
+        moneda: code, importeCentavos: source.importeOriginalCentavos, tasa: source.tipoCambio });
+      if (dopGiven !== undefined && dopGiven !== null && dopGiven !== '' && Number(dopGiven) !== fx.dopCentavos) {
+        throw new Error('El importe en pesos no coincide con la conversión del importe original por la tasa indicada.');
+      }
+      return fx;
+    };
     const saveWithEvent = async (collection, id, values, eventType, entityType, message) => {
       const documentId = text(id, 160) || uuid();
       const eventId = uuid();
@@ -1174,7 +1200,10 @@
     if (action === 'cost.recurring.upsert') {
       const id = text(entityId || data.recurrenteId, 160) || uuid();
       const active = data.activo !== false;
-      return saveWithEvent('cost_recurrents', id, { ...data, recurrenteId: id, activo: active },
+      const fx = foreignAmount(data, data.montoEstimadoCentavos);
+      return saveWithEvent('cost_recurrents', id, { ...data, recurrenteId: id, activo: active,
+        ...(fx ? { montoEstimadoCentavos: fx.dopCentavos, monedaOriginal: fx.monedaOriginal,
+          importeOriginalCentavos: fx.importeOriginalCentavos, tipoCambio: fx.tipoCambio } : {}) },
         active ? 'CostoRecurrenteGuardado' : 'CostoRecurrenteDesactivado', 'costos_recurrentes',
         active ? 'Costo recurrente guardado.' : 'Costo recurrente desactivado.');
     }
@@ -1356,7 +1385,10 @@
       const type = text(data.tipo, 40).toLowerCase();
       if (!['ingreso','gasto','compra','retiro','salida','entrada','deposito','venta','comision','ajuste_positivo','ajuste_negativo'].includes(type)) throw new Error('Tipo de movimiento invalido. Las transferencias requieren origen y destino.');
       if (!accountId) throw new Error('Selecciona una cuenta financiera.');
-      const amount = integer(data.montoCentavos, 'monto', 1);
+      const fx = foreignAmount(data, data.montoCentavos);
+      const amount = fx ? fx.dopCentavos : integer(data.montoCentavos, 'monto', 1);
+      const fxLabel = fx ? window.DcarelaFinanceCore.originalAmountLabel(fx) : '';
+      const description = (text(data.descripcion, 500 - (fxLabel ? fxLabel.length + 3 : 0)) || type) + (fxLabel ? ` (${fxLabel})` : '');
       const signed = financeSignedAmount(type, amount);
       const accountRef = d.collection('fin_accounts').doc(accountId);
       const movementId = text(entityId || data.requestId, 160) || uuid();
@@ -1380,7 +1412,9 @@
           source_timestamp: businessDay(data.fecha || createdAt) === businessDay(createdAt) ? createdAt : businessDay(data.fecha),
           hora: createdAt.slice(11, 19), monto_centavos: amount, cuenta_id: accountId,
           categoria_id: categoryId, payee: text(data.payee, 180) || null,
-          descripcion: text(data.descripcion, 500) || type, nota: text(data.nota, 1200) || null,
+          descripcion: description, nota: text(data.nota, 1200) || null,
+          ...(fx ? { moneda_original: fx.monedaOriginal, importe_original_centavos: fx.importeOriginalCentavos,
+            tipo_cambio: fx.tipoCambio } : {}),
           referencia: text(data.referencia, 180) || null, origen: 'panel', estado: 'registrado',
           // 13/11/2026: «Pagar este compromiso» de la PWA. El servidor (posObligaciones) enlaza el pago y baja el saldo.
           ...(type === 'gasto' && text(data.obligacionId, 160) ? { obligacion_id: text(data.obligacionId, 160) } : {}),
@@ -1400,7 +1434,9 @@
         if (prior.ledgerId !== movementId || prior.tipo !== type.toUpperCase()
           || prior.cuentaId !== accountId || prior.importeDopCentavos !== amount
           || prior.categoriaId !== categoryId
-          || prior.descripcion !== (text(data.descripcion, 500) || type)
+          || prior.descripcion !== description
+          || (prior.monedaOriginal || 'DOP') !== (fx ? fx.monedaOriginal : 'DOP')
+          || (fx && (prior.importeOriginalCentavos !== fx.importeOriginalCentavos || String(prior.tipoCambio) !== fx.tipoCambio))
           || (data.fecha && prior.fecha !== text(data.fecha, 10)))
           throw new Error('El identificador pertenece a otro movimiento. No se aplicó el reintento.');
       }

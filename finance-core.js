@@ -470,6 +470,38 @@
     if (currency === 'DOP' && formatDop) return formatDop(cents);
     return new Intl.NumberFormat('es-DO', { style: 'currency', currency }).format(cents / 100);
   }
+  // Gasto o ingreso en otra moneda sobre una cuenta en pesos (23/11/2026). La tasa llega como texto
+  // decimal («61.07») o entero; nunca como flotante, para que la conversión sea exacta al centavo.
+  function convertToDopCents({ moneda, importeCentavos, tasa } = {}) {
+    const code = String(moneda ?? '').trim().toUpperCase();
+    if (!/^[A-Z]{3}$/.test(code) || code === 'DOP') throw new Error('La moneda original debe ser un código de tres letras distinto de DOP.');
+    if (!Number.isSafeInteger(importeCentavos) || importeCentavos <= 0) throw new Error('El importe original debe ser un entero positivo en centavos.');
+    if (typeof tasa === 'number' && !Number.isSafeInteger(tasa)) throw new Error('Escribe la tasa de cambio como texto decimal, por ejemplo 61.07.');
+    const rate = String(tasa ?? '').trim().replace(',', '.');
+    const match = /^(\d{1,7})(?:\.(\d{1,6}))?$/.exec(rate);
+    if (!match) throw new Error('La tasa de cambio debe ser un número positivo con hasta seis decimales.');
+    const decimals = (match[2] || '').replace(/0+$/, '');
+    const scaled = BigInt(match[1] + decimals);
+    if (scaled <= 0n) throw new Error('La tasa de cambio debe ser mayor que cero.');
+    const divisor = 10n ** BigInt(decimals.length);
+    const dop = (BigInt(importeCentavos) * scaled * 2n + divisor) / (divisor * 2n); // mitad hacia arriba
+    if (dop <= 0n || dop > BigInt(Number.MAX_SAFE_INTEGER)) throw new Error('El importe convertido con esa tasa no es válido.');
+    return {
+      monedaOriginal: code,
+      importeOriginalCentavos: importeCentavos,
+      tipoCambio: String(BigInt(match[1])) + (decimals ? '.' + decimals : ''),
+      dopCentavos: Number(dop),
+    };
+  }
+  // «US$100.00 × 61.07»: lo que se muestra junto al importe en pesos. Vacío si el movimiento es en DOP.
+  function originalAmountLabel(row) {
+    const code = String(row?.moneda_original ?? row?.monedaOriginal ?? '').trim().toUpperCase();
+    const cents = Number(row?.importe_original_centavos ?? row?.importeOriginalCentavos);
+    const rate = String(row?.tipo_cambio ?? row?.tipoCambio ?? '').trim();
+    if (!/^[A-Z]{3}$/.test(code) || code === 'DOP' || !Number.isSafeInteger(cents) || cents <= 0 || !rate) return '';
+    const amount = (cents / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return `${code === 'USD' ? 'US$' : code + ' '}${amount} × ${rate}`;
+  }
   function accountTotalsByCurrency(accounts, movements, include = account => Boolean(account.incluir_en_total)) {
     const totals = new Map();
     for (const account of accounts || []) {
@@ -700,6 +732,8 @@
     effectiveAccountBalance,
     accountCurrency,
     formatAccountMoney,
+    convertToDopCents,
+    originalAmountLabel,
     accountTotalsByCurrency,
     formatCurrencyTotals,
     OPERATION_EVENT_TYPES,
