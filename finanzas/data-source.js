@@ -15,10 +15,73 @@ const isOfficialFinance = () => OFFICIAL_FINANCE_HOSTS.has(location.hostname)
 let localWritesEnabled = false;
 export const canRegister = () => isLive && (isIsolatedEmulator() ||
   isOfficialFinance() && (!window.DCARELA_NUBE_URL || localWritesEnabled));
-// Caja 1.0.77 no aplica revisiones de estado del mismo ledgerId. Hasta que la
-// terminal activa confirme una versión compatible, una anulación dejaría
-// Firebase y el libro físico en estados distintos.
-export const canCancelMovement = () => !isLive || isIsolatedEmulator();
+// Caja 1.0.77 no aplica revisiones de estado del mismo ledgerId: una anulación dejaría
+// la nube y el libro físico en estados distintos. Caja lo soporta desde 1.0.78.
+// La anulación oficial queda APAGADA por defecto. Se activa solo si se cumplen las dos:
+//   1. interruptor explícito window.DCARELA_FINANCE_CANCEL_ENABLED === true (configuración
+//      publicada; se enciende después de probar una anulación en la Caja física), y
+//   2. todas las Cajas activas de la sucursal reportan una versión compatible
+//      (refreshCancelAvailability lo comprueba con los dispositivos registrados).
+// El permiso sigue siendo el de escritura que ya existe (owner/admin en commitAction).
+export const MIN_CAJA_CANCEL_VERSION = '1.0.78';
+const TERMINAL_ACTIVE_WINDOW_MS = 30 * 24 * 3600 * 1000;
+let cancelVerifiedBusiness = null;
+
+const versionParts = (value) => {
+  const text = String(value ?? '').trim();
+  return /^\d+(\.\d+){1,3}$/.test(text) ? text.split('.').map(Number) : null;
+};
+const versionAtLeast = (value, minimum) => {
+  const a = versionParts(value), b = versionParts(minimum);
+  if (!a || !b) return false;
+  for (let i = 0; i < Math.max(a.length, b.length); i++) {
+    const x = a[i] || 0, y = b[i] || 0;
+    if (x !== y) return x > y;
+  }
+  return true;
+};
+
+// Pura: decide con la lista de dispositivos de la sucursal. No consulta nada.
+export function terminalsSupportCancel(devices, now = Date.now()) {
+  const cajas = (Array.isArray(devices) ? devices : []).filter(d => {
+    if (!d || !/^pos-/.test(String(d.id || d.device_id || ''))) return false;
+    const status = String(d.status || d.estado || '').toLowerCase();
+    if (['blocked', 'bloqueado', 'bloqueada', 'revoked', 'revocado', 'revocada', 'inactive', 'inactiva'].includes(status)) return false;
+    const seen = Date.parse(String(d.last_seen_at || d.lastSeenAt || ''));
+    return Number.isFinite(seen) && now - seen <= TERMINAL_ACTIVE_WINDOW_MS;
+  });
+  if (!cajas.length) return {ok:false, reason:'No se encontró ninguna Caja activa para verificar su versión.', terminals:[]};
+  const terminals = cajas.map(d => ({id:String(d.id || d.device_id), version:String(d.installed_version || d.app_version || d.version || '').trim()}));
+  const sinVersion = terminals.find(t => !t.version);
+  if (sinVersion) return {ok:false, reason:`La Caja ${sinVersion.id} está sin versión reportada.`, terminals};
+  const vieja = terminals.find(t => !versionAtLeast(t.version, MIN_CAJA_CANCEL_VERSION));
+  if (vieja) return {ok:false, reason:`La Caja ${vieja.id} reporta ${vieja.version}; hace falta ${MIN_CAJA_CANCEL_VERSION} o superior.`, terminals};
+  return {ok:true, reason:'', terminals};
+}
+
+const cancelSwitchOn = () => window.DCARELA_FINANCE_CANCEL_ENABLED === true;
+let cancelBusinessInFlight = null;
+export const canCancelMovement = (businessId = cancelVerifiedBusiness) => !isLive || isIsolatedEmulator()
+  || (canRegister() && cancelSwitchOn() && cancelVerifiedBusiness !== null && businessId === cancelVerifiedBusiness);
+
+// Vuelve a leer las terminales de la sucursal y deja la anulación activa o apagada.
+export async function refreshCancelAvailability(businessId) {
+  if (!isLive || isIsolatedEmulator()) return {ok:true, reason:'', terminals:[]};
+  cancelVerifiedBusiness = null;
+  if (!cancelSwitchOn()) return {ok:false, reason:'La anulación desde la PWA está apagada hasta verificar la Caja física.', terminals:[]};
+  if (!canRegister()) return {ok:false, reason:'El registro no está disponible desde este origen.', terminals:[]};
+  cancelBusinessInFlight = businessId;
+  try {
+    const api = adapter();
+    const rows = await api.getCollection('devices', [['business_id', '==', businessId]]);
+    const own = (Array.isArray(rows) ? rows : []).filter(d => d && d.business_id === businessId);
+    const result = terminalsSupportCancel(own);
+    if (result.ok && cancelBusinessInFlight === businessId) cancelVerifiedBusiness = businessId;
+    return result;
+  } catch {
+    return {ok:false, reason:'No se pudieron leer las terminales de la sucursal.', terminals:[]};
+  }
+}
 
 export async function getFinanceAvailability() {
   const unavailable = {fiscalOnly:false, ledgerReadAt:null};
@@ -272,7 +335,7 @@ export async function loadFiscalBookDownload(businessId, book, api = adapter()) 
 
 export async function commitAction(action, businessId, entityId, data) {
   if (!isLive) return {preview:true};
-  if (action === 'fin.movement.cancel' && !canCancelMovement()) {
+  if (action === 'fin.movement.cancel' && !canCancelMovement(businessId)) {
     throw new Error('La anulación desde la PWA está pausada hasta verificar la actualización de Caja. No se modificó el movimiento.');
   }
   if (!['fin.movement.create','fin.transfer.create','fin.movement.cancel','fin.account.reconcile','fin.commitment.deactivate','cost.obligation.cancel','fin.books.request','cost.recurring.upsert','cost.obligation.upsert','fin.card.upsert'].includes(action) ||

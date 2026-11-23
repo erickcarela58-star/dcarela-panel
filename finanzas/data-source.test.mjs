@@ -5,7 +5,7 @@ import {readFile} from 'node:fs/promises';
 globalThis.location = {search:'?mode=live',hostname:'localhost'};
 globalThis.window = {};
 const source = await readFile(new URL('./data-source.js', import.meta.url), 'utf8');
-const {authorizedBusinesses, sessionBusinesses, loadFinance, loadFacturadorSales, loadLiveConnectivity, commitAction, canRegister, canCancelMovement, getTerminalReceipt, getFinanceAvailability} =
+const {authorizedBusinesses, sessionBusinesses, loadFinance, loadFacturadorSales, loadLiveConnectivity, commitAction, canRegister, canCancelMovement, getTerminalReceipt, getFinanceAvailability, terminalsSupportCancel, refreshCancelAvailability, MIN_CAJA_CANCEL_VERSION} =
   await import(`data:text/javascript,${encodeURIComponent(source)}`);
 
 function mock(overrides={}) {
@@ -330,4 +330,65 @@ test('los seis asientos históricos solo muestran el acuse de su reparación ver
     getSyncEvents:async()=>{throw Error('No debe consultar acuses de una reparación que no coincide')}});
   assert.deepEqual(await getTerminalReceipt('central',movement),{status:'unavailable'});
   await assert.rejects(getTerminalReceipt('plaza',movement),/fuera de la sucursal/);
+});
+
+// 23/11/2026: anulación desde la PWA oficial. Caja aplica revisiones del mismo asiento desde 1.0.78.
+// Queda apagada por defecto: hace falta el interruptor explícito Y que todas las Cajas activas lo soporten.
+test('las terminales soportan anulación solo si todas las Cajas activas reportan 1.0.78 o superior',()=>{
+  const now=Date.parse('2026-11-23T12:00:00Z');
+  const caja=(id,version,extra={})=>({id,business_id:'central',installed_version:version,last_seen_at:'2026-11-23T10:00:00Z',...extra});
+  assert.equal(MIN_CAJA_CANCEL_VERSION,'1.0.78');
+  assert.equal(terminalsSupportCancel([caja('pos-a','1.0.80')],now).ok,true);
+  assert.equal(terminalsSupportCancel([caja('pos-a','1.0.80'),caja('pos-b','1.0.78.0')],now).ok,true);
+  assert.match(terminalsSupportCancel([caja('pos-a','1.0.80'),caja('pos-b','1.0.77')],now).reason,/pos-b.*1\.0\.77/);
+  assert.match(terminalsSupportCancel([caja('pos-a','1.0.9')],now).reason,/1\.0\.9/); // 9 < 78: no es comparación de texto
+  assert.match(terminalsSupportCancel([caja('pos-a','')],now).reason,/sin versión/i);
+  assert.match(terminalsSupportCancel([],now).reason,/ninguna Caja/i);
+  assert.match(terminalsSupportCancel(null,now).reason,/ninguna Caja/i);
+  // El panel web y el enlace de catálogo no son Cajas; una terminal bloqueada o muda hace más de 30 días no cuenta.
+  assert.equal(terminalsSupportCancel([caja('pos-a','1.0.80'),{id:'web-panel-dcarela',business_id:'central'},
+    caja('pos-vieja','1.0.52',{last_seen_at:'2026-08-01T00:00:00Z'}),caja('pos-bloq','1.0.60',{status:'blocked'})],now).ok,true);
+  assert.equal(terminalsSupportCancel([caja('pos-a','1.0.80',{app_version:undefined,version:'1.0.80'})],now).ok,true);
+});
+
+test('la anulación oficial exige interruptor explícito y Cajas verificadas; por defecto sigue apagada',async()=>{
+  const previous={hostname:location.hostname,protocol:location.protocol};
+  location.hostname='panel.dcarelacompufoto.com';location.protocol='https:';
+  const reciente=new Date(Date.now()-3600_000).toISOString();
+  try{
+    let devices=[{id:'pos-a',business_id:'central',installed_version:'1.0.80',last_seen_at:reciente}];
+    const {calls}=mock({getCollection:async(name)=>name==='devices'?devices:[]});
+    assert.equal(canRegister(),true);
+    // Sin interruptor: apagada aunque las Cajas sean compatibles.
+    assert.equal((await refreshCancelAvailability('central')).ok,false);
+    assert.equal(canCancelMovement(),false);
+    await assert.rejects(commitAction('fin.movement.cancel','central','m-1',{requestId:'void-1'}),/pausada/);
+    // Con interruptor y Cajas compatibles: activa, por el mismo permiso de escritura (owner/admin).
+    window.DCARELA_FINANCE_CANCEL_ENABLED=true;
+    assert.equal(canCancelMovement(),false); // todavía no se han verificado las terminales
+    assert.equal((await refreshCancelAvailability('central')).ok,true);
+    assert.equal(canCancelMovement(),true);
+    await commitAction('fin.movement.cancel','central','m-1',{requestId:'void-1',motivo:'Error'});
+    assert.deepEqual(calls.at(-1),['write','fin.movement.cancel','central','owner','m-1',{requestId:'void-1',motivo:'Error'}]);
+    // La verificación es por sucursal: otra sucursal no hereda el permiso.
+    await assert.rejects(commitAction('fin.movement.cancel','plaza-artesanal','m-2',{requestId:'void-2'}),/pausada/);
+    // Una Caja vieja la vuelve a apagar.
+    devices=[...devices,{id:'pos-b',business_id:'central',installed_version:'1.0.77',last_seen_at:reciente}];
+    const estado=await refreshCancelAvailability('central');
+    assert.equal(estado.ok,false);assert.match(estado.reason,/pos-b/);
+    assert.equal(canCancelMovement(),false);
+    // Si no se pueden leer las terminales, apagada.
+    devices=[{id:'pos-a',business_id:'central',installed_version:'1.0.80',last_seen_at:reciente}];
+    await refreshCancelAvailability('central');assert.equal(canCancelMovement(),true);
+    mock({getCollection:async()=>{throw new Error('sin red')}});
+    assert.equal((await refreshCancelAvailability('central')).ok,false);
+    assert.equal(canCancelMovement(),false);
+    // Un lector (viewer) no puede anular aunque todo lo demás esté listo.
+    mock({getCollection:async(name)=>name==='devices'?devices:[],getMembershipsForUser:async()=>[{business_id:'central',role:'viewer',active:true}]});
+    await refreshCancelAvailability('central');
+    await assert.rejects(commitAction('fin.movement.cancel','central','m-3',{requestId:'void-3'}),/permiso/);
+  }finally{
+    delete window.DCARELA_FINANCE_CANCEL_ENABLED;
+    location.hostname=previous.hostname;location.protocol=previous.protocol;
+  }
 });

@@ -470,3 +470,10 @@ test('el registro manual ofrece moneda del importe y tasa, y envía el importe o
   const ds = read('data-source.js');
   assert.match(ds, /export const canRegister = \(\) => isLive && \(isIsolatedEmulator\(\) \|\|\s+isOfficialFinance\(\) && \(!window\.DCARELA_NUBE_URL \|\| localWritesEnabled\)\);/);
 });
+
+test('la ficha del movimiento consulta la anulación por sucursal y la carga verifica las terminales', () => {
+  const app = read('app.js');
+  assert.match(app, /if\(isLive\)refreshCancelAvailability\(data\.businessId\)\.catch\(\(\)=>\{\}\);/);
+  assert.doesNotMatch(app, /canCancelMovement\(\)/);
+  assert.match(app, /const check=await refreshCancelAvailability\(state\.business\)/);
+});
