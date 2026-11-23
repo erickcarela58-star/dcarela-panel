@@ -1,9 +1,9 @@
 import '../nube-sdk/compat.mjs';
-import {loadFinance,loadFullFinanceHistory,loadFiscalBookDownload,loadFacturadorSales,commitAction,getTerminalReceipt,loadLiveConnectivity,isLive,canRegister,canCancelMovement,refreshCancelAvailability,getFinanceAvailability,sessionBusinesses} from './data-source.js?v=35.63';
-import {summarizeFacturadorSales} from './facturador-sales.mjs?v=35.63';
-import {fixture as demoFixture} from './demo-data.js?v=35.63';
-import {presets as motionPresets,reducedMotion as motionReduced,springProgress as appleSpringProgress,stop as motionStop,stopInside as motionStopInside,motion as appleMotion,reveal as motionReveal,pop as motionPop,glassExpand as motionGlassExpand,revealText as motionRevealText,enterScreen as motionEnterScreen,count as motionCount} from './apple-motion.mjs?v=35.63';
-const APP_VERSION='35.63';
+import {loadFinance,loadFullFinanceHistory,loadFiscalBookDownload,loadFacturadorSales,commitAction,getTerminalReceipt,loadLiveConnectivity,isLive,canRegister,canCancelMovement,refreshCancelAvailability,getFinanceAvailability,sessionBusinesses} from './data-source.js?v=35.64';
+import {summarizeFacturadorSales} from './facturador-sales.mjs?v=35.64';
+import {fixture as demoFixture} from './demo-data.js?v=35.64';
+import {presets as motionPresets,reducedMotion as motionReduced,springProgress as appleSpringProgress,stop as motionStop,stopInside as motionStopInside,motion as appleMotion,reveal as motionReveal,pop as motionPop,glassExpand as motionGlassExpand,revealText as motionRevealText,enterScreen as motionEnterScreen,count as motionCount} from './apple-motion.mjs?v=35.64';
+const APP_VERSION='35.64';
 const emulatorWritesAllowed=()=>isLive && ['localhost','127.0.0.1'].includes(location.hostname)
  && String(window.__DCARELA_FIREBASE_CONFIG?.projectId||'').startsWith('demo-')
  && window.__DCARELA_FINANCE_STAGING_WRITE__===true;
