@@ -96,7 +96,8 @@ export async function getFinanceAvailability() {
     const status = await response.json();
     const connected = status.primaryConnected === true;
     localWritesEnabled = connected && status.productionCutover === true;
-    if (!connected || status.productionCutover !== false || status.financeFiscalRead !== true) return unavailable;
+    if (!connected) return {fiscalOnly:false, ledgerReadAt:null, serverOffline:true};
+    if (status.productionCutover !== false || status.financeFiscalRead !== true) return unavailable;
     const ledgerReadAt = typeof status.financeLedgerReadAt === 'string' && Number.isFinite(Date.parse(status.financeLedgerReadAt))
       ? status.financeLedgerReadAt : null;
     return {fiscalOnly:!ledgerReadAt, ledgerReadAt};

@@ -255,7 +255,7 @@
     if (collectionReadRequests.has(key)) return collectionReadRequests.get(key);
     const request = (async () => {
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 15000);
+      const timer = setTimeout(() => controller.abort(), 60000);
       try {
         const token = await user.getIdToken();
         if (auth.currentUser?.uid !== user.uid) throw Object.assign(new Error('La sesión cambió.'), {code:'unauthenticated'});
