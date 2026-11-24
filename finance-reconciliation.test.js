@@ -39,3 +39,23 @@ test('cuadre con faltante y gasto no documentado crea movimiento de gasto que af
   assert.equal(plan.movement.categoria_id,'efaa1d8d-1ad2-4815-95e1-755b99a8c241');
   assert.equal(core.summarizeMovements([plan.movement]).gastos_centavos,7000);
 });
+test('conciliacion al cierre del 22/11 preserva movimientos del 23/11 (incluso con fecha de solo dia)',()=>{
+  const cash22 = {id:'cash',business_id:'fixture',tipo:'efectivo',saldo_actual_centavos:500000,
+    reconciled_at:'2026-11-17T09:27:51.599Z',reconciled_balance_centavos:1000000};
+  const mov22 = {id:'gasto-22',tipo:'gasto',cuenta_id:'cash',monto_centavos:600000,fecha:'2026-11-22',source_timestamp:'2026-11-22',origen:'panel',estado:'registrado'};
+  const mov23Hora = {id:'corte-23',tipo:'ingreso',cuenta_id:'cash',monto_centavos:118000,fecha:'2026-11-23',source_timestamp:'2026-11-23T17:03:17.815Z',origen:'cash_cut',estado:'registrado'};
+  const mov23Dia = {id:'extra-23',tipo:'gasto',cuenta_id:'cash',monto_centavos:20000,fecha:'2026-11-23',source_timestamp:'2026-11-23',origen:'panel',estado:'registrado'};
+  const plan = core.planAccountReconciliation(cash22,[mov22,mov23Hora,mov23Dia],{
+    target:471000,cutoff:'2026-11-22T23:59:59-04:00',createdAt:'2026-11-24T00:30:00.000Z',id:'rec-22',reason:'Conteo 22/11 en la noche'
+  });
+  // Al cierre del 22/11 habia 1000000 - 600000 = 400000; faltaban +71000 para llegar a 471000.
+  assert.equal(plan.before,400000);
+  assert.equal(plan.difference,71000);
+  assert.equal(plan.movement.fecha,'2026-11-22');
+  assert.equal(plan.movement.source_timestamp,'2026-11-22T23:59:59-04:00');
+  // El saldo reconciliado es 471000 y el actual suma encima +118000 - 20000 = 569000.
+  assert.equal(plan.patch.reconciled_balance_centavos,471000);
+  assert.equal(plan.patch.saldo_actual_centavos,569000);
+  const reconciled = {...cash22,...plan.patch};
+  assert.equal(core.effectiveAccountBalance(reconciled,[mov22,mov23Hora,mov23Dia,plan.movement]),569000);
+});

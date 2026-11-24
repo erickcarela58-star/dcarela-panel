@@ -1334,6 +1334,11 @@
       const reason = text(data.motivo, 500);
       if (!accountId || !reason) throw new Error('La cuenta y el motivo de conciliacion son obligatorios.');
       const target = integer(data.saldoObjetivoCentavos, 'saldo objetivo', Number.MIN_SAFE_INTEGER);
+      const explicitCutoff = text(data.corte || data.cutoff, 64);
+      if (explicitCutoff && (!/(?:Z|[+-]\d{2}:\d{2})$/.test(explicitCutoff) || !Number.isFinite(Date.parse(explicitCutoff)))) {
+        throw new Error('El corte de conciliacion debe tener fecha, hora y zona horaria validas.');
+      }
+      const cutoff = explicitCutoff || createdAt;
       const accountRef = d.collection('fin_accounts').doc(accountId);
       const movementId = text(data.requestId, 160);
       if (!movementId) throw new Error('La conciliacion requiere un identificador estable para reintentar.');
@@ -1343,7 +1348,8 @@
       if (previous.exists) {
         const row = previous.data();
         if (row.created_by_uid !== ctx.user.uid || row.event_type !== 'LedgerMovimientoRegistrado'
-          || row.payload?.metadata?.reconciliation_target !== target || row.payload?.cuentaId !== accountId) {
+          || row.payload?.metadata?.reconciliation_target !== target || row.payload?.cuentaId !== accountId
+          || (explicitCutoff && row.payload?.fechaEfectiva !== cutoff)) {
           throw new Error('El identificador pertenece a otra conciliacion.');
         }
         return { ok: true, id: movementId, deduplicated: true, message: 'Conciliacion ya registrada.' };
@@ -1362,7 +1368,7 @@
         if (['saldo_actual_centavos', 'saldo_inicial_centavos', 'reconciled_at', 'reconciled_balance_centavos', 'updated_at', 'moneda']
           .some(key => accountDoc.data()[key] !== snapshot[key])) throw new Error('La cuenta cambio durante la verificacion. Actualiza y reintenta.');
         const plan = window.DcarelaFinanceCore.planAccountReconciliation({ ...accountDoc.data(), id: accountId }, journal,
-          { target, cutoff: createdAt, createdAt, id: movementId, reason,
+          { target, cutoff, createdAt, id: movementId, reason,
             unrecordedExpense: data.gastoNoDocumentado === true,
             categoryId: text(data.categoriaId, 160) || 'efaa1d8d-1ad2-4815-95e1-755b99a8c241',
             categoryName: text(data.categoriaNombre, 120) || 'Otros gastos' });
@@ -1371,10 +1377,11 @@
         transaction.set(movementRef, movement);
         transaction.set(d.collection('sync_events').doc(eventId), eventDocument(ctx, eventId, 'LedgerMovimientoRegistrado',
           'fin_movements', movementId, { ...financeLedgerPayload(movement, accountDoc.data(), movement.categoria ? { nombre: movement.categoria } : {}),
-            metadata: { reconciliation_target: target, reconciliation_before: plan.before } }, createdAt));
+            metadata: { reconciliation_target: target, reconciliation_before: plan.before, reconciliation_cutoff: cutoff } }, createdAt));
         transaction.update(accountRef, plan.patch);
       });
-      if (result?.deduplicated && (result.payload?.metadata?.reconciliation_target !== target || result.payload?.cuentaId !== accountId)) {
+      if (result?.deduplicated && (result.payload?.metadata?.reconciliation_target !== target || result.payload?.cuentaId !== accountId
+        || (explicitCutoff && result.payload?.fechaEfectiva !== cutoff))) {
         throw new Error('El identificador pertenece a otra conciliacion.');
       }
       return { ok: true, id: movementId, difference, message: 'Saldo conciliado mediante asiento auditable.' };

@@ -1,5 +1,12 @@
 # Continuidad del panel web
 
+## 23/11/2026 (noche) — Candidato local: soporte de corte explícito en `fin.account.reconcile` y verificación en Chrome (sin publicar)
+
+En la rama `claude/cierre-20261123` (solo local, sin `git push` ni despliegue):
+
+- **Conciliación con corte de tiempo explícito (`finance-core.js`, `firebase-adapter.js`, `finance-reconciliation.test.js`)**: `fin.account.reconcile` admite `data.corte` / `data.cutoff` (con zona horaria explícita) y lo pasa a `planAccountReconciliation`, conservando intactos encima del saldo cuadrado todos los cortes, ventas y movimientos posteriores a ese instante. Las marcas `source_timestamp` de solo día (`AAAA-MM-DD`) se anclan a `T23:59:59-04:00` en coherencia con `finance-revision-core.js`, y `patch.saldo_actual_centavos` conserva el efecto de asientos materializados posteriores al corte.
+- **Verificación local**: `node --test` **531 aprobadas, 0 fallos, 1 omitida** (emulador). En Chrome `393×852` (`?mode=demo`, red externa bloqueada) se verificó el formulario de gasto en US$ con tasa de cambio explícita y su vista previa en pesos con **0 errores JS**. Pendiente el visto bueno del propietario antes de subir versión (`35.65`) y publicar.
+
 ## 23/11/2026 — Finanzas 35.64: gastos en otra moneda y anulación apagada
 
 La versión **35.64** (`01a597039d0f5700aa589ca1aa05464bc105ee7f`) publica `70e9e12` (gasto en US$ desde una cuenta en pesos con tasa explícita) y `ae177bf` (anulación desde la PWA, **apagada**: `window.DCARELA_FINANCE_CANCEL_ENABLED` no está definido en ninguna configuración). `finance-core.js` lleva ahora `?v=` en Central y Plaza porque 35.64 usa sus funciones nuevas. Se publicó con el mismo procedimiento de 35.63: avance rápido de `main` (Pages `built` para ese commit) y superposición de 8 recursos sobre la versión de Hosting anterior `493ba1c36b9bca21`, que pasó a `2f82fa79bf227e6a` con 328 archivos conservados. Cotejo **24/24 SHA-256** en `panel.dcarelacompufoto.com`, `erikccarela.web.app` y `erikccarela.firebaseapp.com` (`C:/tmp/dcarela-finanzas-3564-public-audit.json`). Chrome a 390 px en los tres dominios: versión 35.64, interruptor de anulación apagado, sumatoria demo del Facturador y cero errores o peticiones a Firestore (`C:/tmp/dcarela-pwa-3564-*-browser.json`). Pruebas **530 aprobadas, 0 fallos, 1 omitida** (`C:/tmp/dcarela-pwa-3564-suite-20261123.log`).

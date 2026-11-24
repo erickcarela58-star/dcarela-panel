@@ -409,6 +409,15 @@
     return unrepresentedSalePayments(movements);
   }
 
+  function effectiveTimestamp(item) {
+    const raw = isoTime(item?.source_timestamp);
+    if (typeof raw === "string" && /^\d{4}-\d{2}-\d{2}$/.test(raw.trim())) {
+      return Date.parse(`${raw.trim()}T23:59:59-04:00`);
+    }
+    return Date.parse(raw || (item?.fecha ? `${item.fecha}T23:59:59-04:00` : isoTime(item?.created_at))
+      || `${item?.fecha || ""}T23:59:59-04:00`);
+  }
+
   function projectedLedgerDeltaForAccount(account, movements) {
     if (!account?.id) return 0;
     const cutoffText = account.reconciled_at || account.reconciledAt || account.created_at || account.createdAt || "";
@@ -436,8 +445,7 @@
         if (delta === null) throw new Error('Hay una correccion del mismo dia del cuadre sin hora comprobada. Requiere verificar el movimiento original.');
         return sum + delta;
       }
-      const timestamp = new Date(item.source_timestamp || (item.fecha ? `${item.fecha}T23:59:59-04:00` : item.created_at)
-        || `${item.fecha}T23:59:59-04:00`).getTime();
+      const timestamp = effectiveTimestamp(item);
       if (!Number.isFinite(timestamp) || timestamp <= cutoff) return sum;
       const amount = Math.abs(finiteNumber(item.monto_centavos));
       const fee = transferCommissionCents(item, uniqueMovements);
@@ -657,10 +665,13 @@
       || instant > Date.parse(createdAt) || instant < Date.parse(account.reconciled_at || '')) {
       throw new Error('Conciliacion invalida: revisa cuenta, importe, motivo y corte.');
     }
-    const timestamp = row => Date.parse(isoTime(row.source_timestamp) || (row.fecha ? `${row.fecha}T23:59:59-04:00` : isoTime(row.created_at)));
+    const timestamp = row => effectiveTimestamp(row);
     const relevant = movements.filter(row => [row.cuenta_id, row.cuenta_origen_id, row.cuenta_destino_id].includes(account.id));
     if (relevant.some(row => isActiveMovement(row) && !Number.isFinite(timestamp(row)))) throw new Error('Un movimiento no tiene fecha efectiva valida.');
-    if (relevant.some(row => isActiveMovement(row) && !row.source_timestamp && businessDay(row.fecha) === businessDay(cutoff))) {
+    const endOfDayCutoff = /(?:T23:59:59(?:\.\d{1,3})?-04:00|T03:59:59(?:\.\d{1,3})?Z)$/.test(String(cutoff).trim());
+    const lacksClockTime = row => !row.source_timestamp
+      || (/^\d{4}-\d{2}-\d{2}$/.test(String(isoTime(row.source_timestamp)).trim()) && !endOfDayCutoff);
+    if (relevant.some(row => isActiveMovement(row) && lacksClockTime(row) && businessDay(row.fecha) === businessDay(cutoff))) {
       throw new Error('Hay movimientos del dia sin hora efectiva. Verifica su corte antes de conciliar.');
     }
     if (!Number.isFinite(account.reconciled_balance_centavos) && relevant.some(row => timestamp(row) > instant
@@ -673,25 +684,28 @@
     const asExpense = difference < 0 && unrecordedExpense === true;
     const resolvedCategoryId = categoryId || 'efaa1d8d-1ad2-4815-95e1-755b99a8c241';
     const resolvedCategoryName = categoryName || 'Otros gastos';
+    const movement = { id, business_id: account.business_id,
+      tipo: asExpense ? 'gasto' : (difference < 0 ? 'ajuste_negativo' : 'ajuste_positivo'),
+      fecha: businessDay(cutoff), source_timestamp: cutoff, monto_centavos: Math.abs(difference),
+      cuenta_id: account.id,
+      descripcion: asExpense ? 'Gastos no documentados (conciliación)' : 'Conciliacion de saldo',
+      nota: reason,
+      origen: 'conciliacion_propietario', estado: 'registrado', conciliado: true,
+      afecta_resultado: asExpense,
+      ...(asExpense ? {
+        es_ajuste_conciliacion: true,
+        categoria_id: resolvedCategoryId,
+        categoria: resolvedCategoryName,
+      } : {}),
+      saldo_anterior_centavos: before, saldo_resultante_centavos: target,
+      sync_event_id: `ledger-${id}`, created_at: createdAt, updated_at: createdAt };
+    const reconciledAccount = { ...account, reconciled_balance_centavos: target, reconciled_at: cutoff, reconciliation_id: id, updated_at: createdAt };
+    const materialized = movements.filter(row => row?.origen !== 'pos_venta' && row?.source !== 'pos_operation' && row?.source !== 'pos_sync_event');
+    const currentActual = effectiveAccountBalance(reconciledAccount, [...materialized, movement]);
     return { before, difference,
-      patch: { saldo_actual_centavos: target, reconciled_balance_centavos: target,
+      patch: { saldo_actual_centavos: currentActual, reconciled_balance_centavos: target,
         reconciled_at: cutoff, reconciliation_id: id, updated_at: createdAt },
-      movement: { id, business_id: account.business_id,
-        tipo: asExpense ? 'gasto' : (difference < 0 ? 'ajuste_negativo' : 'ajuste_positivo'),
-        fecha: businessDay(cutoff), source_timestamp: cutoff, monto_centavos: Math.abs(difference),
-        cuenta_id: account.id,
-        descripcion: asExpense ? 'Gastos no documentados (conciliación)' : 'Conciliacion de saldo',
-        nota: reason,
-        origen: 'conciliacion_propietario', estado: 'registrado', conciliado: true,
-        afecta_resultado: asExpense,
-        ...(asExpense ? {
-          es_ajuste_conciliacion: true,
-          categoria_id: resolvedCategoryId,
-          categoria: resolvedCategoryName,
-        } : {}),
-        saldo_anterior_centavos: before, saldo_resultante_centavos: target,
-        sync_event_id: `ledger-${id}`, created_at: createdAt, updated_at: createdAt }
-    };
+      movement };
   }
 
   return {
