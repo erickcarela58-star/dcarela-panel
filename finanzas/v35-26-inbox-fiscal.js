@@ -1,5 +1,5 @@
-import { assessCut, effectiveCutTransferCentavos } from './cut-review.js?v=35.65';
-import { loadFacturadorSales } from './data-source.js?v=35.65';
+import { assessCut, effectiveCutTransferCentavos } from './cut-review.js?v=35.66';
+import { loadFacturadorSales } from './data-source.js?v=35.66';
 import {
   reducedMotion as motionReduced,
   stop as motionStop,
@@ -8,7 +8,7 @@ import {
   pop as motionPop,
   glassExpand as motionGlassExpand,
   revealText as motionRevealText
-} from './apple-motion.mjs?v=35.65';
+} from './apple-motion.mjs?v=35.66';
 
 /* ==========================================================================
    v35.26 Unified Inbox, Mail/Cash-Codes, Theme Palettes, Web Push & Fiscal UI
@@ -538,6 +538,14 @@ function normalizeInbox(raw) {
       };
     }) : [];
 
+  const recentCuts = Array.isArray(src.recentCuts) ? src.recentCuts
+    .filter((cut) => cut?.status === 'closed_in_caja'
+      && Number.isSafeInteger(Number(cut.expected_centavos))
+      && Number.isSafeInteger(Number(cut.counted_centavos))
+      && Number.isSafeInteger(Number(cut.difference_centavos))
+      && Number(cut.counted_centavos) - Number(cut.expected_centavos) === Number(cut.difference_centavos))
+    .slice(0, 30) : [];
+
   const consumptions = Array.isArray(src.consumptions) ? src.consumptions.map((c) => {
     const merchant = c.merchant || c.comercio || 'Consumo tarjeta';
     const isDigital = Boolean(c.isDigital ?? c.is_digital ?? /openai|claude|anthropic|google|apple|meta|adobe|canva|netflix|cursor|github|spotify/i.test(merchant));
@@ -694,6 +702,7 @@ function normalizeInbox(raw) {
     cash_reconciled_at: cashReconciledMs > 0 ? new Date(cashReconciledMs).toISOString() : null,
     counts,
     cuts,
+    recentCuts,
     consumptions,
     paymentAlerts,
     subscriptions,
@@ -2251,7 +2260,7 @@ function renderModalRoot() {
     titleHtml = `${ae('🔔', 18)} <span>Centro de avisos financieros</span>`;
     const c = data.counts || {};
     bodyHtml = `
-      <div class="v3526-list-row"><div><b>${ae('🧾', 14)} Cortes TPV y Caja</b><div style="font-size:12px;opacity:.75">Cuadres pendientes de validar</div></div><button type="button" class="primary-btn" data-jump-modal="cuts">${c.cuts || 0} revisar</button></div>
+      <div class="v3526-list-row"><div><b>${ae('🧾', 14)} Cortes TPV y Caja</b><div style="font-size:12px;opacity:.75">${c.cuts || 0} pendientes · ${data.recentCuts?.length || 0} cierres sincronizados</div></div><button type="button" class="primary-btn" data-jump-modal="cuts">Ver cortes</button></div>
       <div class="v3526-list-row"><div><b>${ae('💳', 14)} Consumos y compras USD</b><div style="font-size:12px;opacity:.75">Tasa web del banco vinculado + auto-débito</div></div><button type="button" class="primary-btn" data-jump-modal="consumptions">${c.consumptions || 0} revisar</button></div>
       <div class="v3526-list-row"><div><b>${ae('⏰', 14)} Alertas de pagos</b><div style="font-size:12px;opacity:.75">Vencimientos de hoy y próximos</div></div><button type="button" class="primary-btn" data-jump-modal="alerts">${c.paymentAlerts || 0} ver</button></div>
       <div class="v3526-list-row"><div><b>${ae('✉️', 14)} Correos y Códigos Cash</b><div style="font-size:12px;opacity:.75">Transferencias y retiros detectados</div></div><button type="button" class="secondary-btn" data-jump-route="mail">${c.mailAttention || 0} abrir</button></div>
@@ -2313,6 +2322,16 @@ function renderModalRoot() {
         </div>
       </div>
     `; }).join('')}` : `<div class="notice">No hay cortes pendientes de revisión en esta sucursal.</div>`;
+    const recentCuts = data.recentCuts || [];
+    if (recentCuts.length) bodyHtml += `
+      <h3 style="margin:22px 0 8px">Cierres registrados por Caja</h3>
+      <p class="soft-note" style="margin:0 0 12px">Historial sincronizado. Estos cierres no se vuelven a confirmar ni a sumar desde aquí.</p>
+      ${recentCuts.map((cut) => `<div class="v3526-list-row">
+        <div><b>${esc(String(cut.closed_at || '').slice(0, 10))} · ${esc(cut.branch_name || 'Caja')}</b>
+          <div style="font-size:12px;opacity:.75">${esc(formatCutTime12h(cut.closed_at || ''))} · ${cut.received_at_cloud ? 'Recibido del POS' : 'Sin acuse de nube'}</div></div>
+        <div style="text-align:right"><strong>${fmtMoney(cut.counted_centavos, 'DOP')}</strong>
+          <div class="${cut.difference_centavos ? 'expense-text' : 'income-text'}" style="font-size:12px">Dif. ${fmtMoney(cut.difference_centavos, 'DOP')}</div></div>
+      </div>`).join('')}`;
   } else if (type === 'cut-review') {
     const cut = data.cuts.find((x) => x.id === payload?.id);
     if (!cut) { closeModal(); return; }
@@ -3436,7 +3455,7 @@ async function ensureCategoryLinker() {
   if (window.DcarelaCategoryLinker) return;
   await new Promise((resolve) => {
     const sc = document.createElement('script');
-    sc.src = './v35-26-category-emojis.js?v=35.65';
+    sc.src = './v35-26-category-emojis.js?v=35.66';
     sc.onload = resolve;
     sc.onerror = resolve;
     document.head.appendChild(sc);
